@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.2` |
+| **Versiya** | `preregistration/v1.3` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
@@ -17,6 +17,52 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.2 → v1.3 (2026-09-29)
+
+| | |
+|---|---|
+| **v1.2 sha256** | `9a663f73dd5699f595cf6f5fb69307f88810853174dbbfea63b9be64a195f59f` |
+| **Sabab** | §9.4 va §4 orasida **ichki ziddiyat**; ikki parametr umuman raqamlanmagan |
+| **O'zgardi** | §4, §8.4, §9.4 ning **aniqlashtirilishi** va ikki parametrning raqamlanishi |
+| **O'zgarMADI** | hech bir metrika, statistik test yoki falsifikatsiya mezoni |
+| **Yig'ilgan ma'lumot** | **yo'q** |
+
+**Ziddiyat (implementator aniqladi, men tasdiqladim):**
+
+§9.4 "ramp 5 s → hold, injeksiya hold'ga 3 s kirgach → **umumiy pressure-on
+≤ 12 s**" deydi. §4 esa `W_stab_pilot = 8 s` ni talab qiladi va u pressure
+oynasi ichida bo'lishi kerak.
+
+```
+Agar 12 s cheklovi ramp+hold bo'lsa:  hold ≤ 12 − 5 = 7 s
+Lekin kerak:                          injeksiya(3) + W_stab(8) = 11 s
+7 < 11  →  ZIDDIYAT
+```
+
+**Hal qilindi:** `12 s` cheklovi **faqat sustained hold** ga tegishli, ramp'ga
+emas. Ramp ham pressure beradi, shuning uchun **ikkinchi invariant** qo'shildi:
+
+```
+hold_s + ramp_above_threshold_s ≤ 15 s
+```
+
+15 s — guard'ning `sustain_max_seconds` i. Bu aynan guard o'lchaydigan
+kattalik (2 s oynadagi tezlik ≥ 0.35) ustidan qo'yilgan cheklov, demak
+"to'g'ri ishlayotgan trial guard'ni ishga tushirmaydi" kafolati matematik
+jihatdan yopiladi.
+
+**Raqamlanмаган parametrlar (endi muzlatildi):**
+
+§8.4 "baseline ±ε" va "quiescence chegarasi" deb yozgan, lekin raqam bermagan.
+Ikkalasi ham endi belgilandi (pastga qarang). Ular kalibratsiya bilan
+tasdiqlanishi kerak; agar kalibratsiya ularni erishib bo'lmas ko'rsatsa, bu
+**ma'lumot bilan asoslangan amendment** bo'ladi, taxmin bilan emas.
+
+**Kampaniya vaqti:** §9.4 dagi "≈75 s/trial" fazalar yig'indisidan (52 s)
+23 s katta. Bu farq unit yaratish/yo'q qilish, D-Bus round-trip va ma'lumot
+flush'idan iborat. U **taxmin qilinmaydi, o'lchanadi** — kampaniya bahosi
+o'lchangan qiymatni ishlatishi shart.
 
 ### v1.1 → v1.2 (2026-09-29)
 
@@ -194,7 +240,7 @@ ishlayotgan xizmat recovered emas. Busiz butun hissa "process tirikmi?" ga qulay
 |---|---|---|
 | `θ` | **0.8** | pre-fault throughput'ning ulushi |
 | `W_stab` | **60 s** (to'liq dizayn) | mexanik asos: λ tezlikdagi leak va M shift uchun refail vaqti ≈ M/λ; λ shunday tanlanadi-ki bu 15–25 s bo'ladi, demak 60 s ≥2 refail tsiklini qoplaydi |
-| `W_stab_pilot` | **8 s** | oomd xavfsizlik oynasi (≤12 s) ichida sig'ishi kerak — §6.4 |
+| `W_stab_pilot` | **8 s** | sustained HOLD (≤12 s) ichida sig'ishi kerak: injeksiya hold'ga 3 s kirgach boshlanadi, demak 3 + 8 = 11 ≤ 12 ✓ (v1.3 aniqlashtirishi) |
 
 > **P1 dagi ochiq cheklov:** `W_stab_pilot = 8 s` bilan o'lchanadigan narsa —
 > **"pressure davom etayotganda tasdiqlangan recovery"**, 60 s sustained recovery **emas**.
@@ -432,9 +478,16 @@ o'ziga singdiradi.
 
 **Washout ketma-ketligi (muzlatilgan):**
 1. `revixlab.slice/cgroup.kill` ga `1` yozish — atomik subtree kill;
-2. slice `memory.current` baseline ±ε ga qaytishini kutish;
-3. slice **va** host stall tezliklari quiescence chegarasidan past bo'lishi, `T_q = 5 s` davomida;
+2. slice `memory.current` baseline ±ε ga qaytishini kutish, **ε = 32 MiB**;
+3. slice **va** host stall tezliklari quiescence chegarasidan past bo'lishi, `T_q = 5 s` davomida.
+   **Quiescence chegarasi = 0.05** (2 s oynadagi stall ulushi). Kuzatuv
+   o'qilmasa (None) u **jim deb hisoblanMAYDI** — guard'ning fail-closed
+   qoidasi bilan bir xil;
 4. qattiq pol **`T_w = 15 s`**, cap **`T_w_max = 120 s`** → `washout_timeout`, trial chiqariladi.
+
+> **`T_w = 15 s` va §9.4 dagi "washout ≥20 s" ziddiyat emas:** 15 s — holat
+> mashinasi majburlaydigan **minimum**; 20 s — rejalashtirilgan qiymat, va u
+> minimumni qanoatlantiradi. Reja minimumdan past bo'lsa — xato.
 
 > Agar analiz `avg300` ishlatganda washout ≈300 s bo'lishi kerak edi.
 > `total`-asosli interval o'lchovlari washout'ni **15 s** qiladi — umumiy kampaniya
@@ -501,9 +554,29 @@ nishon bandida ushlaydi.
 Natija: ta'sir qilmagan treatment trial'ni buzmaydi — u kovariataga aylanadi; va kategorik
 dizayn bir xil `n` da kuchliroq regressiyaga aylanadi.
 
-**Trial jadvali:** pre-flight → `R_ref` baseline 10 s → ramp 5 s → hold, injeksiya hold'ga
-3 s kirgach → **umumiy pressure-on ≤ 12 s** → washout ≥20 s.
-≈75 s/trial ⇒ **≈2.5 soat**.
+**Trial jadvali:** pre-flight → `R_ref` baseline 10 s → ramp 5 s → hold, injeksiya
+hold'ga 3 s kirgach → pressure off → washout ≥20 s.
+
+**Ikki xavfsizlik invarianti (v1.3):**
+
+| # | invariant | qiymat | nega |
+|---|---|---|---|
+| 1 | `hold_s ≤ hold_cap_s` | **12 s** | oomd 20 s sustained talab qiladi; bu asosiy vaqt zaxirasi |
+| 2 | `hold_s + ramp_above_threshold_s ≤ guard_sustain_s` | **15 s** | ramp ham pressure beradi; bu guard'ning `sustain_max_seconds` i, demak to'g'ri trial guard'ni ISHGA TUSHIRMASLIGI matematik kafolatlanadi |
+
+> **12 s cheklovi faqat HOLD ga tegishli, ramp+hold ga emas.** Aks holda
+> `hold ≤ 7 s` bo'lardi, lekin injeksiya(3 s) + `W_stab_pilot`(8 s) = 11 s
+> talab qilinadi — ya'ni ziddiyat. Ikkinchi invariant uzun ramp orqali
+> qo'shimcha pressure "olib o'tilishini" to'xtatadi.
+
+`ramp_above_threshold_s` (ramp'ning quiescence chegarasidan yuqori qismi)
+**pressure dosing kalibratsiyasidan olinadi**, taxmin qilinmaydi.
+
+**Kampaniya vaqti:** fazalar yig'indisi = pre-flight + 10 + 5 + 12 + 20 ≈ 52 s.
+Haqiqiy trial vaqti bundan katta (unit yaratish/yo'q qilish, D-Bus
+round-trip, ma'lumot flush). Bu qo'shimcha **o'lchanadi, taxmin qilinmaydi**,
+va kampaniya bahosiga o'lchangan qiymat kiritiladi. Boshlang'ich baho
+≈75 s/trial ⇒ ≈2.5 soat, 120 trial uchun.
 
 ---
 
