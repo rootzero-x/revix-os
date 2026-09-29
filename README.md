@@ -112,7 +112,7 @@ Majburiy yumshatishlar, harness'da qattiq kodlangan:
 1. Har pressure epizodi **≤12 s** (oomd ning 20 s sustained shartidan kam), keyin ≥20 s quiescence
 2. **Mustaqil guard process** — driver'dan alohida, birinchi ishga tushadi, oxirida to'xtaydi
 3. Slice `MemoryMax` shift + `MemorySwapMax=0` + `TasksMax` + `CPUQuota`
-4. Pre-flight: `revix-*` unit yoki `revix.slice` allaqachon mavjud bo'lsa **ishga tushmaydi**
+4. Pre-flight: `revix-*` unit yoki `revixlab.slice`/`revixmon.slice` allaqachon mavjud bo'lsa **ishga tushmaydi**
 
 **Guard'ni sinamasdan hech qanday pressure eksperimenti ishga tushirilmaydi.**
 Batafsil: [`docs/architecture/00-pilot-topologiya.md`](docs/architecture/00-pilot-topologiya.md)

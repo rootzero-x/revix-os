@@ -75,7 +75,7 @@ cpu: some avg10=0.00 avg60=0.00 avg300=0.00 total=31596002
 |---|---|---|
 | `avgN` (10/60/300 s) | deployed gate arzon o'qiy oladi | **eksponensial silliqlangan, 2 s kadensda yangilanadi** → <2 s oldin boshlangan fault'ni ko'rmasligi mumkin |
 | `total=` (µs akkumulyator) | **aniq interval stall fraction'i** → atributsiya uchun qat'iy yaxshiroq | 2 s kadensda partiyalarda kreditlanadi → 100 ms delta oniy tezlik **emas** |
-| ierarxiklik | ota cgroup avlodlarning stall'ini o'z ichiga oladi | **xavf:** `revix.slice` stall'i `user@1000.service` ga tarqaladi (§4) |
+| ierarxiklik | ota cgroup avlodlarning stall'ini o'z ichiga oladi | **xavf:** `revixlab.slice` stall'i `user@1000.service` ga tarqaladi (§4) |
 | per-cgroup atributsiya | per-service gate qila oladigan scope | `io` controller delegated bo'lmasa ham `io.pressure` **o'qiladi** |
 | poll trigger | event-driven reaksiya | **unprivileged oyna 2 s karrasi bo'lishi shart** (Linux 6.5+) → sub-2 s event-driven yo'q |
 
@@ -143,7 +143,7 @@ ManagedOOMMemoryPressure=kill
 | Claude desktop scope | 594 MB (`MemoryCurrent=594866176`) |
 
 ### Natija REVIX uchun
-PSI ierarxik bo'lgani uchun `revix.slice` ichidagi stall `user@1000.service` ga tarqaladi.
+PSI ierarxik bo'lgani uchun `revixlab.slice` ichidagi stall `user@1000.service` ga tarqaladi.
 20 s davomida 50% dan oshsa, oomd avlod cgroup'ni o'ldiradi — va `app.slice` ostidagi eng
 yirik iste'molchi Claude desktop app.
 

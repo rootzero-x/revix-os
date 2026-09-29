@@ -5,7 +5,7 @@
 ```
 user@1000.service                    [oomd: ManagedOOMMemoryPressure=kill, 50%, 20s]
 │
-├── revix.slice                       MemoryMax=2G        <- kernel darajasidagi shift
+├── revixlab.slice                    MemoryMax=2G        <- kernel darajasidagi shift
 │   │                                 MemoryHigh=<dial>   <- PI controller nishoni
 │   │                                 CPUQuota=400%       <- 1200% dan; desktop uchun >=8 yadro
 │   │                                 TasksMax=256
@@ -23,10 +23,42 @@ user@1000.service                    [oomd: ManagedOOMMemoryPressure=kill, 50%, 
 │                                     MemorySwapMax=0
 │                                     RuntimeMaxSec=      <- trial'dan uzoq yashamaydi
 │
-└── revix-harness.slice               driver, prober, psi_sampler, guard
-                                      ^^^^^^^ SIBLING — kovariata sifatida ishlatiladigan
-                                      hech bir scope ichida EMAS
+└── revixmon.slice                    driver, prober, psi_sampler, guard
+                                      ^^^^^^^^ HAQIQIY SIBLING — kovariata sifatida
+                                      ishlatiladigan hech bir scope ichida EMAS
 ```
+
+### ⚠️ Slice nomlashdagi tuzoq — tasdiqlangan va tuzatilgan
+
+systemd slice nomlarida **`-` ierarxiya ajratuvchisi**: `a-b.slice` avtomatik
+`a.slice/a-b.slice` bo'lib joylashadi.
+
+Empirik tasdiq (bu mashinada):
+```
+$ systemd-run --user --slice=revix-envcheck.slice ... sleep 60
+$ find .../user@1000.service -maxdepth 2 -name "revix*" -type d
+.../user@1000.service/revix.slice
+.../user@1000.service/revix.slice/revix-envcheck.slice     <-- NESTED!
+```
+
+→ Rejaning boshlang'ich `revix-harness.slice` nomi **sibling bo'lmaydi**, u
+`revix.slice` ning **childi** bo'lib qoladi. Bu harness'ning PSI'sini
+eksperiment slice'ining PSI'siga qo'shib yuborar edi — ya'ni aynan
+oldini olmoqchi bo'lgan feedback artefaktini yaratardi.
+
+**Tuzatish:** dash'siz nomlar, ikkisi ham `user@1000.service` ning
+to'g'ridan-to'g'ri childi:
+
+| eski (xato) | yangi (to'g'ri) | roli |
+|---|---|---|
+| `revix.slice` | **`revixlab.slice`** | eksperiment (SUT, bystander, generator) |
+| `revix-harness.slice` | **`revixmon.slice`** | harness (driver, prober, sampler, guard) |
+
+Service nomlaridagi dash muammo emas — `revix-sut.service` `--slice=` qaysi
+slice'ni ko'rsatsa o'sha yerga joylashadi (faqat *slice* nomlari ierarxiya
+hosil qiladi). Empirik tasdiq: `revix-envcheck-a.service`
+`--slice=revix-envcheck.slice` ichiga tushdi, hech qanday hosila ierarxiya
+yaratmadi.
 
 ### Nega harness sibling slice'da
 Restart CPU/xotira/IO iste'mol qiladi → PSI ni **oshiradi**. Agar harness o'lchanayotgan
@@ -51,7 +83,7 @@ yuki bo'yicha farq qiladi.
 | hog `sched_setaffinity` | CPU fault'lari SUT bilan bir xil yadro to'plamida qoladi (`cpuset` delegated emas) |
 | **`cgroup.kill`** | bitta yozish → atomik subtree teardown (unprivileged ✅) |
 | `RuntimeMaxSec` (generator) | generator trial'dan uzoq yashamasligi |
-| pre-flight tekshiruv | `revix-*` unit yoki `revix.slice` allaqachon bor bo'lsa **ishga tushmaydi** |
+| pre-flight tekshiruv | `revix-*` unit yoki `revixlab.slice`/`revixmon.slice` allaqachon bor bo'lsa **ishga tushmaydi** |
 | `--collect` transient unit'lar | qoldiq failed unit'lar |
 
 ---
@@ -69,7 +101,7 @@ Bu **tekshirilgan**, gipoteza emas:
 oomd.conf:  DefaultMemoryPressureDurationSec=20s
 ```
 
-PSI ierarxik → `revix.slice` stall'i `user@1000.service` ga tarqaladi. 20 s davomida
+PSI ierarxik → `revixlab.slice` stall'i `user@1000.service` ga tarqaladi. 20 s davomida
 chegaradan oshsa, oomd **avlod cgroup'ni** o'ldiradi (o'z evristikasi bo'yicha: eng
 yuqori pressure/reclaim). Nishon bo'lishi mumkin: brauzer, editor, IDE, GNOME sessiyasi,
 **yoki ishlab chiqish vositangiz.**
@@ -79,9 +111,9 @@ yuqori pressure/reclaim). Nishon bo'lishi mumkin: brauzer, editor, IDE, GNOME se
 | | Yechim | Holat |
 |---|---|---|
 | **(a)** | **Har pressure epizodi ≤12 s** (<20 s) + ≥20 s quiescence → oomd ning sustained sharti **bajarilmaydi**, chunki o'rtacha 20 s uzluksiz oshish yig'ilishidan oldin pasayadi | ✅ **birlamchi, privilegiyasiz** |
-| **(b)** | **Mustaqil guard process**: `user@1000.service/memory.pressure` ni 10 Hz (`total`) va 1 Hz (`avg10`) kuzatadi; `full avg10 > 15%` yoki 2 s stall tezligi chegaradan oshsa → `revix.slice/cgroup.kill` ga `1` yozadi, trial `aborted_guard`. **Driver'dan ALOHIDA process** — qotib qolgan driver guard'ni o'chira olmasligi kerak. Birinchi start, oxirgi stop, o'z `OOMScoreAdjust` i bilan | ✅ **majburiy** |
+| **(b)** | **Mustaqil guard process**: `user@1000.service/memory.pressure` ni 10 Hz (`total`) va 1 Hz (`avg10`) kuzatadi; `full avg10 > 15%` yoki 2 s stall tezligi chegaradan oshsa → `revixlab.slice/cgroup.kill` ga `1` yozadi, trial `aborted_guard`. **Driver'dan ALOHIDA process** — qotib qolgan driver guard'ni o'chira olmasligi kerak. Birinchi start, oxirgi stop, o'z `OOMScoreAdjust` i bilan | ✅ **majburiy** |
 | **(c)** | Foydalanuvchining mavjud app scope'lariga `ManagedOOMPreference=avoid/omit` qo'yish | ❌ **qilinmaydi** — jonli muhitni o'zgartiradi va mavjud scope'larda ishonchli qo'yilmaydi |
-| **(d)** | Harness'ni **system slice**ga ko'chirish (`/etc/systemd/system/revix.slice`, `ManagedOOMMemoryPressure=auto`, `-.slice` ostida) → oomd kill scope'idan **butunlay chiqadi** | 🟡 **sudo mumkin bo'lganda uzoq muddatli to'g'ri uy** |
+| **(d)** | Harness'ni **system slice**ga ko'chirish (`/etc/systemd/system/revixlab.slice`, `ManagedOOMMemoryPressure=auto`, `-.slice` ostida) → oomd kill scope'idan **butunlay chiqadi** | 🟡 **sudo mumkin bo'lganda uzoq muddatli to'g'ri uy** |
 | **(e)** | `systemd-oomd` ni to'xtatish | ❌ **qilinmaydi** — haqiqiy mashina himoyasini o'chiradi, (d) dan yomonroq |
 
 > **(a) ILMIY CHEKLOV yaratadi:** sustained pressure eksperimentlari VM/root-only bo'ladi.

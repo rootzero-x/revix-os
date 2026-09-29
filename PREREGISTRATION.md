@@ -2,13 +2,59 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1` |
+| **Versiya** | `preregistration/v1.1` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 |
+| **Muzlatilgan sana** | 2026-09-29 (v1), 2026-09-29 (v1.1 amendment) |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
+
+---
+
+## Amendment log
+
+Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
+qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
+Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1 → v1.1 (2026-09-29)
+
+| | |
+|---|---|
+| **v1 sha256** | `0b1fdd18783bd27b22d0d64291eea657a83857f22af14a772d037dfd33075130` |
+| **v1 git tag** | `v0.1.0-preregistration` |
+| **Sabab** | systemd slice nomlash tuzog'i empirik aniqlandi |
+| **O'zgardi** | faqat cgroup/slice **nomlari** |
+| **O'zgarMADI** | hech bir ta'rif, chegara, metrika, statistik test yoki falsifikatsiya mezoni |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan edi |
+
+**Nima aniqlandi:** systemd slice nomlarida `-` ierarxiya ajratuvchisi, demak
+`a-b.slice` avtomatik `a.slice/a-b.slice` bo'lib joylashadi. Bu mashinada
+empirik tasdiqlangan (`systemd-run --user --slice=revix-envcheck.slice` →
+`.../revix.slice/revix-envcheck.slice`).
+
+Natijada boshlang'ich `revix-harness.slice` nomi **sibling bo'lmaydi**, u
+`revix.slice` ning childi bo'lib qolar edi — va harness'ning PSI'si
+eksperiment slice'ining PSI'siga qo'shilib, §8.2 oldini olmoqchi bo'lgan
+feedback artefaktini yaratardi. Ya'ni bu kosmetik emas, **validlik xatosi**.
+
+| eski | yangi | roli |
+|---|---|---|
+| `revix.slice` | **`revixlab.slice`** | eksperiment (SUT, bystander, generator) |
+| `revix-harness.slice` | **`revixmon.slice`** | harness (driver, prober, sampler, guard) |
+
+Ikkisi ham `user@1000.service` ning to'g'ridan-to'g'ri childi, ya'ni haqiqiy
+sibling. Service nomlaridagi dash muammo emas (faqat *slice* nomlari
+ierarxiya hosil qiladi).
+
+**Bu amendment qonuniy, chunki:** hali hech qanday ma'lumot yig'ilmagan, hech
+qanday natija ko'rilmagan, va o'zgarish hech bir endpoint, chegara yoki testga
+tegmaydi. Agar ma'lumot yig'ilgandan keyin o'zgarish kerak bo'lsa — bu yerga
+yoziladi va **eski ma'lumot eski ta'riflar ostida qayta hisoblanadi**, yangi
+ta'riflar ostida emas.
+
+---
 
 > **Nega bu fayl birinchi yoziladi?** REVIX ning ilmiy hissasi arxitektura emas, **o'lchov**.
 > Agar hissa o'lchov bo'lsa, ta'riflar mahsulotning o'zi. Ta'riflarni natijani ko'rgandan keyin
@@ -285,7 +331,7 @@ Silliqlash yo'q, oyna mos kelmasligi yo'q.
 
 **Muzlatilgan qarorlar:**
 
-- Namuna olish: **4 scope** (host, `revix.slice`, SUT, bystander) × 3 resurs × {some, full},
+- Namuna olish: **4 scope** (host, `revixlab.slice`, SUT, bystander) × 3 resurs × {some, full},
   **10 Hz**, **har scope uchun alohida o'qish timestamp'i** (o'qishlar bir vaqtda emas —
   ularni bir vaqtda deb ko'rsatish xato bo'ladi).
 - Pressure kovariatalari **hodisaga bog'langan interval'lar**, wall-clock'ga emas:
@@ -293,7 +339,7 @@ Silliqlash yo'q, oyna mos kelmasligi yo'q.
   `P_act[Δ]` = `[t_action_begin, t_action_begin + Δ)`,
   **Δ ∈ {0.5, 1, 2, 5, 10} s**.
 - **Asosiy: `Δ = 2 s` pre-fault.** Qolgan Δ lar — sensitivity.
-- **Asosiy scope: `revix.slice`** (per-service gate haqiqatan atributsiya qila oladigan scope).
+- **Asosiy scope: `revixlab.slice`** (per-service gate haqiqatan atributsiya qila oladigan scope).
   Host va SUT scope'lari — exploratory. Uchala scope × 3 resurs berilsa **Holm korreksiyasi**.
   **Ahamiyatlilik uchun scope bo'ylab "shopping" qilinmaydi** — reviewer taqqoslashlarni sanaydi.
 - `avgN` ham yoziladi: (a) arzon deployed gate aynan shuni o'qiydi; (b) "laggy `avg10` gate
@@ -331,7 +377,7 @@ qiladi.** Manipulyatsiyasiz PSI-vs-natija faqat korrelyatsion bo'ladi.
 Restart CPU/xotira/IO iste'mol qiladi → PSI ni **oshiradi**. Gate PSI o'qisa va action PSI ni
 oshirsa — feedback loop va artefakt.
 
-- Harness (**driver, prober, psi_sampler, guard**) **sibling slice**da: `revix-harness.slice`.
+- Harness (**driver, prober, psi_sampler, guard**) **sibling slice**da: `revixmon.slice` (dash'siz nom — Amendment log'ni ko'ring).
   Kovariata sifatida ishlatiladigan hech bir scope ichida emas.
 - Harness'ning o'z `CPUUsageNSec` / `MemoryPeak` log'lanadi va hisobotda beriladi.
 - **Probe narxi budjeti:** prober CPU'si trial bo'yicha o'lchanadi, yadro foizida beriladi.
@@ -357,7 +403,7 @@ bitta** trial, blok ichida **seeded RNG** bilan aralashtirilgan (seed `run_meta`
 o'ziga singdiradi.
 
 **Washout ketma-ketligi (muzlatilgan):**
-1. `revix.slice/cgroup.kill` ga `1` yozish — atomik subtree kill;
+1. `revixlab.slice/cgroup.kill` ga `1` yozish — atomik subtree kill;
 2. slice `memory.current` baseline ±ε ga qaytishini kutish;
 3. slice **va** host stall tezliklari quiescence chegarasidan past bo'lishi, `T_q = 5 s` davomida;
 4. qattiq pol **`T_w = 15 s`**, cap **`T_w_max = 120 s`** → `washout_timeout`, trial chiqariladi.
