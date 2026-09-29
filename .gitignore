@@ -21,3 +21,6 @@ revix/*.bin
 
 # Muhit
 .env
+
+# Agent worktree'lari va sessiya holati -- repo'ga kirmaydi
+.claude/
