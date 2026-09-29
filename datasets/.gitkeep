@@ -1,0 +1,4 @@
+Bu katalog eksperiment ma'lumotlarini saqlaydi.
+
+QOIDA: append-only. Raw ma'lumot hech qachon ustiga yozilmaydi va tahrirlanmaydi.
+Derived record'lar alohida fayllarda va reducer tomonidan raw'dan qayta yaratiladi.

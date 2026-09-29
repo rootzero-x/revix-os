@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# C build artefaktlari
+*.o
+*.so
+*.a
+revix/sut
+revix/*.bin
+
+# Eksperiment ish fayllari (raw datasets QO'LDA commit qilinadi)
+*.zst
+*.tmp
+*.pid
+/run/
+/tmp/
+
+# Muhit
+.env
