@@ -31,16 +31,43 @@ qoplanган.** Buni tan olmaslik — maqolani reviewer qo'lida yo'q qilish.
 
 ## 2. Haqiqatan qoplanmagan
 
-### G1 — PSI recovery qaroriga kirish signali sifatida
-Hech bir tizim — systemd, Pacemaker, Kubernetes, monit, oomd — **pressure'ni restart
-qilish/qilmaslik qarorining kiritmasi** sifatida ishlatmaydi.
+### G1 — PSI **restart** qaroriga kirish signali sifatida
 
-- systemd pressure'ni unit'ga **eksport qiladi** (`MemoryPressureWatch=`), qaror qilmaydi
-- systemd-oomd pressure'ni **o'qiydi**, lekin yagona action'i `SIGKILL`
-- Kubernetes PSI'ni **metrika** sifatida eksport qiladi
-- Adabiyotda PSI-asosli recovery qarori haqida peer-reviewed ish **topilmadi** (preliminary)
+> ⚠️ **Bu bo'lim 2026-09-29 da RAD ETILDI va qayta yozildi.** Oldingi shakli
+> ("hech bir tizim pressure'ni restart qarorining kiritmasi sifatida
+> ishlatmaydi") **yolg'on edi**. Dalil va tajriba:
+> [`docs/architecture/06-condition-pressure-tajribasi.md`](../architecture/06-condition-pressure-tajribasi.md)
 
-**Bu REVIX ning H1/H2 turgan joyi.**
+**Nima QOPLANGAN (da'vodan olib tashlandi):**
+
+`ConditionMemoryPressure=` / `ConditionCPUPressure=` / `ConditionIOPressure=` —
+systemd **v250 (2021)** dan beri. Pressure unit start qilinishidan **oldin**
+tekshiriladi, slice scope bilan, `10%/1min` kabi oyna tanlash bilan, `full`
+keyin `some` tartibida. Ya'ni **PSI-gated START admission control allaqachon
+shipped**, va u REVIX taklif qilgan gate'ning deyarli aynan shakli.
+
+`TMO` (ASPLOS '22) PSI dan **proaktiv memory offloading** ni boshqaradi, demak
+"PSI faqat OOM/eviction trigger" degani ham yolg'on.
+
+**Nima QOPLANMAGAN (tajriba bilan tasdiqlangan):**
+
+Avtomatik `Restart=` yo'li shartni **qayta baholamaydi**. Shu mashinada
+o'lchandi: shart bajarilmay qolgandan keyin ham xizmat yana 3 marta restart
+bo'ldi (`NRestarts` 2→5, `ConditionResult=yes` qolgan).
+
+```
+ConditionMemoryPressure=  =  PSI-gated START admission control    ✅ bor
+                          ≠  PSI-gated RESTART admission control  ❌ yo'q
+```
+
+**H2 shu yerda turadi** — va endi bu **taqqoslanadigan** da'vo, chunki yaqin
+qarindoshi shipped. Bu kuchsizlik emas, kuch: `ConditionMemoryPressure=` ni
+**Baseline D** sifatida o'lchash mumkin (P2 da; P1 ga qo'shilmaydi — sabab
+`06-condition-pressure-tajribasi.md` §5 da).
+
+Qolgan tizimlar: systemd-oomd pressure'ni o'qiydi, lekin yagona action'i
+`SIGKILL`; Kubernetes PSI'ni metrika sifatida eksport qiladi; Pacemaker/monit
+pressure'ni umuman ko'rmaydi.
 
 ### G2 — Signal fusion bitta node'da action tanlash uchun
 Hech bir single-node Linux service manager PSI + cgroup metrikalari + restart tarixi +
@@ -57,8 +84,19 @@ Linux service manager'lar uchun:
 - **restart noto'g'ri action bo'lganini o'lchaydigan metrika yo'q**
 - reproducible recovery benchmark yo'q
 
-ROC (Patterson va boshq., 2002) aynan recovery benchmark'larni talab qilgan.
-**24 yil o'tib, bu qatlamda hali yo'q.**
+> ⚠️ **2026-09-29 da tuzatildi.** Oldingi shakli ("ROC recovery benchmark'larni
+> talab qilgan, 24 yil o'tib hali yo'q") **noaniq edi**. ROC *availability va
+> maintainability* benchmark'larini talab qiladi va Brown & Patterson'ga havola
+> qiladi — ular buni **2000 yilda Linux'da bajargan** (*Towards Availability
+> Benchmarks: A Case Study of Software RAID Systems*, USENIX ATC 2000): fault
+> injection, uzluksiz yuk, va **binar up/down o'rniga vaqt bo'yicha QoS
+> metrikalari**. Ya'ni REVIX ning "throughput bandi orqali verified recovery,
+> liveness emas" g'oyasi shaklan 2000 yilda mavjud edi.
+
+Qolgan bo'shliq **torroq va aniqroq**: **OS-darajasidagi service manager'lar**
+uchun, **bitta Linux node'da**, recovery **to'g'riligini** (latency emas)
+o'lchaydigan reproducible benchmark yo'q. Brown & Patterson RAID qatlamida va
+availability o'lchovida ishlagan.
 
 **Bu eng himoya qilinadigan hissa** — chunki u tizim emas, o'lchov, va o'lchov
 "integration engineering" tanqidiga tushmaydi.

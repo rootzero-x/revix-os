@@ -57,8 +57,19 @@ Ikki xususiyat uni yangi qiladi:
 2. **Aktorga agnostik** — systemd, REVIX yoki boshqa har qanday recovery aktori uchun
    bir xil hisoblanadi. Demak taqqoslash mumkin.
 
-Mavjud vositalar recovery *muvaffaqiyatini* o'lchaydi (k8s probe → Ready). **Hech biri
-"aktor muvaffaqiyat deb e'lon qildi, lekin aslida emas edi" ni metrika sifatida bermaydi.**
+Mavjud vositalar recovery *muvaffaqiyatini* o'lchaydi (k8s probe → Ready).
+
+> ⚠️ **2026-09-29 da yumshatildi.** Oldingi shakli ("hech biri buni metrika
+> sifatida bermaydi") **juda kuchli edi**. Dai va boshq. (arXiv 2607.20005)
+> **false remediation rate (FRR)** ni ta'riflaydi, R2Act (arXiv 2607.04623)
+> "recovery-validity metrics" beradi. Farq shundaki, FRR **label asosida**
+> ishlaydi — natijalar izolyatsiyalangan replikada qayta ishga tushirilib
+> belgilanadi.
+>
+> **FR-A ning qolgan ustunligi tor va aniq:** u *oracle-free* (label, hakam
+> yoki qayta ishga tushirish kerak emas — ikkala operand ham log'langan fakt)
+> va *aktorga agnostik* (systemd, REVIX yoki boshqa aktor uchun bir xil
+> hisoblanadi, demak taqqoslanadi). "Birinchi marta" DEYILMAYDI.
 
 ### C3 — Recovery benchmark, ROC an'anasida
 
@@ -105,7 +116,8 @@ kelmaydi, (2) va (3) hali ham to'g'ri.
 | `RestartSteps=` mavjud, backoff novelty emas | **FAKT** | man sahifasi, systemd 261, o'zim ko'rdim |
 | Narya adaptiv action tanlashni qilgan | **FAKT** | USENIX sahifasi, o'zim ochdim |
 | systemd'da post-restart health verification yo'q | **FAKT** | man sahifasi tekshirildi |
-| PSI recovery qarorida ishlatilmagan | **PRELIMINARY** | tizimli qidiruv hali yo'q |
+| PSI **start** qarorida ishlatilgan (`ConditionMemoryPressure=`, v250) | **FAKT** | man sahifasi, shu mashinada tekshirildi |
+| PSI **restart** qarorida ishlatilmagan | **FAKT** | tajriba: `Restart=` yo'li shartni qayta baholamaydi ([06](../architecture/06-condition-pressure-tajribasi.md)) |
 | H1 to'g'ri | **GIPOTEZA** | sinalmagan — pilot buni hal qiladi |
 | H2 to'g'ri | **GIPOTEZA, zaifroq** | strukturaviy sabablar `03` §4 da |
 | FR-A yangi metrika | **DA'VO** | mavjud vositalarda analogi topilmadi (preliminary) |
