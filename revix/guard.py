@@ -51,7 +51,9 @@ from .schema import Emitter, JsonlWriter, mono_us, new_run_id
 # Ko'ring: docs/architecture/02-guard-kalibratsiyasi.md
 #
 # ASOSIY TOPILMA: desktop bo'sh turganda user@UID.service PSI'si revixlab.slice
-# PSI'siga DEYARLI TENG (o'lchangan: 11.05 vs 11.41). Sabab -- PSI `full` faqat
+# PSI'siga DEYARLI TENG. O'lchangan (2 s oynadagi `full` stall tezligi,
+# docs/architecture/02-guard-kalibratsiyasi.md §1): user 0.968 / lab 0.970,
+# cho'qqi 0.980 / 0.984. Sabab -- PSI `full` faqat
 # non-idle task'larni hisoblaydi; Claude/Chrome idle bo'lganda yagona non-idle
 # task generator bo'ladi.
 #
@@ -216,7 +218,7 @@ class Guard:
         """Chegaradan yuqori pressure juda uzoq davom etsa trip qiladi.
 
         Bu oomd ning o'z kriteriyasini aks ettiradi (>=50%, 20 s) lekin qat'iyroq
-        (>=35%, 13 s), demak oomd hech qachon o'z chegarasiga yetmaydi.
+        (>=35%, 15 s), demak oomd hech qachon o'z chegarasiga yetmaydi.
 
         `rate` (total= dan, 2 s oyna) ishlatiladi, avgN emas: avgN pressure
         to'xtagandan keyin sekin pasayadi va soxta davomiylik yig'ardi.

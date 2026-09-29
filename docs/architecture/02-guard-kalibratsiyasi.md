@@ -175,7 +175,7 @@ Tozalash qoldiq qoldirmadi: 0 unit, 0 cgroup, `~/.config/systemd/user/` da
 | 3 | Guard'ning o'zini oomd'dan himoya qilish mumkin emas (`oom_score_adj` pasaytirish privilegiya talab qiladi). Guard kichik xotira izi bilan ishlaydi, lekin bu **kafolat emas** | to'liq yechim: system slice (sudo) |
 | 4 | Sustained pressure >15 s va `W_stab`=60 s hali ham **imkonsiz** privilegiyasiz | VM yoki system slice kerak |
 | 5 | `io.pressure` o'qiladi, lekin IO **injection** qilinmaydi (`io` delegated emas) | guest'ga tegishli |
-| 6 | Host `/proc/pressure` javobi zaif (15 GiB host'da 1 GiB slice) | VM kerak — `PREREGISTRATION.md` §9.6 da allaqachon yozilgan |
+| 6 | Host `/proc/pressure` javobi zaif (15 GiB host'da 1 GiB slice) | VM kerak — `PREREGISTRATION.md` §0 (qamrovdan tashqari) da allaqachon yozilgan |
 
 ## 8. Pre-registration'ga ta'siri
 

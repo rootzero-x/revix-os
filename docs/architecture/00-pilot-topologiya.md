@@ -106,12 +106,24 @@ chegaradan oshsa, oomd **avlod cgroup'ni** o'ldiradi (o'z evristikasi bo'yicha: 
 yuqori pressure/reclaim). Nishon bo'lishi mumkin: brauzer, editor, IDE, GNOME sessiyasi,
 **yoki ishlab chiqish vositangiz.**
 
+> **⚠️ Guard chegaralari bu hujjatda EMAS, kalibratsiyada belgilangan.**
+> Boshlang'ich `full avg10 > 15%` chegarasi o'lchov bilan RAD ETILDI: bo'sh
+> desktop'da `user@` PSI ≈ `lab` PSI, demak 15% chegarasi har bir P2 trial'ini
+> o'ldirardi va eksperimentni imkonsiz qilardi. Amaldagi chegaralar va ularning
+> asosi: [`02-guard-kalibratsiyasi.md`](02-guard-kalibratsiyasi.md) §1, va kod
+> `revix/guard.py` `DEFAULTS`.
+>
+> **`OOMScoreAdjust` haqidagi oldingi da'vo olib tashlandi:** guard o'zini
+> oomd'dan himoya qilish uchun `oom_score_adj` ni PASAYTIRISHI kerak, bu esa
+> privilegiya talab qiladi. Privilegiyasiz faqat OSHIRISH mumkin. Bu qoldiq
+> risk sifatida `SECURITY.md` da ochiq yozilgan.
+
 **Yumshatishlar, ustuvorlik tartibida:**
 
 | | Yechim | Holat |
 |---|---|---|
 | **(a)** | **Har pressure epizodi ≤12 s** (<20 s) + ≥20 s quiescence → oomd ning sustained sharti **bajarilmaydi**, chunki o'rtacha 20 s uzluksiz oshish yig'ilishidan oldin pasayadi | ✅ **birlamchi, privilegiyasiz** |
-| **(b)** | **Mustaqil guard process**: `user@1000.service/memory.pressure` ni 10 Hz (`total`) va 1 Hz (`avg10`) kuzatadi; `full avg10 > 15%` yoki 2 s stall tezligi chegaradan oshsa → `revixlab.slice/cgroup.kill` ga `1` yozadi, trial `aborted_guard`. **Driver'dan ALOHIDA process** — qotib qolgan driver guard'ni o'chira olmasligi kerak. Birinchi start, oxirgi stop, o'z `OOMScoreAdjust` i bilan | ✅ **majburiy** |
+| **(b)** | **Mustaqil guard process**: `user@1000.service/memory.pressure` ni 10 Hz (`total`) va 1 Hz (`avgN`) kuzatadi. **Asosiy himoya — DAVOMIYLIK**: 2 s tezlik ≥ 0.35 holati 15 s davom etsa → `revixlab.slice/cgroup.kill`, trial `aborted_guard`. Oniy chegaralar (`full avg10` 85%, `some avg10` 90%, tezlik 0.98) faqat runaway tutuvchi. **Driver'dan ALOHIDA process** — qotib qolgan driver guard'ni o'chira olmasligi kerak. Birinchi start, oxirgi stop | ✅ **majburiy** |
 | **(c)** | Foydalanuvchining mavjud app scope'lariga `ManagedOOMPreference=avoid/omit` qo'yish | ❌ **qilinmaydi** — jonli muhitni o'zgartiradi va mavjud scope'larda ishonchli qo'yilmaydi |
 | **(d)** | Harness'ni **system slice**ga ko'chirish (`/etc/systemd/system/revixlab.slice`, `ManagedOOMMemoryPressure=auto`, `-.slice` ostida) → oomd kill scope'idan **butunlay chiqadi** | 🟡 **sudo mumkin bo'lganda uzoq muddatli to'g'ri uy** |
 | **(e)** | `systemd-oomd` ni to'xtatish | ❌ **qilinmaydi** — haqiqiy mashina himoyasini o'chiradi, (d) dan yomonroq |

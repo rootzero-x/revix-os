@@ -30,7 +30,11 @@ def build_fields(scopes: list[str]) -> list[str]:
         for res in cg.PSI_RESOURCES:
             for kind in ("some", "full"):
                 f.append(f"{s}__{res}_{kind}_total")
-                f.append(f"{s}__{res}_{kind}_avg10")
+                # PREREGISTRATION.md §7: avgN HAM yoziladi (ikkilamchi).
+                # Uchalasi ham kerak -- "laggy avgN gate vs aniq total gate"
+                # taqqoslashi uchun avg60/avg300 ham zarur.
+                for w in ("avg10", "avg60", "avg300"):
+                    f.append(f"{s}__{res}_{kind}_{w}")
         # cgroup scope'lari uchun qo'shimcha o'lchovlar
         f.append(f"{s}__memory_current")
         f.append(f"{s}__memory_swap_current")
@@ -85,7 +89,8 @@ class Sampler:
                     if d is None:
                         continue
                     row[f"{name}__{res}_{kind}_total"] = d["total"]
-                    row[f"{name}__{res}_{kind}_avg10"] = d["avg10"]
+                    for w in ("avg10", "avg60", "avg300"):
+                        row[f"{name}__{res}_{kind}_{w}"] = d[w]
             row[f"{name}__read_mono_us"] = read_t
             if not path.startswith("/proc"):
                 row[f"{name}__memory_current"] = cg.read_int(f"{path}/memory.current")

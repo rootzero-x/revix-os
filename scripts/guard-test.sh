@@ -32,7 +32,7 @@ FULL_AVG10="${FULL_AVG10:-85.0}"
 SOME_AVG10="${SOME_AVG10:-90.0}"
 RATE2S="${RATE2S:-0.98}"   # modul default'i bilan mos
 SUSTAIN_RATE="${SUSTAIN_RATE:-0.35}"
-SUSTAIN_MAX="${SUSTAIN_MAX:-13.0}"
+SUSTAIN_MAX="${SUSTAIN_MAX:-15.0}"   # modul default'i bilan MOS (guard.py DEFAULTS)
 
 U="$(python3 -c 'from revix import cgroup as c; print(c.user_service_cgroup())')"
 LAB="$U/revixlab.slice"

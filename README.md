@@ -66,12 +66,35 @@ backoff'iga nisbatan kam downtime va kam false-recovery beradi.
 | Texnologiya auditi | ✅ bajarildi |
 | Prior art skani | ✅ bajarildi (tekshirish darajalari bilan) |
 | Research gap | ✅ aniqlandi |
-| **Pre-registration (P1)** | ✅ **muzlatildi** |
-| Pilot harness | ⏳ keyingi qadam |
+| **Pre-registration (P1)** | ✅ **muzlatildi** (`v1.3`, 3 amendment) |
+| Muhit tekshiruvlari | ✅ empirik |
+| Guard kalibratsiyasi | ✅ o'lchandi va tasdiqlandi |
+| **Pilot harness** | 🟡 komponentlar tayyor, driver qoldi |
 | Pilot eksperiment | ⏳ |
 | Kalibratsiya (`Repairs()`) | ⏳ |
 | Confirmatory eksperiment | ⏳ |
 | Arm C (REVIX engine) | ⏳ |
+
+### Komponentlar
+
+| Modul | Holat | Vazifasi |
+|---|---|---|
+| `revix/schema.py` | ✅ | versiyalangan record envelope, JSONL/CSV yozuvchilar |
+| `revix/cgroup.py` | ✅ | cgroup v2 + PSI o'qish (`total=` asosiy) |
+| `revix/guard.py` | ✅ | mustaqil xavfsizlik guard'i (fail-closed) |
+| `revix/pressure.py` | ✅ | nazorat qilinadigan pressure generatori (churn + PI) |
+| `revix/psi_sampler.py` | ✅ | 4 scope × 3 resurs × {some,full}, 10 Hz |
+| `revix/sut.c` | ✅ | service under test, 8 fault turi |
+| `revix/prober.py` | ✅ | o'lchov prober'i, 10 Hz contract baholash |
+| `revix/stats.py` | ✅ | Cochran-Armitage, KM, log-rank, RMST, Newcombe |
+| `revix/reduce.py` | ✅ | VR / FR-A / downtime, sensitivity sweep |
+| `revix/validate.py` | ✅ | run validatori (8 invariant) |
+| `revix/schedule.py` | ✅ | randomized block design, washout, disposition |
+| `revix/units.py` | ✅ | systemd transient unit manager (D-Bus) |
+| `revix/cli.py` | ✅ | `revix doctor` / `status` / `health` / `events` |
+| `revix/driver.py` | ⏳ | trial orkestratsiyasi — **keyingi qadam** |
+
+**Testlar: 369 ta o'tadi** (`python3 -m pytest tests/unit/ -q`).
 
 **Hech qanday eksperiment hali ishga tushirilmadi. Hech qanday natija hali yo'q.**
 
