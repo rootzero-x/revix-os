@@ -27,6 +27,20 @@ def test_seq_har_oqim_uchun_alohida_monotonik():
     assert b == [1, 2]  # B oqimi A dan mustaqil
 
 
+def test_stream_envelope_da_saqlanadi():
+    """seq oqim bo'yicha monotonik, demak validator qaysi oqim ekanini bilishi
+    SHART. Busiz bitta oqimga ikki record turi yozilsa soxta bo'shliq chiqadi."""
+    em = S.Emitter("t", "r", "s", boot_id="b")
+    a = em.envelope("x", stream="A")
+    b = em.envelope("y", stream="B")
+    assert a["stream"] == "A"
+    assert b["stream"] == "B"
+    # stream berilmasa record_type ga tushadi
+    c = em.envelope("z")
+    assert c["stream"] == "z"
+    assert "stream" in S.ENVELOPE_FIELDS
+
+
 def test_payload_envelope_ni_bosib_otolmaydi():
     """Jimgina ustiga yozish o'lchovni buzadi -- xato tashlanishi kerak."""
     em = S.Emitter("t", "r", "s", boot_id="b")

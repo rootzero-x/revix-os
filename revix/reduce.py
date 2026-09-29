@@ -938,29 +938,20 @@ def _binom_p_ge(k: int, n: int, p: float) -> float:
 
 
 def clopper_pearson_lower(k: int, n: int, alpha: float = 0.05) -> float:
-    """Clopper-Pearson EXACT CI ning pastki chegarasi (§5 `Repairs()`).
+    """Clopper-Pearson pastki chegarasi (FR-B ning Repairs() matritsasi uchun).
 
-    `P(X >= k | p_L) = alpha/2` tenglamasining yechimi. Ifoda `p` bo'yicha
-    monoton o'suvchi, shuning uchun bisektsiya aniq va deterministik.
+    MARKAZIY IMPLEMENTATSIYA: `revix.stats.clopper_pearson`. Bu yerda faqat
+    o'ram qoldirilgan.
 
-    scipy/statsmodels ISHLATILMAYDI (§10.3: dependency qo'shmasdan o'zimiz
-    yozamiz va nashr etilgan ishlangan misolga qarshi unit-test qilamiz).
+    TARIX: bu funksiya avval shu faylda mustaqil yozilgan edi, chunki
+    `revix/stats.py` hali mavjud emas edi. Ikki implementatsiya keyin
+    solishtirildi va 7 ta sinov nuqtasida suzuvchi nuqta aniqligida mos keldi
+    (eng katta farq 1.7e-16) -- ya'ni mustaqil qayta hosil qilish orqali
+    tasdiqlandi. Dublikat olib tashlandi: ikki nusxa vaqt o'tib bir-biridan
+    uzoqlashadi va qaysi biri haqiqiy ekani noaniq bo'lib qoladi.
     """
-    if n <= 0:
-        raise ValueError("n > 0 bo'lishi kerak")
-    if not 0 <= k <= n:
-        raise ValueError("0 <= k <= n bo'lishi kerak")
-    if k == 0:
-        return 0.0
-    target = alpha / 2.0
-    lo, hi = 0.0, 1.0
-    for _ in range(200):
-        mid = (lo + hi) / 2.0
-        if _binom_p_ge(k, n, mid) < target:
-            lo = mid
-        else:
-            hi = mid
-    return lo
+    from .stats import clopper_pearson
+    return clopper_pearson(k, n, alpha).lower
 
 
 @dataclass(frozen=True)

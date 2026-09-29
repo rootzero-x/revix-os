@@ -1,6 +1,6 @@
 """REVIX record schema va yozuvchilar.
 
-PREREGISTRATION.md §1 (vaqt disiplinasi) va §8 (data schema) ni amalga oshiradi.
+PREREGISTRATION.md §1 (vaqt disiplinasi) va §14 (data schema) ni amalga oshiradi.
 
 Asosiy qoidalar:
   * Barcha davomiylik CLOCK_MONOTONIC mikrosekundda. CLOCK_REALTIME faqat
@@ -212,6 +212,11 @@ class Emitter:
         return {
             "schema_version": SCHEMA_VERSION,
             "record_type": record_type,
+            # stream RECORD'DA SAQLANADI: seq oqim bo'yicha monotonik, demak
+            # validator bo'shliqni topish uchun qaysi oqim ekanini bilishi SHART.
+            # Busiz u record_type ni proksi sifatida ishlatishga majbur bo'ladi
+            # va bitta oqimga ikki xil record yozilsa soxta bo'shliq ko'rsatadi.
+            "stream": stream,
             "run_id": self.run_id,
             "session_id": self.session_id,
             "boot_id": self.boot_id,
@@ -236,6 +241,7 @@ class Emitter:
 ENVELOPE_FIELDS = (
     "schema_version",
     "record_type",
+    "stream",
     "run_id",
     "session_id",
     "boot_id",

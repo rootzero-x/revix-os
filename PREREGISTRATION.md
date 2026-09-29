@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.1` |
+| **Versiya** | `preregistration/v1.2` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1), 2026-09-29 (v1.1 amendment) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2) |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
@@ -17,6 +17,34 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.1 → v1.2 (2026-09-29)
+
+| | |
+|---|---|
+| **v1.1 sha256** | `ff4233e1a5e60fcf4cdc75d07bf7871a6dbec688b6b5e5f38fc98b5acab1c966` |
+| **v1.1 git tag** | `v0.1.1-preregistration` |
+| **Sabab** | data schema bo'limi umuman yo'q edi, lekin unga havola qilinardi |
+| **O'zgardi** | **§14 qo'shildi** (yangi bo'lim). Mavjud bo'limlar raqamlari O'ZGARMADI |
+| **O'zgarMADI** | hech bir ta'rif, chegara, metrika, statistik test yoki falsifikatsiya mezoni |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan |
+
+**Qanday topildi:** ikki mustaqil implementator (prober va reducer) bir-biridan
+xabarsiz bir xil nuqsonni ko'rsatdi — `revix/schema.py` va
+`docs/architecture/03-sut-protokoli.md` "§8 (data schema)" ga havola qiladi,
+lekin §8 aslida *Confound nazorati*. Data schema faqat rejalashtirish hujjatida
+bor edi va muzlatilgan shartnomaga ko'chirilmagan.
+
+Natijasi: ikkalasi ham record kontraktini **mahalliy** e'lon qilishga majbur
+bo'ldi. Bu aynan pre-registration oldini olishi kerak bo'lgan holat.
+
+**Nega §14, §8 emas:** mavjud bo'limlarni qayta raqamlash `schema.py`,
+`reduce.py`, `prober.py` va barcha hujjatlardagi havolalarni buzardi. Yangi
+bo'lim oxiriga qo'shildi, noto'g'ri havolalar §14 ga tuzatildi.
+
+**Bu amendment qonuniy:** hech qanday ma'lumot yig'ilmagan, hech bir endpoint,
+chegara yoki test o'zgarmagan. Qo'shilgan narsa — nima YOZILISHI kerakligi,
+ya'ni allaqachon nazarda tutilgan, lekin yozib qo'yilmagan shartnoma.
 
 ### v1 → v1.1 (2026-09-29)
 
@@ -598,3 +626,99 @@ Quyidagilar **keyinchalik** aniqlanadi va **o'z pre-registration'ini** talab qil
 **P1 ma'lumotlari confirmatory analizga QO'SHILMAYDI.** P1 — effect size baholash va
 mexanizm aniqlash uchun; u hipotezani sinash uchun ishlatilsa, keyin yana bir xil
 hipotezani sinash — garden of forking paths.
+
+---
+
+## 14. Data schema (muzlatilgan)
+
+> Bu bo'lim **v1.2 amendment** bilan qo'shildi. Oldingi versiyalarda data schema
+> faqat rejalashtirish hujjatida bor edi va bu ikki implementatorni record
+> kontraktini mustaqil ixtiro qilishga majbur qildi.
+
+### 14.1 Fayl formatlari
+
+| oqim | format | sabab |
+|---|---|---|
+| hodisalar (kam tezlikli, heterogen) | **JSON Lines** | turli record turlari bitta CSV'ga sig'maydi; append-only + line-delimited crash-safe |
+| `probe_sample`, `psi_sample` (10 Hz) | **CSV** | ~1–2M qator; JSONL ~5–10× bayt, ~3–5× parse. Serializatsiyaga ketgan CPU — eksperimentdan o'g'irlangan CPU |
+
+JSONL: bitta `write()` oldindan serializatsiya qilingan bytes, `O_APPEND`.
+**`fsync` davriy, hech qachon har qatorda** — har qatorda fsync o'lchanayotgan
+tizimga IO kiritadi.
+
+### 14.2 Envelope — har JSONL record'da
+
+```
+schema_version  record_type  stream  run_id  session_id  boot_id
+trial_id  block_index  seq  mono_us  real_us  emitter
+```
+
+- **`stream`** — `seq` shu oqim bo'yicha monotonik. Validator bo'shliqni
+  topish uchun qaysi oqim ekanini bilishi SHART. Busiz u `record_type` ni
+  proksi sifatida ishlatadi va bitta oqimga ikki record turi yozilsa **soxta
+  bo'shliq** ko'rsatadi.
+- **`boot_id`** — monotonic qiymatlar faqat bitta boot ichida taqqoslanadi.
+- CSV oqimlarida envelope yo'q (hajm sababli); ular `<stream>_start` record'i
+  orqali run'ga bog'lanadi va validator ularni `schema_version` tekshiruvidan
+  ochiq ravishda ozod qiladi.
+
+### 14.3 Record turlari
+
+**Harness (driver):** `run_meta`, `trial_begin`, `trial_end`, `env_snapshot`,
+`fault_inject`, `fault_effective`, `baseline_window`, `action`, `action_defer`,
+`actor_signal`, `unit_state`, `cgroup_events`, `harness_error`
+
+**Prober:** `prober_start`, `prober_stop`, `probe_sample` (CSV), `probe_overrun`,
+`detection`, `contract_restored`
+
+**PSI sampler:** `sampler_start`, `sampler_stop`, `psi_sample` (CSV),
+`psi_scope_unavailable`
+
+**Guard:** `guard_start`, `guard_event`, `guard_stop`
+
+**Pressure generatori:** `pressure_start`, `pressure_ramp`, `pressure_sample`,
+`pressure_stop`
+
+**Derived (reducer chiqaradi, alohida faylga):** `trial_metrics`, `episode`
+
+### 14.4 Majburiy maydonlar (ta'riflar shularga tayanadi)
+
+| record | maydon | nega majburiy |
+|---|---|---|
+| `run_meta` | `preregistration_sha256`, `git_commit`, `git_dirty`, `rng_seed`, `boot_id`, har unit'ning **tirik** `systemctl show` dump'i | reproducibility; §7 tirik unit shartini ko'ring |
+| `trial_end` | **`disposition`** (§12 yopiq enum, aynan bitta) | jimgina eksklyuziyani oldini oladi |
+| `probe_sample` | `mono_us_send`, `outcome`, `progress_counter`, **`invocation_id_seen`** | invocation echo yangi invocation race'ini yopadi |
+| `unit_state` | systemd'ning **o'z** monotonic timestamp'lari **va** harness'ning qabul `mono_us`i **alohida** | D-Bus delivery latency ko'rinadi, o'lchov ichida yashirinmaydi |
+| `action` | `policy_delay_us` **`L_dec` dan alohida** | §6.3 soxta taqqoslashning oldini oladi |
+| `actor_signal` | `success` (aktorning O'Z da'vosi) | **FR-A ning birlamchi operandi** (§5). Aniq record afzal; `unit_state` dan chiqarish mumkin, lekin manba (`actor_signal_source`) yozilishi SHART |
+
+### 14.5 Ikki yuk ko'taruvchi talab
+
+1. **Stabilizatsiya oynasining raw per-probe trace'lari saqlanadi.** Metrika
+   alternativ `W_stab`/`θ`/`p_min` ostida **qayta hisoblanishi** shart,
+   eksperimentni qayta ishga tushirmasdan. Bu §4 dagi sensitivity sweep'ning
+   yagona asosi va *"siz W ni natija uchun tanlagansiz"* hujumiga javob.
+2. **Derived record'lar alohida fayllarda va raw'dan qayta yaratiladi.
+   Raw fayllar derived maydon qo'shish uchun HECH QACHON tahrirlanmaydi.**
+
+### 14.6 Validator invariantlari (analizdan oldin o'tishi SHART)
+
+1. har `trial_begin` uchun mos `trial_end`
+2. trial'ga **aynan bitta** `disposition`, §12 enum'idan
+3. `(stream)` bo'yicha `seq` bo'shlig'i yo'q
+4. trial ichida probe uzilishi > 2×P yo'q (aks holda trial `censored`)
+5. `boot_id` sessiya ichida o'zgarmas
+6. har `action` uchun mos invocation o'zgarishi yoki ochiq `action_defer`
+7. har record'ning `schema_version` i tanilgan
+8. confirmatory run uchun `run_meta.git_dirty == false` (pilot uchun ogohlantirish)
+
+**Validatsiyadan o'tmagan run analiz qilinmaydi.**
+
+### 14.7 Ochiq bo'shliqlar (implementatorlar aniqlagan, kelajakdagi amendment uchun)
+
+- **`harm_indicator`** (FR-B uchun, §5) hech bir record turida yo'q. P1 da
+  FR-B hisoblanmaydi, demak bu P1 ni bloklamaydi, lekin kalibratsiya
+  eksperimentidan oldin ta'riflanishi kerak.
+- **`guard_event` da `trial_id` yo'q** — bu TO'G'RI, guard mustaqil jarayon
+  (§8.2). Atributsiya monotonic vaqt bo'yicha, demak faqat bitta boot ichida
+  haqiqiy — `boot_id` invariantining ahamiyati aynan shu.

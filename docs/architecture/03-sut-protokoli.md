@@ -57,7 +57,7 @@ OK progress=<u64> pid=<i32> invocation=<hex32> rss_kb=<u64> mono_us=<u64>
 
 > **`invocation` KRITIK:** prober javobdagi invocation'ni yozadi. Busiz probe
 > *yangi* invocation'ga muvaffaqiyatli tegib, siz uni eskisiga yozib qo'yadigan
-> race yopilmaydi (`PREREGISTRATION.md` §8, `probe_sample.invocation_id_seen`).
+> race yopilmaydi (`PREREGISTRATION.md` §14, `probe_sample.invocation_id_seen`).
 
 ### Xato
 ```
