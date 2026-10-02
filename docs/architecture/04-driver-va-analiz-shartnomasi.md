@@ -1,6 +1,6 @@
 # 04 — Driver va analiz shartnomasi (MUZLATILGAN)
 
-**Versiya:** `driver-contract/v1.1` | **Holat:** MUZLATILGAN
+**Versiya:** `driver-contract/v1.2` | **Holat:** MUZLATILGAN
 
 > **Nega bu birinchi yoziladi:** driver, analiz va figura modullari parallel
 > ishlab chiqiladi. Shartnoma oldindan muzlatilmasa, ular bir-biriga mos
@@ -16,6 +16,36 @@
 Bu fayl **jimgina tahrirlanmaydi** (`CONTRIBUTING.md` §1.1, `DEVELOPMENT.md`
 §7). Har o'zgarish shu yerda qayd etiladi, versiya oshiriladi, va oldingi
 versiyaning `sha256` i saqlanadi.
+
+### v1.1 → v1.2 (2026-10-02)
+
+| | |
+|---|---|
+| **v1.1 sha256** | `4a13baed81129416077d446d3e94e5b35bbd8f03d806b77bfbaafab2fc2392cf` |
+| **v1.1 git tag** | **yo'q** — `driver-contract` uchun hali birorta tag qo'yilmagan; v1.1 ni integratsiya qilgan merge commit `b6dbad2`. Bu `PREREGISTRATION.md` §15.6(1) dagi holat bilan bir xil |
+| **Sabab** | **uchta mustaqil defekt, barchasi implementatsiya tomonidan topilgan:** (1) §3 ikkita majburiy figura talab qiladi (`downtime_ecdf`, `probe_cost`), lekin §2.2 ularga **ma'lumot bermaydi** — ya'ni shartnomaga mos `analysis.json` §3 ni bajara olmaydi (`agent/figures`, `92eca55`); (2) **`PREREGISTRATION.md` §11 ning fail-slow falsifikatsiya mezoni `analysis.json` dan HISOBLANMAYDI** — u `P0`–`P2` **pressure** kontrastini nomlaydi, §2.2 esa faqat arm kontrastini beradi (`agent/analyze`, `2518e26`); (3) **`boot_id` bu host'da yetarli emasligi O'LCHANDI** — guest PID 1 restart bo'lganda `boot_id` o'zgarmaydi, demak §14.6 invarianti 5 soxta "o'tdi" beradi (`agent/envcheck`, `fe914d6`; shu amendment paytida **mustaqil takrorlandi** — §1.4) |
+| **O'zgardi** | §1.1, §1.2 — **`guest_generation`** majburiy maydon; **yangi §1.4** (marker, o'lchov, identifikator va abort qoidasi); §1.3 — yangi majburiyatlar 13–16 va ikki tuzatilgan havola; §2.1 — kirish flaglari jadvali, yangi ixtiyoriy **`--events`** va **`--episodes`**, `probe_cost` provenance zanjiri; §2.2 — `time_unit`, `t_trial_us`, `t_trial_formula`, provenans kalitlari, `downtime` ning ichki shakli + ixtiyoriy `ecdf`, yangi `probe_cost`, `survival.censoring.n_undetermined`, **`survival.rmst.pressure_difference` va `*.by_pressure_band`**, `contrast` / `ci_level` / `basis` / `uncorrected` / `exclusions.n_*`; §2.3 — yangi majburiyatlar 10–19; **yangi §2.4–§2.10**; §3.1 — figura **degradatsiya** qoidalari; §4.2-3 va §4.6 — `stream` CHEKLOVI yopildi; §4.3 — `overhead_us` qatori; **yangi §4.7** (reducer kirishi bitta target/unit); §5.1 — bo'lim havolasi (v1.4 da qatorlar siljidi); §5.4 — horizon toleransi `P` deb raqamlandi; **yangi §7** (o'lchangan tuzoqlar); **yangi §8** (kod-vs-kod ochiq nomuvofiqliklari) |
+| **O'zgarMADI** | hech bir ta'rif, chegara, metrika, statistik test yoki **falsifikatsiya mezoni**. **§11 ning fail-slow mezoni va uning 20% chegarasi tegilmadi** — faqat uni hisoblash uchun transport qo'shildi (§2.10); `τ = 8 s` o'zgarmadi; `survival.rmst.by_arm` **saqlandi**. **§4.1–§4.6 ning maydon nomlari jadvali o'zgarmadi**; **§5.2 ning `T_trial` formulasi va 40.1 s o'zgarmadi**; **§6 (`matplotlib`) o'zgarmadi**; §1.1 ning mavjud maydonlari, §1.3 ning 1–12 majburiyatlari, §2.2 ning `primary.cells` / `falsification_rule` / `fr_b` / `sensitivity` grid'i va §3 ning figura ro'yxati o'z holida. **`SCHEMA_VERSION` SILJIMAYDI** — qo'shilgani faqat **payload va chiqish maydonlari**, yangi record turi ham, yangi enum qiymati ham yo'q (§2.2: `schema_version: 1`). §8 dagi ikki nomuvofiqlik **HAL QILINMADI**, faqat qayd etildi. `PREREGISTRATION.md` va `INSTALLATION.md` **tahrirlanmadi**; `revix/*.py` **tahrirlanmadi** |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan va hech qanday ma'lumot mavjud emas, demak **eski ta'riflar ostida qayta hisoblanadigan narsa yo'q** |
+
+**Bu amendment nega qonuniy:** uchala o'zgarish ham **transport** qatlamiga
+tegadi — qaysi qiymat qaysi maydonda yetkazilishiga — **ta'riflarga emas**.
+
+1. `probe_cost` va ECDF `PREREGISTRATION.md` §8.2 va §10.2 da **allaqachon
+   talab qilingan**; v1.2 ularga faqat yo'l ochadi.
+2. §11 ning mezoni **o'zgarmadi** — na kontrast (`P0`–`P2` ni §11 **o'zi**
+   nomlagan), na `τ = 8 s`, na 20% chegarasi. Qo'shilgani faqat uni
+   **hisoblash uchun joy**. Mezonni hisoblab bo'lmasligi — bo'shliq;
+   mezonni o'zgartirish bo'lardi, **buzilish**. v1.2 birinchisini yopadi.
+3. Guest generatsiya markeri §1 ning `boot_id` kafolatini
+   **almashtirmaydi**, uni **to'ldiradi** — `boot_id` saqlanadi va majburiy
+   qoladi.
+
+Hali ma'lumot yig'ilmagan, demak "ta'riflarni natijani ko'rgandan keyin
+tanlash" xavfi yo'q. `CONTRIBUTING.md` §3 bajarildi: defektlarni
+`agent/figures`, `agent/analyze` va `agent/envcheck` **xabar qildi**, hujjat
+jimgina "to'g'rilanmadi", va §8 dagi ikki **kod-vs-kod** ziddiyati
+**hal qilinmasdan** ochiq savol sifatida qayd etildi.
 
 ### v1 → v1.1 (2026-10-02)
 
@@ -73,15 +103,37 @@ schedule (to'liq, schedule.to_json() dan)
 rc=0 va 268 qator **default** qaytaradi.
 
 **v1.1 da qo'shildi:** `run_mode` va `t_trial_us` ham majburiy —
-`run_mode` ni `validate.check_run_meta()` o'qiydi (`revix/validate.py:491`),
+`run_mode` ni `validate.check_run_meta()` o'qiydi (`revix/validate.py:709`),
 `t_trial_us` esa §5 dagi hisoblangan horizon. Ikkisi ham §4.3 jadvalida.
+
+**v1.2 da qo'shildi — `guest_generation` (majburiy):**
+
+```
+boot_id              (saqlanadi -- §1 talabi, O'ZGARMADI)
+guest_generation     dict:
+   pid1_starttime_ticks   /proc/1/stat 22-maydon -- IDENTIFIKATOR KALITI
+   clk_tck                getconf CLK_TCK -- tick -> sekund
+   uptime_s               /proc/uptime 1-maydon  } faqat ODAM O'QISHI uchun,
+   pid1_etimes_s          ps -p 1 -o etimes=     } IDENTIFIKATORGA KIRMAYDI
+```
+
+`guest_generation` **`run_meta` da va har `env_snapshot` da** majburiy
+(§1.2), va butun run davomida **identifikatori o'zgarmasligi** shart. To'liq
+sabab, o'lchov va abort qoidasi: **§1.4**.
+
+> **`boot_id` OLIB TASHLANMAYDI va majburiy qoladi.** U to'g'ri va hali ham
+> zarur (`PREREGISTRATION.md` §1, §14.6-5) — bu host'da shunchaki **yetarli
+> emas**. Keyingi o'quvchi markerni "ortiqcha" deb o'chirmasligi uchun shu
+> gap ochiq yozildi.
 
 ### 1.2 Trial hodisalari ketma-ketligi (har trial uchun)
 
 ```
 trial_begin      arm, fault_class, pressure_band, position_in_block,
                  planned_timeline   (trial_id va block_index — ENVELOPE'da)
-env_snapshot     (trial boshida)
+env_snapshot     (trial boshida) + guest_generation (§1.4) -- har trial
+                 uchun MAJBURIY, identifikator kaliti
+                 guest_generation.pid1_starttime_ticks
 baseline_window  R_ref o'lchangan oyna: mono_us_begin/end, throughput
 fault_inject     mono_us_before_call, mono_us_after_call, fault_id, kind, params
 fault_effective  t_fault_effective va uning manbasi (probe|oom_kill|...)
@@ -94,6 +146,7 @@ unit_state       (units.UnitWatcher dan; XOM systemd nomlari SAQLANADI va
 cgroup_events    memory.events / memory.swap.events delta'lari
 env_snapshot     (trial oxirida)
 trial_end        disposition (§12 yopiq enum, AYNAN BITTA) + reason
+                 + overhead_us (o'lchangan qo'shimcha vaqt, majburiyat 9)
 ```
 
 > **v1.1:** `trial_begin` dagi maydon nomi `pressure_level` emas,
@@ -109,8 +162,8 @@ monotonic vaqt bo'yicha, shuning uchun `boot_id` invarianti muhim).
 
 | # | majburiyat | nega |
 |---|---|---|
-| 1 | **Guard BIRINCHI start, OXIRGI stop** | qotib qolgan driver guard'ni o'chira olmasligi kerak |
-| 2 | Guard ishga tushmasa — run **boshlanmaydi** | fail-closed |
+| 1 | **Guard BIRINCHI start, OXIRGI stop** | qotib qolgan driver guard'ni o'chira olmasligi kerak — `00-pilot-topologiya.md` **§3.1 mitigation (b)** (*"Driver'dan ALOHIDA process … Birinchi start, oxirgi stop"*, `✅ majburiy`) |
+| 2 | Guard ishga tushmasa — run **boshlanmaydi** | fail-closed; o'sha §3.1 mitigation (b) ni guard'ni **majburiy** deb belgilaydi |
 | 3 | Har run boshida `units.clear_runtime_drop_ins()` | oldingi run'ning `MemoryHigh=` sini meros olmaslik (§8 kontaminatsiya) |
 | 4 | `units.require_clean()` pre-flight | qoldiq holat jimgina kontaminatsiya qilmasligi |
 | 5 | Har trial uchun **aynan bitta** `trial_end` + disposition | §12; jimgina eksklyuziyani oldini oladi |
@@ -121,6 +174,143 @@ monotonic vaqt bo'yicha, shuning uchun `boot_id` invarianti muhim).
 | 10 | `--dry-run` hech narsa ishga tushirmaydi, jadvalni chiqaradi | randomizatsiya ko'zdan kechiriladi |
 | 11 | **v1.1:** har record'ning maydon nomi §4.3 jadvaliga **aynan** mos keladi | nomi boshqa bo'lgan maydon `None` bo'lib o'qiladi, va `None` jimgina "o'lchanmadi" ga aylanadi |
 | 12 | **v1.1:** `T_trial` **hisoblanadi va `run_meta` ga yoziladi** (§5) | jimgina konstanta yo'q; horizon qayd etilgan run parametri |
+| 13 | **v1.2:** guest generatsiya markeri `run_meta` da **va** har `env_snapshot` da; marker o'zgarsa run **darhol abort**, trial `harness_error` | §1.4: `boot_id` bu host'da yetarli emas, va soxta "o'tdi" validatorsizlikdan yomonroq |
+| 14 | **v1.2:** prober `--report-cost` bilan ishga tushiriladi | §8.2 probe narxini talab qiladi; §2.2 `probe_cost` ning manbai (§2.1) |
+| 15 | **v1.2:** xom fayllar **barcha target va unit** ni saqlaydi; reducer'ga berilayotgan narsa **SUT ga filtrlanadi** (§4.7) | `reduce.split_trials` faqat `trial_id` bo'yicha guruhlaydi; bystander probe'lari filtrlanmasa `R_ref`, `D_probe`, `D_eff` va VR 3/4-bandlari buziladi |
+| 16 | **v1.2:** `trial_end` o'lchangan qo'shimcha vaqtni `overhead_us` da olib yuradi | majburiyat 9 ning aniq maydoni; §9.4 v1.3 "o'lchanadi, taxmin qilinmaydi" |
+
+### 1.4 Guest generatsiya markeri (v1.2) — `boot_id` yetarli emas
+
+#### Defekt
+
+`PREREGISTRATION.md` §1 `boot_id` ni **kafolat** qilib qo'yadi: *"Monotonic
+qiymatlar faqat bitta boot ichida taqqoslanadi; `boot_id` bu shartni
+tekshirib bo'ladigan qiladi."* §14.6 invarianti 5 esa uni majburlaydi:
+*"`boot_id` sessiya ichida o'zgarmas."*
+
+**Bu host'da kafolat ishlamaydi.** Guest PID 1 (systemd) qayta ishga
+tushadi, systemd holati (unit'lar, `InvocationID`, `NRestarts`) nolga
+qaytadi — va ba'zi hollarda `CLOCK_MONOTONIC` ning o'zi ham nolga qaytadi —
+lekin **`boot_id` o'zgarmaydi**. Natijada run ichida **ikki taqqoslanmaydigan
+vaqt boshlanishi** bo'ladi va **mavjud barcha invariant o'tadi**.
+
+> **NEGA bu validatorsizlikdan yomonroq:** §14.6 ning butun mantiqi
+> *"validatsiyadan o'tmagan run analiz qilinmaydi"* ga tayanadi. Soxta "o'tdi"
+> buzilgan davomiylikni to'g'ridan-to'g'ri birlamchi endpoint'ga yuboradi, va
+> buzilish **ko'rinmaydi**. Yo'q validator hech bo'lmasa ishonch bermaydi.
+
+#### O'lchov
+
+**(1) `agent/envcheck` o'lchovi** (branch `agent/envcheck`, commit `fe914d6`):
+oxirgi `wsl.exe` klient jarayoni chiqqandan keyin distro 10.3–15.3 s ichida
+"running" ro'yxatidan tushadi; ~26 s keyin transient `sleep 600` uniti
+yo'qolgan (`LoadState=not-found`), PID 1 `etimes` = 7 s bo'lgan holda VM
+uptime 551 s, user manager PID 241 → 238. **Shu restart bo'ylab `boot_id`
+aynan bir xil qoldi.**
+
+**(2) Shu amendment paytida mustaqil takrorlandi** (2026-10-02, shu Kali
+distro'si, `wsl.exe -d kali-linux`; buyruqlar: `cat /proc/uptime`,
+`cat /proc/1/stat` 22-maydon, `getconf CLK_TCK`, `ps -p 1 -o etimes=`,
+`cat /proc/sys/kernel/random/boot_id`):
+
+| o'qish | `uptime_s` | `pid1_starttime_ticks` | `pid1_etimes_s` | `boot_id` |
+|---|---|---|---|---|
+| A | `24.32` | **`83`** (= 0.83 s) | `23` | `a42ad70a-f548-4b37-b6fb-5ee8584eef9d` |
+| B (≈1 daqiqa keyin) | — | **`6388`** (= 63.88 s) | **`18`** | `a42ad70a-f548-4b37-b6fb-5ee8584eef9d` — **AYNAN BIR XIL** |
+| C (≈30 s keyin) | — | `6388` | `50` | — |
+
+`clk_tck = 100` uchala o'qishda.
+
+**A → B oralig'ida PID 1 qayta ishga tushdi:** start markeri `83` dan `6388`
+ga o'zgardi va PID 1 ning yoshi **orqaga ketdi** (`23` → `18` s), **`boot_id`
+esa o'zgarmadi.** B → C esa normal qarish (`18` → `50` s, marker o'zgarmagan),
+ya'ni marker bitta generatsiya ichida barqaror. Bu `agent/envcheck` dan
+**mustaqil** tasdiq.
+
+**Qo'shimcha kuzatuv (juftlik olinmagan, shuning uchun o'lchov emas):**
+A o'qishidagi `uptime_s = 24.32` shu sessiyada bir necha daqiqa oldin
+muvaffaqiyatli bajarilgan WSL buyruqlaridan **keyin** olingan — demak oraliqda
+uptime hisoblagichining O'ZI ham nolga qaytgan. Ya'ni ikki xil buzilish
+mavjud:
+
+| rejim | nima bo'ladi | nima buziladi | marker qaysi maydoni tutadi |
+|---|---|---|---|
+| **A** — butun guest/VM restart | `/proc/uptime` va `CLOCK_MONOTONIC` nolga qaytadi | **barcha davomiylik** — run ichida ikki vaqt boshlanishi | `uptime_s` **kamayadi** |
+| **B** — faqat PID 1 restart (VM tirik) | uptime o'sishda davom etadi, lekin systemd holati nolga qaytadi | `NRestarts` / `InvocationID` baseline'lari va `units_show` dump'i | `pid1_starttime_ticks` **o'zgaradi**, `pid1_etimes_s` **orqaga ketadi** |
+
+> **NEGA ikkita maydon kerak, bittasi emas:** `pid1_starttime_ticks` **boot'dan
+> beri** tick'da o'lchanadi, demak A rejimida yangi boot'da yana kichik qiymat
+> bo'lishi mumkin — ya'ni u yolg'iz holda A ni ishonchli ajratmaydi.
+> `uptime_s` esa B rejimida uzluksiz o'sadi, demak u yolg'iz holda B ni
+> ko'rmaydi. **Juftlik ikkala rejimni ham qoplaydi.** `pid1_etimes_s`
+> hisobga kirmaydi — u `ps -p 1 -o etimes=` dan olingan **odam o'qiydigan
+> kross-tekshiruv**, va aynan u restart'ni birinchi ko'rsatgan.
+
+#### Abort qoidasi (normativ)
+
+**Maydon nomi:** `guest_generation` (`validate.GUEST_MARKER_FIELD`,
+`revix/validate.py:163`). **Identifikator kaliti:**
+`pid1_starttime_ticks`; qabul qilinadigan aliaslar —
+`starttime_ticks`, `pid1_starttime`, `starttime`
+(`validate.GUEST_STARTTIME_KEYS`, `revix/validate.py:166`), yoki
+`guest_generation` ning o'zi **yalang'och skalyar** bo'lsa, o'sha qiymat.
+
+> **NORMATIV: `uptime_s` va `pid1_etimes_s` identifikatorga KIRMAYDI.** Ular
+> **faqat odam o'qishi** uchun olib yuriladi.
+>
+> **NEGA:** ikkisi ham **uzluksiz o'zgaradi** — har o'qishda boshqa qiymat.
+> Agar ular identifikatorning bir qismi bo'lsa, taqqoslash **har trial'da**
+> ishdan chiqardi, ya'ni tekshiruv doimo "guest restart" deb qichqirardi.
+> Har doim ishlaydigan tekshiruv — **tekshiruvsizlikdan yomonroq**: u
+> o'chirib qo'yilardi, va u bilan birga haqiqiy restart'ni tutadigan yagona
+> mexanizm ham ketardi. Shuning uchun identifikator **faqat** generatsiya
+> ichida **qotib turadigan** qiymat: PID 1 ning `starttime` i.
+>
+> `uptime_s` va `pid1_etimes_s` baribir yoziladi, chunki ular §1.4 ning
+> o'lchov jadvalini odam uchun o'qiladigan qiladi (`etimes` aynan restart'ni
+> birinchi ko'rsatgan qiymat) va A/B rejimini **post-hoc** ajratishga imkon
+> beradi.
+
+Identifikator butun run davomida **o'zgarmas** bo'lishi SHART:
+
+| # | shart | natija |
+|---|---|---|
+| 1 | `guest_generation` identifikatori o'zgardi | `guest_restarted`, **`error`** (`revix/validate.py:1388`) — run **darhol abort**, joriy trial `harness_error` |
+| 2 | identifikator **o'qilmaydi** (kutilgan kalitlardan birortasi yo'q) | `guest_generation_unreadable`, `error` — restart aniqlanmaydi, demak run ishonchsiz |
+| 3 | `boot_id` o'zgardi | mavjud `check_boot_id` (§14.6-5) — klassik reboot |
+
+> **Implementatsiya holati:** `agent/validate` invariantni **yetkazdi**
+> (`check_guest_generation`, `revix/validate.py:1322`; `validate_run` ro'yxatida
+> ro'yxatdan o'tgan) va `agent/driver` shu shaklda emit qiladi. Bu bo'lim
+> ularni **formallashtiradi**, yo'naltirmaydi.
+>
+> **NEGA abort, ogohlantirish emas:** reset'ning ikki tomonidagi ma'lumotni
+> **birlashtirib bo'lmaydi**. Davom etish buzilgan davomiyliklarni jimgina
+> analizga qo'shardi; `None` emas, **noto'g'ri raqam** chiqardi — bu loyihada
+> mavjud eng yomon natija turi.
+>
+> **NEGA `env_snapshot` da ham, nafaqat `run_meta` da:** `run_meta` faqat run
+> boshida yoziladi, demak u yolg'iz holda uzilishni faqat **run oxirida** va
+> faqat *"qaerdadir bo'ldi"* darajasida ko'rsatardi. `env_snapshot` har trial
+> boshida va oxirida yozilganda uzilish **aniq trial'ga lokalizatsiya
+> qilinadi** — ya'ni kampaniyaning qancha qismi omon qolgani aniqlanadi.
+> Lokalizatsiyasiz butun run tashlanardi.
+
+#### Qamrov — nima o'zgarmaydi
+
+- **`boot_id` saqlanadi va majburiy qoladi** (§1.1). Marker uni
+  **almashtirmaydi**, **to'ldiradi**.
+- Bu **payload maydoni**, ya'ni **yangi record turi ham, yangi enum qiymati
+  ham emas**. `PREREGISTRATION.md` §14.3 record turlari ro'yxati va §12
+  disposition enum'i **tegilmaydi**, demak **`SCHEMA_VERSION` siljimaydi**
+  (`revix/schema.py:25`: `SCHEMA_VERSION = 1`).
+- `harness_error` **mavjud** disposition (`schema.DISPOSITIONS`,
+  `revix/schema.py:258`), yangi qiymat qo'shilmadi.
+- `PREREGISTRATION.md` **tahrirlanmadi.** §1 va §14.6-5 ning `boot_id`
+  kafolati bu host'da yetarli emasligi pre-registration'ning o'z
+  bo'shlig'i va u yerda ham amendment talab qiladi — bu **boshqa agentning**
+  ishi. Ziddiyat bo'lsa `PREREGISTRATION.md` **ustun** (§5.5 bilan bir xil
+  qoida).
 
 ---
 
@@ -130,7 +320,52 @@ monotonic vaqt bo'yicha, shuning uchun `boot_id` invarianti muhim).
 oladi, pre-registration §10 dagi analizni bajaradi.
 
 ### 2.1 Kirish
-`reduce.py` ning `trial_metrics` record'lari (JSONL) + `run_meta.json`.
+
+| flag | holat | nima |
+|---|---|---|
+| `--trials PATH` | **majburiy** | `reduce.py` ning `trial_metrics` record'lari (JSONL) |
+| `--run-meta PATH` | **majburiy** | `run_meta.json` |
+| `--sweep PATH` | ixtiyoriy | `sweep_cell` record'lari (§4 sensitivity) |
+| **`--events PATH`** | **v1.2, ixtiyoriy** | xom `events.jsonl` — **faqat** `prober_stop.cost` uchun (§2.7) |
+| **`--episodes PATH`** | **v1.2, ixtiyoriy** | `reduce.py` ning `episodes.jsonl` i — per-action / per-episode FR-A uchun (§2.9) |
+
+> **NEGA ikki yangi flag "qat'iy offline" ni buzmaydi:** §2 ning talabi —
+> o'lchanayotgan tizimga **tegmaslik**. Fayldan o'qish unga tegmaydi, va
+> `reduce.py` ning o'zi ham aynan shunday o'qiydi (`RawRun.load`). Ikkisi ham
+> **ixtiyoriy**: ular bo'lmasa `analyze.py` tegishli bo'limni **chiqaradi**
+> va sababni `warnings` ga yozadi — hech narsa taxmin qilinmaydi.
+>
+> **IMPLEMENTATSIYA HOLATI (2026-10-02):** `revix/analyze.py` da hozir
+> faqat `--trials`, `--run-meta`, `--out`, `--sweep`, `--json` bor
+> (`revix/analyze.py:1505`–`:1511`). `--events` va `--episodes`
+> **hali yo'q** — ular shu shartnomaning **talabi**, bajarilgan fakt emas.
+
+#### v1.2 — `probe_cost` provenance zanjiri: BIR BO'G'IN TUZALDI, BIRI QOLDI
+
+Zanjir to'rt bo'g'inda tekshirildi:
+
+| bo'g'in | holat | dalil |
+|---|---|---|
+| prober raqamni **hisoblaydi** | ✅ bor | `Prober.cost_report()` `core_percent`, `core_fraction`, `budget_percent`, `cpu_us_per_probe`, `budget_exceeded` beradi (`revix/prober.py:757`, `:775`, `:778`); budjet konstantasi `PROBE_COST_BUDGET_PERCENT = 1.0` (`revix/prober.py:114`) |
+| prober raqamni **yozadi** | ✅ bor | `prober_stop` payload'ida `"cost"` kaliti ostida (`revix/prober.py:712`, `:722`); CLI flag'i `--report-cost` (`revix/prober.py:840`) |
+| granularlik **per-trial** | ✅ **v1.1 TUZATDI** | `cost_report()` prober jarayonining butun hayoti bo'yicha kumulyativ (`revix/prober.py:764`-`:768`), va §4.5(a) **har trial uchun alohida prober jarayonini** normativ qilgan — demak `prober_stop` endi **run'da bir marta emas, har trial'da** ishlaydi va `core_percent` ni o'z envelope'idagi `trial_id` bilan olib yuradi. §8.2 talab qilgan per-trial o'lchov **manbada mavjud** |
+| `reduce.py` uni `trial_metrics` ga **chiqaradi** | ❌ **YO'Q** | `reduce.py` da `prober_stop` record turi **umuman yo'q** (`RT_*` ro'yxati: `revix/reduce.py:96-108`), va butun faylda `cost` so'zi **bitta marta ham** uchramaydi |
+
+**Qolgan uzilish — faqat TRANSPORT.** O'lchov mavjud, uni reducer olib
+o'tmaydi.
+
+**Hal (normativ, v1.2):** `analyze.py` uni **to'g'ridan-to'g'ri** o'qiydi —
+yangi ixtiyoriy `--events PATH` flag'i orqali, `prober_stop.cost` dan,
+`trial_id` bo'yicha `trial_metrics.arm` ga bog'lab.
+
+> **NEGA `reduce.py` tuzatilmaydi:** §4.1 ning "KOD USTUN" printsipi uni
+> tahrirlamaslikni talab qiladi, **va** probe narxi **o'lchov emas**,
+> metodologiya hisoboti — reducer'ning VR / FR / downtime yo'liga umuman
+> tegishli emas. Uni reducer'ga kiritish shu yo'lni kengaytirardi.
+>
+> **`--events` yo'q bo'lsa:** `probe_cost` bo'limi **chiqariladi** va sabab
+> `warnings` ga yoziladi (§2.3-13) — hujjatlashtirilgan placeholder, to'qib
+> chiqarilgan figura emas.
 
 ### 2.2 Chiqish: `analysis.json` — qat'iy sxema
 
@@ -139,6 +374,13 @@ oladi, pre-registration §10 dagi analizni bajaradi.
   "schema_version": 1,
   "analysis_version": "p1/v1",
   "preregistration_sha256": "...",     // kirish run_meta dan
+  "preregistration_version": "...",    // v1.2 (§2.8) provenans
+  "run_id": "...", "session_id": "...",       // v1.2 (§2.8) provenans
+  "time_unit": "us",                   // v1.2 MAJBURIY: §2.4 ni ko'ring
+  "t_trial_us": 0,                     // v1.2 MAJBURIY, TOP-LEVEL:
+                                       //   run_meta dan KO'CHIRILADI (§5),
+                                       //   analyze.py QAYTA HISOBLAMAYDI
+  "t_trial_formula": "...",            // v1.2 (§5.4-3) matn sifatida
   "generated_mono_us": 0,
   "n_trials": {"total": 0, "by_disposition": {}},
   "primary": {                          // §11 birlamchi endpoint
@@ -147,34 +389,98 @@ oladi, pre-registration §10 dagi analizni bajaradi.
     "statistic": 0.0, "p_value": 0.0, "direction": "decreasing|increasing|none",
     "cells": [{"level": "P0", "k": 0, "n": 0, "p_hat": 0.0,
                "ci_lower": 0.0, "ci_upper": 0.0, "ci_method": "clopper_pearson"}],
-    "risk_difference": {"estimate": 0.0, "ci_lower": 0.0, "ci_upper": 0.0,
+    "risk_difference": {"contrast": "P0-P2",   // v1.2 (§2.8): nomsiz farq
+                        "estimate": 0.0,       //   TALQIN QILINMAYDI
+                        "ci_lower": 0.0, "ci_upper": 0.0,
                         "ci_method": "newcombe"},
+    "ci_level": 0.95,                   // v1.2 (§2.8): yozilmasa figura
+                                        //   "95%" deb DA'VO QILA OLMAYDI
+    "recovered_within_horizon": "k/n",  // v1.2 (§2.3-4): HAR jadval bilan
     "falsified": false,                 // §11 mezoni bo'yicha
     "falsification_rule": "trend p>0.05 AND newcombe_upper<0.15"
   },
   "survival": {                         // §10.2
     "km": {"by_arm": {"<arm>": {"times": [], "survival": [], "at_risk": [],
-                                "greenwood_var": []}}},
-    "logrank": {"chi2": 0.0, "p_value": 0.0, "observed": {}, "expected": {}},
-    "rmst": {"tau": 0.0, "by_arm": {"<arm>": {"estimate": 0.0, "se": 0.0}},
-             "difference": {"estimate": 0.0, "se": 0.0,
-                            "ci_lower": 0.0, "ci_upper": 0.0}},
+                                "greenwood_var": [],
+                                // v1.2 qo'shimchalari (§2.8):
+                                "n_total": 0, "n_censored": 0, "n_events": 0,
+                                "quantiles": {}}},   // §2.3-8: p90/p99 nan
+           // v1.2 (§2.10): §11 pressure kontrasti KM'ni ham pressure
+           // band bo'yicha talab qiladi -- RMST farqi aynan shu ikki
+           // egri chiziqdan olinadi.
+           "by_pressure_band": {"<band>": {"times": [], "survival": [],
+                                           "at_risk": [], "greenwood_var": [],
+                                           "n_total": 0, "n_censored": 0,
+                                           "n_events": 0, "quantiles": {}}}},
+    "logrank": {"chi2": 0.0, "p_value": 0.0, "observed": {}, "expected": {},
+                "by_pressure_band": {}},   // v1.2 (§2.10)
+    "rmst": {"tau": 0.0,              // MIKROSEKUND (§10.2/§11: tau = 8 s
+                                      //   => 8000000)
+             "by_arm": {"<arm>": {"estimate": 0.0, "se": 0.0}},
+             "difference": {"contrast": "A-no_action",   // v1.2: nomsiz
+                            "estimate": 0.0, "se": 0.0,  //   farq TALQIN
+                            "ci_lower": 0.0,             //   QILINMAYDI
+                            "ci_upper": 0.0},
+             // v1.2 (§2.10) -- §11 ning fail-slow mezoni AYNAN shu
+             // kontrastni nomlaydi: P0 va P2 orasidagi time-to-VR RMST
+             // farqi, tau = 8 s. Busiz §11 HISOBLANMAYDI.
+             "by_pressure_band": {"<band>": {"estimate": 0.0, "se": 0.0}},
+             "pressure_difference": {"contrast": "P0-P2", "tau": 0.0,
+                                     "estimate": 0.0, "se": 0.0,
+                                     "ci_lower": 0.0, "ci_upper": 0.0}},
     "proportional_hazards_checked": false,   // tekshirilmasa HR BERILMAYDI
-    "censoring": {"n_censored": 0, "recovered_within_horizon": "k/n"}
+    "censoring": {"n_censored": 0, "recovered_within_horizon": "k/n",
+                  "n_undetermined": 0}       // v1.2 IXTIYORIY: VR=None,
+                                             //   "recovered EMAS" bilan
+                                             //   QO'SHILMAYDI (§2.5)
   },
   "false_recovery": {                   // §5
-    "fr_a": {"per_action": 0.0, "per_episode": 0.0, "n_undetermined": 0},
+    "fr_a": {"per_action": 0.0, "per_episode": 0.0, "n_undetermined": 0,
+             "basis": "..."},           // v1.2 MAJBURIY (§2.9): qaysi
+                                        //   denominator ishlatilgani
     "fr_b": {"computed": false, "reason": "no calibration matrix (P1)"}
   },
   "downtime": {                         // §6.1 uchala o'lchov
-    "d_sd": {}, "d_probe": {}, "d_eff": {}   // median, p90, p99 + BCa CI
+    // v1.2: ICHKI SHAKL endi belgilangan. Har o'lchov uchun `median`,
+    // `p90`, `p99` MAJBURIY; har biri YO plain son, YO obyekt.
+    // §10.2 BCa bootstrap CI ni talab qiladi => obyekt shakli NORMAL
+    // holat, yalang'och son esa DEGENERAT holat (CI hisoblanmagan).
+    "d_sd": {
+      "median": {"estimate": 0.0, "ci_lower": 0.0, "ci_upper": 0.0,
+                 "ci_method": "bca_bootstrap"},
+      "p90": {"estimate": 0.0, "ci_lower": 0.0, "ci_upper": 0.0,
+              "ci_method": "bca_bootstrap"},
+      "p99": 0.0,                     // degenerat shakl: CI yo'q
+      "ecdf": {"x": [], "y": []},     // v1.2 IXTIYORIY (§2.6)
+      // v1.2 (§2.8) -- har jadval k/n bilan (§2.3-4) va `None` != 0:
+      "recovered_within_horizon": "k/n", "unit": "us",
+      "n": 0, "n_censored": 0, "n_missing": 0,
+      "censoring_flag": "d_sd_censored",   // d_eff uchun null (§2.9)
+      "note": null
+    },
+    "d_probe": {"median": {}, "p90": {}, "p99": {}},   // bir xil shakl
+    "d_eff":   {"median": {}, "p90": {}, "p99": {},
+                "censoring_flag": null}   // §2.9: ATAYLAB null
+  },
+  "probe_cost": {                       // v1.2 YANGI, IXTIYORIY (§2.7)
+    "budget_percent": 1.0,              // yo'q bo'lsa §8.2 ning 1% i
+    "by_arm": {
+      "<arm>": {"core_percent": [0.0, null, 0.0]}   // TRIAL bo'yicha
+    }                                   // null = o'lchanmadi (0 EMAS)
   },
   "sensitivity": {                      // §4 sweep
+    // DIQQAT (§2.4 istisnosi): `w_stab` SEKUNDDA, mikrosekundda EMAS --
+    // §4 grid'i aynan shu raqamlar bilan oldindan e'lon qilingan.
     "w_stab": [8,10,30,60,120], "theta": [0.5,0.8,0.95],
-    "grid": [{"w_stab": 8, "theta": 0.8, "p_vr_by_level": {}, "note": null}]
+    "grid": [{"w_stab": 8, "theta": 0.8, "p_vr_by_level": {}, "note": null}],
+    "recovered_within_horizon": "k/n"   // v1.2 (§2.3-4)
   },
-  "multiplicity": {"method": "holm_bonferroni", "family": [], "adjusted": []},
-  "exclusions": {"rate": 0.0, "by_reason": {}},   // NATIJA sifatida beriladi
+  "multiplicity": {"method": "holm_bonferroni", "family": [], "adjusted": [],
+                   "uncorrected": []},  // v1.2 (§2.8): §10.4 "exploratory
+                                        //   deb belgilanadi"
+  "exclusions": {"rate": 0.0, "by_reason": {},    // NATIJA sifatida beriladi
+                 "n_total": 0, "n_excluded": 0, "n_primary": 0},  // v1.2:
+                                        //   `rate` ning auditi (§2.8)
   "warnings": []                        // hisoblab bo'lmagan narsalar
 }
 ```
@@ -192,6 +498,308 @@ oladi, pre-registration §10 dagi analizni bajaradi.
 | 7 | `W_stab > horizon` bo'lgan sweep yacheykasi `note` bilan belgilanadi | `reduce.py` uni `None` qaytaradi |
 | 8 | p90/p99 KM'dan `nan` bo'lsa — **censored bo'lmagan qism** ustida BCa bootstrap | `stats.km_quantile` cheklovi |
 | 9 | **v1.1:** `analysis.json` ga `t_trial_us` **kirish `run_meta` dan** ko'chiriladi | §5: qaysi horizon ostida censor qilingani figura va jadvaldan ko'rinadi |
+| 10 | **v1.2:** `t_trial_us` **TOP-LEVEL** kalit; `analyze.py` uni **qayta hisoblamaydi** | §6.2 har jadval bilan `recovered_within_horizon: k/n` ni talab qiladi, va k/n horizon'siz **talqin qilinmaydi**. Qayta hisoblash ikkinchi haqiqat manbai yaratardi |
+| 11 | **v1.2:** `time_unit: "us"` **har doim** yoziladi | §2.4 |
+| 12 | **v1.2:** `downtime.<o'lchov>.{median,p90,p99}` **majburiy**; CI hisoblangan bo'lsa obyekt shaklida | §10.2: *"median, p90, p99 + BCa bootstrap CI"* |
+| 13 | **v1.2:** `probe_cost` ni to'ldirish imkoni bo'lmasa — bo'lim **CHIQARILADI** va sabab `warnings` ga yoziladi | §2.1: provenance zanjiri uzilgan. Bu majburiyat 6 ning (*"hisoblab bo'lmagan narsa `warnings` ga"*) aynan qo'llanishi |
+| 14 | **v1.2:** `survival.censoring.n_undetermined` hisoblansa yoziladi; VR=`None` hech qachon `n_censored` yoki "recovered emas" ga **qo'shilmaydi** | §2.5 |
+| 15 | **v1.2:** §2.2 ning kalitlari **MAJBURIY MINIMUM**, yopiq ro'yxat emas | §2.8: §2.3 ning 4 va 8 majburiyatlari §2.2 da ko'rinmagan kalitlarni talab qiladi, demak ikkisi bir vaqtda bajarilishi uchun sxema ochiq bo'lishi SHART |
+| 16 | **v1.2:** `survival.rmst.pressure_difference` (`contrast`, `tau`, `estimate`, `se`, `ci_lower`, `ci_upper`) va `survival.{km,logrank}...by_pressure_band` | §2.10: **§11 ning fail-slow mezoni** busiz **hisoblanmaydi** |
+| 17 | **v1.2:** har farq (`difference`, `risk_difference`, `pressure_difference`) `contrast` maydoni bilan | nomsiz/belgisiz farq **talqin qilinmaydi** — qaysi tomon ayirilgani ko'rinmasa ishora ham noma'lum |
+| 18 | **v1.2:** `false_recovery.fr_a.basis` **har doim** yoziladi | §2.9: qaysi denominator ishlatilgani auditga ochiq bo'lishi SHART |
+| 19 | **v1.2:** `stats.TrendResult.direction` ning `"flat"` i `"none"` ga map qilinadi; `d_eff` uchun `censoring_flag` **`null`** | §2.9 — ikkisi ham **ataylab**, va ikkisi ham kod tuzatilmasdan hal qilingan |
+
+### 2.4 `time_unit` — mikrosekund, taxmin qilinmaydi (v1.2)
+
+**Qaror:** `analysis.json` dagi **barcha o'lchangan davomiylik mikrosekundda**,
+va `analyze.py` top-level `time_unit: "us"` ni **har doim** yozadi.
+
+**NEGA:** `PREREGISTRATION.md` §1 har davomiylikni `CLOCK_MONOTONIC`
+**mikrosekund**da muzlatgan (*"Bitta clock — konversiya yo'q, konversiya
+xatosi yo'q"*). Boshqa birlik shartnoma **ruxsat bermagan konversiya** bo'lardi.
+v1.1 gacha sxemada birlik **hech qayerda yozilmagan edi** — vaqt disiplinasi
+absolyut bo'lgan loyihada bu haqiqiy xavf.
+
+**Ikki OCHIQ istisno** (ular o'lchov emas, **oldindan e'lon qilingan parametr
+yorliqlari**):
+
+| kalit | birlik | nega |
+|---|---|---|
+| `sensitivity.w_stab` va `sensitivity.grid[].w_stab` | **sekund** | §4 sweep grid'i `{8,10,30,60,120}` **sekundda** oldindan e'lon qilingan (`reduce.W_STAB_SWEEP_S`, `revix/reduce.py:72`), va aynan shu e'lon *"siz W ni natija uchun tanlagansiz"* hujumiga javob. Ularni µs ga aylantirish pre-registration'dagi grid'ni **ko'rinmas** qilardi |
+| `sensitivity.theta`, `grid[].theta`, `p_min` | **birliksiz** | nisbat |
+
+`survival.rmst.tau` — **mikrosekund** (davomiylik, istisno emas;
+`PREREGISTRATION.md` §10.2 uni `τ = 8 s` deb muzlatgan ⇒ `8000000`).
+
+**Figura qoidasi (normativ):** `time_unit` kaliti **yo'q** bo'lsa, figura
+birlikni **TAXMIN QILMAYDI**. U o'qni birliksiz belgilaydi va figuraning
+o'zida *"time unit not declared"* deb yozadi. Taxmin qilingan birlik —
+jimgina konversiya xatosi, va u grafikda **to'g'ri ko'rinadi**.
+
+### 2.5 `survival.censoring.n_undetermined` — VR=`None` alohida kategoriya (v1.2)
+
+`reduce.py` VR ni **uch qiymatli** qiladi va `None` ni ochiq sabab bilan
+qaytaradi: `r_ref_unavailable` (`revix/reduce.py:823`) va `window_truncated`
+(`revix/reduce.py:831`). **`None` hech qachon `False` ga aylantirilmaydi** —
+aniqlanmagan VR **ishdan chiqqan VR emas**.
+
+v1.1 gacha sxemada `n_undetermined` faqat `false_recovery.fr_a` ostida bor
+edi — lekin u **FR-A**, VR emas. Ya'ni aniqlanmagan VR'ni ko'rsatadigan joy
+yo'q edi.
+
+`analyze.py` uni `trial_metrics` dan hisoblaydi:
+
+```
+n_undetermined = |{ r : r["included_in_survival"] and r["vr"] is None }|
+```
+
+(`included_in_survival` — `revix/reduce.py:1570`; `vr` — `revix/reduce.py:1599`.)
+Sabab taqsimoti `trial_metrics.vr_reason` da (`revix/reduce.py:1601`) —
+**yangi kalit qo'shilmaydi**, figura o'sha maydondan yorliq oladi.
+
+> **NEGA bu eng muhim qo'shimchalardan biri:** aniqlanmagan VR'ni
+> "recovered emas" ga qo'shish **o'lchov yetishmovchiligini natijaga
+> aylantiradi** — bu loyihada mavjud eng yomon buzilish turi, va u
+> `reduce.py` ning 6-qoidasi (*"throughput bandi o'lchanmasa, VR
+> TASDIQLANMAYDI"*) bilan ataylab oldini olingan. `analyze.py` da uni
+> qaytib tiklash butun kafolatni bekor qilardi.
+>
+> `reduce.py` ning reduksiya xulosasida bu son allaqachon bor:
+> `vr_undetermined` (`revix/reduce.py:1769`), `recovered_within_horizon`
+> (`:1768`) va `recovered_k_of_n` (`:1771`) bilan birga. Ya'ni manba mavjud,
+> faqat `analysis.json` da joy yo'q edi.
+
+### 2.6 `downtime.<o'lchov>.ecdf` — ixtiyoriy, lekin interpolatsiya YO'Q (v1.2)
+
+**Shakl:** `{"x": [...], "y": [...]}`, teng uzunlikdagi ikki massiv; `x` —
+mikrosekundda downtime qiymatlari (§2.4), `y` — `[0, 1]` dagi kumulyativ
+ulush.
+
+**NEGA mavjud bo'lishi kerak:** `PREREGISTRATION.md` §10.2 ochiq yozadi:
+*"ECDF'lar to'liq chizilib beriladi — har qanday bitta testdan
+ishonchliroq."* §3 esa `figures.py` ni **faqat `analysis.json`** ni o'qishga
+va **hech qanday statistika hisoblamaslikka** majbur qiladi. Ikkisi birga
+olinganda: ECDF nuqtalari `analysis.json` da **bo'lishi SHART**, aks holda
+§3 bajarilmaydi. Aynan shu yetishmovchilik v1.2 ning sababi.
+
+**NEGA ixtiyoriy:** ECDF per-trial downtime qiymatlarining to'liq to'plamini
+talab qiladi, va `d_sd` / `d_probe` / `d_eff` ning birortasi `None`
+bo'lishi mumkin (o'lchanmadi). Majburiy qilinsa, `analyze.py` yo'q
+ma'lumotni to'ldirishga majbur bo'lardi.
+
+**Degradatsiya qoidasi (normativ):** `ecdf` **yo'q** bo'lsa,
+`downtime_ecdf` figurasi faqat `median` / `p90` / `p99` **markerlarini**
+chizadi, ularni **chiziq bilan birlashtirmaydi**, va figurada
+*"no ECDF available — markers only"* deb **yozadi**. Uch nuqta orasida
+egri chiziq chizish — **interpolatsiya**, ya'ni o'lchanmagan shaklni
+o'lchangan deb ko'rsatish. Bu §2.3-6 (*"hisoblab bo'lmagan narsa
+`warnings` ga, taxmin qilinmaydi"*) ning figuraga qo'llanishi.
+
+### 2.7 `probe_cost` — §8.2 ning transporti, yangi talab emas (v1.2)
+
+**Shakl:** `budget_percent` (son; **yo'q bo'lsa** §8.2 ning **1%** i
+ishlatiladi) va `by_arm.<arm>.core_percent` — **trial bo'yicha ro'yxat**,
+o'lchanmagan trial uchun `null`.
+
+**NEGA bu yangi talab EMAS:** `PREREGISTRATION.md` §8.2 to'rt narsani
+**allaqachon** majburlagan: prober CPU'si *"trial bo'yicha o'lchanadi"*,
+*"yadro foizida beriladi"*, *">1% bo'lsa sekinlashtiriladi"*, va
+*"arm'lar bo'yicha bir xil ushlanadi"*. v1.2 hech narsa qo'shmaydi — faqat
+o'sha to'rt talabning **yetkazish yo'lini** ochadi. `budget_percent`
+default'i ham o'ylab topilmagan: u §8.2 dagi 1% va
+`prober.PROBE_COST_BUDGET_PERCENT = 1.0` (`revix/prober.py:114`).
+
+**NEGA `by_arm` va trial bo'yicha ro'yxat:** §8.2 ning oxirgi bandi —
+*"arm'lar bo'yicha bir xil ushlanadi"* — **arm'lar orasidagi taqqoslashni**
+talab qiladi, demak narx arm bo'yicha guruhlanishi kerak; *"trial bo'yicha
+o'lchanadi"* esa granularlikni belgilaydi. Arm qiymati
+`trial_metrics.arm` dan (`revix/reduce.py:1561`).
+
+**NEGA granularlik aynan trial darajasida chiqadi:** `cost_report()`
+prober **jarayonining butun hayoti** bo'yicha kumulyativ
+(`revix/prober.py:764`-`:768`), va §4.5(a) driver'ni **har trial uchun
+alohida prober jarayoni** ishga tushirishga majburlaydi — demak
+`prober_stop.cost` **tabiatan per-trial**. Granularlik qasddan emas, v1.1
+qarorining natijasi.
+
+**`null` nega `0` emas:** `0.0` haqiqiy o'lchov qiymati (*"CPU ishlatilmadi"*),
+`null` esa *"o'lchanmadi"*. Ularni aralashtirish `CONTRIBUTING.md` §4 ning
+ochiq taqig'i.
+
+**Holat (v1.2):** zanjirning **o'lchov yarmi tuzalgan** — §4.5(a) ning
+per-trial prober qarori tufayli `prober_stop` har trial'da ishlaydi va
+`core_percent` ni `trial_id` bilan beradi (§2.1 jadvali). Qolgani
+**transport**: `analyze.py` uni `--events` orqali o'qiydi. `--events`
+berilmasa bo'lim **chiqariladi** va `warnings` da sabab turadi; §3 ning
+`probe_cost` figurasi shunda *"probe cost not available — reason: …"* deb
+yozadi va bo'sh o'q chizmaydi.
+
+**Budjet konstantasining ATAYLAB TAKRORLANISHI.** `analyze.py` da
+`PROBE_COST_BUDGET_PERCENT = 1.0` **mustaqil** ta'riflangan
+(`revix/analyze.py:1114`), `prober.py` dan import qilinmaydi
+(`revix/prober.py:114`).
+
+> **NEGA takrorlanadi:** §2 ning 1-qoidasi `analyze.py` ni **qat'iy offline**
+> qiladi; `prober` esa socket ochadi va o'lchanayotgan tizimga tegadi, demak
+> uni import qilish offline kafolatini buzardi.
+>
+> **TALAB (regressiya qulfi, `CONTRIBUTING.md` §4):** ikki qiymat tengligini
+> qotiradigan test **bo'lishi SHART** — aks holda bittasi o'zgarsa
+> `budget_exceeded` va `probe_cost.budget_percent` jimgina ikki xil
+> chegaradan gapirardi. **Holat: bunday test hozir YO'Q** (`tests/` da
+> `PROBE_COST_BUDGET_PERCENT` ga birorta havola topilmadi) — bu
+> `agent/analyze` uchun ochiq talab.
+
+### 2.8 §2.2 — MAJBURIY MINIMUM, yopiq ro'yxat emas (v1.2)
+
+#### Defekt
+
+§2.3 ning majburiyatlari §2.2 **ko'rsatmagan** kalitlarni talab qiladi,
+demak v1.1 holatida **ikki bo'lim bir vaqtda bajarilishi mumkin emas**:
+
+- **majburiyat 4** — *"Har jadval `recovered_within_horizon: k/n` bilan
+  birga"* — lekin §2.2 bu kalitni **faqat** `survival.censoring` da
+  ko'rsatadi;
+- **majburiyat 8** — KM p90/p99 `nan` bo'lsa BCa fallback — lekin §2.2 da
+  **kvantil uchun joy yo'q**.
+
+#### Qoida
+
+**§2.2 ning kalitlari MAJBURIY MINIMUM.** Qo'shimcha kalit §2.2 ni buzmaydi;
+§2.2 da ko'rsatilgan kalitni **tashlab ketish** buzadi.
+
+Quyidagi kalitlar v1.2 bilan **oshkora** qo'shildi (`agent/analyze` ularni
+o'z modul docstring'ida `SXEMA QO'SHIMCHALARI` ostida sanab bergan va
+*"o'zboshimchalik bilan hal qilinmaydi"* deb shu amendment'ga qoldirgan):
+
+| kalit | nega |
+|---|---|
+| `primary.recovered_within_horizon`, `downtime.<m>.recovered_within_horizon`, `sensitivity.recovered_within_horizon` | majburiyat 4 (§6.2) |
+| `primary.ci_level` | yozilmasa figura *"95%"* deb **da'vo qila olmaydi** |
+| `primary.risk_difference.contrast`, `survival.rmst.difference.contrast` | nomsiz farqning **ishorasi** noma'lum |
+| `downtime.<m>.{unit, n, n_censored, n_missing, censoring_flag, note}` | `None` ≠ `0` (`CONTRIBUTING.md` §4); `n` siz kvantil hisobot qilinmaydi |
+| `downtime.<m>.ecdf` | §10.2 (§2.6) |
+| `survival.km.by_arm.<arm>.quantiles` | majburiyat 8 |
+| `survival.km.by_arm.<arm>.{n_total, n_censored, n_events}` | `n` siz KM egri chizig'i va at-risk jadvali hisobot qilinmaydi |
+| `survival.censoring.n_undetermined` | §2.5 |
+| `false_recovery.fr_a.basis` | §2.9 |
+| `multiplicity.uncorrected` | §10.4 *"exploratory deb belgilanadi"* — belgilash uchun joy kerak |
+| `time_unit`, `t_trial_us`, `t_trial_formula` | §2.4, §5.4 |
+| `run_id`, `session_id`, `preregistration_version` | provenans |
+| `exclusions.{n_total, n_excluded, n_primary}` | `exclusions.rate` **natija** sifatida beriladi (§12), demak uning **auditi** ham kerak |
+
+> **NEGA sxema ochiq, lekin kalit nomlari qat'iy:** `figures.py`,
+> `analyze.py` va `validate.py` **bir xil nomlarga** bog'lanadi (§4.1 bilan
+> bir mantiq). Ochiqlik *"yangi kalit qo'shish mumkin"* degani, *"nomni
+> o'zgartirish mumkin"* degani **emas**.
+
+### 2.9 FR-A asosi, `--episodes`, va ikki ataylab qaror (v1.2)
+
+#### (a) `fr_a.basis` — majburiy
+
+`PREREGISTRATION.md` §5 FR-A ni **har action** va **har epizod** uchun talab
+qiladi, va §2.2 ikkisini ham (`per_action`, `per_episode`) so'raydi. Lekin
+per-action / per-episode tafsiloti `reduce.py` ning **`episodes.jsonl`** ida
+yashaydi, v1.1 §2.1 esa kirish sifatida faqat `trial_metrics` ni bergan.
+
+**Hal:** ixtiyoriy `--episodes PATH` (§2.1). U **berilmasa**, `analyze.py`
+faqat **aynan yechiladigan** quyi to'plamdan hisoblaydi: `n_episodes == 1`
+bo'lgan trial'da trial darajasidagi FR-A epizod darajasiga **aynan teng**
+(`_kleene_any` bitta element ustida), va `n_actions == 1` ham bo'lsa action
+darajasiga teng. Yechilmagan trial'lar `warnings` da **sanab beriladi** va
+denominatorga **kirmaydi**.
+
+**`fr_a.basis` har ikki holatda ham MAJBURIY** — u *"qaysi denominator
+ishlatilgan"* degan savolning yozma javobi.
+
+> **NEGA majburiy:** `per_action = 0.07` raqami to'liq to'plamdan yoki
+> yechiladigan quyi to'plamdan olinganiga qarab **boshqa ma'no** beradi.
+> Asos yozilmasa, ikkisi bir xil ko'rinadi — ya'ni jimgina noto'g'ri
+> talqin.
+
+#### (b) `stats.TrendResult.direction` — `"flat"` → `"none"`
+
+`stats.py` trend yo'nalishi uchun `"flat"` qaytaradi, §2.2 ning yopiq enumi
+esa `decreasing|increasing|none`. **Qaror: §2.2 normativ**, `analyze.py`
+`flat → none` map qiladi (`revix/analyze.py:531`, `:536`), **`stats.py`
+tahrirlanmaydi** — §4.1 ning "KOD USTUN" printsipi bilan bir xil usul:
+chiqish sxemasi shartnomada muzlatilgan, ichki nom modulning ishi.
+
+#### (c) `d_eff` uchun `censoring_flag` ATAYLAB `null`
+
+`reduce.py` `d_sd_censored` va `d_probe_censored` ni beradi, lekin
+**`d_eff_censored` ni bermaydi** (`Downtime` dataclass: `revix/reduce.py:1309`,
+`:1312`, `:1314`).
+
+**Bu kamchilik emas, ta'rifning natijasi:** §6.1 ga ko'ra `D_eff` ning
+integral domeni `[t_fault_effective, horizon]`, ya'ni u **qurilishi bo'yicha**
+horizon bilan chegaralangan — kesilmagan "to'liq" qiymati mavjud emas.
+Shuning uchun `analyze.py` har kuzatilgan qiymatni **event** deb oladi,
+`censoring_flag: null` yozadi va `note` da sababini beradi.
+
+> **NORMATIV TAQIQ:** `d_eff` uchun censoring'ni `down_at_horizon` dan
+> (`revix/reduce.py:1487`) **chiqarib olish mumkin emas** — bu amendment'siz
+> **qilinmaydi**. Aks holda bitta o'lchov ikki xil ta'rif ostida
+> hisoblanardi: `D_eff` integrali horizon'ni **o'z ichiga oladi**, KM esa
+> horizon'ni **censoring nuqtasi** deb oladi. Bu gap aynan shu uchun
+> yozilgan: keyingi o'quvchi buni "tuzatilmagan joy" deb o'ylab
+> **tuzatmasligi** kerak.
+
+### 2.10 🚨 §11 ning fail-slow mezoni HISOBLANMAYDI — pressure kontrasti (v1.2)
+
+#### Defekt — eng og'iri
+
+`PREREGISTRATION.md` §11 muzlatilgan falsifikatsiya qoidasini beradi, va
+uning ikkinchi bandi aynan shunday:
+
+> *"fail-slow shakli qo'llab-quvvatlanmaydi, agar `P0` va `P2` orasidagi
+> time-to-VR RMST farqi (τ = 8 s) uchun 95% CI 20% oshishni chiqarib
+> tashlasa."*
+
+Bu **pressure** kontrasti. Lekin §10.2 KM va log-rank'ni **arm bo'yicha**
+belgilaydi, va v1.1 §2.2 faqat `survival.rmst.by_arm` va **bitta**
+`difference` ni bergan. Ya'ni §11 nomlagan kontrast uchun sxemada
+**joy yo'q**.
+
+**O'lchangan oqibat:** `agent/analyze` (commit `2518e26`) hozir arm
+kontrastini (`"A - no_action"`) chiqaradi va
+`schema_gap_rmst_pressure_contrast` ogohlantirishini beradi
+(`revix/analyze.py:853`) — ya'ni **§11 ning bandi BAHOLANMAYDI**.
+
+> **NEGA bu kosmetik bo'shliq emas:** §11 — **muzlatilgan falsifikatsiya
+> qoidasi**, loyihaning ilmiy qiymatining asosi (`README.md` "Ilmiy
+> yaxlitlik": ta'riflar natijani ko'rishdan **oldin** muzlatiladi).
+> **Chiqishdan hisoblab bo'lmaydigan qoida hech narsani falsifikatsiya
+> qilmaydi.** Ya'ni bo'shliq §11 ni bezak qoldirardi.
+
+#### Qoida (normativ, ADDITIV)
+
+| kalit | mazmuni |
+|---|---|
+| `survival.rmst.by_pressure_band.<band>` | `{estimate, se}` — har pressure band uchun RMST |
+| `survival.rmst.pressure_difference` | `{contrast: "P0-P2", tau, estimate, se, ci_lower, ci_upper}` |
+| `survival.km.by_pressure_band.<band>` | arm bo'yicha KM bilan **bir xil** shakl |
+| `survival.logrank.by_pressure_band` | pressure bo'yicha log-rank |
+
+**Mavjud `by_arm` strukturasi SAQLANADI.** Ikkisi ham kerak:
+§10.2 ning **arm** taqqoslashi va §11 ning **pressure** taqqoslashi
+**boshqa savollarga** javob beradi.
+
+> **NEGA KM ham pressure bo'yicha kerak:** RMST farqi **hosila** qiymat —
+> u o'zi ikki survival egri chizig'idan hisoblanadi. Egri chiziqlar
+> berilmasa, `pressure_difference` ni **tekshirib bo'lmaydi**, va §3
+> `figures.py` ni faqat `analysis.json` ga bog'lagan — demak figura ham
+> chizilmaydi. Shu sabab KM/log-rank ning pressure bo'yicha guruhlanishi
+> **xuddi shu mantiqdan** kelib chiqadi.
+>
+> **NEGA bu ADDITIV va hech qanday ta'rifni o'zgartirmaydi:** §11 ning
+> mezoni va uning **20% chegarasi tegilmaydi**; `τ = 8 s` tegilmaydi;
+> `by_arm` tegilmaydi. Qo'shilgani faqat **hisoblash uchun transport**.
+> Kontrast `P0`–`P2` ni §11 **o'zi** nomlagan, demak tanlov ham bu
+> hujjatning emas.
+>
+> **CHEKLOV:** `τ` **mikrosekundda** (§2.4) ⇒ `8 s = 8000000`. §11 ning
+> *"20% oshish"* i **nisbat**, demak birliksiz va konversiyadan xoli.
 
 ---
 
@@ -211,6 +819,32 @@ Majburiy figuralar (loyiha spetsifikatsiyasi §47 dan, P1 uchun tegishlilari):
 
 **Rang/uslub qoidasi:** figura oq-qora chop etishda ham o'qilishi kerak
 (marker/chiziq turi bilan farqlanadi, faqat rang bilan emas).
+
+### 3.1 Degradatsiya qoidalari (v1.2) — figura JIM QOLMAYDI va TAXMIN QILMAYDI
+
+`figures.py` faqat `analysis.json` ni o'qiydi va hech qanday statistika
+hisoblamaydi (§3). Demak kalit yo'q bo'lganda uning yagona to'g'ri xatti-
+harakati — **kamroq chizish va nima yo'qligini aytish**. Bu §2.3-6 ning
+figuraga qo'llanishi.
+
+| yo'q kalit | figura | majburiy xatti-harakat |
+|---|---|---|
+| `downtime.<o'lchov>.ecdf` | `downtime_ecdf` | faqat `median`/`p90`/`p99` markerlari, **birlashtiruvchi chiziq yo'q**, figurada *"no ECDF available — markers only"* (§2.6) |
+| `time_unit` | **hammasi** | o'q **birliksiz** belgilanadi + *"time unit not declared"*; birlik **taxmin qilinmaydi** (§2.4) |
+| `probe_cost` | `probe_cost` | *"probe cost not available — reason: <`warnings` dagi sabab>"*; bo'sh o'q chizilmaydi (§2.7) |
+| `survival.censoring.n_undetermined` | `km_time_to_vr` | aniqlanmagan trial'lar **alohida** ko'rsatiladi; mavjud bo'lmasa *"n_undetermined not reported"*. Ular **hech qachon** "recovered emas" ga qo'shilmaydi (§2.5) |
+| `t_trial_us` | `km_time_to_vr`, `downtime_ecdf` | horizon chizig'i chizilmaydi + *"horizon not reported"*; `recovered_within_horizon` nisbati **horizon'siz talqin qilinmaydi** (§2.3-10) |
+| `*.ci_lower` / `*.ci_upper` (degenerat shakl) | `p_vr_vs_pressure`, `downtime_ecdf` | nuqta chiziladi, **error bar chizilmaydi**; *"CI not computed"* (§2.2 degenerat shakl) |
+| `survival.rmst.pressure_difference` yoki `survival.km.by_pressure_band` | `km_time_to_vr` | pressure kontrasti **chizilmaydi** + *"§11 fail-slow criterion not evaluable — reason: &lt;`warnings`&gt;"*; arm kontrasti pressure kontrasti **o'rniga ko'rsatilmaydi** (§2.10) |
+| `primary.ci_level` | `p_vr_vs_pressure` | legend/o'qda *"95%"* **yozilmaydi**, *"CI level not declared"* (§2.8) |
+| `false_recovery.fr_a.basis` | — | FR-A raqami **ko'rsatilmaydi**: asossiz nisbat talqin qilinmaydi (§2.9a) |
+
+> **NEGA har holatda matn yoziladi:** jimgina kamroq chizilgan figura
+> **to'liq figura kabi ko'rinadi**. Reviewer uchun *"ECDF yo'q"* va
+> *"ECDF tekis"* — ikki butunlay boshqa xulosa, va ularni ajratishning
+> yagona yo'li figuraning o'zida yozilgan gap. `figures/<nom>.json`
+> (§3) ham o'sha holatni aks ettiradi, shunda figura tekshirilishi
+> mumkin bo'lib qoladi.
 
 ---
 
@@ -262,7 +896,7 @@ Normativ natijalar:
 |---|---|---|
 | 1 | `trial_id` va `block_index` **envelope orqali** beriladi (`Emitter.record(..., trial_id=…, block_index=…)`), payload'da EMAS | `reduce.split_trials()` tekis record'dan o'qiydi (`revix/reduce.py:422`), demak natija bir xil; lekin payload'ga qo'yilsa `ValueError` |
 | 2 | `schedule.Trial.as_dict()` **payload sifatida berilmaydi** | u `trial_id` va `block_index` ni o'z ichiga oladi (`revix/schedule.py:179`) → envelope bilan to'qnashadi → `ValueError`. Driver `levels_dict` dan maydonlarni ALOHIDA oladi |
-| 3 | Har record uchun `stream = record_type` (ya'ni `Emitter` default'i) | `validate._stream_key()` oqimni `(emitter, record_type)` juftligi bilan taxmin qiladi (`revix/validate.py:302`); bitta emitter ikki `record_type` ni bitta oqimga yozsa **soxta `seq` bo'shligi** chiqadi (§14.6-3 buziladi) |
+| 3 | Har record uchun `stream = record_type` (ya'ni `Emitter` default'i) | `seq` oqim bo'yicha monotonik; bitta emitter ikki `record_type` ni bitta oqimga yozsa **soxta `seq` bo'shligi** chiqadi (§14.6-3 buziladi). **v1.2:** bu endi majburlanadi — `validate._stream_key()` kalitni `(emitter, stream)` dan oladi va `check_envelope` `stream_not_record_type` xatosini beradi (`revix/validate.py:476`) |
 | 4 | `mono_us` envelope'dan keladi va **o'sha record'ning kuzatuv vaqti** bo'lishi kerak; kuzatuv vaqti boshqa bo'lsa `Emitter.record(..., mono=…)` bilan beriladi | `reduce.py` oyna a'zoligini `mono_us` bilan hisoblaydi (`revix/reduce.py:770`, `:882`) |
 
 ### 4.3 Normativ jadval
@@ -274,9 +908,9 @@ record'dagi AYNAN nom) → **consumer** (uni o'qiydigan kod, fayl:qator).
 
 | manba | record maydoni | consumer |
 |---|---|---|
-| `git status --porcelain` bo'sh emasligi | `git_dirty` | `validate.check_run_meta` (`validate.py:492`) |
-| run rejimi (`pilot` \| `confirmatory`) | `run_mode` | `validate.check_run_meta` (`validate.py:491`; `mode` ga fallback qiladi) |
-| `sha256sum PREREGISTRATION.md` | `preregistration_sha256` | `validate.check_run_meta` (`validate.py:510`), `analyze.py` |
+| `git status --porcelain` bo'sh emasligi | `git_dirty` | `validate.check_run_meta` (`validate.py:710`) |
+| run rejimi (`pilot` \| `confirmatory`) | `run_mode` | `validate.check_run_meta` (`validate.py:709`; `mode` ga fallback qiladi) |
+| `sha256sum PREREGISTRATION.md` | `preregistration_sha256` | `validate.check_run_meta` (`validate.py:728`), `analyze.py` |
 | `Schedule.seed` | `rng_seed` | reproducibility (`RAW_CONTRACT`; runtime'da o'qilmaydi) |
 | §5 formulasi | `t_trial_us` | `analyze.py`, `figures.py` (§2.3-9) |
 | §1.1 ro'yxati | o'sha nomlar bilan | reproducibility |
@@ -308,8 +942,9 @@ record'dagi AYNAN nom) → **consumer** (uni o'qiydigan kod, fayl:qator).
 
 | manba | record maydoni | consumer |
 |---|---|---|
-| harness qarori, `schema.DISPOSITIONS` enum'idan | `disposition` | `reduce.derive_disposition` (`reduce.py:1418`), `validate.check_dispositions` (`validate.py:255`) |
+| harness qarori, `schema.DISPOSITIONS` enum'idan | `disposition` | `reduce.derive_disposition` (`reduce.py:1418`), `validate.check_dispositions` (`validate.py:429`) |
 | harness | `reason` | odam o'qishi uchun (`RAW_CONTRACT`) |
+| **v1.2:** trial atrofidagi o'lchangan qo'shimcha (unit yaratish/yo'q qilish, D-Bus round-trip, flush) | **`overhead_us`** — qabul qilinadigan aliaslar `trial_overhead_us`, `overhead_s`, `trial_overhead_s` | `validate.TRIAL_OVERHEAD_FIELDS` (`revix/validate.py:152`); §1.3-9 va §9.4 v1.3: *"o'lchanadi, taxmin qilinmaydi"*. Birlik **nomda**: `_us` mikrosekund, `_s` sekund |
 | `trial_begin.mono_us + T_trial` (§5) | envelope `mono_us` | `reduce.Trial.end_us` (`reduce.py:406`) — **horizon aynan shu nuqta**, right censoring shu yerda bo'ladi (§6.2) |
 
 #### `probe_sample` — prober yozadi, driver YOZMAYDI
@@ -338,12 +973,12 @@ property nomlarini** chiqaradi. Driver ularni **o'chirmaydi** —
 | manba (`units.STATE_PROPS`) | record maydoni | consumer |
 |---|---|---|
 | `ActiveState` | `ActiveState` **va** `active_state` | `reduce.actor_success_signal` (`reduce.py:886`) |
-| `NRestarts` | `NRestarts` **va** `n_restarts` | `reduce.evaluate_vr` 4-band (`reduce.py:770`), `reduce.reduce_trial` loop_rate (`reduce.py:1523`), `validate._invocation_changed` (`validate.py:449`, `:453`) |
-| `InvocationID` | `InvocationID` **va** `invocation_id` | `reduce.reduce_trial` (`reduce.py:1520`), `validate._invocation_changed` (`validate.py:442`) |
+| `NRestarts` | `NRestarts` **va** `n_restarts` | `reduce.evaluate_vr` 4-band (`reduce.py:770`), `reduce.reduce_trial` loop_rate (`reduce.py:1523`), `validate._invocation_changed` (`validate.py:667`, `:671`) |
+| `InvocationID` | `InvocationID` **va** `invocation_id` | `reduce.reduce_trial` (`reduce.py:1520`), `validate._invocation_changed` (`validate.py:660`) |
 | `ActiveEnterTimestampMonotonic` | o'sha nom **va** `active_enter_ts_mono_us` | `reduce.compute_d_sd` (`reduce.py:1342`) |
 | `ActiveExitTimestampMonotonic` | o'sha nom **va** `active_exit_ts_mono_us` | `reduce.compute_d_sd` (`reduce.py:1341`) |
 | `Result` | `Result` **va** `result` | **hech kim** (§4.6); `RAW_CONTRACT` talab qiladi |
-| `recv_mono_us` (`units.py:1098`) | `recv_mono_us` **saqlanadi**, va envelope `mono_us := recv_mono_us` | `reduce` oyna filtrlari (`reduce.py:770`, `:882`, `:1341`), `validate` (`validate.py:441`) |
+| `recv_mono_us` (`units.py:1098`) | `recv_mono_us` **saqlanadi**, va envelope `mono_us := recv_mono_us` | `reduce` oyna filtrlari (`reduce.py:770`, `:882`, `:1341`), `validate` (`validate.py:659`) |
 | arm C engine (P1 da YO'Q) | `engine_state` | `reduce.actor_success_signal` (`reduce.py:889`) |
 | qolgan `STATE_PROPS` (`SubState`, `ExecMain*`, `*TimestampMonotonic`) | xom nomi bilan | `analyze.py` kovariatalari, diagnostika |
 
@@ -383,7 +1018,7 @@ property nomlarini** chiqaradi. Driver ularni **o'chirmaydi** —
 
 | manba | record maydoni | consumer |
 |---|---|---|
-| aktor | `action_id` | `reduce.split_trials` (`reduce.py:471`), `validate.check_actions` (`validate.py:406`) |
+| aktor | `action_id` | `reduce.split_trials` (`reduce.py:471`), `validate.check_actions` (`validate.py:624`) |
 | aktor | `action_class` | `reduce.split_trials` (`reduce.py:472`), `evaluate_fr_b` (`reduce.py:1548`) |
 | sozlangan kutish (masalan `RestartSec`) | `policy_delay_us` | `reduce.split_trials` (`reduce.py:473`) — §6.3: `L_dec` dan **ALOHIDA** |
 | aktor | `deferred` (bool) | `reduce.split_trials` (`reduce.py:474`; `defer` va `action_class=="defer"` ham qabul qilinadi) |
@@ -409,7 +1044,7 @@ property nomlarini** chiqaradi. Driver ularni **o'chirmaydi** —
 | 2a | `probe_sample`: `progress` vs `progress_counter` | **HAQIQIY va eng xavfli** | `reduce.probe_from_record` `rec.get("progress")` ni o'qiydi (`reduce.py:298`); `prober.PROBE_FIELDS` da ustun `progress_counter` (`prober.py:153`) va `PREREGISTRATION.md` §14.4 aynan `progress_counter` ni majburiy qilgan. `progress=None` bo'lsa §4.5 throughput bandi o'lchanmaydi → `vr=None` → birlamchi endpoint yo'qoladi. **Hal:** §4.5 adapteri |
 | 2b | `probe_sample`: `pid_seen` vs `sut_pid_seen` | **HAQIQIY EMAS (zararsiz)** | `pid_seen` faqat `RAW_CONTRACT` (`reduce.py:1904`) va `PROBE_CSV_FIELDS` (`reduce.py:270`) ichida bor; `reduce.py` uni **runtime'da hech qayerda o'qimaydi**. Map **ixtiro qilinmaydi**; ustun `sut_pid_seen` bo'lib qoladi va `RAW_CONTRACT`/`PROBE_CSV_FIELDS` dagi `pid_seen` — eskirgan hujjat qatori (§4.6) |
 | 2c | `probe_sample`: `invocation_id_seen` | **NOMUVOFIQLIK YO'Q** | ikki tomon ham `invocation_id_seen` deydi (`prober.py:155`, `reduce.py:299`) |
-| 3 | `unit_state`: snake_case vs xom systemd nomlari | **HAQIQIY — lekin faqat 5 maydonda** | runtime'da o'qiladi: `active_state` (`reduce.py:886`), `n_restarts` (`reduce.py:770`, `:1523`, `validate.py:449`), `invocation_id` (`reduce.py:1520`, `validate.py:442`), `active_enter_ts_mono_us` / `active_exit_ts_mono_us` (`reduce.py:1341-1342`). `UnitWatcher` esa `ActiveState`, `NRestarts`, `InvocationID`, `ActiveEnterTimestampMonotonic`, `ActiveExitTimestampMonotonic` beradi (`units.py:1113`, `STATE_PROPS` = `units.py:122`). **`result`** gumon ro'yxatida bor, lekin **runtime'da o'qilmaydi** — u `RAW_CONTRACT` dagi hujjat qatori (§4.6). **Hal:** §4.3 — xom nom + snake_case, ikkisi ham |
+| 3 | `unit_state`: snake_case vs xom systemd nomlari | **HAQIQIY — lekin faqat 5 maydonda** | runtime'da o'qiladi: `active_state` (`reduce.py:886`), `n_restarts` (`reduce.py:770`, `:1523`, `validate.py:667`), `invocation_id` (`reduce.py:1520`, `validate.py:660`), `active_enter_ts_mono_us` / `active_exit_ts_mono_us` (`reduce.py:1341-1342`). `UnitWatcher` esa `ActiveState`, `NRestarts`, `InvocationID`, `ActiveEnterTimestampMonotonic`, `ActiveExitTimestampMonotonic` beradi (`units.py:1113`, `STATE_PROPS` = `units.py:122`). **`result`** gumon ro'yxatida bor, lekin **runtime'da o'qilmaydi** — u `RAW_CONTRACT` dagi hujjat qatori (§4.6). **Hal:** §4.3 — xom nom + snake_case, ikkisi ham |
 
 ### 4.5 `probe_sample` normalizatsiya adapteri
 
@@ -480,12 +1115,55 @@ ikki tomonga drift qilgan:
 | `source` (`actor_signal`), `reason`/`action` (`guard_event`), `rng_seed`/`git_dirty`/`run_mode` (`run_meta`) | `RAW_CONTRACT` da bor, `reduce.py` o'qimaydi | `validate.py` va reproducibility uchun **majburiy qoladi** |
 | `PROBE_CSV_FIELDS` (`reduce.py:268`) `mono_us` va `real_us` ni sanaydi | `probe.csv` da bunday ustun **yo'q** (`mono_us_send`, `real_us_send` bor) | `load_probe_csv` `PROBE_CSV_FIELDS` ni **ishlatmaydi** (u `csv.DictReader` natijasini to'g'ridan-to'g'ri oladi, `reduce.py:278`), demak zararsiz. `probe_from_record` `mono_us_send` ni afzal ko'radi (`reduce.py:290`) |
 
-**CHEKLOV (ochiq, tuzatilmadi):** `validate._stream_key()` izohi
-*"`Emitter.envelope()` `stream` argumentini OLADI lekin record'ga YOZMAYDI"*
-deydi (`validate.py:306`). Bu **eskirgan**: `schema.Emitter.envelope()`
-`stream` ni yozadi (`schema.py:219`) va `ENVELOPE_FIELDS` uni sanaydi
-(`schema.py:244`). Izoh `validate.py` egasiga tegishli; shu amendment unga
-tegmaydi. Driver uchun amaliy natija — §4.2 qoida 3.
+**v1.1 da qayd etilgan CHEKLOV — v1.2 da YOPILDI.** v1.1
+`validate._stream_key()` izohining eskirganini qayd etgan edi (u
+*"`Emitter.envelope()` `stream` ni record'ga YOZMAYDI"* deydi, holbuki
+`schema.py:219` uni yozadi va `ENVELOPE_FIELDS` sanaydi — `schema.py:244`).
+`agent/validate` buni **tuzatdi**: `_stream_key()` endi oqim kalitini
+`(emitter, stream)` dan oladi va o'z docstring'ida §4.2-3 ga havola qilib
+`stream == record_type` ni `check_envelope` da `stream_not_record_type`
+sifatida **majburlaydi** (`revix/validate.py:476`). Ya'ni §4.2 qoida 3 endi
+hujjat emas, **tekshiriladigan invariant**.
+
+### 4.7 Reducer kirishi BITTA target va BITTA unit bo'lishi SHART (v1.2)
+
+#### Defekt
+
+`reduce.split_trials()` probe'larni **faqat `trial_id`** bo'yicha guruhlaydi
+(`revix/reduce.py:453`) va `unit_state` ni **faqat trial** bo'yicha
+(`revix/reduce.py:422` ichidagi `pick()`). `target` ham, `unit` ham
+**umuman ko'rilmaydi**.
+
+Lekin `PREREGISTRATION.md` §8.2 har trial'da **bystander** xizmatini ham probe
+qilishni talab qiladi (spillover detektori; `prober.py` ikki target bilan
+ishlaydi va bystander contract'ni yo'qotsa trial `contaminated` bo'ladi, §12).
+Demak `probe.csv` da **ikki target**, hodisa oqimida esa **ikki unit**
+qonuniy ravishda mavjud.
+
+Filtrlanmasa:
+
+| nima aralashadi | nima buziladi |
+|---|---|
+| bystander probe'lari SUT ning progress seriyasiga | `R_ref` (§4.5), `D_probe`, `D_eff` — `window_throughput()` `progress` ni bitta invocation ichida farqlaydi (`revix/reduce.py:533`), ikki xizmatning hisoblagichi aralashsa natija **ma'nosiz** |
+| bystander probe'lari uzilish hisobiga | `probe_gaps()` (§4 censoring) — ikki target navbatma-navbat yozsa uzilish **yo'qoladi** |
+| bystander `NRestarts` / `InvocationID` SUT ning holatiga | VR **3-band** (`invocation_changed`) va **4-band** (`nrestarts_changed`) — `revix/reduce.py:770`, `:1520` |
+
+#### Qoida (normativ)
+
+| # | qoida | nega |
+|---|---|---|
+| 1 | **Xom fayllar barcha target va unit ni saqlaydi** | bystander trace'i §12 ning `contaminated` disposition'i uchun **dalil**, va `datasets/` append-only (`CONTRIBUTING.md` §1.4) |
+| 2 | **Reducer'ga berilayotgan hamma narsa SUT ga filtrlanadi** — §4.5 dagi **aynan o'sha adapter chegarasida**, `progress_counter` → `progress` normalizatsiyasi bilan birga | bitta joyda, bitta marta: ikki xil chegarada filtrlash ikki xil xatoga olib kelardi |
+| 3 | Filtrlangan record'larda `target` (probe) va `unit` (`unit_state`) **saqlanib qoladi** | filtr **tekshirilishi** mumkin bo'lishi uchun: nimaning qolgani record'ning o'zida ko'rinadi |
+
+> **NEGA filtr xom faylda emas:** xom faylni kesish `CONTRIBUTING.md` §1.4
+> ning to'g'ridan-to'g'ri buzilishi bo'lardi, **va** spillover dalilini
+> yo'q qilardi — ya'ni `contaminated` ni aniqlab bo'lmasdi. Filtr **derived**
+> qatlamda, regenerable.
+
+**Validator qoplashi:** `agent/validate` `probe_targets_mixed` ni **`error`**
+sifatida beradi (`revix/validate.py:1871`) va `unit_state` uchun mos
+tekshiruvni qo'shmoqda. Ya'ni filtrlanmagan kirish **jim o'tmaydi**.
 
 ---
 
@@ -502,8 +1180,9 @@ tegmaydi. Driver uchun amaliy natija — §4.2 qoida 3.
 - §12 — `censored` disposition (*"horizon down holatda tugadi"*).
 
 Lekin `PREREGISTRATION.md` **hech qayerda `T_trial` ga raqam bermaydi**.
-Tekshirildi: `T_trial` faqat §6.2 (357, 358, 365-qatorlar) va §6.4 (388,
-389-qatorlar) da **ishlatiladi**, ta'riflanmaydi; §9.4 trial jadvalini
+Tekshirildi (`preregistration/v1.4` da **qayta** tekshirildi): `T_trial` faqat
+§6.2 va §6.4 da **ishlatiladi** — beshta o'rinda, barchasi foydalanish —
+ta'riflanmaydi; §9.4 trial jadvalini
 fazalar bilan beradi (`pre-flight → baseline 10 s → ramp 5 s → hold 12 s →
 washout ≥20 s ≈ 52 s`), lekin recovery horizon'ini raqamlamaydi.
 
@@ -573,8 +1252,24 @@ uchun tanlagansiz"* hujumining ikkinchi shakli.
 | 2 | Hisoblangan qiymat `run_meta.t_trial_us` ga **yoziladi** (§1.1, §4.3) | *"jimgina konstanta yo'q"*: horizon har doim **qayd etilgan, hisoblangan run parametri** |
 | 3 | Formula va hadlar `run_meta.t_trial_formula` ga matn sifatida yoziladi | qayta hisoblash uchun hujjat kerak bo'lmasligi |
 | 4 | §5.2 invarianti **majburlanadi**; buzilsa run **boshlanmaydi** | fail-closed, §1.3-2 bilan bir uslub |
-| 5 | `trial_end` aynan `trial_begin.mono_us + T_trial` da emit qilinadi (yoki undan **oldin**, agar disposition `aborted_guard` / `harness_error` bo'lsa) | `reduce.Trial.end_us` (`reduce.py:406`) censoring nuqtasi sifatida shuni oladi |
+| 5 | `trial_end` `trial_begin.mono_us + T_trial` da emit qilinadi — **tolerans: bitta probe davri `P`** (yoki undan **oldin**, agar disposition `aborted_guard` / `harness_error` bo'lsa) | `reduce.Trial.end_us` (`reduce.py:406`) censoring nuqtasi sifatida shuni oladi |
 | 6 | `analyze.py` `t_trial_us` ni `analysis.json` ga ko'chiradi (§2.3-9) | har jadval/figura qaysi horizon ostida censor qilinganini ko'rsatadi (§6.2 `recovered_within_horizon: k/n`) |
+
+> **v1.2 — majburiyat 5 ning toleransi raqamlandi: `P` (bitta probe davri,
+> 100 ms).** v1.1 "aynan" deb yozgan edi; **haqiqiy soat bilan "aynan"
+> erishib bo'lmaydi** (yozish navbati, emit kechikishi).
+>
+> **NEGA aynan `P`:** `PREREGISTRATION.md` §6.1 probe kvantlashini (`±P`)
+> **ochiq e'lon qilgan** va uni **tuzatmaydi** — ya'ni loyihada bitta probe
+> davri allaqachon qabul qilingan noaniqlik birligi. Horizon toleransini
+> boshqa raqam qilish yangi, asoslanmagan birlik kiritardi; kichikroq
+> qilish esa to'g'ri ishlagan run'ni rad etardi.
+>
+> `agent/validate` buni shunday amalga oshirgan:
+> `T_TRIAL_TOLERANCE_US = P_US` (`revix/validate.py:172`), tekshiruv
+> `check_trial_horizon` (`revix/validate.py:1758`), `error` kodi
+> `trial_horizon_mismatch`; `aborted_guard` va `harness_error` uchun
+> **qisqa** trial kutilgan holat.
 
 ### 5.5 Qamrov: bu qaror SHU hujjatning qarori
 
@@ -587,6 +1282,15 @@ modullari parallel yozilishi uchun raqam **hozir** kerak.
 Agar `PREREGISTRATION.md` amendment'i boshqa ta'rif bersa — **u ustun**, va
 bu bo'lim shunga moslashtiriladi (`CONTRIBUTING.md` §3: nomuvofiqlik jimgina
 tuzatilmaydi).
+
+> **v1.2 tekshiruvi:** `PREREGISTRATION.md` oradan `v1.4` ga ko'tarildi
+> (2026-10-02, **§15 muhit fingerprint'i** qo'shildi). v1.4 ning
+> *"O'zgarMAGAN qiymatlar — to'liq ro'yxat"* jadvali `T_trial` ni **sanamaydi**
+> va §6.2/§6.4 matni o'zgarmadi — ya'ni `T_trial` **hali ham ta'riflanmagan**
+> va §5 ning formulasi kuchda qoladi. Shuningdek v1.4 ning `W_stab_pilot = 8 s`,
+> `hold_cap_s = 12 s` va `guard_sustain_s = 15 s` muzlatilgan qiymatlari
+> §5.2 ning hisobiga **kiradigan** qiymatlar bo'lib, ular **o'zgarmadi** —
+> demak `T_trial = 40.1 s` ham o'zgarmaydi.
 
 ---
 
@@ -637,15 +1341,177 @@ hujjatingizda ochiq savol sifatida qayd eting, jimgina tuzatmang).
 | matplotlib | figures.py: SVG figuralar (Agg backend) — rejada |
 ```
 
+**v1.2 tekshiruvi:** `INSTALLATION.md` 39-qatori hali ham o'sha ro'yxat, va
+`matplotlib` butun faylda **0 marta** uchraydi — bo'shliq ochiq qolgan.
+
 ---
 
-## 7. Aloqador hujjatlar
+## 7. Driver'ga tegishli o'lchangan tuzoqlar (v1.2)
+
+Bu bo'lim `01-muhit-tekshiruvlari.md` §4 bilan bir sinfdagi defektlarni
+yig'adi: **`systemctl show` qaytargan qiymat yolg'on bo'lishi mumkin.** Ikkisi
+ham `agent/envcheck` tomonidan **shu mashinada o'lchangan** (systemd 257);
+men ularni **o'zim ishga tushirmadim**, shuning uchun manba ochiq ko'rsatilgan.
+
+### 7.1 `RestartSteps=` `RestartMaxDelaySec=` bo'lmasa JIMGINA e'tiborsiz qoldiriladi
+
+**O'lchov (`agent/envcheck`, systemd 257):** `RestartSteps=` qabul qilinadi,
+`systemctl show` uni **ko'rsatadi**, lekin journal
+*"Service has RestartSteps= but no RestartMaxDelaySec= setting. Ignoring."*
+deydi va interval ~**1.03 s** da qotib qoladi — ya'ni backoff **yo'q**.
+
+**Ishlayotgan juftlik (o'lchangan qiymatlar, yozib qoldirish uchun):**
+`RestartSec=1s` + `RestartSteps=3` + `RestartMaxDelaySec=4s` →
+intervallar **1.040, 1.631, 2.566, 4.058, 4.031 s** (eksponensial, keyin
+cap'da tekis).
+
+**Normativ qoida:** arm konfiguratsiyasini yozadigan har qanday yordamchi
+`RestartSteps=` va `RestartMaxDelaySec=` **juftligini kodda majburlaydi** va
+`systemctl show` ning qaytargan qiymatiga **ishonmaydi**.
+
+> **NEGA (va busiz nima buzilardi):** P1 da Baseline B **yo'q** (§9.3: faqat
+> `A` va `no_action`), demak bu P1 ni bloklamaydi. Lekin H2 ning butun kuchi
+> *"systemd'ning O'Z eksponensial backoff'i"* ga qarshi taqqoslashda —
+> `01-texnologiya-auditi.md` §1 ga ko'ra `RestartSteps=` aynan shu sababli
+> systemd ≥254 ni talab qiladi (`INSTALLATION.md` 34-qator). Juftlik
+> majburlanmasa, "kuchli baseline B" **jimgina Baseline A ga aylanadi** va
+> taqqoslash o'z ma'nosini yo'qotadi — `systemctl show` esa buni
+> **ko'rsatmaydi**.
+
+### 7.2 O'chgan unit tuzog'i — systemd 257 da QAYTA tasdiqlandi
+
+**O'lchov (`agent/envcheck`, systemd 257):** tirik unit `systemctl show` da
+**286** property qatori berdi; `--collect` bilan chiqib ketgandan keyin
+**aynan o'sha** `show` **rc=0** va **263** qator **default** qaytardi —
+`LoadState=not-found`, `RestartSteps=0`, `MemoryMax=infinity`.
+
+**Natija:** §1.1 ning *"`units_show` unit TIRIK paytida olinishi shart"*
+talabi shu systemd versiyasida **tasdiqlangan**, nafaqat eski mashinadan
+**meros**. `01-muhit-tekshiruvlari.md` §4 o'z o'lchovini eski mashinada
+qilgan (u yerda 268 qator), va `PREREGISTRATION.md` §15.6(3) aynan shu qayta
+tasdiqni **talab qilgan** edi.
+
+> **NEGA raqamlar farq qiladi:** 268 (eski mashina) va 263 (systemd 257) —
+> **default qator soni versiyaga bog'liq**. Shuning uchun tekshiruv
+> *"qator soni N mi?"* emas, **`LoadState`** bo'lishi kerak: `not-found` —
+> unit o'chgan, demak dump **ishonchsiz**.
+
+### 7.3 Guard kalibratsiyasining ochiq sharti
+
+`02-guard-kalibratsiyasi.md` **§7 masala 1** guard chegaralarining
+`user@ ≈ lab` topilmasi **bo'sh desktop** sharti uchun o'lchanganini va
+**band desktop'da QAYTA O'LCHANISHI kerakligini** yozadi (*"Band tizimda
+`full` ancha past bo'ladi va guard sezgirligi o'zgaradi"*). Shart —
+**aynan band desktop**, "boshqa mashina" emas.
+
+**Driver uchun natijasi:** §1.3-2 ning fail-closed qoidasi bu bilan
+**yumshamaydi**; `00-pilot-topologiya.md` §6 ga ko'ra guard testi keyingi har
+bir qadamni gate qiladi, va `CONTRIBUTING.md` §1.2 *"guard tasdiqlanmasa
+hech qanday pressure eksperimenti ishga tushirilmaydi"* deydi.
+
+---
+
+## 8. Ochiq nomuvofiqliklar — KOD vs KOD (v1.2 qayd etadi, HAL QILMAYDI)
+
+`CONTRIBUTING.md` §3 aniq: nomuvofiqlik topilsa **o'zingiz tuzatmang** —
+xabar bering va o'z hujjatingizda **ochiq savol** sifatida qayd eting.
+Quyidagilar muzlatilgan hujjat bilan kod orasidagi ziddiyat **emas**, balki
+**ikki commit qilingan va test bilan qoplangan modul** orasidagi ziddiyat.
+Shuning uchun ularning har biri **o'z o'zgarishini va o'z asoslanishini**
+talab qiladi; v1.2 ularni **hal qilmaydi**.
+
+### 8.1 Disposition ustuvorligi — `schedule.py` vs `reduce.py`
+
+| manba | tartib | dalil |
+|---|---|---|
+| `schedule.DISPOSITION_RULES` | **1.** `harness_error` → **2.** `guard_fired` ⇒ `aborted_guard` → … | `revix/schedule.py:676`, `:677`, `:678` |
+| `reduce.derive_disposition` | **1.** `guard_events` ⇒ `aborted_guard` → **2.** xom `contaminated`/`washout_timeout`/`harness_error` | `revix/reduce.py:1418`, `:1436`, `:1437`, `:1438` |
+
+Ikki fakt **bir vaqtda** to'g'ri bo'lgan trial'da (harness ham xato berdi,
+guard ham ishladi) ikki yo'l **boshqa disposition** beradi:
+`schedule` → `harness_error`, `reduce` → `aborted_guard`.
+
+**NEGA bu ahamiyatli:** §12 har trial'ga **aynan bitta** disposition talab
+qiladi, va `aborted_guard` bilan `contaminated` birlamchi analizdan
+**chiqariladi**, lekin ularning **ulushi natija sifatida beriladi**. Demak
+kelishmovchilik **numerator'ni ham**, **hisobot qilinadigan eksklyuziya
+darajasini ham** o'zgartiradi — ikkisi ham `analysis.json` ning
+`exclusions` bo'limiga chiqadi (§2.2, §2.3-5).
+
+**Interim qoida (orkestrator bergan, v1.2 qayd etadi):**
+
+| # | qoida |
+|---|---|
+| 1 | **Avtoritet — driver'ning `trial_end.disposition` i**, u `schedule.explain_disposition()` dan olinadi (`revix/schedule.py:728`) |
+| 2 | `reduce.derive_disposition()` — **kross-tekshiruv**, avtoritet emas |
+| 3 | Kelishmovchilik **validator topilmasi** sifatida chiqadi, jimgina yarashtirilmaydi (`reduce_trial` allaqachon `disposition_conflict` ni beradi) |
+
+> **NEGA driver avtoritet:** `schedule.DISPOSITION_RULES` ustuvorligini
+> **oshkora, tartiblangan va total** jadval sifatida beradi va import
+> paytida uning yopiq enum bilan mos kelishini tekshiradi
+> (`revix/schedule.py:691`, `:697` — `assert` emas, chunki `python -O` uni
+> o'chirardi). Uning izohi tartibning **sabab zanjirini** ham yozadi:
+> *"harness o'zi ishlamagan bo'lsa, boshqa hech bir kuzatuvga ishonib
+> bo'lmaydi"*. `reduce.py` ning tartibi esa kuzatuv **log faktlaridan**
+> chiqariladi. Haqiqiy tuzatish `schedule.py` yoki `reduce.py` ga tegadi —
+> **ikkisi ham commit qilingan va test bilan qoplangan** — demak u alohida
+> o'zgarish, o'z asoslanishi bilan.
+
+**Qo'shimcha kuzatuv (shu bilan bog'liq, ham HAL QILINMAGAN):** birlamchi
+to'plamning nomi ikki modulda ikki xil:
+`reduce.PRIMARY_DISPOSITIONS = ("complete",)` (`revix/reduce.py:117`),
+`schedule.PRIMARY_ANALYSIS_DISPOSITIONS = ("complete", "censored")`
+(`revix/schedule.py:740`). `reduce` ning `("complete", "censored")` to'plami
+`SURVIVAL_DISPOSITIONS` deb nomlangan (`revix/reduce.py:121`). Ya'ni
+ehtimol **nom** farqi (birlamchi endpoint = P(VR) trendi ⇒ `complete`;
+survival analizi ⇒ `complete` + `censored`, §6.2), lekin
+`schedule.enters_primary_analysis()` (`revix/schedule.py:746`) nomi bilan
+boshqa narsani aytadi. **Eksklyuziya darajasi natija sifatida beriladi**
+(§12), shuning uchun bu nom chalkashligi hisobot raqamiga tegishi mumkin —
+qayd etildi, tuzatilmadi.
+
+### 8.2 Trial boshi/oxiridagi probe uzilishlari — `reduce.py` vs validator
+
+| manba | xatti-harakat | dalil |
+|---|---|---|
+| `reduce.probe_gaps()` | **faqat ketma-ket ikki probe orasini** ko'radi (`zip(probes, probes[1:])`), demak trial **boshidagi** va **oxiridagi** uzilishni **o'tkazib yuboradi** | `revix/reduce.py:1455`, `:1459` |
+| `validate.check_probe_coverage()` | ularni **rad etadi** — `leading` va `trailing` uzilishlar aniq nomlanadi | `revix/validate.py:1912`, `:1916` |
+
+Ya'ni **bitta run** reducer uchun `complete`, gate uchun esa **rad etilgan**
+bo'lishi mumkin.
+
+**Qaysi o'qish pre-registration'ga mos:** `PREREGISTRATION.md` §4 aniq —
+probe uzilishi `> 2×P` trial'ni `censored` qiladi, va
+*"instrumentatsiya yo'qolishi hech qachon jimgina natijaga aylanmaydi"*.
+Demak **validator'ning qattiqroq o'qishi** pre-registration'ga mos.
+**Lekin metrikani hisoblaydigan narsa — `reduce.py`.**
+
+**Mitigatsiya (orkestrator bergan, v1.2 qayd etadi):** driver per-trial
+prober'ni **washout ichida** ishga tushiradi va uni **horizon'dan keyin**
+to'xtatadi (§4.5(a)), demak trial chegaralarida probe **bo'lishi kerak** va
+bu holat **amalda yuzaga kelmasligi** lozim.
+
+> **MITIGATSIYA — YECHIM EMAS.** U holatni **kamaytiradi**, lekin
+> `reduce.py` va validator o'rtasidagi ziddiyatni **yo'qotmaydi**: prober
+> trial o'rtasida o'lsa yoki birinchi probe kechiksa, ikki modul baribir
+> boshqa javob beradi. Haqiqiy tuzatish `reduce.probe_gaps()` ga tegadi —
+> u commit qilingan va test bilan qoplangan — demak alohida o'zgarish va
+> alohida asoslanish talab qiladi. Shu holatda **validator ustun**: §14.6
+> bo'yicha validatsiyadan o'tmagan run **analiz qilinmaydi**, demak gate
+> qattiqroq bo'lsa natija chiqmaydi — bu xavfsiz tomon (fail-closed).
+
+---
+
+## 9. Aloqador hujjatlar
 
 | Hujjat | Mazmuni |
 |---|---|
-| [`PREREGISTRATION.md`](../../PREREGISTRATION.md) | muzlatilgan ta'riflar; §1 vaqt disiplinasi, §4 VR, §5 FR, §6 downtime/latency/loop, §12 disposition, §14 data schema |
-| [`CONTRIBUTING.md`](../../CONTRIBUTING.md) | §1.1 amendment protsedurasi, §1.4 append-only, §3 nomuvofiqlik topilsa |
+| [`PREREGISTRATION.md`](../../PREREGISTRATION.md) | muzlatilgan ta'riflar (`preregistration/v1.4`); §1 vaqt disiplinasi va `boot_id`, §4 VR, §5 FR, §6 downtime/latency/loop, §8.2 probe narxi, §10.2 ECDF va BCa CI, §12 disposition, §14 data schema, §14.6 validator invariantlari, §15 muhit fingerprint'i |
+| [`CONTRIBUTING.md`](../../CONTRIBUTING.md) | §1.1 amendment protsedurasi, §1.2 guard tasdiqlanmasa, §1.4 append-only, §3 nomuvofiqlik topilsa, §4 `None` ≠ `0` |
 | [`DEVELOPMENT.md`](../../DEVELOPMENT.md) | §5 commit uslubi, §7 muzlatilgan hujjatlar tartibi |
-| [`INSTALLATION.md`](../../INSTALLATION.md) | bog'liqliklar ro'yxati (§6 dagi bo'shliq) |
+| [`INSTALLATION.md`](../../INSTALLATION.md) | bog'liqliklar ro'yxati (§6 dagi bo'shliq), systemd ≥ 254 sharti (§7.1) |
+| [`00-pilot-topologiya.md`](00-pilot-topologiya.md) | §3.1 mitigation (b) — guard majburiy, birinchi start/oxirgi stop (§1.3-1, §1.3-2); §6 qurilish tartibi — guard birinchi (§7.3) |
+| [`01-muhit-tekshiruvlari.md`](01-muhit-tekshiruvlari.md) | §4 — `systemctl show` o'chgan unit uchun default qaytaradi (§1.1, §7.2) |
+| [`02-guard-kalibratsiyasi.md`](02-guard-kalibratsiyasi.md) | §7 masala 1 — chegaralar **band desktop'da** qayta o'lchanishi kerak (§7.3) |
 | [`03-sut-protokoli.md`](03-sut-protokoli.md) | muzlatilgan wire protokol (`sut-protocol/v1`), `probe_sample` qiymatlarining manbai |
 | [`ARCHITECTURE.md`](../../ARCHITECTURE.md) | §6 ochiq nomuvofiqliklar ro'yxati |
