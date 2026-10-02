@@ -231,8 +231,16 @@ def write_run(run_dir: str, *, n_blocks: int = 2, seed: int = SEED,
                 emit(pw, prs, "pressure_start", at(15.0), mode="synthetic")
                 emit(pw, prs, "pressure_stop", at(32.0))
             disp = "complete" if arm == "A" else "censored"
+            # TrialTiming (driver): T_h = pressure_off; horizon = trial_end.
             e("trial_end", t0 + T_TRIAL_US, disposition=disp,
-              reason="synthetic", overhead_us=1_500_000, overhead_s=1.5)
+              reason="synthetic", overhead_us=1_500_000, overhead_s=1.5,
+              timing={"begin_mono_us": t0, "setup_us": 0,
+                      "baseline_start_mono_us": at(5.0),
+                      "pressure_off_mono_us": at(32.0),
+                      "horizon_end_mono_us": t0 + T_TRIAL_US,
+                      "washout_us": 0, "teardown_us": 0, "dump_us": 0,
+                      "end_mono_us": t0 + T_TRIAL_US,
+                      "wall_us": T_TRIAL_US})
             last_end = t0 + T_TRIAL_US
         emit(gw, grd, "guard_stop", last_end + 1_000_000, tripped=False,
              iterations=0)

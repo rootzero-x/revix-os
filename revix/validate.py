@@ -60,6 +60,8 @@ funksiyasida):
  15.  guard oqimi: `guard_start/stop_missing`, `guard_event_has_trial_id`,
       `guard_not_first/_last`, `guard_event_not_reflected`
  16.  `harness_error_not_reflected`
+ 17.  PREREGISTRATION.md v1.6 §17.4-5: `window_outside_hold_complete` (xato),
+      `window_containment_not_evaluated` (ogohlantirish), `trial_timing_invalid`
 
 Bu invariantlar pre-registration'ning ruhini bajaradi: o'lchov ma'lumotining
 jimgina yo'qolishi natijaga aylanmasligi kerak.
@@ -100,8 +102,16 @@ from .reduce import (
     RawRun,
     _as_int,
     _as_str,
+    WINDOW_NOT_EVALUATED,
+    WINDOW_PAST_HORIZON,
+    WINDOW_PAST_PRESSURE,
+    W_STAB_PILOT_US,
+    build_episodes,
+    classify_window_containment,
     derive_disposition,
+    fault_effective_us,
     probe_gaps,
+    reference_throughput,
     split_trials,
 )
 from .schedule import (
@@ -1766,6 +1776,118 @@ def check_trial_overhead(run: RawRun) -> list[Finding]:
     return out
 
 
+def _run_w_stab_us(run: RawRun) -> int:
+    """Run'ning W_stab si (us): `run_meta.timeline.w_stab_s`, aks holda pilot."""
+    tl = (run.run_meta or {}).get("timeline")
+    v = _num(tl.get("w_stab_s")) if isinstance(tl, dict) else None
+    return int(round(v * 1_000_000)) if v is not None and v > 0 else W_STAB_PILOT_US
+
+
+def _trial_window(trial: Any, prm: Params) -> Any:
+    """Trial'ning §17 oyna klassifikatsiyasi -- `reduce_trial` bilan AYNI
+    operandlar va AYNI funksiya (`classify_window_containment`), shuning
+    uchun validator va reducer bir xil savolga javob beradi."""
+    t_fault, _src = fault_effective_us(trial)
+    r_ref, r_st, _d = reference_throughput(trial, t_fault)
+    eps = build_episodes(trial, prm, r_ref, r_st)
+    return classify_window_containment(
+        eps[0].t_up_us if eps else None, prm,
+        hold_end_us=trial.hold_end_us, horizon_end_us=trial.horizon_end_us)
+
+
+def check_window_containment(run: RawRun, probe_period_us: int = P_US) -> list[Finding]:
+    """`complete` trial'ning verifikatsiya oynasi pressure hold ICHIDA.
+
+    NEGA (PREREGISTRATION.md v1.6 §17.4-5): har `complete` trial uchun
+    `t_up + W_stab_pilot <= T_h` bo'lishi SHART; buzilgan holat `complete`
+    deb yozilgan bo'lsa -- validator XATOSI. §4 1-band oynani `t_up` dan
+    boshlaydi, v1.3 ning `3 + 8 = 11 <= 12` arifmetikasi esa uni `t_inject`
+    dan boshlagan (jimgina nol recovery vaqti). Oynasi hold'dan chiqqan trial
+    §4 ning kattaligini O'LCHAMAGAN: 2- va 5-bandlar qisman bosimsiz
+    baholanadi, VR osonlashadi, trend susayadi va §11 qoidasi YOLG'ON
+    FALSIFIKATSIYA chiqarishi mumkin. Buni `complete` deb yozish -- o'lchanmagan
+    narsani o'lchov deb yozish, ya'ni §14.6 to'xtatishi kerak bo'lgan xato.
+
+    Holatlar (`reduce.WINDOW_CONTAINMENTS`): `past_pressure` va `past_horizon`
+    + raw `complete` = XATO. `T_h` o'lchanmagan (`not_evaluated`: nol
+    "hech qachon o'rnatilmagan" demak, o'lchangan nol EMAS) -- hukm
+    TO'QILMAYDI: reducer kabi disposition o'zgarmaydi, lekin soni
+    OGOHLANTIRISH bilan ko'rsatiladi (`summary["n_window_containment_not_
+    evaluated"]` ning validator tomoni). `T_h`/`T_trial` -- `trial_end.timing.
+    pressure_off_mono_us` / `horizon_end_mono_us`.
+    """
+    prm = Params(probe_period_us=probe_period_us, w_stab_us=_run_w_stab_us(run))
+    out: list[Finding] = []
+    not_eval: list[str] = []
+    for t in split_trials(run):
+        if t.disposition_raw != "complete" or t.end is None:
+            continue
+        w = _trial_window(t, prm)
+        if w.status in (WINDOW_PAST_PRESSURE, WINDOW_PAST_HORIZON):
+            out.append(Finding(
+                "window_outside_hold_complete", SEVERITY_ERROR,
+                f"'complete' trial'ning oynasi hold'dan chiqqan "
+                f"({w.status}): t_up={w.t_up_us} + W_stab={w.w_stab_us} = "
+                f"{w.window_end_us} > "
+                f"{'T_trial ' + str(w.horizon_end_us) if w.status == WINDOW_PAST_HORIZON else 'T_h ' + str(w.hold_end_us)} "
+                "-- §4 kattaligi o'lchanmagan, §17.4(5): `complete` bo'lishi "
+                "mumkin emas (sustained hold ichida sig'ishi shart)",
+                trial_id=t.trial_id, record_type=RT_TRIAL_END,
+                **_where(t.end),
+                detail={"window_containment": w.status, "t_up_us": w.t_up_us,
+                        "window_end_us": w.window_end_us,
+                        "w_stab_us": w.w_stab_us, "hold_end_us": w.hold_end_us,
+                        "horizon_end_us": w.horizon_end_us,
+                        "slack_to_hold_us": w.slack_to_hold_us,
+                        "slack_to_horizon_us": w.slack_to_horizon_us}))
+        elif w.status == WINDOW_NOT_EVALUATED:
+            not_eval.append(t.trial_id)
+    if not_eval:
+        out.append(Finding(
+            "window_containment_not_evaluated", SEVERITY_WARNING,
+            f"{len(not_eval)} ta 'complete' trial'da T_h o'lchanmagan "
+            "(`trial_end.timing.pressure_off_mono_us` yo'q yoki 0): oyna hold "
+            "ichidami -- ANIQLANMAGAN, hukm to'qilmadi (§17.4-5)",
+            trial_id=not_eval[0],
+            detail={"n": len(not_eval), "trial_ids": not_eval[:200]}))
+    return out
+
+
+def check_trial_timing(run: RawRun) -> list[Finding]:
+    """`trial_end.timing` ichki izchil: T_h trial ichida, horizon `mono_us` ga teng.
+
+    NEGA: §17.4-5 tekshiruvi `T_h` ga tayanadi; bema'ni `T_h` (trial'dan
+    oldin/horizon'dan keyin) har qanday oynani "hold ichida" yoki "tashqarida"
+    qilib ko'rsatadi. `0` -- "hech qachon o'rnatilmagan" (monotonic
+    timestamp), o'lchangan nol emas: tekshirilmaydi. Reducer
+    `horizon_end_mono_us` ni `trial_end.mono_us` bilan bir deb oladi
+    (reduce.Trial.horizon_end_us), ikkisi farq qilsa censoring nuqtasi ikki xil.
+    """
+    out: list[Finding] = []
+    for tid, recs in sorted(_by_trial(run).items()):
+        begin, end = _first(recs, RT_TRIAL_BEGIN), _first(recs, RT_TRIAL_END)
+        timing = end.get("timing") if end else None
+        if not isinstance(timing, dict):
+            continue
+        lo, hi = _mono(begin), _mono(end)
+        h = _as_int(timing.get("pressure_off_mono_us"))
+        he = _as_int(timing.get("horizon_end_mono_us"))
+        probs: list[str] = []
+        if h and lo is not None and hi is not None and not (lo < h <= hi):
+            probs.append(f"pressure_off_mono_us={h} [{lo}, {hi}] dan tashqari")
+        if he and hi is not None and he != hi:
+            probs.append(f"horizon_end_mono_us={he} != trial_end.mono_us={hi}")
+        if h and he and h > he:
+            probs.append(f"pressure_off_mono_us={h} > horizon_end_mono_us={he}")
+        if probs:
+            out.append(Finding(
+                "trial_timing_invalid", SEVERITY_ERROR,
+                f"trial_end.timing izchil emas: {probs}", trial_id=tid,
+                record_type=RT_TRIAL_END, **_where(end or {}),
+                detail={"problems": probs}))
+    return out
+
+
 def check_trial_horizon(run: RawRun) -> list[Finding]:
     """`trial_end.mono_us - trial_begin.mono_us` `t_trial_us` ga mos.
 
@@ -1958,15 +2080,24 @@ def check_disposition_cross_check(run: RawRun,
     `schedule.DISPOSITION_RULES` `harness_error` ni `aborted_guard` dan
     yuqori qo'yadi, reducer teskarisi. Bu OGOHLANTIRISH: qaysi biri haqiqat
     ekani kontraktda (v1.2) hal qilinadi, validator tanlamaydi.
+
+    §17.4: reducer oyna holatini (`window_past_pressure`/`window_past_horizon`
+    -> `censored`) hisobga oladi; shu sababli validator ham AYNI
+    `WindowContainment` ni uzatadi, aks holda reducer ko'rgan farq driver
+    xatosi bo'lib ko'rinardi. Raw `complete` + oyna hold'dan chiqqan holat
+    bu yerda ogohlantirish, `check_window_containment` da esa XATO.
     """
-    prm = Params(probe_period_us=probe_period_us)
+    prm = Params(probe_period_us=probe_period_us, w_stab_us=_run_w_stab_us(run))
     out: list[Finding] = []
     for t in split_trials(run):
         raw = t.disposition_raw
         if t.end is None or raw is None:
             continue
         down = bool(t.probes) and not t.probes[-1].passed
-        final, src, _c = derive_disposition(t, probe_gaps(t, prm), down)
+        # §17.4: oyna holati `reduce_trial` bilan AYNI operandlardan beriladi;
+        # aks holda (a)/(b) trial'lar uchun soxta farq chiqardi.
+        final, src, _c = derive_disposition(t, probe_gaps(t, prm), down,
+                                            _trial_window(t, prm))
         if final != raw:
             out.append(Finding(
                 "disposition_cross_check", SEVERITY_WARNING,
@@ -2342,12 +2473,14 @@ def validate_run(run: RawRun, *, run_mode: str | None = None,
         ("trial_events", check_trial_events, (run,)),
         ("trial_overhead", check_trial_overhead, (run,)),
         ("trial_horizon", check_trial_horizon, (run,)),
+        ("trial_timing", check_trial_timing, (run,)),
         ("seq", check_seq, (run,)),
         ("probe_fields", check_probe_fields, (rv,)),
         ("probe_targets", check_probe_targets, (rv, sut_target)),
         ("unit_state_units", check_unit_state_units, (rv, sut_unit)),
         ("probe_gaps", check_probe_gaps, (rv, probe_period_us)),
         ("probe_coverage", check_probe_coverage, (rv, probe_period_us)),
+        ("window_containment", check_window_containment, (rv, probe_period_us)),
         ("disposition_cross_check", check_disposition_cross_check,
          (rv, probe_period_us)),
         ("prober_stream", check_prober_stream, (run,)),
