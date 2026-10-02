@@ -110,6 +110,16 @@ class FakePlatform:
         self.sut_arm = None
         self._inv = 0
         self._restarts = {}
+        self._guard_seq = {}
+        self._prober_pid = 900
+        self.run_id = "r"
+        self.session_id = "s"
+        self._probe_seq = {}
+        self.probe_rows = []
+        self.events_path = None
+        self.probe_csv_path = None
+        self._prober = None
+        self._fault_mono_us = None
         self._gen = guest_generation or {
             "pid1_starttime_ticks": 111, "uptime_s": 500.0,
             "pid1_starttime_s": 1.11, "generation": "pid1:111",
@@ -168,11 +178,33 @@ class FakePlatform:
             self._push_state(name, "active", f"inv{self._inv}", 0)
         if name == D.BYSTANDER_UNIT:
             self._push_state(name, "active", "invby", 0)
+        if name == D.PROBER_UNIT:
+            argv = props["ExecStart"]
+            self.probe_csv_path = _flag_value(argv, "--csv")
+            self.events_path = _flag_value(argv, "--events")
+            tid = _flag_value(argv, "--trial-id")
+            # Har trial uchun ALOHIDA jarayon -> alohida pid -> alohida
+            # `emitter`, demak `seq` har jarayonda 1 dan boshlanadi va
+            # `validate.check_seq` ni (emitter, record_type) bo'yicha
+            # qanoatlantiradi.
+            self._prober_pid += 1
+            self.run_id = _flag_value(argv, "--run-id")
+            self.session_id = _flag_value(argv, "--session-id")
+            self._prober = {"trial_id": tid, "start": self.t}
+            self._fault_mono_us = None
+            self._probe_seq = {"sut": 0, "bystander": 0}
+            _append_jsonl(self.events_path, self._probe_envelope(
+                "prober_start", self.t, tid,
+                targets=["sut", "bystander"], hz=10.0))
         if name == D.GUARD_UNIT:
             self.guard_log_path = _flag_value(props["ExecStart"], "--log")
+            self.run_id = _flag_value(props["ExecStart"], "--run-id")
+            self.session_id = _flag_value(props["ExecStart"], "--session-id")
             if self.guard_ok:
-                _append_jsonl(self.guard_log_path,
-                              {"record_type": "guard_start", "mono_us": self.t})
+                _append_jsonl(self.guard_log_path, _guard_rec(
+                    "guard_start", self.t, self._gseq("guard_start"), self.run_id,
+                    self.session_id, watch_cgroup=self.user_cgroup(),
+                    lab_cgroup=self.cgroup_path(D.LAB_SLICE)))
             self.active[name] = self.guard_active
         else:
             self.active[name] = "active"
@@ -184,6 +216,14 @@ class FakePlatform:
         self.calls.append(("stop", name))
         self.t += self.unit_stop_us
         self.active[name] = "inactive"
+        if name == D.PROBER_UNIT:
+            self._flush_probes()
+        if name == D.GUARD_UNIT and self.guard_ok and self.guard_log_path:
+            # Guard `finally` da `guard_stop` yozadi -- u guard to'g'ri
+            # to'xtaganining yagona dalili (kontrakt §1.3-1).
+            _append_jsonl(self.guard_log_path, _guard_rec(
+                "guard_stop", self.t, self._gseq("guard_stop"), self.run_id,
+                self.session_id, tripped=False, iterations=100))
         return {"unit": name, "job_result": "done"}
 
     def reset_failed(self, name):
@@ -202,7 +242,13 @@ class FakePlatform:
 
     def dump_unit_properties(self, name):
         self.t += self.dump_us
+        # `alive_before`/`alive_after`/`dump_valid` -- 01-muhit §4 tuzog'i:
+        # o'chgan unit uchun `systemctl show` rc=0 va TO'LIQ DEFAULT beradi
+        # (systemd 257 da qayta tasdiqlangan: 286 tirik qator vs 263 default).
+        # Liveness kalitlarisiz dump "tirik paytida olingan" deb isbotlanmaydi.
         return {"unit": name, "dump_valid": True, "load_state": "loaded",
+                "alive_before": True, "alive_after": True,
+                "source": "systemctl --user show",
                 "property_count": 287, "properties": {"LoadState": "loaded"}}
 
     def teardown(self, units=(), **kw):
@@ -248,7 +294,16 @@ class FakePlatform:
 
     # --- SUT socket ---
     def sut_command(self, socket_path, command, timeout_s=0.5):
+        if command == "PROBE":
+            # Protokol §3: `OK progress=.. pid=.. invocation=.. mono_us=..`.
+            # §4.5: probe'ga javob `progress` ni OSHIRMAYDI.
+            self.calls.append(("probe", command))
+            return {"command": command, "errno": None,
+                    "reply": (f"OK progress=4000 pid=4711 "
+                              f"invocation=inv{self._inv} rss_kb=5120 "
+                              f"mono_us={self.t + 7}")}
         self.calls.append(("fault", command))
+        self._fault_mono_us = self.t
         inv = f"inv{self._inv}"
         # Fault: SUT chiqadi (clean crash, exit 1).
         self._push_state(D.SUT_UNIT, "failed", inv, self._restarts[D.SUT_UNIT],
@@ -265,6 +320,75 @@ class FakePlatform:
                              active_exit=self.t + 1_000)
             self.active[D.SUT_UNIT] = "active"
         return {"command": command, "reply": "OK armed=exit", "errno": None}
+
+    def _gseq(self, record_type):
+        """`seq` HAR OQIM uchun alohida -- `schema.Emitter` shunday qiladi."""
+        n = self._guard_seq.get(record_type, 0) + 1
+        self._guard_seq[record_type] = n
+        return n
+
+    def _probe_envelope(self, rt, mono, tid, **payload):
+        rec = {"schema_version": 1, "record_type": rt, "stream": rt,
+               "run_id": self.run_id, "session_id": self.session_id,
+               "boot_id": self.boot_id(),
+               "trial_id": tid, "block_index": None, "seq": 1,
+               "mono_us": mono, "real_us": self.real_us(),
+               "emitter": f"prober:{self._prober_pid}"}
+        rec.update(payload)
+        return rec
+
+    def _flush_probes(self):
+        """Prober to'xtaganda uning CSV qatorlarini yozadi.
+
+        Qatorlar HAQIQIY shaklda: 10 Hz, ikki target, `progress_counter`
+        ustuni (xom nom), `seq` TARGET bo'yicha 1 dan. Fault'dan keyin
+        `conn_refused`, arm A da esa restart'dan keyin yangi invocation
+        bilan tiklanish -- ya'ni fixture `find_failure_onsets`,
+        `window_throughput` va censoring yo'llarini HAQIQATAN yuritadi.
+        """
+        if not self._prober or not self.probe_csv_path:
+            return
+        tid = self._prober["trial_id"]
+        t = self._prober["start"]
+        fault = self._fault_mono_us
+        restart_at = (fault + 120_000) if (
+            fault is not None and self.sut_arm == "on-failure") else None
+        rows = []
+        while t <= self.t:
+            for target in ("sut", "bystander"):
+                self._probe_seq[target] += 1
+                inv = "invby" if target == "bystander" else "inv1"
+                ok = True
+                if target == "sut" and fault is not None and t >= fault:
+                    if restart_at is None or t < restart_at:
+                        ok = False
+                    else:
+                        inv = "inv2"
+                base = t if (inv != "inv2") else restart_at
+                prog = int((t - (self._prober["start"] if inv != "inv2"
+                                 else base)) / 500) + 1
+                rows.append({
+                    "mono_us_send": t, "mono_us_recv": t + 500 if ok else "",
+                    "real_us_send": self.real_us(), "target": target,
+                    "outcome": "ok" if ok else "conn_refused",
+                    "clause_failed": "" if ok else "a_conn",
+                    "rt_us": 300 if ok else "",
+                    "rtt_us": 500 if ok else "",
+                    "progress_counter": prog if ok else "",
+                    "invocation_id_seen": inv if ok else "",
+                    "sut_pid_seen": 4711 if ok else "",
+                    "seq": self._probe_seq[target], "trial_id": tid,
+                })
+            t += 100_000
+        self.probe_rows.extend(rows)
+        _append_csv(self.probe_csv_path, rows)
+        _append_jsonl(self.events_path, self._probe_envelope(
+            "prober_stop", self.t, tid, probes=len(rows),
+            cost={"cpu_total_s": 0.21, "elapsed_s": 40.1,
+                  "core_percent": 0.52, "budget_percent": 1.0,
+                  "budget_exceeded": False, "probes": len(rows),
+                  "cpu_us_per_probe": 520.0}))
+        self._prober = None
 
     def _push_state(self, unit, state, inv, nrestarts, *, mono=None,
                     active_exit=None):
@@ -323,6 +447,35 @@ def _append_jsonl(path, record):
         fh.write(json.dumps(record) + "\n")
 
 
+def _guard_rec(rt, mono, seq, run_id, session_id, **payload):
+    """Guard record'i -- `trial_id` YO'Q (§8.2: mustaqil jarayon)."""
+    rec = {"schema_version": 1, "record_type": rt, "stream": rt,
+           "run_id": run_id, "session_id": session_id, "boot_id": "boot-fake",
+           "trial_id": None, "block_index": None, "seq": seq,
+           "mono_us": mono, "real_us": 1_700_000_000_000_000 + mono,
+           "emitter": "guard:777"}
+    rec.update(payload)
+    return rec
+
+
+PROBE_CSV_COLUMNS = (
+    "mono_us_send", "mono_us_recv", "real_us_send", "target", "outcome",
+    "clause_failed", "rt_us", "rtt_us", "progress_counter",
+    "invocation_id_seen", "sut_pid_seen", "seq", "trial_id",
+)
+
+
+def _append_csv(path, rows):
+    import os as _os
+    new = not _os.path.exists(path) or _os.path.getsize(path) == 0
+    with open(path, "a", encoding="utf-8", newline="") as fh:
+        if new:
+            fh.write(",".join(PROBE_CSV_COLUMNS) + "\n")
+        for r in rows:
+            fh.write(",".join(str(r.get(c, "")) for c in PROBE_CSV_COLUMNS)
+                     + "\n")
+
+
 def make_driver(tmp_path, *, only=("P0", "A"), blocks=1, platform=None,
                 allow_pressure=False, **pf_kw):
     run_dir = D.prepare_run_dir(str(tmp_path / "run"))
@@ -344,6 +497,23 @@ def events(run_dir):
         if line.strip():
             out.append(json.loads(line))
     return out
+
+
+def _require_strict_validator():
+    """`validate.py` ning kengaytirilgan tekshiruvlarini talab qiladi.
+
+    `validate_run_dir` va `reducer_view` bu branch'dan KEYIN qo'shilgan
+    (agent/validate). Ular yo'q bo'lsa test O'TDI deb ko'rsatilmaydi --
+    SABABI bilan skip qilinadi, chunki skip qilingan test "o'tgan" EMAS
+    (CONTRIBUTING.md §1.2).
+    """
+    from revix import validate as V
+    missing = [n for n in ("validate_run_dir", "reducer_view")
+               if not hasattr(V, n)]
+    if missing:
+        pytest.skip(f"validate.py da yo'q: {missing} "
+                    "(agent/validate bu branch'dan keyin qo'shdi)")
+    return V
 
 
 def of_type(recs, rt):
@@ -829,9 +999,12 @@ def test_unit_state_xom_va_snake_case_nomlarni_IKKISINI_HAM_saqlaydi():
     assert p["invocation_id"] == "abc"
     assert p["active_enter_ts_mono_us"] == 500
     assert p["active_exit_ts_mono_us"] == 400
-    # XOM systemd nomlari ham saqlanadi (§1 -- AVTORITET).
-    assert p["systemd"]["ActiveEnterTimestampMonotonic"] == 500
-    assert p["systemd"]["NRestarts"] == 2
+    # XOM systemd nomlari YUQORI DARAJADA saqlanadi (§1 -- AVTORITET).
+    # Ichki dict'ga yashirish `validate.RECORD_FIELD_RULES[unit_state]` ni
+    # yiqitardi: u aynan shu kalitlarni RECORD'da qidiradi.
+    assert p["ActiveEnterTimestampMonotonic"] == 500
+    assert p["NRestarts"] == 2
+    assert all(prop in p for prop in U.STATE_PROPS)
     # Qabul vaqti ALOHIDA (§14.4).
     assert p["recv_mono_us"] == 777
 
@@ -846,8 +1019,9 @@ def test_unit_state_bosh_timestampni_None_qiladi():
     assert p["active_exit_ts_mono_us"] is None
     assert p["active_enter_ts_mono_us"] is None
     assert p["inactive_enter_ts_mono_us"] == 12345
-    # XOM qiymat O'ZGARTIRILMAYDI.
-    assert p["systemd"]["ActiveExitTimestampMonotonic"] == 0
+    # XOM qiymat O'ZGARTIRILMAYDI: alias normalizatsiya qilinadi, xom nom yo'q.
+    assert p["ActiveExitTimestampMonotonic"] == 0
+    assert p["ActiveEnterTimestampMonotonic"] == UINT64_MAX
 
 
 def test_unit_state_envelope_mono_us_recv_mono_us_ga_teng(tmp_path):
@@ -859,32 +1033,33 @@ def test_unit_state_envelope_mono_us_recv_mono_us_ga_teng(tmp_path):
         assert r["mono_us"] == r["recv_mono_us"]
 
 
-def test_cgroup_events_oom_kill_FAQAT_sut_scopeda(tmp_path):
+def test_cgroup_events_trialga_bitta_record_va_FAQAT_sut_scope(tmp_path):
     drv, pf, run_dir = make_driver(tmp_path)
     drv.run()
     recs = of_type(events(run_dir), "cgroup_events")
-    assert recs
-    with_series = [r for r in recs if "oom_kill" in r]
-    assert [r["scope"] for r in with_series] == [D.SCOPE_SUT]
-    for r in recs:
-        if r["scope"] != D.SCOPE_SUT:
-            # `reduce._oom_series` scope filtrisiz ishlaydi va `oom_kill`
-            # kalitiga ega BARCHA record'ni bitta qatorga qo'shadi; shuning
-            # uchun boshqa scope'larda bu kalit BO'LMASLIGI shart.
-            assert "oom_kill" not in r
-            assert "oom_kill_count" in r
+    # `reduce._oom_series` scope filtrisiz ishlaydi va `oom_kill` kalitiga
+    # ega BARCHA record'ni BITTA kumulyativ qatorga qo'shadi -> trial'ga
+    # bitta record, va u SUT scope'iga tegishli.
+    assert len(recs) == 1
+    assert recs[0]["scope"] == D.SCOPE_SUT
+    assert recs[0]["oom_kill"] is not None
+    # Boshqa scope'lar YO'QOLMAYDI.
+    assert D.SCOPE_LAB in recs[0]["other_scopes"]
+    assert D.SCOPE_BYSTANDER in recs[0]["other_scopes"]
 
 
 def test_cgroup_events_payload_deltani_hisoblaydi():
-    p = D.cgroup_events_payload("sut", {"oom_kill": 1, "high": 5},
-                                {"oom_kill": 3, "high": 9}, series=True)
+    before = {"sut": {"oom_kill": 1, "high": 5}, "lab": {"oom_kill": 1}}
+    after = {"sut": {"oom_kill": 3, "high": 9}, "lab": {"oom_kill": 2}}
+    p = D.cgroup_events_payload(before, after)
+    assert p["scope"] == "sut"
     assert p["oom_kill"] == 3
     assert p["oom_kill_delta"] == 2
     assert p["memory_events_delta"]["high"] == 4
-    q = D.cgroup_events_payload("lab", {"oom_kill": 1}, {"oom_kill": 1},
-                                series=False)
-    assert "oom_kill" not in q
-    assert q["oom_kill_count"] == 1
+    # Lab'ning `oom_kill` i `other_scopes` ichida -> `_oom_series` uchun
+    # KO'RINMAYDI (u faqat yuqori darajadagi kalitni o'qiydi).
+    assert p["other_scopes"]["lab"]["memory_events_delta"]["oom_kill"] == 1
+    assert "oom_kill" not in p["other_scopes"]["lab"]
 
 
 def test_actor_signal_manbani_IKKI_nomda_yozadi(tmp_path):
@@ -947,10 +1122,35 @@ def test_fault_inject_ikki_tomonli_bracket_beradi(tmp_path):
     assert f["params"] == {"code": 1}
     # SUT tomoni: protokol §5 `OK armed=<kind>`.
     assert f["sut_armed"] == "exit"
-    # SUT'ning O'Z monotonic qiymati stderr'da va u saqlanmaydi -> None,
-    # va SABABI yoziladi (jimgina nol yozilmaydi).
+    # SUT'ning O'Z soati injeksiyadan DARHOL OLDINGI `PROBE` dan (§3).
+    assert f["sut_mono_us_before"] is not None
+    assert f["sut_mono_us_source"] == "pre_injection_probe"
+    # `stderr` dagi `FAULT ARMED mono_us=` satri saqlanmaydi -> None, va
+    # qolgan cheklov OCHIQ yoziladi (jimgina nol yozilmaydi).
     assert f["sut_mono_us"] is None
-    assert f["sut_mono_us_source"] == "unavailable_stderr_discarded"
+    assert f["sut_mono_us_limitation"]
+
+
+def test_injeksiyadan_oldingi_probe_progressni_oshirmaydi(tmp_path):
+    """Protokol §4.5: probe'ga javob `progress` ni OSHIRMAYDI.
+
+    Shuning uchun injeksiyadan oldingi namuna prober'ning kuzatuvini
+    buzmaydi va arm'lar bo'yicha AYNI narx (§8.2).
+    """
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    kinds = [c for k, c in pf.calls if k in ("probe", "fault")]
+    # Trial'ga AYNAN bitta qo'shimcha PROBE va bitta FAULT.
+    assert kinds.count("PROBE") == 1
+    assert sum(1 for k in kinds if k.startswith("FAULT")) == 1
+
+
+def test_sut_mono_us_parse():
+    assert D._parse_sut_mono("OK progress=5 pid=1 invocation=ab "
+                             "rss_kb=10 mono_us=884213771") == 884213771
+    # `mono_us` protokolda IXTIYORIY -> yo'q bo'lsa None (nol EMAS).
+    assert D._parse_sut_mono("OK progress=5 pid=1 invocation=ab") is None
+    assert D._parse_sut_mono(None) is None
 
 
 def test_fault_ack_bolmasa_trial_harness_error(tmp_path):
@@ -1012,24 +1212,82 @@ def test_har_recordda_stream_record_typega_teng(tmp_path):
 def test_seq_har_record_turi_boyicha_boshliqsiz(tmp_path):
     drv, pf, run_dir = make_driver(tmp_path, blocks=2)
     drv.run()
+    # `validate._stream_key` oqimni (emitter, record_type) bilan kalitlaydi:
+    # har jarayon (driver, har trial'ning prober'i) o'z oqimini yuritadi.
     streams = {}
     for r in events(run_dir):
-        streams.setdefault(r["stream"], []).append(r["seq"])
-    for stream, seqs in streams.items():
-        assert sorted(seqs) == list(range(1, len(seqs) + 1)), stream
+        streams.setdefault((r["emitter"], r["stream"]), []).append(r["seq"])
+    for key, seqs in streams.items():
+        assert sorted(seqs) == list(range(1, len(seqs) + 1)), key
 
 
 def test_validator_driver_oqimida_xato_topmaydi(tmp_path):
-    from revix import reduce as R
-    from revix import validate as V
+    """Haqiqiy validator TO'LIQ driver oqimi ustida: emitter regressiya qulfi.
+
+    `sut_unit` / `sut_target` BERILADI, chunki xom oqim IKKALA unit va
+    IKKALA target'ni saqlaydi va bu QONUNIY: bystander trace'i §12 ning
+    `contaminated` disposition'i uchun dalil. Hisob tekshiruvlari esa
+    reducerga BERILADIGAN ko'rinishda ishlaydi (`validate.reducer_view`),
+    va u bizning `driver.reducer_input()` bilan AYNI filtrni qo'llaydi.
+    """
+    V = _require_strict_validator()
     drv, pf, run_dir = make_driver(tmp_path, blocks=2)
     drv.run()
-    run = R.RawRun(records=events(run_dir), sources=[D.EVENTS_FILE])
-    rep = V.validate_run(run, run_mode="pilot")
-    # Probe oqimi bu testda YO'Q (prober alohida jarayon), shuning uchun
-    # faqat driver'ga tegishli invariantlar tekshiriladi.
+    assert os.path.exists(os.path.join(run_dir, D.PROBE_FILE)), \
+        "fixture probe oqimini yozishi SHART"
+    assert os.path.exists(os.path.join(run_dir, D.GUARD_FILE)), \
+        "fixture guard oqimini yozishi SHART"
+    # `validate_run_dir` BUTUN katalogni (olti faylni) o'qiydi -- guard
+    # oqimi alohida faylda (§1), demak faqat `events.jsonl` ni berish
+    # `guard_start_missing` ga olib kelardi.
+    rep = V.validate_run_dir(run_dir, run_mode="pilot",
+                             sut_unit=D.SUT_UNIT, sut_target="sut")
     codes = {f.code for f in rep.errors}
     assert not codes, [str(f) for f in rep.errors]
+
+
+def test_validator_sut_filtrisiz_aralashuvni_RAD_ETADI(tmp_path):
+    """Filtrsiz xom katalog RAD ETILISHI kerak -- bu kutilgan xatti-harakat.
+
+    Bu `reducer_input()` filtrining ZARURLIGINI isbotlaydi: bystander
+    oqimi filtrsiz reducerga yetib borsa, §4 ning 3-4 bandlari va
+    throughput hisobi buziladi.
+    """
+    V = _require_strict_validator()
+    drv, pf, run_dir = make_driver(tmp_path, blocks=1)
+    drv.run()
+    rep = V.validate_run_dir(run_dir, run_mode="pilot")   # filtr YO'Q
+    codes = {f.code for f in rep.errors}
+    # Probe oqimida ikki target bor (bystander -- §8.2 spillover detektori),
+    # demak filtrsiz reducerga berilgan kirish RAD ETILADI.
+    assert "probe_targets_mixed" in codes
+    # `unit_state` aralashuvi bu fixture'da YUZAGA KELMAYDI, chunki sog'lom
+    # bystander record oynasi ichida hech qanday o'tish bermaydi -- aralashuv
+    # faqat bystander buzilganda paydo bo'ladi, va o'sha holat `contaminated`
+    # disposition'ining o'zi. Filtr baribir SHART: u holatga bog'liq
+    # bo'lmasligi kerak.
+    # Filtr BILAN -- xato yo'q. Ayni ma'lumot, ayni validator.
+    ok = V.validate_run_dir(run_dir, run_mode="pilot",
+                            sut_unit=D.SUT_UNIT, sut_target="sut")
+    assert not ok.errors, [str(f) for f in ok.errors]
+
+
+def test_reducer_input_validator_bilan_bir_xil_filtrni_qoladi(tmp_path):
+    """`driver.reducer_input` va `validate.reducer_view` AYNI natijani beradi."""
+    from revix import reduce as R
+    V = _require_strict_validator()
+    drv, pf, run_dir = make_driver(tmp_path, blocks=1)
+    drv.run()
+    recs = events(run_dir)
+    rows = R.load_probe_csv(os.path.join(run_dir, D.PROBE_FILE))
+    mine_r, mine_p = D.reducer_input(recs, rows)
+    theirs = V.reducer_view(R.RawRun(records=recs, probes=rows),
+                            D.SUT_UNIT, "sut")
+    assert len(mine_r) == len(theirs.records)
+    assert len(mine_p) == len(theirs.probes)
+    assert {r.get("unit") for r in mine_r
+            if r["record_type"] == "unit_state"} == {D.SUT_UNIT}
+    assert {p["target"] for p in mine_p} == {"sut"}
 
 
 # ===========================================================================
@@ -1433,9 +1691,12 @@ def test_guard_hodisasi_trial_oynasida_aborted_guard_beradi(tmp_path):
     orig = pf.sut_command
 
     def with_trip(socket_path, command, timeout_s=0.5):
-        _append_jsonl(pf.guard_log_path,
-                      {"record_type": "guard_event", "mono_us": pf.t,
-                       "reason": "sustained_pressure", "action": "kill_subtree"})
+        if command == "PROBE":
+            return orig(socket_path, command, timeout_s)
+        _append_jsonl(pf.guard_log_path, _guard_rec(
+            "guard_event", pf.t, pf._gseq("guard_event"), pf.run_id, pf.session_id,
+            reason="sustained_pressure", action="kill_subtree",
+            detail={}, lab_cgroup="x", kill_ok=True))
         return orig(socket_path, command, timeout_s)
 
     pf.sut_command = with_trip
@@ -1590,9 +1851,12 @@ def test_har_oqim_oz_fayliga_yoziladi(tmp_path):
 def test_trial_hodisalari_ketma_ketligi_shartnoma_1_2_boyicha(tmp_path):
     drv, pf, run_dir = make_driver(tmp_path)
     drv.run()
+    # Prober record'lari ATAYLAB `trial_begin` dan OLDIN: per-trial prober
+    # jarayoni setup fazasida ishga tushadi (record oynasidan tashqarida).
     order = [r["record_type"] for r in events(run_dir)
              if r["record_type"] not in ("run_meta", "unit_state",
-                                         "harness_error")]
+                                         "harness_error", "prober_start",
+                                         "prober_stop")]
     assert order[0] == "trial_begin"
     assert order[-1] == "trial_end"
     for rt in ("env_snapshot", "baseline_window", "fault_inject",

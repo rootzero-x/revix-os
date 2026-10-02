@@ -266,6 +266,21 @@ JOB_TIMEOUT_S = 30.0
 ACTIVE_TIMEOUT_S = 15.0
 
 ARMED_RE = re.compile(r"^OK\s+armed=(\S+)")
+# `OK progress=.. pid=.. invocation=.. rss_kb=.. mono_us=..` (protokol §3).
+SUT_MONO_RE = re.compile(r"\bmono_us=(\d+)\b")
+
+
+def _parse_sut_mono(reply: str | None) -> int | None:
+    """SUT javobidan uning O'Z `mono_us` ini oladi (protokol §3).
+
+    `mono_us` protokolda IXTIYORIY maydon (`prober.parse_probe_reply` uni
+    talab qilmaydi), shuning uchun yo'q bo'lsa `None` -- o'lchanmadi, nol
+    EMAS.
+    """
+    if not reply:
+        return None
+    m = SUT_MONO_RE.search(reply)
+    return int(m.group(1)) if m else None
 
 
 # ===========================================================================
@@ -655,15 +670,21 @@ def unit_state_payload(raw: dict[str, Any], scope: str) -> dict[str, Any]:
     """`units.UnitWatcher` record'ini `unit_state` payload'iga aylantiradi.
 
     Qaytadigan payload'da UCHALASI ham bor:
-      * snake_case alias'lar -- `reduce.py` ish vaqtida o'qiydigan nomlar;
-      * XOM systemd nomlari (`systemd` kalitida) -- §1 bo'yicha AVTORITET;
+      * snake_case alias'lar -- `reduce.py` ish vaqtida o'qiydigan nomlar
+        (normalizatsiya qilingan: bo'sh timestamp -> `None`);
+      * XOM systemd nomlari, `U.STATE_PROPS` ning hammasi, AYNAN systemd
+        bergandek -- §1 bo'yicha ular AVTORITET qiymatlar. Ular record'ning
+        YUQORI DARAJASIDA turadi (ichki dict'da EMAS): `validate.py` ning
+        `RECORD_FIELD_RULES[unit_state]` aynan `ActiveEnterTimestampMonotonic`
+        va `ActiveExitTimestampMonotonic` kalitlarini RECORD'da qidiradi, va
+        ichki dict'ga yashirish ularni "yo'q" qilardi.
       * `recv_mono_us` ALOHIDA -- §14.4: harness qabul vaqti systemd'ning
         o'z vaqtidan alohida qolishi SHART, aks holda D-Bus yetkazish
         kechikishi o'lchov ichida yashirinib `L_det`/`D_sd` ni buzardi.
 
     Envelope field'lari (`trial_id`, `block_index`, `mono_us`, `real_us`, ...)
     payload'ga QO'YILMAYDI -- `Emitter.record()` to'qnashuvda istisno tashlaydi
-    (schema.py:236).
+    (schema.py:236). systemd nomlari CamelCase, demak to'qnashuv yo'q.
     """
     out: dict[str, Any] = {
         "unit": raw.get("unit"),
@@ -676,13 +697,15 @@ def unit_state_payload(raw: dict[str, Any], scope: str) -> dict[str, Any]:
         "snapshot_complete": raw.get("snapshot_complete"),
         "missing_props": raw.get("missing_props"),
     }
+    # XOM qiymatlar BIRINCHI va YUQORI DARAJADA: normalizatsiya QILINMAYDI,
+    # aynan systemd bergandek (§1 -- AVTORITET baza).
+    for prop in U.STATE_PROPS:
+        out[prop] = raw.get(prop)
     for alias, prop in UNIT_STATE_ALIASES:
         v = raw.get(prop)
         out[alias] = _ts_or_none(v) if alias.endswith("_mono_us") else v
     for alias, prop in UNIT_STATE_PLAIN_ALIASES:
         out[alias] = raw.get(prop)
-    # XOM qiymatlar: normalizatsiya QILINMAYDI, aynan systemd bergandek.
-    out["systemd"] = {p: raw.get(p) for p in U.STATE_PROPS}
     return out
 
 
@@ -702,38 +725,53 @@ def unsolicited_kill_seen(payload: dict[str, Any]) -> bool:
     return code == CLD_KILLED and status == SIGKILL
 
 
+def _events_delta(before: dict[str, int], after: dict[str, int]
+                  ) -> dict[str, Any]:
+    keys = sorted(set(before) | set(after))
+    return {
+        "memory_events": {k: int(after.get(k, 0)) for k in keys},
+        "memory_events_before": {k: int(before.get(k, 0)) for k in keys},
+        "memory_events_delta": {
+            k: int(after.get(k, 0)) - int(before.get(k, 0)) for k in keys},
+    }
+
+
 def cgroup_events_payload(
-    scope: str, before: dict[str, int], after: dict[str, int], *, series: bool
+    before: dict[str, dict[str, int]],
+    after: dict[str, dict[str, int]],
+    *,
+    scope: str = SCOPE_SUT,
 ) -> dict[str, Any]:
     """`cgroup_events` payload'i -- `memory.events` delta'lari (§1.2).
 
-    FIELD NOMI TUZOG'I (va nega bu muhim): `reduce._oom_series(trial)` SCOPE
-    FILTRISIZ chaqiriladi (reduce.py:780) va `oom_kill` kalitiga EGA BARCHA
-    `cgroup_events` record'larini bitta kumulyativ qatorga qo'shadi. Agar lab
-    va SUT scope'lari ikkisi ham `oom_kill` yozsa, qator ikki manbadan
-    aralashib, `v > prev` taqqoslashi ma'nosiz bo'lardi -- ya'ni §4 ning
-    6-bandi (`oom_kill` invalidator'i) YOLG'ON ishlardi.
+    TRIAL'GA AYNAN BITTA RECORD, va u AYNAN SUT scope'iga tegishli. Sabab
+    ikkita, ikkisi ham majburlangan:
 
-    Shuning uchun: `oom_kill` kaliti FAQAT SUT scope'ida yoziladi
-    (`series=True`), boshqa scope'lar uchun ayni qiymat `oom_kill_count`
-    nomida boradi. `reduce._oom_series` `oom_kill` yo'q record'ni e'tiborga
-    OLMAYDI (reduce.py:590), demak qator toza SUT qatori bo'lib qoladi va
-    hech qanday ma'lumot yo'qolmaydi.
+      1. `reduce._oom_series(trial)` SCOPE FILTRISIZ chaqiriladi
+         (reduce.py:780) va `oom_kill` kalitiga ega BARCHA `cgroup_events`
+         record'larini BITTA kumulyativ qatorga qo'shadi. Har scope uchun
+         alohida record yozilsa, qator lab/sut/bystander manbalaridan
+         aralashib, `v > prev` taqqoslashi ma'nosiz bo'lardi -- ya'ni §4
+         ning 6-bandi (`oom_kill` invalidator'i) YOLG'ON ishlardi.
+      2. `validate.RECORD_FIELD_RULES[cgroup_events]` `oom_kill` ni HAR
+         record'da NOL BO'LMAGAN qiymat sifatida talab qiladi, demak
+         "bu scope'da kalit yo'q" yechimi ham o'tmaydi.
+
+    Boshqa scope'lar YO'QOLMAYDI: ularning kumulyativ qiymatlari va
+    delta'lari shu record'ning `other_scopes` kalitida, va to'liq
+    `memory.stat`/`cpu.stat` bilan birga har trial chegarasidagi
+    `env_snapshot` da (§8.3 kovariatalari). `other_scopes` ichidagi
+    `oom_kill` `_oom_series` uchun KO'RINMAYDI, chunki u faqat yuqori
+    darajadagi kalitni o'qiydi.
     """
-    keys = sorted(set(before) | set(after))
-    delta = {k: int(after.get(k, 0)) - int(before.get(k, 0)) for k in keys}
-    payload: dict[str, Any] = {
-        "scope": scope,
-        "memory_events": {k: int(after.get(k, 0)) for k in keys},
-        "memory_events_before": {k: int(before.get(k, 0)) for k in keys},
-        "memory_events_delta": delta,
+    payload: dict[str, Any] = {"scope": scope}
+    payload.update(_events_delta(before.get(scope, {}), after.get(scope, {})))
+    payload["oom_kill"] = int(after.get(scope, {}).get("oom_kill", 0))
+    payload["oom_kill_delta"] = payload["memory_events_delta"].get("oom_kill", 0)
+    payload["other_scopes"] = {
+        s: _events_delta(before.get(s, {}), after.get(s, {}))
+        for s in sorted(set(before) | set(after)) if s != scope
     }
-    count = int(after.get("oom_kill", 0))
-    if series:
-        payload["oom_kill"] = count
-    else:
-        payload["oom_kill_count"] = count
-    payload["oom_kill_delta"] = delta.get("oom_kill", 0)
     return payload
 
 
@@ -1350,14 +1388,24 @@ class Driver:
         trial: sch.Trial | None = None,
         mono: int | None = None,
     ) -> dict[str, Any]:
-        """Bitta record. `stream == record_type` HAR DOIM (dizayn qoidasi 12)."""
+        """Bitta record. `stream == record_type` HAR DOIM (dizayn qoidasi 12).
+
+        VAQT MANBASI YAGONA: `mono` berilmasa `platform.mono_us()` ishlatiladi,
+        `schema.mono_us()` NING O'ZI EMAS. NEGA: `Emitter.envelope()` ning
+        default'i `schema.mono_us()` ga to'g'ridan-to'g'ri boradi, ya'ni
+        platformani CHETLAB O'TADI. Ishlab chiqarishda ikkisi bir xil
+        funksiya, lekin chetlab o'tish driver'ning vaqt disiplinasini ikki
+        manbaga bo'lardi (§1) -- va bu aynan shunday aniqlandi: fake soat
+        ostida `env_snapshot` record'lari trial oynasidan tashqarida chiqib,
+        `validate.check_trial_events` ni yiqitdi.
+        """
         rec = self.em.record(
             record_type,
             payload,
             stream=record_type,
             trial_id=trial.trial_id if trial is not None else None,
             block_index=trial.block_index if trial is not None else None,
-            mono=mono,
+            mono=mono if mono is not None else self.pf.mono_us(),
         )
         self.writer.write(rec)
         return rec
@@ -1871,6 +1919,17 @@ class Driver:
         except Exception as exc:  # noqa: BLE001
             setup_error = exc
 
+        # Setup fazasidagi `unit_state` record'lari `trial_id=None` bilan
+        # yoziladi. NEGA: ularning avtoritet vaqti (`recv_mono_us`)
+        # `trial_begin` dan OLDIN -- unit'lar record oynasi ochilishidan
+        # oldin ko'tarildi. Trial'ga bog'lansa, ular
+        # `[trial_begin, trial_end]` oynasidan tashqarida qolib,
+        # `validate.check_trial_events` ning `trial_event_outside_window`
+        # xatosini berardi, va §1.2 dagi hodisa tartibi ma'nosiz bo'lardi.
+        # Ma'lumot YO'QOLMAYDI: record oqimda qoladi, faqat trial'ga
+        # kirmaydi (`reduce.split_trials` `trial_id` bo'yicha ajratadi).
+        self._drain_watchers(watchers, None)
+
         # --- RECORD OYNASI boshlanadi -------------------------------------
         # `trial_begin` setup yiqilsa HAM yoziladi: aks holda trial
         # ma'lumotdan BUTUNLAY yo'qolardi, va §14.6 invariant 1 (har
@@ -1883,7 +1942,8 @@ class Driver:
             if setup_error is not None:
                 raise setup_error
             self._drain_watchers(watchers, trial)
-            self._emit_env_snapshot(trial, "trial_begin", index)
+            self._emit_env_snapshot(trial, "trial_begin", index,
+                                    mono=timing.begin_mono_us)
 
             # --- faza deadline'lari (absolut, monotonic) -------------------
             base = timing.begin_mono_us + round(self.timeline.preflight_s * 1e6)
@@ -1959,7 +2019,8 @@ class Driver:
             # bo'lmaydi (validator uni rad etadi).
             self.pf.stop(PROBER_UNIT)
             self._drain_watchers(watchers, trial)
-            self._emit_env_snapshot(trial, "trial_end", index)
+            self._emit_env_snapshot(trial, "trial_end", index,
+                                    mono=horizon_end)
             ev_after = self._memory_events_snapshot()
             self._emit_cgroup_events(trial, ev_before, ev_after, horizon_end)
             host_after = {"vmstat": self.pf.vmstat(),
@@ -2172,16 +2233,30 @@ class Driver:
         o'z "fault armed" record'i. SUT tomoni bu yerda javobdagi
         `OK armed=<kind>` bilan olinadi.
 
-        OCHIQ CHEKLOV: protokol §5 SUT tomonidagi MONOTONIC qiymatni
-        `stderr` ga yozadi (`FAULT ARMED <kind> mono_us=<u64>`), lekin
-        `StandardError=null` (§3.4: o'lchov ma'lumoti journald'dan o'tmaydi)
-        va run katalogi olti faylga MUZLATILGAN (shartnoma §1), demak bu satr
-        saqlanmaydi. Shuning uchun `sut_mono_us` = None (o'lchanmadi), va bu
-        OCHIQ savol sifatida hisobotda beriladi -- jimgina nol yozilmaydi.
+        SUT tomonini qanday olamiz: injeksiyadan DARHOL OLDIN O'Z ulanishida
+        bitta `PROBE` yuborilади va javobdagi `mono_us` -- SUT'ning O'Z
+        soati -- `sut_mono_us_before` sifatida yoziladi.
+          * protokol §4.5 kafolatlaydi: probe'ga javob berish `progress` ni
+            OSHIRMAYDI, demak prober'ning kuzatuvi buzilmaydi;
+          * bu trial'ga BITTA qo'shimcha ulanish, ya'ni arm'lar bo'yicha
+            AYNI narx (§8.2 probe narxi bir xil ushlanadi);
+          * bu XULOSA emas, SUT'ning o'z o'lchovi.
+
+        QOLGAN CHEKLOV, ochiq yoziladi: bu BIR TOMONLAMA namuna
+        (injeksiyadan oldin), protokol §5 ning `stderr` dagi
+        `FAULT ARMED <kind> mono_us=<u64>` satri EMAS. O'sha satr
+        saqlanmaydi, chunki `StandardError=null` (§3.4: o'lchov ma'lumoti
+        journald'dan o'tmaydi) va run katalogi olti faylga MUZLATILGAN
+        (shartnoma §1). Shuning uchun `sut_mono_us` = `None` -- jimgina nol
+        yozilmaydi -- va `sut_mono_us_before` uning o'rnini TO'LIQ
+        bosmaydi.
         """
+        sock = self._sut_socket("sut")
+        pre = self.pf.sut_command(sock, "PROBE")
+        sut_before = _parse_sut_mono(pre.get("reply"))
         cmd = f"FAULT {FAULT_KIND} code={FAULT_EXIT_CODE}"
         t0 = self.pf.mono_us()
-        res = self.pf.sut_command(self._sut_socket("sut"), cmd)
+        res = self.pf.sut_command(sock, cmd)
         t1 = self.pf.mono_us()
         reply = res.get("reply") or ""
         m = ARMED_RE.match(reply.strip())
@@ -2200,8 +2275,18 @@ class Driver:
             "bracket_us": t1 - t0,
             "sut_ack": reply or None,
             "sut_armed": m.group(1) if m else None,
+            # SUT'ning O'Z soati, injeksiyadan DARHOL OLDIN (protokol §3).
+            "sut_mono_us_before": sut_before,
+            "sut_probe_reply": pre.get("reply"),
+            # `stderr` dagi `FAULT ARMED` satri saqlanmaydi -> o'lchanmadi.
             "sut_mono_us": None,
-            "sut_mono_us_source": "unavailable_stderr_discarded",
+            "sut_mono_us_source": (
+                "pre_injection_probe" if sut_before is not None
+                else "unavailable"),
+            "sut_mono_us_limitation": (
+                "bir tomonlama namuna (injeksiyadan oldin); protokol §5 ning "
+                "stderr `FAULT ARMED mono_us=` satri StandardError=null va "
+                "muzlatilgan olti faylli katalog sababli saqlanmaydi"),
             "errno": res.get("errno"),
             "error": res.get("error"),
         }
@@ -2214,12 +2299,22 @@ class Driver:
         return payload
 
     def _emit_env_snapshot(self, trial: sch.Trial, phase: str,
-                           index: int) -> None:
+                           index: int, mono: int | None = None) -> None:
         """`env_snapshot` -- §8.3 va §8.5 kovariatalari.
 
         `revixmon.slice` snapshot'i §8.2 ning "harness'ning o'z `CPUUsageNSec`
         / `MemoryPeak` log'lanadi" talabini bajaradi (`cpu_stat` va
         `memory_peak` `cgroup.snapshot_cgroup` ichida).
+
+        VAQT: `mono` -- snapshot TEGISHLI bo'lgan trial CHEGARASI (trial
+        boshi yoki horizon oxiri), `mono_us_read` esa o'qish AMALDA qachon
+        tugagani. NEGA ikkisi alohida: chegara kuzatuvini chegaraning O'Z
+        instantida o'qib bo'lmaydi -- cgroup fayllarini o'qish vaqt oladi,
+        demak o'qish vaqti horizon'dan bir necha yuz mikrosekund KEYIN
+        bo'ladi va record `[trial_begin, trial_end]` oynasidan chiqib
+        ketardi (`validate.check_trial_events`). Bu §14.4 ning
+        `unit_state` da ishlatilgan naqshi bilan AYNI: avtoritet vaqt va
+        qabul/o'qish vaqti aralashtirilmaydi, ikkisi ham yoziladi.
         """
         scopes: dict[str, Any] = {}
         for scope, path in self._scope_paths().items():
@@ -2256,8 +2351,10 @@ class Driver:
                 # Guest generation markeri HAR chegarada: kampaniya o'rtasidagi
                 # restart MA'LUMOTDA ko'rinadi, faqat oxirida emas.
                 "guest_generation": self.pf.guest_generation(),
+                # O'qish AMALDA qachon tugadi (chegara vaqtidan ALOHIDA).
+                "mono_us_read": self.pf.mono_us(),
             },
-            trial=trial,
+            trial=trial, mono=mono,
         )
 
     def _scope_paths(self) -> dict[str, str]:
@@ -2284,20 +2381,15 @@ class Driver:
                             before: dict[str, dict[str, int]],
                             after: dict[str, dict[str, int]],
                             mono: int) -> None:
-        """Har scope uchun bitta `cgroup_events`. `oom_kill` FAQAT SUT'da.
+        """Trial'ga AYNAN BITTA `cgroup_events`, SUT scope'i uchun.
 
         Sababi `cgroup_events_payload` docstring'ida: `reduce._oom_series`
         scope filtrisiz ishlaydi va aralash qator §4 ning 6-bandini yolg'on
-        qilardi.
+        qilardi; boshqa scope'lar `other_scopes` da va `env_snapshot` da.
         """
-        for scope in self._scope_paths():
-            self._emit(
-                "cgroup_events",
-                cgroup_events_payload(scope, before.get(scope, {}),
-                                      after.get(scope, {}),
-                                      series=(scope == SCOPE_SUT)),
-                trial=trial, mono=mono,
-            )
+        self._emit("cgroup_events",
+                   cgroup_events_payload(before, after, scope=SCOPE_SUT),
+                   trial=trial, mono=mono)
 
     def _dump_live_units(self) -> dict[str, Any]:
         """Property dump'i FAQAT TIRIK unit ustida (01-...-tekshiruvlari §4).
