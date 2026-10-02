@@ -42,6 +42,20 @@ QAT'IY QOIDALAR (buzilmaydi):
      `R_ref` yoki oyna throughput'i o'lchanmasa natija `vr=True` emas,
      `vr=None` (aniqlanmagan) bo'ladi. Aks holda ma'lumot yetishmovchiligi
      jimgina liveness-only VR ga qulardi.
+  7. **ANALIZ TO'PLAMI RUXSAT-RO'YXATI BILAN, RAD-RO'YXATI BILAN EMAS.**
+     Maxrajga KIRADIGAN `(disposition, disposition_source)` juftlari
+     `PRIMARY_DENOMINATOR_SOURCES` da OCHIQ sanaladi; chiqarilganlar
+     ro'yxati YO'Q va bo'lmaydi. Ikki sabab, ikkisi ham strukturaviy:
+       (i)  bitta ruxsat-to'plami o'zi bilan ajralib keta OLMAYDI, ikki
+            ro'yxat esa keta oladi -- va ajralganda xato jimgina maxrajga
+            trial qo'shish tomonga ketardi;
+       (ii) kelajakda qo'shilgan har qanday yangi `disposition_source`
+            AVTOMATIK ravishda chiqariladi va NOMLANADI, ya'ni u qo'shimcha
+            o'zgarishsiz maxrajga TUSHIB KETMAYDI (fail-closed). §17.4 ning
+            ikki yangi qiymati aynan shu yo'l bilan to'g'ri ishlandi.
+     Shuning uchun `disposition`-ga asoslangan "birlamchi to'plam"
+     konstantasi QAYTA TIKLANMAYDI: §16.2(B) dan keyin u ta'rifan yetarli
+     emas.
 
 XOM RECORD KONTRAKTI (mahalliy ta'rif -- `revix/schema.py` da record turlari
 ta'riflanmagan, faqat envelope va yozuvchilar bor; qarang: modul oxiridagi
@@ -230,16 +244,20 @@ PRIMARY_DENOMINATOR_SOURCES: dict[str, frozenset[str]] = {
     "harness_error": frozenset(),
 }
 
-# DEPRECATED -- §16.4 bu konstantani "to'g'ri savol, NOTO'G'RI javob" deb
-# hukm qildi: binar maxraj `complete` VA `down_at_horizon` ni o'z ichiga
-# olishi kerak. U endi bu moduldagi HECH QANDAY qarorda ishlatilmaydi;
-# qoida `PRIMARY_DENOMINATOR_SOURCES` + `enters_primary_denominator()`.
-# Faqat import muvofiqligi uchun saqlanadi (`revix/analyze.py` uni import
-# qiladi va u BOSHQA agentga tegishli -- bu yerda qiymati o'zgartirilsa
-# o'sha modulning xatti-harakati JIMGINA o'zgarardi, §16.6 esa o'zgarish
-# "ataylab qilingan qaror" bo'lishini talab qiladi).
-# Qiymati o'z-o'zidan YETARLI EMAS: `disposition_source` ham tekshirilishi SHART.
-PRIMARY_DISPOSITIONS = ("complete",)
+# OLIB TASHLANDI -- `PRIMARY_DISPOSITIONS == ("complete",)`.
+#
+# §16.4 uni "to'g'ri savol, NOTO'G'RI javob" deb hukm qilgan edi: binar
+# maxraj `complete` VA `down_at_horizon` ni o'z ichiga olishi kerak. U §16.2(B)
+# amalga oshirilganda SHIM sifatida saqlangan edi -- qiymati o'zgartirilmagan
+# holda, chunki uning YAGONA iste'molchisi (`revix/analyze.py`) boshqa agentga
+# tegishli va qiymatni o'zgartirish o'sha modulning xatti-harakatini JIMGINA
+# o'zgartirardi, §16.6 esa o'zgarish "ataylab qilingan qaror" bo'lishini
+# talab qiladi. Iste'molchi `enters_primary_denominator()` ga ko'chgach,
+# shim'ning vazifasi tugadi va u olib tashlandi.
+#
+# Nomni QAYTA TIKLAMANG: maxraj qoidasi `(disposition, disposition_source)`
+# jufti bilan aniqlanadi (§16.2(B)), demak `disposition`-ga asoslangan har
+# qanday konstanta ta'rifan yetarli emas.
 
 # Kaplan-Meier / log-rank va loop-rate ga kiradigan disposition (§6.2):
 # censored trial'lar KIRADI -- ularni tashlash tez ishdan chiqadigan arm'ni
