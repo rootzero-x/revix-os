@@ -2259,6 +2259,10 @@ def cmd_analyze(args: argparse.Namespace, want_json: bool) -> int:
             "--out", args.out]
     if args.sweep is not None:
         argv += ["--sweep", args.sweep]
+    if args.episodes is not None:
+        argv += ["--episodes", args.episodes]
+    if args.events is not None:
+        argv += ["--events", args.events]
     if want_json:
         argv.append("--json")
     return _delegate("analyze", "analyze", argv, want_json)
@@ -2358,6 +2362,16 @@ def build_parser() -> argparse.ArgumentParser:
                    help="analysis.json chiqish yo'li")
     p.add_argument("--sweep", default=None, metavar="PATH",
                    help="sezgirlik sweep kiritmasi (ixtiyoriy)")
+    p.add_argument("--episodes", default=None, metavar="PATH",
+                   help="reduce.py'ning episodes.jsonl'i (ixtiyoriy): FR-A ni "
+                        "per-action VA per-episode hisoblash uchun; bo'lmasa "
+                        "analiz torroq, aniq belgilangan qism-to'plamni "
+                        "hisoblaydi (PREREGISTRATION §5, §2.2)")
+    p.add_argument("--events", default=None, metavar="PATH",
+                   help="run'ning events.jsonl'i (ixtiyoriy): prober'ning "
+                        "o'lchangan CPU narxi (prober_stop.core_percent) "
+                        "shu orqali tahlilga yetadi; bo'lmasa probe_cost "
+                        "figurasi to'ldirilmaydi (PREREGISTRATION §8.2, §3)")
     p.set_defaults(func=cmd_analyze)
 
     p = sub.add_parser(
