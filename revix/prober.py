@@ -166,6 +166,19 @@ PROBE_FIELDS = (
     "trial_id",
 )
 
+# Har probe'da `dict.fromkeys(PROBE_FIELDS)` 24 ta kalitni QAYTA xeshlab yangi
+# jadval quradi; tayyor shablonning `copy()`si jadvalni ko'chiradi -- o'lchangan
+# farq 855 ns -> 160 ns (python3.14, 200k iteratsiya, thread_time).
+#
+# NEGA (§8.2 "probe narxi budjeti"): prober'ning CPU'si o'lchanayotgan tizimdan
+# O'G'IRLANGAN CPU. Har probe'da tejalgan har bir mikrosekund self-perturbation
+# budjetiga qaytadi, demak bu yerda "kichik" tejash ham qonuniy.
+#
+# Shablon O'QILADIGAN holatda qoladi: `copy()` har probe'ga MUSTAQIL dict
+# beradi, demak qatorlar bir-birining qiymatini ko'rmaydi. Shablonning o'zi
+# hech qachon yozilmaydi.
+_ROW_TEMPLATE = dict.fromkeys(PROBE_FIELDS)
+
 # --- errno tasnifi ----------------------------------------------------------
 # Bu jadval qaror: qaysi errno XIZMAT haqida gapiradi va qaysisi PROBER
 # haqida. Ikkinchisi hech qachon contract buzilishi deb yozilmaydi (dizayn
@@ -240,8 +253,14 @@ def parse_probe_reply(blob: bytes) -> tuple[dict[str, Any] | None, str | None]:
         text = blob.decode("ascii")
     except UnicodeDecodeError:
         return None, "not_ascii"
-    # Protokol satr oxirini yubormaydi, lekin kelsa ham o'lchov buzilmasin.
-    parts = text.strip().split()
+    # Protokol satr oxirini yubormaydi, lekin kelsa ham o'lchov buzilmasin:
+    # argumentsiz `split()` bo'sh joy YUGURIKLARI bo'yicha bo'ladi va chetdagi
+    # bo'sh joyni (shu jumladan satr oxirlarini: LF va CRLF) o'zi tashlaydi --
+    # `strip()` ORTIQCHA edi va faqat qo'shimcha satr nusxasini yaratardi
+    # (o'lchangan: 278 ns -> 217 ns, python3.14). Natija bayt-bayt bir xil.
+    # NEGA: §8.2 budjeti -- har probe'da bajarilmagan ish o'lchanayotgan
+    # tizimga qaytgan CPU.
+    parts = text.split()
     if not parts:
         return None, "empty"
     head = parts[0]
@@ -417,7 +436,7 @@ class Prober:
         Qaytadi: CSV qatori (yozilmaydi). `ProbeInstrumentError` ni ko'tarishi
         mumkin -- u contract buzilishi EMAS (dizayn qoidasi 5).
         """
-        row: dict[str, Any] = dict.fromkeys(PROBE_FIELDS)
+        row: dict[str, Any] = _ROW_TEMPLATE.copy()
         row["target"] = tgt.name
         row["trial_id"] = self.trial_id
         row["seq"] = self.emitter.next_seq(tgt.stream)
@@ -702,10 +721,20 @@ class Prober:
                         "skipped_cycles": missed,
                         "late_us": int(late * 1e6),
                     })
+                    # Bu yo'lda `_emit` IO qildi va `next_deadline` siljidi ->
+                    # `now` eskirdi, shuning uchun QAYTA o'qiladi.
+                    now = time.monotonic()
                 # Kichik kechikish (< P) uchun deadline SILJITILMAYDI: keyingi
                 # tsikl darhol boshlanadi va grid o'z-o'zidan tuzatiladi.
                 # Mikrosekundlik kechikish uchun butun namuna tashlanmaydi.
-                delay = next_deadline - time.monotonic()
+                #
+                # `time.monotonic()` QAYTA chaqirilmaydi: yuqoridagi `now` shu
+                # tsikl uchun yetarli -- oddiy yo'lda u bilan bu qator orasida
+                # faqat bitta float taqqoslash bor. Bu tsiklga bitta
+                # `clock_gettime` ni yo'q qiladi (§8.2 budjeti). Faza
+                # O'ZGARMAYDI: sleep davomiyligi ABSOLUT `next_deadline` dan
+                # chiqadi, `now` dan emas (dizayn qoidasi 1).
+                delay = next_deadline - now
                 if delay > 0:
                     time.sleep(delay)
         finally:
