@@ -10,6 +10,9 @@ PREREGISTRATION.md ni amalga oshiradi:
   * §16 -- analiz to'plami `(disposition, disposition_source)` jufti bilan
            aniqlanadi (§16.2(B)), va eksklyuziya darajasi QAYSI to'plam
            ustida hisoblanganini nomlaydi (§16.4)
+  * §17 -- §4 verifikatsiya oynasi pressure hold ICHIDA bo'lishi shart;
+           oyna chiqib ketgan trial §4 ning kattaligini O'LCHAMAGAN
+           (§17.4): ikki yangi `disposition_source` qiymati
 
 QAT'IY QOIDALAR (buzilmaydi):
 
@@ -123,11 +126,41 @@ DRT_SUMMARY = "reduction_summary"
 # qo'yganini aytadi. Aynan shu beshta qiymat ishlab chiqariladi.
 DISPOSITION_SOURCES = (
     "probe_gap",         # §4: probe uzilishi > 2xP -- instrumentatsiya yo'qoldi
+    # §17.4(2) -- oyna pressure hold'dan yoki horizon'dan chiqib ketdi, demak
+    # §4 ning kattaligi O'LCHANMADI. Bular `disposition_source` qiymatlari,
+    # §12 ning `disposition` enum'iga TEGILMAYDI.
+    "window_past_pressure",   # holat (a): T_h < t_up + W_stab <= T_trial
+    "window_past_horizon",    # holat (b): t_up + W_stab > T_trial
     "down_at_horizon",   # §12: horizon down holatda tugadi -- xizmat qaytmadi
     "guard_event",       # §12: host guard trip qildi
     "trial_end",         # harness'ning o'z `trial_end.disposition` yorlig'i
     "derived",           # hech qanday maxsus fakt yo'q -> `complete`
 )
+
+# §17 oyna bo'sh-joy klassifikatsiyasi -- YOPIQ enum.
+#
+# NEGA (§17.2): §4 ning 1-bandi oynani `t_up` dan boshlaydi, v1.3 ning
+# yarashtiruvchi arifmetikasi (`3 + 8 = 11 <= 12`) esa uni `t_inject` dan
+# boshlagan, ya'ni jimgina `t_up = t_inject` (nol recovery vaqti) ni nazarda
+# tutgan. Haqiqiy shart `t_up + W_stab_pilot <= T_h`, ya'ni `t_start <= 0.8 s`,
+# holbuki §9.2 sekin start'ni oldindan MEXANIZM deb e'lon qiladi va
+# `driver.py` `TimeoutStartSec = 10 s` ni default qilgan. Shuning uchun oyna
+# joylashuvi har trial'da OCHIQ klassifikatsiya qilinadi.
+WINDOW_INSIDE_HOLD = "inside_hold"        # holat (c): to'g'ri o'lchov
+WINDOW_PAST_PRESSURE = "past_pressure"    # holat (a)
+WINDOW_PAST_HORIZON = "past_horizon"      # holat (b)
+WINDOW_NO_T_UP = "no_t_up"                # `t_up` yo'q -> oyna boshlanmadi
+WINDOW_NOT_EVALUATED = "not_evaluated"    # `T_h` O'LCHANMAGAN -> (a)/(c) ajralmaydi
+WINDOW_CONTAINMENTS = (
+    WINDOW_INSIDE_HOLD, WINDOW_PAST_PRESSURE, WINDOW_PAST_HORIZON,
+    WINDOW_NO_T_UP, WINDOW_NOT_EVALUATED,
+)
+
+# §17.4(2): oyna chiqib ketgan holatlar -> `disposition_source` qiymatlari.
+WINDOW_CONTAINMENT_SOURCE = {
+    WINDOW_PAST_PRESSURE: "window_past_pressure",
+    WINDOW_PAST_HORIZON: "window_past_horizon",
+}
 
 # --- ikki analiz to'plami: NOMLARI MAJBURIY (§16.4) -------------------------
 #
@@ -174,6 +207,20 @@ PRIMARY_DENOMINATOR_SOURCES: dict[str, frozenset[str]] = {
     # §16.2(B): faqat `down_at_horizon`. `probe_gap` KUZATILMAGAN natija,
     # `trial_end` esa harness `censored` dedi-yu sababini reducer ko'rmadi --
     # ikkisi ham fail-closed chiqariladi.
+    #
+    # §17.4(3): `window_past_pressure` va `window_past_horizon` HAM
+    # chiqariladi -- natija kuzatilmagan, chunki §4 oynaning hold ICHIDA
+    # bo'lishini TALAB qiladi ("sustained HOLD (<=12 s) ichida sig'ishi
+    # kerak" + "pressure davom etayotganda tasdiqlangan recovery"). Ular bu
+    # ruxsat-ro'yxatida YO'Q, demak avtomatik ravishda chiqariladi va
+    # sabablari `"censored:window_past_pressure"` /
+    # `"censored:window_past_horizon"` bo'lib NOMLANADI.
+    #
+    # NEGA RUXSAT-RO'YXATI (allow-list), ALOHIDA RAD-RO'YXATI EMAS: ikki
+    # ro'yxat bir-biridan ajralib ketishi mumkin, ruxsat-ro'yxati esa
+    # fail-closed -- §17 kabi yangi manba qo'shilganda u maxrajga JIMGINA
+    # tushmaydi, qo'shimcha o'zgarishsiz chiqariladi. Chiqarilgan juftlarning
+    # AYNAN qaysi bo'lishi test bilan qulflangan (butun kesma sanaladi).
     "censored": frozenset({"down_at_horizon"}),
     # §12: ochiq chiqariladi, lekin ulushi natija sifatida beriladi.
     "contaminated": frozenset(),
@@ -497,6 +544,40 @@ class Trial:
         if a is None or b is None:
             return None
         return b - a
+
+    @property
+    def hold_end_us(self) -> int | None:
+        """`T_h` -- pressure hold tugashi (§17.2). O'LCHANMASA `None`.
+
+        Manba: `trial_end.timing.pressure_off_mono_us` (driver TrialTiming).
+        `0` -- "hech qachon o'rnatilmagan" (trial erta uzilgan), demak u
+        `None` ga aylantiriladi: `0` = "o'lchangan no'l" ma'nosini
+        bildirmaydi, chunki bu MONOTONIC timestamp.
+
+        Reducer bu qiymatni TAXMIN QILMAYDI: `TrialTimeline` dan qayta
+        hisoblash rejalashtirilgan vaqtni o'lchangan vaqt deb yozish bo'lardi
+        (2-qoida: o'lchov qiymatlari faqat o'lchangan joydan keladi).
+        """
+        timing = (self.end or {}).get("timing")
+        if not isinstance(timing, dict):
+            return None
+        v = _as_int(timing.get("pressure_off_mono_us"))
+        return v if v else None
+
+    @property
+    def horizon_end_us(self) -> int | None:
+        """`T_trial` oxiri (§17.2). `timing` bo'lmasa `end_us` ga tushadi.
+
+        `trial_end.mono_us` driver tomonidan `horizon_end_mono_us` ga
+        o'rnatiladi, demak ikkisi mos keladi; `timing` ustun, chunki u
+        OCHIQ nomlangan.
+        """
+        timing = (self.end or {}).get("timing")
+        if isinstance(timing, dict):
+            v = _as_int(timing.get("horizon_end_mono_us"))
+            if v:
+                return v
+        return self.end_us
 
 
 def split_trials(run: RawRun) -> list[Trial]:
@@ -1495,30 +1576,153 @@ def compute_d_eff(trial: Trial, params: Params, r_ref: float | None,
 # --- disposition (§12) ------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class WindowContainment:
+    """§4 verifikatsiya oynasi pressure hold ICHIDA joylashdimi (§17).
+
+    Barcha field'lar `None` bo'lishi mumkin va `None` = "O'LCHANMADI",
+    `0` = "o'lchangan no'l" -- modulning disiplinasi. `inside_hold` uch
+    qiymatli: `True` / `False` / `None` (aniqlanmagan), chunki `T_h`
+    o'lchanmagan bo'lsa savol javobsiz qoladi va `False` deb YOZILMAYDI.
+    """
+
+    status: str
+    t_up_us: int | None
+    window_end_us: int | None
+    w_stab_us: int
+    hold_end_us: int | None
+    horizon_end_us: int | None
+    inside_hold: bool | None
+    # `T_h - (t_up + W_stab)`: musbat = bo'sh joy bor, manfiy = oshib ketdi.
+    # §17.4(5) validatori aynan shu kattalikni tekshiradi.
+    slack_to_hold_us: int | None
+    slack_to_horizon_us: int | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def classify_window_containment(
+    t_up_us: int | None,
+    params: Params,
+    *,
+    hold_end_us: int | None,
+    horizon_end_us: int | None,
+) -> WindowContainment:
+    """§17.3 ning uch holatini (a)/(b)/(c) ga ajratadi.
+
+    §17.2 arifmetikasi (hammasi MUZLATILGAN qiymatlardan):
+
+        oyna boshi  = `t_up`            (§4, 1-band -- `t_inject` EMAS)
+        oyna oxiri  = `t_up + W_stab`   (§4)
+        hold oxiri  = `T_h`             (§9.4: t_h + hold_cap_s)
+        horizon     = `T_trial`
+
+        (c) `t_up + W <= T_h`                -> `inside_hold`   -- to'g'ri
+        (a) `T_h < t_up + W <= T_trial`      -> `past_pressure` -- §17.3(a)
+        (b) `t_up + W > T_trial`             -> `past_horizon`  -- §17.3(b)
+
+    (b) BIRINCHI tekshiriladi, chunki §17.3 jadvalida (a) ning sharti
+    `... <= T_trial` bilan chegaralangan, ya'ni ikki shart o'zaro istisno
+    bo'lishi uchun (b) ustun. Va (b) `T_h` ni TALAB QILMAYDI, demak `T_h`
+    o'lchanmagan run'da ham aniqlanadi.
+
+    NEGA `window_slack_us` ISHLATILMAYDI: `evaluate_vr` oyna QOPLANISHI
+    uchun bitta probe davri yo'l qo'yadi (§6.1 kvantlashi). Bu yerda esa
+    savol boshqa -- oyna MUZLATILGAN hold chegarasiga sig'dimi. §17.2
+    arifmetikasi aniq va muzlatilgan qiymatlardan olingan, demak unga
+    slack qo'shish muzlatilgan cheklovni JIMGINA kengaytirish bo'lardi.
+    Tenglik (`==`) hold ichida hisoblanadi, chunki §17.4 shartni `<=`
+    bilan yozadi.
+    """
+    W = params.w_stab_us
+    if t_up_us is None:
+        # Oyna umuman BOSHLANMADI (§4: oyna "mavjud bo'lsa"). Bu §16.2(B)
+        # ning `down_at_horizon` holati -- §17 unga TEGMAYDI.
+        return WindowContainment(
+            status=WINDOW_NO_T_UP, t_up_us=None, window_end_us=None,
+            w_stab_us=W, hold_end_us=hold_end_us,
+            horizon_end_us=horizon_end_us, inside_hold=None,
+            slack_to_hold_us=None, slack_to_horizon_us=None)
+
+    win_end = t_up_us + W
+    slack_hold = (hold_end_us - win_end) if hold_end_us is not None else None
+    slack_hor = (horizon_end_us - win_end) if horizon_end_us is not None else None
+
+    if horizon_end_us is not None and win_end > horizon_end_us:
+        status, inside = WINDOW_PAST_HORIZON, False
+    elif hold_end_us is None:
+        # `T_h` o'lchanmagan: (a) va (c) ni AJRATIB BO'LMAYDI. `False` deb
+        # yozish kuzatilmagan narsani natija deb yozish bo'lardi, `True` deb
+        # yozish esa §17.4 ni jimgina chetlab o'tish bo'lardi -> `None`.
+        status, inside = WINDOW_NOT_EVALUATED, None
+    elif win_end > hold_end_us:
+        status, inside = WINDOW_PAST_PRESSURE, False
+    else:
+        status, inside = WINDOW_INSIDE_HOLD, True
+
+    return WindowContainment(
+        status=status, t_up_us=t_up_us, window_end_us=win_end, w_stab_us=W,
+        hold_end_us=hold_end_us, horizon_end_us=horizon_end_us,
+        inside_hold=inside, slack_to_hold_us=slack_hold,
+        slack_to_horizon_us=slack_hor)
+
+
 def derive_disposition(trial: Trial, gaps: list[dict[str, Any]],
-                       down_at_horizon: bool) -> tuple[str, str, bool]:
+                       down_at_horizon: bool,
+                       window: WindowContainment | None = None,
+                       ) -> tuple[str, str, bool]:
     """Har trial'ga AYNAN BITTA disposition (§12) -- jimgina eksklyuziya yo'q.
 
     Ustunlik tartibi (reducer avtoritetligi faqat OBYEKTIV log faktlarida):
       1. `aborted_guard`   -- guard trip qilgan (log fakt);
       2. xom `contaminated` / `washout_timeout` / `harness_error` saqlanadi --
          bu holatlarni faqat harness biladi;
-      3. `censored`        -- probe uzilishi > 2xP (§4) YOKI horizon down
-                              holatda tugadi (§12);
-      4. xom `censored`;
-      5. `complete`.
+      3. `censored` + `probe_gap`  -- probe uzilishi > 2xP (§4);
+      4. `censored` + `window_past_pressure` / `window_past_horizon` --
+         oyna hold'dan yoki horizon'dan chiqdi (§17.4);
+      5. `censored` + `down_at_horizon` -- horizon down holatda tugadi (§12);
+      6. xom `censored`;
+      7. `complete`.
 
     PROBE UZILISHI HECH QACHON `failed` EMAS (§4): instrumentatsiya yo'qolishi
     jimgina natijaga aylanmaydi.
+
+    NEGA OYNA HOLATI `down_at_horizon` DAN OLDIN (§17.4): `down_at_horizon`
+    faqat `not probes[-1].passed` ga qaraydi, demak u (i) xizmat qaytib,
+    keyin yana yiqilgan va (ii) xizmat shunday kech qaytgan-ki oyna kesilgan
+    (`evaluate_vr` -> `window_truncated`) holatlarini HAM ushlaydi. §17.4
+    bularni `window_past_*` deb belgilaydi. Agar `down_at_horizon` oldin
+    tekshirilsa, ular `censored:down_at_horizon` bo'lib qolardi -- va o'sha
+    juft §16.2(B) bo'yicha binar maxrajga KIRADI, ya'ni §17.4(1) ("oynasi
+    hold ichida bo'lmagan trial `VR = false` deb yozilMAYDI va maxrajga
+    kiritilMAYDI") JIMGINA bekor bo'lardi. Shuning uchun tartib teskari.
+
+    NEGA OYNA HOLATI `probe_gap` DAN KEYIN: uzilish > 2xP bo'lsa `t_up` ning
+    o'zi uzilish artefakti bo'lishi mumkin, demak oyna joylashuvini ishonchsiz
+    trace'dan hisoblash noto'g'ri. §4 probe uzilishiga O'Z hukmini beradi.
+
+    NEGA guard/kontaminatsiyadan KEYIN: `aborted_guard` -- host xavfsizlik
+    hodisasi (§4 7-band VR ni darhol false qiladi), va §6.2 asosida
+    kontaminatsiya censoring'dan USTUN bo'lishi shart, aks holda
+    chiqarilishi kerak trial `censored` yorlig'i ostida analizga kirardi.
     """
     raw = trial.disposition_raw
     conflict = False
+    win_status = window.status if window is not None else WINDOW_NOT_EVALUATED
+    win_src = WINDOW_CONTAINMENT_SOURCE.get(win_status)
     if trial.guard_events:
         final, src = "aborted_guard", "guard_event"
     elif raw in ("contaminated", "washout_timeout", "harness_error"):
         final, src = raw, "trial_end"
     elif gaps:
         final, src = "censored", "probe_gap"
+    elif win_src is not None:
+        # §17.4(1)-(2): §4 ning kattaligi O'LCHANMADI -> `censored`, chunki
+        # §4 `censored` ni "kuzatmagan narsani natija deb yozmaymiz"
+        # ma'nosida ishlatadi (§16.2(B) dagi asos). §12 ning yopiq enum'iga
+        # TEGILMAYDI -- bu `disposition_source`, `disposition` emas.
+        final, src = "censored", win_src
     elif down_at_horizon:
         final, src = "censored", "down_at_horizon"
     elif raw == "censored":
@@ -1624,8 +1828,19 @@ def reduce_trial(trial: Trial, params: Params, *,
 
     down_at_horizon = bool(trial.probes) and not trial.probes[-1].passed
 
+    # §17: oyna pressure hold ICHIDA joylashdimi. `t_up` birinchi epizoddan
+    # olinadi -- aynan `vr` va `time_to_vr` hisoblanadigan epizod, demak
+    # klassifikatsiya payload'ning binar natijasi bilan BIR XIL oynaga
+    # tegishli.
+    window = classify_window_containment(
+        episodes[0].t_up_us if episodes else None,
+        params,
+        hold_end_us=trial.hold_end_us,
+        horizon_end_us=trial.horizon_end_us,
+    )
+
     disposition, disp_src, disp_conflict = derive_disposition(
-        trial, gaps, down_at_horizon)
+        trial, gaps, down_at_horizon, window)
     # §16.2(B): birlamchi to'plam JUFT bilan aniqlanadi. Verdict bitta joyda
     # hisoblanadi, demak flag va sabab bir-biriga zid bo'lishi IMKONSIZ.
     in_primary, primary_excl_reason = primary_denominator_verdict(
@@ -1699,7 +1914,7 @@ def reduce_trial(trial: Trial, params: Params, *,
     payload: dict[str, Any] = {
         "derived": True,
         "reducer_version": REDUCER_VERSION,
-        "preregistration_sections": ["4", "5", "6", "12", "16"],
+        "preregistration_sections": ["4", "5", "6", "12", "16", "17"],
         "arm": trial.arm,
         "pressure_band": trial.pressure_band,
         "params": params.as_dict(),
@@ -1738,6 +1953,21 @@ def reduce_trial(trial: Trial, params: Params, *,
         "probe_gaps": gaps,
         "probe_gap_max_us": max((g["gap_us"] for g in gaps), default=0),
         "down_at_horizon": down_at_horizon,
+
+        # --- §17: oyna bo'sh-joy KIRISHLARI ochiq beriladi ------------------
+        # §17.4(5) validator shartini (`t_up + W_stab_pilot <= T_h`) tekshirish
+        # uchun kerak bo'lgan HAR BIR operand shu yerda, hisoblangan verdict
+        # bilan BIRGA: validator reducer'ning javobiga ishonishi shart emas,
+        # u operandlardan o'zi qayta hisoblay oladi.
+        "window_containment": window.status,
+        "window_inside_hold": window.inside_hold,     # None = o'lchanmadi
+        "t_up_us": window.t_up_us,
+        "vr_window_end_us": window.window_end_us,
+        "w_stab_us": window.w_stab_us,
+        "t_hold_end_us": window.hold_end_us,          # None = o'lchanmadi
+        "t_horizon_end_us": window.horizon_end_us,
+        "window_slack_to_hold_us": window.slack_to_hold_us,
+        "window_slack_to_horizon_us": window.slack_to_horizon_us,
 
         "n_episodes": len(episodes),
         "episode_ids": [e.episode_id for e in episodes],
@@ -1882,6 +2112,46 @@ def disposition_source_counts(trial_records: Iterable[dict[str, Any]]
     return dict(sorted(counts.items()))
 
 
+def cell_key(record: dict[str, Any]) -> str:
+    """`(arm x pressure)` yacheyka kaliti (§17.4(4), §9.3 panjarasi).
+
+    `None` -> `"None"`: yacheykani YO'Q qilib tashlamaydi, chunki `arm` yoki
+    `pressure_band` yozilmagan trial ham hisobotda KO'RINISHI shart (4-qoida:
+    trial tashlanmaydi).
+    """
+    return f"{record.get('arm')}|{record.get('pressure_band')}"
+
+
+def _cell_rows(trial_records: Sequence[dict[str, Any]]
+               ) -> dict[str, list[dict[str, Any]]]:
+    cells: dict[str, list[dict[str, Any]]] = {}
+    for r in trial_records:
+        cells.setdefault(cell_key(r), []).append(r)
+    return {k: cells[k] for k in sorted(cells)}
+
+
+def _count_by(values: Iterable[Any]) -> dict[str, int]:
+    """Tartiblangan sanoq lug'ati (deterministik chiqish -- 2-qoida)."""
+    out: dict[str, int] = {}
+    for v in values:
+        out[str(v)] = out.get(str(v), 0) + 1
+    return dict(sorted(out.items()))
+
+
+def window_containment_counts(trial_records: Iterable[dict[str, Any]]
+                              ) -> dict[str, int]:
+    """§17.3: uch holat (a)/(b)/(c) + ikki aniqlanmagan holat bo'yicha sanoq.
+
+    Yopiq enum ustida nol bilan to'ldiriladi, demak holat KO'RINMAY
+    qolmaydi: nol -- "o'lchangan no'l", kalit yo'qligi emas.
+    """
+    counts = {s: 0 for s in WINDOW_CONTAINMENTS}
+    for r in trial_records:
+        s = str(r.get("window_containment"))
+        counts[s] = counts.get(s, 0) + 1
+    return counts
+
+
 def exclusion_report(trial_records: Sequence[dict[str, Any]], *,
                      analysis_set: str) -> dict[str, Any]:
     """Bitta analiz to'plami uchun eksklyuziya hisoboti -- NOMI BILAN (§16.4).
@@ -1899,36 +2169,115 @@ def exclusion_report(trial_records: Sequence[dict[str, Any]], *,
     `None` ("o'lchanmadi"), `0.0` EMAS ("o'lchangan no'l") -- modulning
     `None`/`0` disiplinasi.
     """
-    if analysis_set == SET_BINARY_DENOMINATOR:
-        included = select_primary(trial_records)
-    elif analysis_set == SET_SURVIVAL:
-        included = select_survival(trial_records)
-    else:
+    if analysis_set not in (SET_BINARY_DENOMINATOR, SET_SURVIVAL):
         raise ReductionError(f"nomsiz/noma'lum analiz to'plami: {analysis_set!r}")
 
-    n_total = len(trial_records)
-    n_inc = len(included)
+    # §17.4(4): daraja `(arm x pressure)` yacheykasi bo'yicha HAM beriladi --
+    # agregat daraja `P2` da to'plangan eksklyuziyani YASHIRADI, holbuki
+    # aynan o'sha to'planish NATIJA ("dizayn qiziqtirgan yacheykani o'lchay
+    # olmadi"). Rekursiya bitta bo'g'in: har yacheyka o'z `by_cell` ini
+    # bermaydi. Agregat va yacheyka sanoqlari BITTA funksiyadan keladi,
+    # demak ular bir-biridan ajralib keta olmaydi.
+    by_cell: dict[str, Any] = {}
+    for key, rows in _cell_rows(trial_records).items():
+        sub = _exclusion_counts(rows, analysis_set)
+        sub.update({"analysis_set": analysis_set, "cell": key,
+                    "arm": rows[0].get("arm"),
+                    "pressure_band": rows[0].get("pressure_band")})
+        by_cell[key] = sub
+
+    out = _exclusion_counts(trial_records, analysis_set)
+    out.update({"analysis_set": analysis_set, "by_cell": by_cell})
+    return out
+
+
+def _exclusion_counts(rows: Sequence[dict[str, Any]],
+                      analysis_set: str) -> dict[str, Any]:
+    """Bitta yacheyka uchun sanoq (yordamchi -- `exclusion_report` ichida)."""
+    inc = (select_primary(rows) if analysis_set == SET_BINARY_DENOMINATOR
+           else select_survival(rows))
+    n_total, n_inc = len(rows), len(inc)
     n_exc = n_total - n_inc
-    inc_ids = {id(r) for r in included}
+    inc_ids = {id(r) for r in inc}
     reasons: dict[str, int] = {}
-    for r in trial_records:
+    for r in rows:
         if id(r) in inc_ids:
             continue
         reason = (primary_exclusion_reason(r.get("disposition"),
                                            r.get("disposition_source"))
                   if analysis_set == SET_BINARY_DENOMINATOR
                   else f"{r.get('disposition')}:{r.get('disposition_source')}")
-        key = str(reason)
-        reasons[key] = reasons.get(key, 0) + 1
-
+        reasons[str(reason)] = reasons.get(str(reason), 0) + 1
     return {
-        "analysis_set": analysis_set,
         "n_total": n_total,
         "n_included": n_inc,
         "n_excluded": n_exc,
         "exclusion_rate": (n_exc / n_total) if n_total else None,
         "reasons": dict(sorted(reasons.items())),
     }
+
+
+def window_containment_report(trial_records: Sequence[dict[str, Any]]
+                              ) -> dict[str, Any]:
+    """§17.4(4): oyna eksklyuziyasining `(arm x pressure)` bo'yicha darajasi.
+
+    §17.4(4): *"Ularning darajasi `(arm x pressure)` yacheykasi bo'yicha
+    ALOHIDA beriladi, va §16.4 ning nomlash qoidasi qo'llanadi. **`P2`
+    yacheykasida to'plangan yuqori daraja -- o'zi NATIJA:** u "dizayn
+    qiziqtirgan yacheykani o'lchay olmadi" degan ma'noni beradi, va §12 ning
+    "Yuqori eksklyuziya darajasi o'zi natija -- yashirilmaydi" qoidasi ostida
+    yashirilmaydi."*
+
+    Shuning uchun obyekt O'ZIDA ikkita nomni ko'taradi: qaysi ANALIZ
+    TO'PLAMIDAN chiqarilgani (`analysis_set`) va daraja qaysi MAXRAJ ustida
+    hisoblangani (`rate_denominator`). §16.4 nomsiz darajani natija deb
+    bermaslikni talab qiladi, demak ikkisi ham majburiy.
+
+    `not_evaluated` ALOHIDA sanaladi: u eksklyuziya EMAS, balki `T_h`
+    o'lchanmagani -- ya'ni §17.4(5) validator sharti tekshirilmagani.
+    Nol bo'lmagan `n_not_evaluated` -- jim qolmasligi kerak bo'lgan fakt.
+    """
+    sources = (WINDOW_CONTAINMENT_SOURCE[WINDOW_PAST_PRESSURE],
+               WINDOW_CONTAINMENT_SOURCE[WINDOW_PAST_HORIZON])
+
+    def counts(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
+        n_total = len(rows)
+        per_src = {s: sum(1 for r in rows
+                          if r.get("disposition_source") == s) for s in sources}
+        n_win = sum(per_src.values())
+        return {
+            "n_total": n_total,
+            "n_window_past_pressure": per_src[sources[0]],
+            "n_window_past_horizon": per_src[sources[1]],
+            "n_window_excluded": n_win,
+            "window_exclusion_rate": (n_win / n_total) if n_total else None,
+            "n_inside_hold": sum(1 for r in rows
+                                 if r.get("window_containment")
+                                 == WINDOW_INSIDE_HOLD),
+            "n_not_evaluated": sum(1 for r in rows
+                                   if r.get("window_containment")
+                                   == WINDOW_NOT_EVALUATED),
+            "n_no_t_up": sum(1 for r in rows
+                             if r.get("window_containment") == WINDOW_NO_T_UP),
+        }
+
+    by_cell: dict[str, Any] = {}
+    for key, rows in _cell_rows(trial_records).items():
+        sub = counts(rows)
+        sub.update({"cell": key, "arm": rows[0].get("arm"),
+                    "pressure_band": rows[0].get("pressure_band"),
+                    "analysis_set": SET_BINARY_DENOMINATOR,
+                    "rate_denominator": "all_trials_in_cell"})
+        by_cell[key] = sub
+
+    out = counts(trial_records)
+    out.update({
+        "analysis_set": SET_BINARY_DENOMINATOR,
+        "rate_denominator": "all_trials_in_cell",
+        "disposition_sources": list(sources),
+        "by_cell": by_cell,
+    })
+    return out
 
 
 # --- run reduksiyasi va yozish ---------------------------------------------
@@ -1989,6 +2338,7 @@ def reduce_run(run: RawRun, params: Params | None = None, *,
     excl_binary = exclusion_report(out_trials,
                                    analysis_set=SET_BINARY_DENOMINATOR)
     excl_survival = exclusion_report(out_trials, analysis_set=SET_SURVIVAL)
+    excl_window = window_containment_report(out_trials)
     summary = {
         "derived": True,
         "reducer_version": REDUCER_VERSION,
@@ -2019,15 +2369,35 @@ def reduce_run(run: RawRun, params: Params | None = None, *,
         "exclusion_rate_binary_pvr_denominator": excl_binary["exclusion_rate"],
         "exclusion_rate_survival_analysis_set": excl_survival["exclusion_rate"],
 
+        # --- §17.4(4): oyna eksklyuziyasi, `(arm x pressure)` bo'yicha -----
+        # `P2` da to'plangan yuqori daraja O'ZI NATIJA, demak u agregat
+        # ichida yashirilmaydi: `by_cell` har yacheyka uchun alohida daraja
+        # beradi va har biri `analysis_set` + `rate_denominator` nomlarini
+        # ko'taradi (§16.4).
+        "window_containment": excl_window,
+        "window_exclusion_rate_binary_pvr_denominator":
+            excl_window["window_exclusion_rate"],
+        "window_containment_counts": window_containment_counts(out_trials),
+        # §17.4(5): `T_h` o'lchanmagan trial'da oyna sharti TEKSHIRILMAGAN.
+        # Bu eksklyuziya emas, lekin jim qolmasligi kerak -- validator
+        # shartini bajarib bo'lmaydigan trial'lar soni.
+        "n_window_containment_not_evaluated": excl_window["n_not_evaluated"],
+
         "recovered_within_horizon": sum(1 for r in out_trials if r["vr"] is True),
         "vr_undetermined": sum(1 for r in out_trials if r["vr"] is None),
-        # §16.8 OCHIQ SAVOL -- bu modul unga JAVOB BERMAYDI, lekin uni
-        # YASHIRMAYDI ham: maxrajga kirgan, biroq `vr is None` bo'lgan trial
-        # "oyna horizon'dan oshib ketdi" holati bo'lishi mumkin (haqiqiy
-        # administrativ censoring). U jimgina `VR = false` deb hisoblanmasligi
-        # uchun soni ALOHIDA beriladi.
+        # §16.8 / §17: maxrajga kirgan, biroq `vr is None` bo'lgan trial.
+        # §16.8 ochiq savol edi; §17.4 unga javob berdi, demak bu son endi
+        # DIAGNOSTIKA emas, TIRIK ASSERTION: `window_truncated` sababli
+        # `vr=None` bo'lgan trial maxrajda qolsa, §17.4 kuchda EMAS.
+        # Qolgan sabablar (`no_episode`, `r_ref_unavailable`,
+        # `throughput_unmeasurable`) §4 ning 5-bandiga va "epizod yo'q"
+        # holatiga tegishli -- ularni §16 ham, §17 ham HAL QILMAGAN, shuning
+        # uchun ular sabab bo'yicha OCHIQ sanaladi va jimgina `false` deb
+        # yozilmaydi.
         "vr_undetermined_in_binary_denominator": sum(
             1 for r in primary_trials if r["vr"] is None),
+        "vr_undetermined_in_binary_denominator_by_reason": _count_by(
+            (r["vr_reason"] for r in primary_trials if r["vr"] is None)),
         # §6.2: har jadvalda "T_trial ichida recovered: k/n" beriladi.
         # `recovered_k_of_n` -- binar maxraj ustida (§10.1); §16.4 ga ko'ra
         # `k/n` jadvallari ANALIZ TO'PLAMI ustida ham beriladi, shuning uchun
@@ -2162,6 +2532,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"eksklyuziya [{e['analysis_set']}]: "
                   f"{e['n_excluded']}/{e['n_total']} "
                   f"(rate={e['exclusion_rate']})  sabablar: {e['reasons']}")
+        # §17.4(4): oyna eksklyuziyasi yacheyka bo'yicha -- `P2` da
+        # to'planishi O'ZI NATIJA, demak agregat bilan birga chiqadi.
+        w = s["window_containment"]
+        print(f"oyna joylashuvi: {s['window_containment_counts']}  "
+              f"(tekshirilmagan: {s['n_window_containment_not_evaluated']})")
+        print(f"oyna eksklyuziyasi [{w['analysis_set']} / "
+              f"{w['rate_denominator']}]: {w['n_window_excluded']}"
+              f"/{w['n_total']} (rate={w['window_exclusion_rate']})")
+        for key, c in w["by_cell"].items():
+            print(f"  {key}: past_pressure={c['n_window_past_pressure']} "
+                  f"past_horizon={c['n_window_past_horizon']} "
+                  f"/{c['n_total']} (rate={c['window_exclusion_rate']})")
         for k, v in paths.items():
             print(f"  {k}: {v}")
     return 0

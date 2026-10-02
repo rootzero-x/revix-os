@@ -993,7 +993,10 @@ def test_derive_disposition_ishlab_chiqaradigan_HAR_MANBA_ochiq_ishlanadi():
     """
     assert set(R.DISPOSITION_SOURCES) == {"probe_gap", "down_at_horizon",
                                           "guard_event", "trial_end",
-                                          "derived"}
+                                          "derived",
+                                          # §17.4(2) -- v1.6 da qo'shilgan
+                                          "window_past_pressure",
+                                          "window_past_horizon"}
     assert set(R.PRIMARY_DENOMINATOR_SOURCES) == set(DISPOSITIONS)
     for disp in DISPOSITIONS:
         for src in R.DISPOSITION_SOURCES:
@@ -1070,3 +1073,502 @@ def test_deprecated_PRIMARY_DISPOSITIONS_endi_qoida_EMAS():
     # Eski qoida bo'yicha bu juft CHIQARILARDI; yangi qoida bo'yicha KIRADI.
     assert "censored" not in R.PRIMARY_DISPOSITIONS
     assert R.enters_primary_denominator("censored", "down_at_horizon") is True
+
+
+# --- 16. §17 hukmi: oyna pressure hold ICHIDA bo'lishi shart ----------------
+#
+# REGRESSIYA QULFI. §17.2 ning arifmetikasi muzlatilgan qiymatlardan:
+# §4 ning 1-bandi oynani `t_up` dan boshlaydi, v1.3 ning yarashtiruvchi
+# arifmetikasi (`3 + 8 = 11 <= 12`) esa `t_inject` dan, ya'ni jimgina nol
+# recovery vaqtini nazarda tutgan. Haqiqiy shart `t_up + W_stab <= T_h`.
+# §17.3: holat (a) ustun had va u H1 GA QARSHI ishlaydi, demak u soxta
+# FALSIFIKATSIYA yaratishi mumkin -- shuning uchun bu testlar bor.
+
+# Geometriya (build_restart_trial): t_up = T0 + 10.5 s, W_stab_pilot = 8 s.
+T_UP_ABS = T0 + 10_500_000
+WIN_END_ABS = T_UP_ABS + 8_000_000          # = T0 + 18.5 s
+
+
+def _set_timing(builder, *, hold_end_us=None, horizon_end_us=None):
+    """`trial_end.timing` ni o'rnatadi -- driver `TrialTiming` ni shunday yozadi.
+
+    `horizon_end_us` berilsa `trial_end.mono_us` ham o'sha nuqtaga ko'chadi,
+    aks holda horizon ikki xil joyda ikki xil bo'lib qolardi.
+    """
+    for rec in builder.records:
+        if rec["record_type"] == R.RT_TRIAL_END:
+            timing = {}
+            if hold_end_us is not None:
+                timing["pressure_off_mono_us"] = hold_end_us
+            if horizon_end_us is not None:
+                timing["horizon_end_mono_us"] = horizon_end_us
+                rec["mono_us"] = horizon_end_us
+            rec["timing"] = timing
+    return builder
+
+
+def build_late_recovery(up_k=210, end_k=220, *, last_fails=False,
+                        hold_end_us=None, arm="A", band="P2", trial_id="t0"):
+    """Xizmat KECH qaytadi: `t_up + W_stab` horizon'dan oshib ketadi.
+
+    §9.2 (i) `TimeoutStartSec` oshib ketishi -- oldindan AYTILGAN mexanizm,
+    `driver.py` esa `TimeoutStartSec = 10 s` ni default qilgan (§16.10), ya'ni
+    bu holat dizayn o'zi kutgan holat.
+    """
+    b = Builder(trial_id)
+    b.add(R.RT_TRIAL_BEGIN, T0, arm=arm, pressure_band=band,
+          fault_class="clean_crash")
+    b.unit_state(T0, n_restarts=0, invocation="inv1",
+                 enter=T0 - 1_000_000, exit_=0)
+    b.oom(T0, 0)
+    _baseline(b)
+    b.add(R.RT_FAULT_INJECT, T0 + 10_000_000, kind="exit",
+          mono_us_after_call=T0 + 10_000_000)
+    for k in range(100, up_k):
+        b.probe(k, outcome="conn_refused", progress=None, invocation=None)
+    b.add(R.RT_ACTION, T0 + (up_k - 1) * P, action_id="a0",
+          action_class="restart")
+    b.unit_state(T0 + up_k * P, n_restarts=1, invocation="inv2",
+                 enter=T0 + up_k * P, exit_=T0 + 10_000_000)
+    b.oom(T0 + up_k * P, 0)
+    prog = 0
+    for k in range(up_k, end_k):
+        prog += FULL_STEP
+        if last_fails and k == end_k - 1:
+            b.probe(k, outcome="conn_refused", progress=None, invocation=None)
+        else:
+            b.probe(k, progress=prog, invocation="inv2")
+    end_us = T0 + end_k * P
+    rec = b.add(R.RT_TRIAL_END, end_us, disposition="complete")
+    timing = {"horizon_end_mono_us": end_us}
+    if hold_end_us is not None:
+        timing["pressure_off_mono_us"] = hold_end_us
+    rec["timing"] = timing
+    return b
+
+
+def test_holat_c_oyna_hold_ichida_bolsa_complete_qoladi():
+    """§17.3 holat (c): `t_up + W <= T_h` -> to'g'ri o'lchov, hech narsa o'zgarmaydi.
+
+    Qo'lda hisob: t_up = T0+10.5 s, W = 8 s => oyna oxiri T0+18.5 s;
+    T_h = T0+19.0 s => 18.5 <= 19.0 => hold ICHIDA, bo'sh joy +0.5 s.
+    """
+    b = _set_timing(build_restart_trial(FULL_STEP), hold_end_us=T0 + 19_000_000)
+    payload, _ = reduce_one(b)
+    assert payload["t_up_us"] == T_UP_ABS
+    assert payload["vr_window_end_us"] == WIN_END_ABS
+    assert payload["window_containment"] == R.WINDOW_INSIDE_HOLD
+    assert payload["window_inside_hold"] is True
+    assert payload["window_slack_to_hold_us"] == 500_000
+    assert payload["disposition"] == "complete"
+    assert payload["disposition_source"] == "trial_end"
+    assert payload["included_in_primary"] is True
+    assert payload["vr"] is True
+
+
+def test_holat_a_oyna_pressure_dan_chiqsa_censored_window_past_pressure():
+    """§17.3 holat (a) + §17.4: oyna hold'dan chiqdi -> §4 kattaligi O'LCHANMADI.
+
+    Qo'lda hisob: oyna oxiri T0+18.5 s, T_h = T0+17.0 s => 18.5 > 17.0,
+    oshib ketish -1.5 s; horizon T0+20.1 s => oyna horizon ICHIDA, demak
+    (b) emas, (a).
+
+    BU ENG MUHIM HOLAT (§17.3): hozirgi kod bu trial'ni `complete` deb
+    yozib, 2- va 5-bandlarni QISMAN PRESSURE'SIZ baholardi => VR osonlashadi
+    => trend susayadi => §11 soxta FALSIFIKATSIYA berishi mumkin.
+    """
+    b = _set_timing(build_restart_trial(FULL_STEP), hold_end_us=T0 + 17_000_000)
+    payload, _ = reduce_one(b)
+    assert payload["window_containment"] == R.WINDOW_PAST_PRESSURE
+    assert payload["window_inside_hold"] is False
+    assert payload["window_slack_to_hold_us"] == -1_500_000
+    # §17.4(2): `disposition` -- `censored`, `disposition_source` -- yangi qiymat.
+    assert payload["disposition"] == "censored"
+    assert payload["disposition_source"] == "window_past_pressure"
+    # §12 ning yopiq enum'iga TEGILMADI.
+    assert payload["disposition"] in DISPOSITIONS
+    assert "window_past_pressure" not in DISPOSITIONS
+    # §17.4(1),(3): binar maxrajdan chiqariladi, sabab manbani NOMLAYDI.
+    assert payload["included_in_primary"] is False
+    assert payload["exclusion_reason"] == "censored:window_past_pressure"
+    # §17.4(3): §6.2 bo'yicha KM/log-rank ga censored davomiylik sifatida KIRADI.
+    assert payload["included_in_survival"] is True
+
+
+def test_holat_b_oyna_horizon_dan_chiqsa_censored_window_past_horizon():
+    """§17.3 holat (b): `t_up + W > T_trial` -> haqiqiy administrativ censoring.
+
+    Qo'lda hisob: t_up = T0+21.0 s (k=210), W = 8 s => oyna oxiri T0+29.0 s;
+    horizon T0+22.0 s => 29.0 > 22.0 => oyna HORIZON'dan chiqdi.
+
+    Hozirgi kod bu trial'ni `complete` + `VR = false` deb yozardi, ya'ni
+    haqiqiy censoring'ni KUZATILGAN muvaffaqiyatsizlik deb yozardi (§17.3(b)).
+    """
+    out = R.reduce_run(build_late_recovery().run())
+    p = out.trials[0]
+    assert p["t_up_us"] == T0 + 21_000_000
+    assert p["vr_window_end_us"] == T0 + 29_000_000
+    assert p["t_horizon_end_us"] == T0 + 22_000_000
+    assert p["window_containment"] == R.WINDOW_PAST_HORIZON
+    assert p["window_slack_to_horizon_us"] == -7_000_000
+    assert p["disposition"] == "censored"
+    assert p["disposition_source"] == "window_past_horizon"
+    assert p["included_in_primary"] is False
+    assert p["exclusion_reason"] == "censored:window_past_horizon"
+    assert p["included_in_survival"] is True
+    assert R.select_primary(out.trials) == []
+    assert R.select_survival(out.trials) == [p]
+
+
+def test_holat_b_T_h_SIZ_HAM_aniqlanadi():
+    """(b) `T_h` ni TALAB QILMAYDI -- faqat `T_trial` kerak (§17.2 arifmetikasi).
+
+    Shuning uchun u `timing.pressure_off_mono_us` yozilmagan run'da ham
+    ushlanadi, ya'ni §17.4 eski ma'lumotda ham kuchda qoladi.
+    """
+    b = build_late_recovery()
+    for rec in b.records:
+        if rec["record_type"] == R.RT_TRIAL_END:
+            rec["timing"].pop("pressure_off_mono_us", None)
+    payload, _ = reduce_one(b)
+    assert payload["t_hold_end_us"] is None
+    assert payload["window_containment"] == R.WINDOW_PAST_HORIZON
+    assert payload["disposition_source"] == "window_past_horizon"
+    assert payload["included_in_primary"] is False
+
+
+def test_oyna_holati_down_at_horizon_dan_OLDIN_klassifikatsiya_qilinadi():
+    """§17.4 ning TARTIB qulfi -- bu test bo'lmasa hukm JIMGINA bekor bo'ladi.
+
+    `down_at_horizon` faqat `not probes[-1].passed` ga qaraydi, demak u
+    "xizmat qaytdi, keyin yana yiqildi" va "oyna kesildi" holatlarini HAM
+    ushlaydi. Agar u OLDIN tekshirilsa, bu trial `censored:down_at_horizon`
+    bo'lardi -- va o'sha juft §16.2(B) bo'yicha binar maxrajga KIRADI,
+    ya'ni §17.4(1) buzilardi.
+
+    Fixture: oyna horizon'dan chiqadi VA oxirgi probe buzilgan, demak
+    IKKI shart bir vaqtda to'g'ri.
+    """
+    out = R.reduce_run(build_late_recovery(last_fails=True).run())
+    p = out.trials[0]
+    # Ikki shart HAM bajarilgan:
+    assert p["down_at_horizon"] is True
+    assert p["window_containment"] == R.WINDOW_PAST_HORIZON
+    # ... lekin OYNA holati yutadi (§17.4), demak trial CHIQARILADI.
+    assert p["disposition_source"] == "window_past_horizon"
+    assert p["disposition_source"] != "down_at_horizon"
+    assert p["included_in_primary"] is False
+    assert p["exclusion_reason"] == "censored:window_past_horizon"
+    # Eski tartib bo'lsa bu juft maxrajga KIRARDI -- shuni ham qulflaymiz.
+    assert R.enters_primary_denominator("censored", "down_at_horizon") is True
+    assert R.enters_primary_denominator("censored", "window_past_horizon") is False
+
+
+def test_t_up_bolmasa_down_at_horizon_O_ZGARMAYDI():
+    """§17 `no_t_up` holatiga TEGMAYDI: §16.2(B) hukmi kuchda qoladi.
+
+    `t_up` umuman paydo bo'lmasa oyna BOSHLANMAYDI, demak §17.3 ning uch
+    holatidan hech biri qo'llanmaydi va trial §16.2(B) bo'yicha maxrajga
+    `VR = false` sifatida kiradi.
+    """
+    out = R.reduce_run(build_no_action_never_recovers().run())
+    p = out.trials[0]
+    assert p["t_up_us"] is None
+    assert p["window_containment"] == R.WINDOW_NO_T_UP
+    assert p["window_inside_hold"] is None          # `False` EMAS
+    assert p["disposition_source"] == "down_at_horizon"
+    assert p["included_in_primary"] is True
+    assert p["vr"] is False
+
+
+def test_window_truncated_endi_binar_maxrajga_TUSHMAYDI():
+    """§16.8 -> §17.4: kesilgan oyna `vr=None` beradi, u maxrajda QOLMAYDI.
+
+    v1.5 da bu OCHIQ savol edi va `vr_undetermined_in_binary_denominator`
+    uni faqat KO'RSATARDI. §17.4 undan keyin: kesilgan oyna
+    `window_past_horizon`, demak chiqariladi va hisoblagich NOLGA tushadi --
+    ya'ni hisoblagich endi diagnostika emas, TIRIK ASSERTION.
+    """
+    out = R.reduce_run(build_late_recovery().run())
+    p = out.trials[0]
+    assert p["vr"] is None
+    assert p["vr_reason"] == "window_truncated"      # oyna kesildi
+    assert p["included_in_primary"] is False         # ... lekin maxrajda YO'Q
+    assert out.summary["vr_undetermined_in_binary_denominator"] == 0
+    assert out.summary["vr_undetermined_in_binary_denominator_by_reason"] == {}
+
+
+def test_T_h_olchanmasa_oyna_holati_not_evaluated_va_JIM_QOLMAYDI():
+    """`T_h` o'lchanmasa (a) va (c) AJRALMAYDI -> `None`, `False` emas.
+
+    `None` = "o'lchanmadi" disiplinasi: `inside_hold = False` deb yozish
+    kuzatilmagan narsani natija deb yozish bo'lardi, `True` deb yozish esa
+    §17.4 ni jimgina chetlab o'tish. Shuning uchun uchinchi qiymat, va
+    §17.4(5) validatori tekshira olmaydigan trial'lar soni OCHIQ beriladi.
+    """
+    out = R.reduce_run(build_restart_trial(FULL_STEP).run())   # `timing` YO'Q
+    p = out.trials[0]
+    assert p["t_hold_end_us"] is None
+    assert p["window_containment"] == R.WINDOW_NOT_EVALUATED
+    assert p["window_inside_hold"] is None
+    assert p["window_slack_to_hold_us"] is None
+    # Klassifikatsiya qilinmagani uchun disposition O'ZGARMAYDI.
+    assert p["disposition"] == "complete"
+    # ... lekin fakt JIM QOLMAYDI (§12: yashirilmaydi).
+    assert out.summary["n_window_containment_not_evaluated"] == 1
+    assert out.summary["window_containment_counts"][R.WINDOW_NOT_EVALUATED] == 1
+
+
+def test_oyna_kirishlari_validator_uchun_record_DA_bor():
+    """§17.4(5): validator `t_up + W_stab_pilot <= T_h` ni tekshirishi SHART.
+
+    Shuning uchun har operand record'da bor va validator reducer'ning
+    verdict'iga ishonishi shart emas -- u arifmetikani QAYTA hisoblay oladi.
+    """
+    b = _set_timing(build_restart_trial(FULL_STEP), hold_end_us=T0 + 17_000_000)
+    payload, _ = reduce_one(b)
+    for key in ("t_up_us", "vr_window_end_us", "w_stab_us", "t_hold_end_us",
+                "t_horizon_end_us", "window_containment", "window_inside_hold",
+                "window_slack_to_hold_us", "window_slack_to_horizon_us"):
+        assert key in payload, key
+    # Operandlardan verdict QAYTA hisoblanadi -- ikkisi mos keladi.
+    assert payload["w_stab_us"] == 8_000_000               # W_stab_pilot (§4)
+    assert (payload["t_up_us"] + payload["w_stab_us"]
+            == payload["vr_window_end_us"])
+    recomputed = payload["vr_window_end_us"] <= payload["t_hold_end_us"]
+    assert recomputed is payload["window_inside_hold"]
+    assert recomputed is False                              # §17.4(5) buzilishi
+    assert (payload["t_hold_end_us"] - payload["vr_window_end_us"]
+            == payload["window_slack_to_hold_us"])
+
+
+def test_classify_window_containment_arifmetikasi_ANIQ_slack_qoshilmaydi():
+    """§17.2 arifmetikasi aniq: tenglik ichida, +1 us tashqarida.
+
+    `evaluate_vr` oyna QOPLANISHI uchun bitta probe davri yo'l qo'yadi
+    (§6.1 kvantlashi), lekin bu YERDA slack QO'SHILMAYDI: §17.2 ning sharti
+    muzlatilgan qiymatlardan olingan, demak unga slack qo'shish muzlatilgan
+    cheklovni jimgina KENGAYTIRISH bo'lardi.
+    """
+    prm = R.Params()                                  # W_stab_pilot = 8 s
+    t_up = 1_000_000
+    win_end = t_up + 8_000_000
+    horizon = win_end + 10_000_000
+
+    # Tenglik -> ICHIDA (§17.4 shartni `<=` bilan yozadi).
+    w = R.classify_window_containment(t_up, prm, hold_end_us=win_end,
+                                      horizon_end_us=horizon)
+    assert (w.status, w.inside_hold, w.slack_to_hold_us) == (
+        R.WINDOW_INSIDE_HOLD, True, 0)
+    # Bir mikrosekund kam -> TASHQARIDA. Probe davri (100 ms) slack BERILMAYDI.
+    w = R.classify_window_containment(t_up, prm, hold_end_us=win_end - 1,
+                                      horizon_end_us=horizon)
+    assert (w.status, w.inside_hold, w.slack_to_hold_us) == (
+        R.WINDOW_PAST_PRESSURE, False, -1)
+    w = R.classify_window_containment(t_up, prm,
+                                      hold_end_us=win_end - prm.probe_period_us,
+                                      horizon_end_us=horizon)
+    assert w.status == R.WINDOW_PAST_PRESSURE          # slack YO'Q
+    # (b) (a) dan USTUN: ikkisi ham to'g'ri bo'lganda `past_horizon` yutadi.
+    w = R.classify_window_containment(t_up, prm, hold_end_us=win_end - 1,
+                                      horizon_end_us=win_end - 1)
+    assert w.status == R.WINDOW_PAST_HORIZON
+    # `t_up` yo'q -> hech qanday holat qo'llanmaydi.
+    w = R.classify_window_containment(None, prm, hold_end_us=win_end,
+                                      horizon_end_us=horizon)
+    assert (w.status, w.inside_hold, w.window_end_us) == (
+        R.WINDOW_NO_T_UP, None, None)
+    # Yopiq enum: boshqa status chiqmaydi.
+    assert w.status in R.WINDOW_CONTAINMENTS
+
+
+def test_oyna_eksklyuziyasi_arm_x_pressure_YACHEYKASI_boyicha_beriladi():
+    """§17.4(4): daraja `(arm x pressure)` bo'yicha ALOHIDA, nomi bilan.
+
+    *"`P2` yacheykasida to'plangan yuqori daraja -- o'zi NATIJA: u 'dizayn
+    qiziqtirgan yacheykani o'lchay olmadi' degan ma'noni beradi."*
+
+    Fixture: A|P0 -> 1 to'g'ri; A|P2 -> 2 oynasi chiqib ketgan trial.
+    Agregat daraja 2/3 = 0.667, lekin `P2` yacheykasida 2/2 = 1.0 va `P0` da
+    0.0 -- agregat o'sha to'planishni YASHIRADI.
+    """
+    recs, probes = [], []
+    builders = [
+        ("t0", _set_timing(build_restart_trial(FULL_STEP),
+                           hold_end_us=T0 + 19_000_000), "A", "P0"),
+        ("t1", _set_timing(build_restart_trial(FULL_STEP),
+                           hold_end_us=T0 + 17_000_000), "A", "P2"),
+        ("t2", build_late_recovery(trial_id="t2"), "A", "P2"),
+    ]
+    for tid, b, arm, band in builders:
+        for r in b.records:
+            r = dict(r)
+            r["trial_id"] = tid
+            if r["record_type"] == R.RT_TRIAL_BEGIN:
+                r["arm"], r["pressure_band"] = arm, band
+            recs.append(r)
+        for r in b.probes:
+            r = dict(r)
+            r["trial_id"] = tid
+            probes.append(r)
+    out = R.reduce_run(R.RawRun(records=recs, probes=probes, sources=[]))
+    assert out.summary["n_trials_in"] == out.summary["n_trials_out"] == 3
+
+    w = out.summary["window_containment"]
+    # §16.4: obyekt O'ZIDA ikki nomni ko'taradi -- qaysi to'plam, qaysi maxraj.
+    assert w["analysis_set"] == R.SET_BINARY_DENOMINATOR
+    assert w["rate_denominator"] == "all_trials_in_cell"
+    assert w["disposition_sources"] == ["window_past_pressure",
+                                        "window_past_horizon"]
+    assert w["n_window_excluded"] == 2
+    assert w["window_exclusion_rate"] == pytest.approx(2 / 3)
+
+    # Yacheyka bo'yicha: to'planish KO'RINADI.
+    p0, p2 = w["by_cell"]["A|P0"], w["by_cell"]["A|P2"]
+    assert (p0["arm"], p0["pressure_band"]) == ("A", "P0")
+    assert p0["n_window_excluded"] == 0
+    assert p0["window_exclusion_rate"] == pytest.approx(0.0)
+    assert p0["n_inside_hold"] == 1
+    assert (p2["arm"], p2["pressure_band"]) == ("A", "P2")
+    assert p2["n_window_past_pressure"] == 1
+    assert p2["n_window_past_horizon"] == 1
+    assert p2["n_window_excluded"] == 2
+    assert p2["window_exclusion_rate"] == pytest.approx(1.0)
+    # Har yacheyka HAM o'z nomini ko'taradi (§16.4).
+    assert p2["analysis_set"] == R.SET_BINARY_DENOMINATOR
+    assert p2["rate_denominator"] == "all_trials_in_cell"
+
+    # Agregat daraja yacheyka darajasini YASHIRADI -- shuning uchun ikkisi ham.
+    assert p2["window_exclusion_rate"] != w["window_exclusion_rate"]
+
+    # Umumiy eksklyuziya hisoboti ham yacheyka bo'yicha beriladi (§17.4(4)).
+    eb = out.summary["exclusions"][R.SET_BINARY_DENOMINATOR]
+    assert eb["by_cell"]["A|P2"]["n_excluded"] == 2
+    assert eb["by_cell"]["A|P2"]["exclusion_rate"] == pytest.approx(1.0)
+    assert eb["by_cell"]["A|P0"]["exclusion_rate"] == pytest.approx(0.0)
+    assert eb["by_cell"]["A|P2"]["reasons"] == {
+        "censored:window_past_pressure": 1,
+        "censored:window_past_horizon": 1,
+    }
+    # §6.2: ikkisi ham survival to'plamiga KIRADI, demak u yerda daraja 0.
+    es = out.summary["exclusions"][R.SET_SURVIVAL]
+    assert es["by_cell"]["A|P2"]["n_excluded"] == 0
+    # Oyna holatlari sanog'i (yopiq enum, nol bilan to'ldirilgan).
+    assert out.summary["window_containment_counts"] == {
+        R.WINDOW_INSIDE_HOLD: 1, R.WINDOW_PAST_PRESSURE: 1,
+        R.WINDOW_PAST_HORIZON: 1, R.WINDOW_NO_T_UP: 0,
+        R.WINDOW_NOT_EVALUATED: 0,
+    }
+
+
+def test_probe_gap_oyna_holatidan_USTUN():
+    """TARTIB: uzilish > 2xP bo'lsa `t_up` ning o'zi artefakt bo'lishi mumkin.
+
+    §4 probe uzilishiga O'Z hukmini beradi, shuning uchun oyna joylashuvini
+    ishonchsiz trace'dan hisoblab, unga yorliq qo'yish noto'g'ri bo'lardi.
+    """
+    b = _set_timing(build_restart_trial(FULL_STEP, drop=tuple(range(130, 141))),
+                    hold_end_us=T0 + 17_000_000)
+    payload, _ = reduce_one(b)
+    assert payload["window_containment"] == R.WINDOW_PAST_PRESSURE  # hisoblandi
+    assert payload["disposition_source"] == "probe_gap"             # §4 USTUN
+    assert payload["exclusion_reason"] == "censored:probe_gap"
+    assert payload["included_in_primary"] is False
+
+
+def test_guard_va_kontaminatsiya_oyna_holatidan_USTUN():
+    """TARTIB: `aborted_guard` (§4 7-band) va kontaminatsiya (§6.2) ustun.
+
+    §6.2 asosi: eksklyuziya sababi censoring'dan ustun bo'lishi SHART, aks
+    holda chiqarilishi kerak trial `censored` yorlig'i ostida analizga
+    kirib ketardi.
+    """
+    g = _set_timing(build_restart_trial(FULL_STEP), hold_end_us=T0 + 17_000_000)
+    g.add(R.RT_GUARD_EVENT, T0 + 12_000_000, trial_id=None, emitter="guard:9",
+          reason="sustained_pressure", action="kill_subtree")
+    payload, _ = reduce_one(g)
+    assert payload["window_containment"] == R.WINDOW_PAST_PRESSURE
+    assert payload["disposition"] == "aborted_guard"
+    assert payload["disposition_source"] == "guard_event"
+
+    c = _set_timing(build_restart_trial(FULL_STEP, disposition="contaminated"),
+                    hold_end_us=T0 + 17_000_000)
+    payload, _ = reduce_one(c)
+    assert payload["window_containment"] == R.WINDOW_PAST_PRESSURE
+    assert payload["disposition"] == "contaminated"
+    assert payload["disposition_source"] == "trial_end"
+
+
+def test_yangi_juftlar_maxrajdan_chiqariladi_toplam_AYNAN_ozgarmadi():
+    """§17.4(3): ikki yangi juft chiqariladi; kiradigan to'plam O'ZGARMADI.
+
+    Ruxsat-ro'yxati (allow-list) fail-closed: yangi manba qo'shilgani bilan
+    maxrajga kiradigan juftlar to'plami o'zgarmadi, ya'ni §16.2(B) ning
+    hukmi ham, §17.4 ning hukmi ham bir vaqtda kuchda.
+    """
+    for src in ("window_past_pressure", "window_past_horizon"):
+        assert R.enters_primary_denominator("censored", src) is False
+        assert R.primary_exclusion_reason("censored", src) == f"censored:{src}"
+        # Manba NOMLANGAN -- "unknown" emas, ya'ni ataylab hal qilingan.
+        assert "unknown" not in R.primary_exclusion_reason("censored", src)
+    entering = {(d, s) for d in DISPOSITIONS for s in R.DISPOSITION_SOURCES
+                if R.enters_primary_denominator(d, s)}
+    assert entering == {("complete", "trial_end"), ("complete", "derived"),
+                        ("censored", "down_at_horizon")}
+    # `SURVIVAL_DISPOSITIONS` manbadan MUSTAQIL -> ikkisi ham survival'da.
+    recs = [{"disposition": "censored", "disposition_source": s}
+            for s in ("window_past_pressure", "window_past_horizon")]
+    assert R.select_survival(recs) == recs
+
+
+def test_vr_undetermined_QOLDIGI_sabab_boyicha_ochiq_beriladi():
+    """§17 `no_episode` ni HAL QILMAYDI -- shuning uchun u sabab bilan beriladi.
+
+    `build_pure_brownout`: throughput 30% ga tushadi, LEKIN har probe
+    contract'dan o'tadi, demak failure onset YO'Q, demak epizod yo'q, demak
+    VR savoli ham yo'q (`vr=None`, `no_episode`). Bu §4 ning 5-bandiga va
+    "epizod yo'q" holatiga tegishli; §16 ham, §17 ham unga javob BERMAGAN,
+    shuning uchun u jimgina `false` deb YOZILMAYDI va sabab bilan sanaladi.
+    """
+    out = R.reduce_run(build_pure_brownout().run())
+    p = out.trials[0]
+    assert p["window_containment"] == R.WINDOW_NO_T_UP
+    assert p["vr"] is None
+    assert p["vr_reason"] == "no_episode"
+    assert p["included_in_primary"] is True
+    by_reason = out.summary["vr_undetermined_in_binary_denominator_by_reason"]
+    assert by_reason == {"no_episode": 1}
+    # §17 ga tegishli sabab (`window_truncated`) maxrajda QOLMAYDI.
+    assert "window_truncated" not in by_reason
+
+
+def test_oyna_hukmi_trial_sonini_OZGARTIRMAYDI():
+    """4-qoida: §17 selektor qaytaradigan trial'ni o'zgartiradi, SONINI emas."""
+    recs, probes = [], []
+    builders = (_set_timing(build_restart_trial(FULL_STEP),
+                            hold_end_us=T0 + 19_000_000),
+                _set_timing(build_restart_trial(FULL_STEP),
+                            hold_end_us=T0 + 17_000_000),
+                build_late_recovery(),
+                build_no_action_never_recovers())
+    for i, b in enumerate(builders):
+        for r in b.records:
+            r = dict(r)
+            r["trial_id"] = f"t{i}"
+            recs.append(r)
+        for r in b.probes:
+            r = dict(r)
+            r["trial_id"] = f"t{i}"
+            probes.append(r)
+    out = R.reduce_run(R.RawRun(records=recs, probes=probes, sources=[]))
+    assert out.summary["n_trials_in"] == out.summary["n_trials_out"] == 4
+    assert len(out.trials) == 4
+    for r in out.trials:
+        assert r["disposition"] in DISPOSITIONS
+        assert r["disposition_source"] in R.DISPOSITION_SOURCES
+        assert r["window_containment"] in R.WINDOW_CONTAINMENTS
+    # 2 chiqarildi (oyna), 2 kirdi (inside_hold + no_t_up).
+    assert out.summary["window_containment"]["n_window_excluded"] == 2
+    assert len(R.select_primary(out.trials)) == 2
+    assert len(R.select_survival(out.trials)) == 4
+    assert out.summary["vr_undetermined_in_binary_denominator"] == 0
