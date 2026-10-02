@@ -1,4 +1,5 @@
-"""cli.py testlari -- `doctor`, `status`, `health`, `events`, `version`.
+"""cli.py testlari -- `doctor`, `status`, `health`, `events`, `version`,
+`run`, `analyze`, `figures`.
 
 Bu testlar MUHITNI SOXTALASHTIRMAYDI: `doctor` shu mashinada haqiqatan ishga
 tushiriladi va natijasi mustaqil o'qilgan ground truth bilan taqqoslanadi.
@@ -10,14 +11,26 @@ Yagona soxtalashtirish -- chiqish kodi testi: FAIL holatini majburlash uchun
 
 Yon ta'sir: `doctor` bitta throwaway cgroup yaratadi va o'chiradi. Test uning
 tozalanganini alohida tekshiradi.
+
+`run` / `analyze` / `figures` testlari ISTISNO: bu uch subkomanda faqat argv
+yasab `revix.driver` / `revix.analyze` / `revix.figures` ning `main(argv)` ini
+chaqiradi, o'sha modullar esa boshqa agent'larda yoziladi va bu worktree'da
+BO'LMASLIGI mumkin. Shuning uchun test ularga TAYANMAYDI: `sys.modules` ga soxta
+modul qo'yiladi va handler yasagan argv ro'yxati tekshiriladi. Bu delegatsiya
+shartnomasini sinaydi (modulning ichki mantig'ini emas) -- modul keyin paydo
+bo'lsa ham testlar o'zgarishsiz o'tadi. `check_python_modules` mantig'i ham
+`_module_version` ni almashtirib sinaladi (muhitga bog'liq bo'lmasligi uchun);
+haqiqiy muhitga qarshi tekshiruv alohida.
 """
 from __future__ import annotations
 
 import contextlib
+import importlib
 import io
 import json
 import os
 import subprocess
+import sys
 
 import pytest
 
@@ -180,25 +193,76 @@ def test_oomd_mustaqil_oqilgan_haqiqatga_mos(doctor_json):
     )
 
 
-def test_oomd_hujjatlangan_konfiguratsiyani_aniqlaydi(doctor_json):
-    """Shu mashinada hujjatlangan oomd konfiguratsiyasi aniqlanadi.
+def _oomd_detail(doctor_json) -> dict:
+    return next(c for c in doctor_json["checks"] if c["key"] == "oomd")["detail"]
 
-    Bu MUHIT REGRESSIYA qulfi: `docs/architecture/01-muhit-tekshiruvlari.md`
+
+def test_oomd_kill_authority_bor_bolsa_hujjatlangan_konfiguratsiya_boladi(doctor_json):
+    """oomd kill authority BOR bo'lsa, hujjatlangan konfiguratsiya aniqlanadi.
+
+    Bu MUHIT REGRESSIYA qulfining 1-yarmi: `docs/architecture/01-muhit-tekshiruvlari.md`
     §7 doctor uchun spetsifikatsiya. Agar bu test yiqilsa, mashina o'zgargan
     va guard kalibratsiyasi qayta ko'rilishi kerak -- jimgina o'tib ketmasligi
     KERAK.
         ManagedOOMMemoryPressure=kill
         ManagedOOMMemoryPressureLimit=50%
         DefaultMemoryPressureDurationSec=20s
+
+    Kill authority YO'Q mashinada (masalan systemd-oomd o'rnatilmagan) bu yerda
+    tekshiriladigan narsa yo'q -- test SKIP bo'ladi. Lekin jimgina emas: qulfning
+    2-yarmi (`test_oomd_yoqligi_MUHIT_HUJJATIDA_qayd_etilgan`) aynan shu holatda
+    ishlaydi va muhit yozuvi bo'lmasa YIQILADI.
     """
-    d = next(c for c in doctor_json["checks"] if c["key"] == "oomd")["detail"]
-    assert d["kill_authority"] is True, "oomd kill authority kutilgan edi"
+    d = _oomd_detail(doctor_json)
+    if d["kill_authority"] is not True:
+        pytest.skip(
+            "bu mashinada oomd kill authority yo'q (etalon mashinadan farq): "
+            f"managed_oom_memory_pressure={d.get('managed_oom_memory_pressure')!r}, "
+            f"oomd_active={d.get('oomd_active')!r}; qulfning 2-yarmi "
+            "(test_oomd_yoqligi_MUHIT_HUJJATIDA_qayd_etilgan) tekshiradi"
+        )
     assert d["managed_oom_memory_pressure"] == "kill"
     assert d["pressure_limit_percent"] == pytest.approx(50.0, abs=0.01)
     assert d["duration_effective_s"] == pytest.approx(20.0, abs=0.01)
     assert d["duration_source"] == "oomd.conf"
     assert d["risk"] == "high-mitigated"
     assert d["mitigation"] == cli.OOMD_MITIGATION
+
+
+# `agent/envcheck` yozadigan muhit yozuvi (WSL mashinasi).
+WSL_MUHIT_HUJJATI = os.path.join(
+    cli.REPO_ROOT, "docs", "architecture", "07-wsl-muhit-tekshiruvlari.md")
+
+
+def test_oomd_yoqligi_MUHIT_HUJJATIDA_qayd_etilgan(doctor_json):
+    """oomd kill authority YO'Q bo'lsa, bu muhit yozuvida qayd etilgan bo'lishi SHART.
+
+    MUHIT REGRESSIYA qulfining 2-yarmi. Asl sabab o'zgarmagan: mashina
+    o'zgargan bo'lsa, guard kalibratsiyasi (02-guard-kalibratsiyasi) qayta
+    ko'rilishi kerak -- jimgina o'tib ketmasligi KERAK. Shuning uchun oomd'siz
+    mashinada test faqat "yo'q" deb o'tmaydi: u yo'qligi
+    `docs/architecture/07-wsl-muhit-tekshiruvlari.md` da YOZIB QO'YILGANINI talab
+    qiladi (`systemd-oomd` eslatilishi yetarli). Yozilmagan bo'lsa -- YIQILADI.
+    """
+    d = _oomd_detail(doctor_json)
+    if d["kill_authority"] is True:
+        pytest.skip("oomd kill authority bor: qulfning 1-yarmi ishlaydi "
+                    "(test_oomd_kill_authority_bor_bolsa_hujjatlangan_konfiguratsiya_boladi)")
+    rel = os.path.relpath(WSL_MUHIT_HUJJATI, cli.REPO_ROOT)
+    tomonlama = (
+        "oomd kill authority YO'Q (mashina etalon mashinadan farq qiladi: "
+        f"oomd_active={d.get('oomd_active')!r}, "
+        f"managed_oom_memory_pressure={d.get('managed_oom_memory_pressure')!r}) "
+        "va bu muhit yozuvida qayd etilmagan. Guard kalibratsiyasi "
+        "(02-guard-kalibratsiyasi) QAYTA o'tkazilishi kerak, bosim "
+        "eksperimentidan OLDIN. "
+    )
+    assert os.path.isfile(WSL_MUHIT_HUJJATI), (
+        tomonlama + f"Muhit yozuvi fayli yo'q: {rel}")
+    with open(WSL_MUHIT_HUJJATI, encoding="utf-8", errors="replace") as fh:
+        matn = fh.read()
+    assert "systemd-oomd" in matn, (
+        tomonlama + f"{rel} mavjud, lekin `systemd-oomd` yo'qligi unda qayd etilmagan")
 
 
 def test_oomd_kill_authority_WARN_sifatida_baland_korinadi(doctor_json):
@@ -604,3 +668,396 @@ def test_noaniq_subkomanda_xato():
         cli.main(["yoq-bunday-komanda"])
     with pytest.raises(SystemExit):
         cli.main([])
+
+
+# ===========================================================================
+# run / analyze / figures -- argv delegatsiyasi (modullar BO'LMASLIGI mumkin)
+# ===========================================================================
+
+
+class _SoxtaModul:
+    """`revix.<modul>` o'rnini bosadi: `main(argv)` ga kelgan argv'ni yozib oladi."""
+
+    def __init__(self, rc=0):
+        self.rc = rc
+        self.calls: list[list[str]] = []
+
+    def main(self, argv=None):
+        self.calls.append(list(argv))
+        return self.rc
+
+
+# subkomanda -> (modul, MINIMAL to'g'ri argv, minimal holatda kutilgan modul argv'i)
+_MINIMAL = {
+    "run": (
+        "driver",
+        ["run", "--run-dir", "/d/r1", "--seed", "42"],
+        ["--run-dir", "/d/r1", "--seed", "42"],
+    ),
+    "analyze": (
+        "analyze",
+        ["analyze", "--trials", "t.jsonl", "--run-meta", "m.json", "--out", "a.json"],
+        ["--trials", "t.jsonl", "--run-meta", "m.json", "--out", "a.json"],
+    ),
+    "figures": (
+        "figures",
+        ["figures", "--analysis", "a.json", "--out-dir", "figs"],
+        ["--analysis", "a.json", "--out-dir", "figs"],
+    ),
+}
+_HANDLERS = {"run": "cmd_run", "analyze": "cmd_analyze", "figures": "cmd_figures"}
+
+
+@pytest.fixture()
+def soxta(monkeypatch):
+    """Uchala modulga soxta `main` qo'yadi; {modul_nomi: _SoxtaModul} qaytaradi."""
+    fakes = {name: _SoxtaModul() for name in ("driver", "analyze", "figures")}
+    for name, fake in fakes.items():
+        monkeypatch.setitem(sys.modules, f"revix.{name}", fake)
+    return fakes
+
+
+def _json_oldin(argv: list[str]) -> list[str]:
+    """`revix <cmd> ... --json` -> `revix --json <cmd> ...`."""
+    assert argv[-1] == "--json"
+    return ["--json"] + argv[:-1]
+
+
+@pytest.mark.parametrize("cmd", sorted(_MINIMAL))
+def test_yangi_subkomanda_parse_qilinadi_va_handlerga_ulanadi(cmd):
+    _mod, argv, _expected = _MINIMAL[cmd]
+    args = cli.build_parser().parse_args(argv)
+    assert args.cmd == cmd
+    assert args.func is getattr(cli, _HANDLERS[cmd])
+
+
+@pytest.mark.parametrize("cmd", sorted(_MINIMAL))
+def test_yangi_subkomanda_majburiy_flagsiz_xato(cmd, capsys, soxta):
+    """Har majburiy flag yo'qolsa argparse SystemExit(2) beradi va modulga yetmaydi."""
+    mod, argv, _expected = _MINIMAL[cmd]
+    flags = [i for i, a in enumerate(argv) if a.startswith("--")]
+    assert flags, "test o'zi bo'sh qolmasligi kerak"
+    for i in flags:
+        cut = argv[:i] + argv[i + 2:]  # shu flag va uning qiymatini olib tashlash
+        with pytest.raises(SystemExit) as ei:
+            cli.main(cut)
+        assert ei.value.code == 2, f"{cmd}: {argv[i]} siz rc=2 kutilgan edi"
+    assert soxta[mod].calls == []
+    capsys.readouterr()
+
+
+@pytest.mark.parametrize("cmd", sorted(_MINIMAL))
+def test_yangi_subkomanda_yordam_matni_flaglarni_korsatadi(cmd, capsys):
+    _mod, argv, _expected = _MINIMAL[cmd]
+    with pytest.raises(SystemExit) as ei:
+        cli.main([cmd, "--help"])
+    assert ei.value.code == 0
+    out = capsys.readouterr().out
+    for flag in (a for a in argv if a.startswith("--")):
+        assert flag in out, f"{cmd} --help da {flag} yo'q"
+    assert "--json" in out
+
+
+def test_run_yordam_matni_ixtiyoriy_flaglarni_korsatadi(capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["run", "--help"])
+    out = capsys.readouterr().out
+    for flag in ("--blocks", "--only", "--dry-run"):
+        assert flag in out
+    with pytest.raises(SystemExit):
+        cli.main(["analyze", "--help"])
+    assert "--sweep" in capsys.readouterr().out
+    with pytest.raises(SystemExit):
+        cli.main(["figures", "--help"])
+    assert "--only" in capsys.readouterr().out
+
+
+def test_run_argv_minimal(soxta):
+    rc = cli.main(_MINIMAL["run"][1])
+    assert rc == 0
+    assert soxta["driver"].calls == [["--run-dir", "/d/r1", "--seed", "42"]]
+
+
+def test_run_argv_barcha_ixtiyoriy_flaglar_bilan(soxta):
+    cli.main(["run", "--run-dir", "/d/r1", "--seed", "42", "--blocks", "3",
+              "--only", "arm=B", "--dry-run", "--json"])
+    assert soxta["driver"].calls == [[
+        "--run-dir", "/d/r1", "--seed", "42", "--blocks", "3",
+        "--only", "arm=B", "--dry-run", "--json",
+    ]]
+
+
+def test_run_ixtiyoriy_flaglar_faqat_berilganda_chiqadi(soxta):
+    """Berilmagan ixtiyoriy flag argv'da BO'LMASLIGI shart (modul default'i ishlaydi)."""
+    cli.main(["run", "--run-dir", "/d/r1", "--seed", "7", "--blocks", "2"])
+    assert soxta["driver"].calls[-1] == ["--run-dir", "/d/r1", "--seed", "7",
+                                         "--blocks", "2"]
+    cli.main(["run", "--run-dir", "/d/r1", "--seed", "7", "--dry-run"])
+    assert soxta["driver"].calls[-1] == ["--run-dir", "/d/r1", "--seed", "7",
+                                         "--dry-run"]
+    cli.main(["run", "--run-dir", "/d/r1", "--seed", "7", "--only", "X"])
+    assert soxta["driver"].calls[-1] == ["--run-dir", "/d/r1", "--seed", "7",
+                                         "--only", "X"]
+    for call in soxta["driver"].calls:
+        assert "--json" not in call
+
+
+def test_run_nol_qiymatlar_yoqolmaydi(soxta):
+    """`--seed 0` va `--blocks 0` falsy, lekin berilgan: `is not None` bilan uzatiladi."""
+    cli.main(["run", "--run-dir", "/d/r1", "--seed", "0", "--blocks", "0"])
+    assert soxta["driver"].calls == [["--run-dir", "/d/r1", "--seed", "0",
+                                      "--blocks", "0"]]
+
+
+def test_run_seed_va_blocks_butun_son_bolishi_shart(soxta, capsys):
+    with pytest.raises(SystemExit) as ei:
+        cli.main(["run", "--run-dir", "/d/r1", "--seed", "abc"])
+    assert ei.value.code == 2
+    with pytest.raises(SystemExit) as ei:
+        cli.main(["run", "--run-dir", "/d/r1", "--seed", "1", "--blocks", "x"])
+    assert ei.value.code == 2
+    assert soxta["driver"].calls == [], "yaroqsiz kiritma modulga yetib bormasligi kerak"
+    capsys.readouterr()
+
+
+def test_analyze_argv_minimal_va_sweep(soxta):
+    cli.main(_MINIMAL["analyze"][1])
+    assert soxta["analyze"].calls[-1] == ["--trials", "t.jsonl", "--run-meta", "m.json",
+                                          "--out", "a.json"]
+    cli.main(_MINIMAL["analyze"][1] + ["--sweep", "sw.jsonl"])
+    assert soxta["analyze"].calls[-1] == ["--trials", "t.jsonl", "--run-meta", "m.json",
+                                          "--out", "a.json", "--sweep", "sw.jsonl"]
+    cli.main(_MINIMAL["analyze"][1] + ["--sweep", "sw.jsonl", "--json"])
+    assert soxta["analyze"].calls[-1] == ["--trials", "t.jsonl", "--run-meta", "m.json",
+                                          "--out", "a.json", "--sweep", "sw.jsonl",
+                                          "--json"]
+
+
+def test_figures_argv_minimal(soxta):
+    cli.main(_MINIMAL["figures"][1])
+    assert soxta["figures"].calls == [["--analysis", "a.json", "--out-dir", "figs"]]
+
+
+def test_figures_only_takrorlanadi_va_tartib_saqlanadi(soxta):
+    cli.main(_MINIMAL["figures"][1] + ["--only", "km_time_to_vr",
+                                       "--only", "p_vr_vs_pressure"])
+    assert soxta["figures"].calls == [[
+        "--analysis", "a.json", "--out-dir", "figs",
+        "--only", "km_time_to_vr", "--only", "p_vr_vs_pressure",
+    ]]
+    cli.main(_MINIMAL["figures"][1] + ["--only", "probe_cost", "--json"])
+    assert soxta["figures"].calls[-1] == [
+        "--analysis", "a.json", "--out-dir", "figs", "--only", "probe_cost", "--json"]
+
+
+@pytest.mark.parametrize("cmd", sorted(_MINIMAL))
+def test_json_ikkala_joyda_ishlaydi(cmd, soxta):
+    """`revix <cmd> --json` va `revix --json <cmd>` bir xil argv beradi; flagsiz -- `--json` yo'q."""
+    mod, argv, expected = _MINIMAL[cmd]
+    cli.main(argv)
+    assert soxta[mod].calls[-1] == expected
+    assert "--json" not in soxta[mod].calls[-1]
+
+    cli.main(argv + ["--json"])
+    after = soxta[mod].calls[-1]
+    cli.main(_json_oldin(argv + ["--json"]))
+    before = soxta[mod].calls[-1]
+    assert after == before == expected + ["--json"]
+
+
+def test_modul_chiqish_kodi_ozgartirilmay_uzatiladi(soxta):
+    for rc in (0, 1, 3):
+        soxta["driver"].rc = rc
+        assert cli.main(_MINIMAL["run"][1]) == rc
+
+
+def test_modul_none_qaytarsa_nol(soxta):
+    soxta["analyze"].rc = None
+    assert cli.main(_MINIMAL["analyze"][1]) == 0
+
+
+def test_modul_argparse_xatosi_butun_songa_aylanadi(soxta, capsys):
+    """Modulning o'z `ap.error()` i (SystemExit) `cli.main` dan butun son sifatida chiqadi."""
+
+    def main_exit(code):
+        def _main(argv=None):
+            raise SystemExit(code)
+        return _main
+
+    soxta["driver"].main = main_exit(2)
+    assert cli.main(_MINIMAL["run"][1]) == 2
+    soxta["driver"].main = main_exit(None)
+    assert cli.main(_MINIMAL["run"][1]) == 0
+    soxta["driver"].main = main_exit("modul xabari")
+    assert cli.main(_MINIMAL["run"][1]) == 1
+    assert "modul xabari" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("cmd", sorted(_MINIMAL))
+def test_modul_yoq_bolsa_toza_xato_va_non_zero(cmd, monkeypatch, capsys):
+    """Modul yo'q -> aniq o'zbekcha xabar (stderr), rc=127, traceback YO'Q."""
+    mod, argv, _expected = _MINIMAL[cmd]
+    # `None` -- sys.modules da "import halted": modul bor-yo'qligidan qat'i nazar
+    # (boshqa agent'ning moduli keyin paydo bo'lsa ham) ModuleNotFoundError beradi.
+    monkeypatch.setitem(sys.modules, f"revix.{mod}", None)
+    rc = cli.main(argv)
+    cap = capsys.readouterr()
+    assert rc == cli.EXIT_MODULE_UNAVAILABLE
+    assert rc not in (0, 1, 2)
+    assert cap.out == ""
+    assert f"revix.{mod}" in cap.err
+    assert "topilmadi" in cap.err
+    assert "revix doctor" in cap.err
+    assert "Traceback" not in cap.err
+
+
+@pytest.mark.parametrize("cmd", sorted(_MINIMAL))
+def test_modul_yoq_bolsa_json_rejimida_barqaror_hisobot(cmd, monkeypatch, capsys):
+    mod, argv, _expected = _MINIMAL[cmd]
+    monkeypatch.setitem(sys.modules, f"revix.{mod}", None)
+    rc = cli.main(argv + ["--json"])
+    rep = json.loads(capsys.readouterr().out)
+    assert rc == cli.EXIT_MODULE_UNAVAILABLE
+    assert rep["report_schema_version"] == cli.REPORT_SCHEMA_VERSION
+    assert rep["tool"] == f"revix {cmd}"
+    assert rep["ok"] is False
+    assert rep["error"] == "module_unavailable"
+    assert rep["module"] == f"revix.{mod}"
+    assert rep["detail"].strip()
+
+
+def _import_module_almashtir(monkeypatch, target: str, exc: BaseException):
+    """`importlib.import_module(target)` istisno tashlasin; qolganlari haqiqiy."""
+    real = importlib.import_module
+
+    def fake(name, package=None):
+        if name == target:
+            raise exc
+        return real(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", fake)
+
+
+def test_bogliqlik_yoq_bolsa_toza_xato_matplotlib(monkeypatch, capsys):
+    """`revix.figures` bor, lekin matplotlib yo'q -> modulning o'zi emas, BOG'LIQLIK nomi aytiladi."""
+    _import_module_almashtir(
+        monkeypatch, "revix.figures",
+        ModuleNotFoundError("No module named 'matplotlib'", name="matplotlib"))
+    rc = cli.main(_MINIMAL["figures"][1])
+    err = capsys.readouterr().err
+    assert rc == cli.EXIT_MODULE_UNAVAILABLE
+    assert "matplotlib" in err
+    assert "yetishmayapti" in err
+    assert "Traceback" not in err
+
+
+def test_boshqa_import_xatosi_ham_toza_xato(monkeypatch, capsys):
+    _import_module_almashtir(
+        monkeypatch, "revix.driver",
+        ImportError("cannot import name 'x' from 'revix.schema'"))
+    rc = cli.main(_MINIMAL["run"][1])
+    err = capsys.readouterr().err
+    assert rc == cli.EXIT_MODULE_UNAVAILABLE
+    assert "cannot import name" in err
+    assert "Traceback" not in err
+
+
+def test_main_siz_modul_toza_xato(monkeypatch, capsys):
+    class MainSiz:
+        pass
+
+    monkeypatch.setitem(sys.modules, "revix.analyze", MainSiz())
+    rc = cli.main(_MINIMAL["analyze"][1])
+    err = capsys.readouterr().err
+    assert rc == cli.EXIT_MODULE_UNAVAILABLE
+    assert "main(argv)" in err
+
+
+def test_cli_import_qilinganda_ogir_modullar_yuklanmaydi():
+    """LAZY import: `import revix.cli` matplotlib'ni ham, uch modulni ham yuklamaydi.
+
+    Aks holda matplotlib yo'q mashinada `revix doctor` ham yiqilardi -- pre-flight
+    vositasi aynan buzuq muhitni tashxis qilish uchun bor. Toza subprocess:
+    pytest jarayoni bu modullarni allaqachon yuklagan bo'lishi mumkin.
+    """
+    code = (
+        "import sys; import revix.cli; "
+        "bad = [m for m in ('matplotlib', 'revix.driver', 'revix.analyze', "
+        "'revix.figures') if m in sys.modules]; "
+        "print(','.join(bad)); sys.exit(1 if bad else 0)"
+    )
+    p = subprocess.run([sys.executable, "-c", code], cwd=cli.REPO_ROOT,
+                       capture_output=True, text=True, timeout=60, check=False)
+    assert p.returncode == 0, (
+        f"top-level import qilingan: {p.stdout.strip()} {p.stderr[-300:]}")
+
+
+# ===========================================================================
+# doctor: matplotlib IXTIYORIY (WARN), majburiy modullar FAIL
+# ===========================================================================
+
+
+def _versiyalar(yoq: set[str]):
+    return lambda name: None if name in yoq else "1.0"
+
+
+def test_matplotlib_yoq_bolsa_WARN_va_gate_ochiq(monkeypatch):
+    monkeypatch.setattr(cli, "_module_version", _versiyalar({"matplotlib"}))
+    c = cli.check_python_modules()
+    assert c.status == cli.WARN
+    assert "matplotlib" in c.observed
+    assert c.detail["missing"] == []
+    assert c.detail["optional_missing"] == ["matplotlib"]
+    assert c.detail["optional_found"] == {"matplotlib": None}
+    assert "WARN" in c.consequence
+    # WARN gate'ni yopmaydi: o'lchash ham, tahlil ham matplotlib'siz ishlaydi.
+    rep = cli.build_report([c])
+    assert rep["summary"]["ok"] is True
+    assert cli.exit_code_for(rep) == 0
+
+
+def test_majburiy_modul_yoq_bolsa_FAIL(monkeypatch):
+    for yoq in ({"numpy"}, {"psutil", "dbus"}, {"scipy", "matplotlib"}):
+        monkeypatch.setattr(cli, "_module_version", _versiyalar(yoq))
+        c = cli.check_python_modules()
+        assert c.status == cli.FAIL, yoq
+        assert set(c.detail["missing"]) == yoq - {"matplotlib"}
+        assert cli.exit_code_for(cli.build_report([c])) == 1
+
+
+def test_hamma_modul_bor_bolsa_PASS(monkeypatch):
+    monkeypatch.setattr(cli, "_module_version", _versiyalar(set()))
+    c = cli.check_python_modules()
+    assert c.status == cli.PASS
+    assert c.detail["missing"] == [] and c.detail["optional_missing"] == []
+    assert set(c.detail["found"]) == set(cli.REQUIRED_MODULES)
+    assert set(c.detail["optional_found"]) == set(cli.OPTIONAL_MODULES)
+
+
+def test_matplotlib_majburiy_emas_ixtiyoriy():
+    assert "matplotlib" in cli.OPTIONAL_MODULES
+    assert "matplotlib" not in cli.REQUIRED_MODULES
+    assert set(cli.REQUIRED_MODULES) == {"psutil", "dbus", "numpy", "scipy"}
+
+
+def test_python_modules_haqiqiy_muhitda_mustaqil_find_spec_bilan_mos(doctor_json):
+    """Haqiqiy muhit: python_modules natijasi mustaqil `find_spec` bilan mos."""
+    import importlib.util
+
+    c = next(c for c in doctor_json["checks"] if c["key"] == "python_modules")
+    mpl_bor = importlib.util.find_spec("matplotlib") is not None
+    assert (c["detail"]["optional_found"]["matplotlib"] is not None) is mpl_bor
+    if c["detail"]["missing"]:
+        assert c["status"] == "FAIL"
+    elif not mpl_bor:
+        assert c["status"] == "WARN"
+    else:
+        assert c["status"] == "PASS"
+
+
+def test_EXPECTED_CHECK_KEYS_CHECKS_bilan_mos():
+    """Registr va barqaror kalitlar ro'yxati bir-biridan uzoqlashmasligi kerak."""
+    keys = [fn.__name__.removeprefix("check_") for fn in cli.CHECKS]
+    assert keys == list(cli.EXPECTED_CHECK_KEYS)
+    assert len(set(keys)) == len(keys)
+    assert "python_modules" in keys
