@@ -13,12 +13,29 @@ EXTRA_CFLAGS ?=
 BIN := sut
 SRC := sut.c
 
-.PHONY: all clean
+# NEGA: make faqat fayl vaqtlariga qaraydi, bayroqlarga EMAS. Stamp bo'lmasa
+# sanitizer bilan yig'ilgan `sut` keyingi oddiy `make all` da JIMGINA qayta
+# ishlatilardi -- test_sut.py dagi sut_bin fixture TSan/ASan binar'ini
+# "haqiqiy" SUT deb ishga tushirardi. SUT vaqt etalon'i (timing reference)
+# bo'lgani uchun bu hech qanday signalsiz o'lchovni buzadi.
+# Stamp = kompilyator + CFLAGS + EXTRA_CFLAGS (haqiqiy bayroqlar). U FAQAT
+# mazmuni o'zgarganda qayta yoziladi (cmp), shuning uchun bayroq bir xil
+# bo'lsa mtime o'zgarmaydi va keraksiz qayta kompilyatsiya bo'lmaydi.
+# Nomi `*.tmp` ataylab: .gitignore allaqachon `*.tmp` ni qamrab oladi.
+STAMP := sut.flags.tmp
+BUILD_ID := $(CC) $(CFLAGS) $(EXTRA_CFLAGS)
+
+.PHONY: all clean FORCE
 
 all: $(BIN)
 
-$(BIN): $(SRC)
+FORCE:
+
+$(STAMP): FORCE
+	@printf '%s\n' '$(BUILD_ID)' | cmp -s - $@ || printf '%s\n' '$(BUILD_ID)' > $@
+
+$(BIN): $(SRC) $(STAMP)
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $<
 
 clean:
-	rm -f $(BIN)
+	rm -f $(BIN) $(STAMP)

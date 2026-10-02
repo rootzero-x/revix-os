@@ -362,3 +362,203 @@ def test_yaroqli_config_oqiladi(sut, tmp_path):
     # 500 Hz: config env'dan keyin o'qiladi, ya'ni ustun.
     assert delta <= elapsed_s * 500 + 5
     assert delta > 0
+
+
+# --- regression-lock: parametrli fault'larda data race yo'q ----------------
+#
+# NEGA: ThreadSanitizer takroriy `FAULT leak` / `FAULT block_fifo` da main
+# thread'ning parametr yozishini ish thread'ining o'qishi bilan poygada
+# ko'rsatgan. Ta'siri yo'q edi, lekin o'lchov asbobida "ma'lum shovqin" bazasi
+# TSan'ning YANGI poygasini ko'rinmas qiladi. Quyidagi testlar TSan bilan
+# alohida (vaqtinchalik papkada) yig'adi -- revix/sut ga TEGMAYDI.
+
+TSAN_FLAGS = ["-O2", "-Wall", "-Wextra", "-Werror", "-std=c11", "-pthread",
+              "-fsanitize=thread", "-g"]
+
+
+@pytest.fixture(scope="session")
+def tsan_bin():
+    outdir = tempfile.mkdtemp(prefix="revixselftest-tsan-")
+    out = os.path.join(outdir, "sut_tsan")
+    proc = subprocess.run(
+        ["cc"] + TSAN_FLAGS + ["-o", out, str(REVIX_DIR / "sut.c")],
+        capture_output=True, text=True, timeout=120,
+    )
+    if proc.returncode != 0:
+        shutil.rmtree(outdir, ignore_errors=True)
+        pytest.skip("TSan bilan yig'ib bo'lmadi (runtime yo'q?): %s"
+                    % proc.stderr.strip()[:200])
+    try:
+        yield out
+    finally:
+        shutil.rmtree(outdir, ignore_errors=True)
+
+
+def _tsan_node(tsan_bin: str) -> Sut:
+    node = Sut(tsan_bin, {"REVIX_SUT_RATE_HZ": "2000"})
+    try:
+        return node.wait_socket()
+    except AssertionError as exc:
+        node.stop()
+        pytest.skip("TSan binar'i ishga tushmadi (yadro ASLR?): %s" % exc)
+
+
+def _tsan_races(node: Sut) -> list:
+    node.proc.terminate()
+    node.proc.wait(timeout=5)
+    return [ln for ln in node.stderr().splitlines() if "data race" in ln]
+
+
+def test_takroriy_fault_leak_data_race_bermaydi(tsan_bin):
+    node = _tsan_node(tsan_bin)
+    try:
+        assert node.request("FAULT leak rate_mb_s=4") == "OK armed=leak"
+        time.sleep(0.3)             # leak_thread tezlikni o'qib bo'lsin
+        # Takroriy fault: javob baribir `OK armed=leak` (idempotent).
+        assert node.request("FAULT leak rate_mb_s=8") == "OK armed=leak"
+        time.sleep(0.3)
+        races = _tsan_races(node)
+        assert races == [], "TSan data race: %r\n%s" % (races, node.stderr())
+    finally:
+        node.stop()
+
+
+def test_takroriy_fault_block_fifo_data_race_bermaydi(tsan_bin):
+    node = _tsan_node(tsan_bin)
+    try:
+        fifo = os.path.join(node.dir, "f.fifo")
+        os.mkfifo(fifo)
+        assert node.request("FAULT block_fifo path=" + fifo) == "OK armed=block_fifo"
+        time.sleep(0.3)             # ish thread'i open() ichida bloklangan
+        assert node.request("FAULT block_fifo path=" + fifo) == "OK armed=block_fifo"
+        time.sleep(0.3)
+        races = _tsan_races(node)
+        assert races == [], "TSan data race: %r\n%s" % (races, node.stderr())
+    finally:
+        node.stop()
+
+
+def test_takroriy_fault_block_fifo_birinchi_yolni_saqlaydi(sut):
+    """Takroriy `FAULT block_fifo` yo'lni QAYTA yozmaydi (birinchi yo'l qoladi).
+
+    NEGA: TSan ish thread'i `open()` ichida bloklanganini poyga oynasida
+    ko'rmaydi, shuning uchun data-race testi bu fix'ni eski kodda ushlamaydi.
+    Bu test xatti-harakat orqali qulflaydi: ish thread'i yozuvchi kelib
+    yopgandan keyin g_fifo_path ni QAYTA o'qiydi -- yo'l qayta yozilgan
+    bo'lsa u B'da, aks holda A'da kutib turadi.
+    """
+    node = sut(REVIX_SUT_RATE_HZ="2000")
+    path_a = os.path.join(node.dir, "a.fifo")
+    path_b = os.path.join(node.dir, "b.fifo")
+    os.mkfifo(path_a)
+    os.mkfifo(path_b)
+    assert node.request("FAULT block_fifo path=" + path_a) == "OK armed=block_fifo"
+    assert node.request("FAULT block_fifo path=" + path_b) == "OK armed=block_fifo"
+
+    def reader_waiting(path: str) -> bool:
+        """O_NONBLOCK yozuvchi faqat o'quvchi open() da kutayotgan bo'lsa ochiladi."""
+        try:
+            fd = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+        except OSError:             # ENXIO: o'quvchi yo'q
+            return False
+        os.close(fd)
+        return True
+
+    deadline = time.monotonic() + 3.0
+    while not reader_waiting(path_a):   # birinchi ochish: o'quvchi A'da
+        assert time.monotonic() < deadline, "ish thread'i A'ni ochmadi"
+        time.sleep(0.01)
+    time.sleep(0.3)                     # EOF -> thread yo'lni qayta o'qidi
+    assert reader_waiting(path_a), "birinchi yo'l (A) saqlanishi kerak"
+    assert not reader_waiting(path_b), "takroriy fault yo'lni B ga almashtirdi"
+
+
+# --- regression-lock: Makefile bayroqlarni kuzatadi ------------------------
+#
+# NEGA: make faqat fayl vaqtlariga qaraydi. Stamp'siz sanitizer bilan
+# yig'ilgan `sut` keyingi oddiy `make all` da qayta ishlatilib, sut_bin
+# fixture'iga TSan/ASan binar'ini "haqiqiy SUT" qilib uzatardi. SUT vaqt
+# etalon'i, shuning uchun bu hech qanday signalsiz o'lchovni buzardi.
+# Haqiqiy kompilyator o'rniga SANAYDIGAN wrapper ishlatiladi: sanitizer
+# runtime'iga bog'liq emas va "qayta yig'ildimi" savoliga aniq javob beradi.
+
+
+def _make_sandbox():
+    """Makefile + sut.c nusxasi va CC wrapper'i. (papka, wrapper, log) qaytaradi."""
+    root = tempfile.mkdtemp(prefix="revixselftest-make-")
+    shutil.copy(REVIX_DIR / "Makefile", root)
+    shutil.copy(REVIX_DIR / "sut.c", root)
+    log = os.path.join(root, "cc.log")
+    wrapper = os.path.join(root, "cc-count")
+    with open(wrapper, "w") as fh:
+        fh.write('#!/bin/sh\necho "$*" >> "%s"\nexec cc "$@"\n' % log)
+    os.chmod(wrapper, 0o755)
+    return root, wrapper, log
+
+
+def _make_all(root: str, wrapper: str, *extra: str) -> None:
+    env = dict(os.environ)
+    env.pop("EXTRA_CFLAGS", None)   # muhit bayrog'i sinovni buzmasin
+    proc = subprocess.run(
+        ["make", "-C", root, "CC=" + wrapper] + list(extra) + ["all"],
+        capture_output=True, text=True, timeout=120, env=env,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def _compiles(log: str) -> list:
+    with open(log) as fh:
+        return fh.read().splitlines()
+
+
+def test_makefile_bayroq_ozgarsa_qayta_yigadi():
+    root, wrapper, log = _make_sandbox()
+    try:
+        _make_all(root, wrapper)
+        assert len(_compiles(log)) == 1
+
+        _make_all(root, wrapper)
+        assert len(_compiles(log)) == 1, "bayroq bir xil -- qayta yig'ilmasligi kerak"
+
+        _make_all(root, wrapper, "EXTRA_CFLAGS=-DREVIX_SELFTEST_MARK")
+        lines = _compiles(log)
+        assert len(lines) == 2, "EXTRA_CFLAGS o'zgardi -- qayta yig'ilishi shart"
+        assert "-DREVIX_SELFTEST_MARK" in lines[-1]
+
+        # Eskirgan (stale) yo'l: sanitizer-uslubidagi binar'dan keyin oddiy
+        # `make all` AYNAN qayta yig'ishi kerak -- jimgina qayta ishlatmasligi.
+        _make_all(root, wrapper, "EXTRA_CFLAGS=")
+        lines = _compiles(log)
+        assert len(lines) == 3, "bayroq tozalandi -- eski binar qayta ishlatildi"
+        assert "-DREVIX_SELFTEST_MARK" not in lines[-1]
+
+        _make_all(root, wrapper, "EXTRA_CFLAGS=")
+        assert len(_compiles(log)) == 3
+
+        # Manba o'zgarsa qayta yig'ish hamon ishlaydi (stamp buni buzmagan).
+        future = time.time() + 5
+        os.utime(os.path.join(root, "sut.c"), (future, future))
+        _make_all(root, wrapper, "EXTRA_CFLAGS=")
+        assert len(_compiles(log)) == 4
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_makefile_clean_stamp_ham_ochiradi():
+    root, wrapper, log = _make_sandbox()
+    try:
+        _make_all(root, wrapper)
+        assert os.path.exists(os.path.join(root, "sut"))
+        subprocess.run(["make", "-C", root, "clean"], check=True,
+                       capture_output=True, timeout=60)
+        leftovers = [n for n in os.listdir(root)
+                     if n == "sut" or n.startswith("sut.flags")]
+        assert leftovers == [], "clean binar va stamp'ni olib tashlashi kerak"
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def test_makefile_cflags_ozgarmagan_va_werror_saqlangan():
+    text = (REVIX_DIR / "Makefile").read_text()
+    assert "CFLAGS := -O2 -Wall -Wextra -Werror -std=c11 -pthread\n" in text
+    assert "-Wno-" not in text, "ogohlantirishni o'chirish taqiqlangan"
