@@ -265,6 +265,70 @@ PRIMARY_DENOMINATOR_SOURCES: dict[str, frozenset[str]] = {
 # ya'ni "analiz to'plami butun holda". §16 bu to'plamni O'ZGARTIRMAYDI.
 SURVIVAL_DISPOSITIONS = ("complete", "censored")
 
+# --- §20: `vr` ANIQLANGANLIGI -- maxrajning umumiy ta'rifi -------------------
+#
+# §20.2 ning qoidasi:
+#
+#   "Binar `P(VR)` maxraji -- §4 ning predikati ANIQLANGAN qiymat (`true`
+#    yoki `false`) olgan trial'lar to'plami. `vr = None` -- sababi nima
+#    bo'lishidan qat'i nazar -- maxrajdan TASHQARIDA, va sabab nomlanib
+#    beriladi."
+#
+# Bu YANGI qoida emas, UMUMLASHTIRISH: §4 VR ni EPIZOD uchun ta'riflaydi
+# ("Epizod `E` verified-recovered, agar ..."), demak epizod bo'lmasa
+# predikat INSTANSIYALANMAYDI. §16.2(B) va §17.4 shundan KELIB CHIQADI.
+# Yangi `disposition` qiymati KERAK EMAS va §12 ning yopiq enum'iga
+# TEGILMAYDI -- qoida allaqachon mavjud `vr` maydoniga tayanadi.
+#
+# `vr = None` ning kodda NOMLANGAN sabablari (yopiq ro'yxat emas -- u
+# `evaluate_vr` ning `reason` qiymatlaridan keladi, shuning uchun hisobot
+# ularni sanab beradi, filtrlamaydi):
+VR_REASON_NO_EPISODE = "no_episode"                   # §20.3 -- savol TUG'ILMAGAN
+VR_REASON_R_REF_UNAVAILABLE = "r_ref_unavailable"     # §20.4 -- 5-band baholanmadi
+VR_REASON_THROUGHPUT_UNMEASURABLE = "throughput_unmeasurable"   # §20.4
+VR_REASON_WINDOW_TRUNCATED = "window_truncated"       # §17 -- nol bo'lishi SHART
+
+# §20.3: `no_episode` -- v1.5 dan beri IKKALA to'plamdan ham chiqadigan
+# BIRINCHI kategoriya, shuning uchun u alohida konstanta bilan nomlanadi.
+#
+# NEGA BU §6.2 GA ZID EMAS: §6.2 ning qoidasi "RECOVERY BO'LMAGAN
+# trial'larni tashlash -- klassik yashirin bias" deydi, ya'ni u recovery
+# KUTILAYOTGAN trial'lar haqida. `no_episode` da xizmat ishdan chiqmagan,
+# demak hech qanday hodisa kutilayotgan EMAS edi; censored kuzatuv esa
+# "hodisa `t` gacha sodir bo'lmadi" degan DA'VO va u hodisaning
+# kutilayotgan bo'lishini talab qiladi. Bu yerda u kutilayotgan emas,
+# demak censored kuzatuv chiqarish YOLG'ON da'vo bo'lardi. §6.2 ning
+# qoidasi bu holatga YETIB BORMAYDI (§20.3).
+SURVIVAL_EXCLUDED_VR_REASONS = frozenset({VR_REASON_NO_EPISODE})
+
+# §20.3 / §20.4: IKKI HISOBOT SINFI, va ular BIRLASHTIRILMAYDI.
+#
+#   * injektor samaradorligi -- `no_episode`. §9.3 har trial'ga AYNAN BITTA
+#     injeksiya beradi va P1 ning yagona fault'i `clean_crash`
+#     (`exit(1)` / `SIGKILL` / `SIGSEGV`), ularning HAMMASI socket
+#     contract'ini buzishi SHART. Demak muzlatilgan dizaynda `no_episode`
+#     "injeksiya ISHLAMADI" degan ma'no beradi -- natija emas, TRIAL
+#     NUQSONI. Nolga teng bo'lmagan daraja PILOTNI GATE QILADI, chunki
+#     §9.2 ning to'rtala mexanizmi ham injeksiyaning ishlashini nazarda
+#     tutadi.
+#   * instrumentatsiya yo'qolishi -- `probe_gap` (§4) va 5-band
+#     o'lchanmagan holatlar (§20.4). Bu yerda savol TUG'ILDI, javob
+#     kuzatilmadi.
+#
+# Ular eksperimentning IKKI BOSHQA nuqson sinfi, shuning uchun bitta
+# "eksklyuziya darajasi" ga qo'shib yuborish ma'lumotni YO'QOTADI.
+METRIC_INJECTOR_EFFECTIVENESS = "injector_effectiveness"
+METRIC_INSTRUMENTATION_LOSS = "instrumentation_loss"
+INSTRUMENTATION_LOSS_VR_REASONS = frozenset({
+    VR_REASON_R_REF_UNAVAILABLE, VR_REASON_THROUGHPUT_UNMEASURABLE,
+})
+INSTRUMENTATION_LOSS_SOURCES = frozenset({"probe_gap"})
+
+# `_UNSET` -- "argument berilmadi", `None` dan FARQLI. §20.2 da `vr=None`
+# MA'NOLI qiymat ("aniqlanmagan"), shuning uchun "berilmadi" ni `None` bilan
+# ifodalash mumkin emas.
+_UNSET: Any = object()
+
 
 class ReductionError(Exception):
     """Reduksiya invarianti buzildi. Jimgina davom etilmaydi."""
@@ -996,6 +1060,13 @@ def evaluate_vr(
 
     if monotone:
         # Monoton invalidator'ni keyingi ma'lumot bekor qilmaydi -> QAT'IY false.
+        #
+        # NEGA BU §20.4(2) NI BUZMAYDI: §4 ning VR'i YETTITA bandning
+        # KONYUNKSIYASI, va konyunksiya bitta konyunkt yolg'on bo'lsa
+        # yolg'on -- 5-bandni baholash SHART emas. Taqiq `vr = True` ga
+        # tegishli: 1-4 bandlar ustida "VR = true" yozish VR ni
+        # liveness-only ta'rifga tushiradi va §9.2 ning ogohlantirgan
+        # artefaktini YARATADI. `False` da bunday xavf yo'q.
         vr: bool | None = False
         reason = "invalidated"
     elif r_ref is None or r_ref <= 0:
@@ -1010,6 +1081,25 @@ def evaluate_vr(
         vr, reason = None, "window_truncated"
     elif thr_definitive:
         vr, reason = False, "invalidated"
+    elif ratio is None:
+        # FAIL-CLOSED QO'RIQCHI -- §20.4(2) ning QAT'IY taqiqi:
+        # "1-4 bandlar ustida VR hisoblash QAT'IYAN TAQIQLANADI."
+        #
+        # Yuqoridagi elif-zanjiri bu holatga yetib kelishga YO'L QO'YMAYDI
+        # (`r_ref` va `thr` ikkisi ham mavjud bo'lsa `ratio` hisoblanadi),
+        # demak bu shox hozir ERISHIB BO'LMAYDIGAN. U ataylab shunday
+        # qoldiriladi: taqiq ENDI zanjirning TARTIBIDAN kelib chiqmaydi,
+        # balki STRUKTURAVIY bo'ladi. Kelajakda zanjir qayta tartiblansa
+        # yoki yangi shox qo'shilsa, 5-bandsiz `True` chiqishi mumkin
+        # bo'lardi -- bu qo'riqcha o'sha yo'lni yopadi va `None` ni
+        # NOMLANGAN sabab bilan qaytaradi.
+        #
+        # §4: "5-band VR ni process-liveness'dan ajratadigan narsa ...
+        # Busiz butun hissa 'process tirikmi?' ga qulaydi."
+        # §9.2: "liveness-only VR ta'rifi ehtimol null pilot beradi, va bu
+        # null -- TA'RIF ARTEFAKTI, H1 ga qarshi dalil EMAS."
+        vr, reason = None, "throughput_unmeasurable"
+        unverified.append("5")
     else:
         vr, reason = True, "verified"
 
@@ -1765,13 +1855,39 @@ def derive_disposition(trial: Trial, gaps: list[dict[str, Any]],
 def primary_denominator_verdict(
     disposition: str | None,
     disposition_source: str | None,
+    *,
+    vr: bool | None | Any = _UNSET,
+    vr_reason: str | None = None,
 ) -> tuple[bool, str | None]:
     """Trial binar `P(VR)` maxrajiga kiradimi + KIRMASA NOMLANGAN SABAB.
 
-    §16.2(B): to'plam `(disposition, disposition_source)` jufti bilan
-    aniqlanadi. Qaytadi: `(included, exclusion_reason)`; `included is True`
-    bo'lsa sabab `None` (§... "`None` = o'lchanmadi" emas, bu yerda
-    "chiqarilmadi" -- shuning uchun flag ALOHIDA qaytariladi).
+    MAXRAJGA KIRISH -- IKKI ZARUR SHARTNING KONYUNKSIYASI:
+
+      1. **§20.2 ANIQLANGANLIK:** `vr` tasdiqlab aniqlangan (`True` yoki
+         `False`). `vr is None` -- sababi nima bo'lishidan qat'i nazar --
+         CHIQARILADI, va sabab `vr_undetermined:<vr_reason>` deb nomlanadi.
+      2. **§16.2(B) JUFT:** `(disposition, disposition_source)`
+         `PRIMARY_DENOMINATOR_SOURCES` ruxsat-ro'yxatida bor.
+
+    NEGA IKKISI HAM ZARUR, biri ikkinchisini O'RNINI BOSMAYDI (§20.2 +
+    §4): `probe_gap` trial'ining `vr` i `True` BO'LISHI MUMKIN -- uzilish
+    oynadan tashqarida bo'lsa predikat aniqlanadi -- va §4 u trial'ni
+    shunda ham `censored`, NATIJA emas deb hukm qiladi
+    ("Instrumentatsiya yo'qolishi hech qachon jimgina natijaga
+    aylanmaydi"). Demak faqat aniqlanganlikka tayanish §4 ni buzardi.
+    Teskarisi ham: `no_episode` trial'ining jufti (`complete`/`derived`)
+    ruxsat etilgan, lekin predikat INSTANSIYALANMAGAN, demak faqat juftga
+    tayanish §20.2 ni buzardi.
+
+    NEGA SABABLAR TARTIBI shunday: ikkisi bir vaqtda to'g'ri bo'lsa JUFT
+    sababi beriladi (masalan `censored:probe_gap`), chunki u §4 darajasidagi
+    HUKM, `vr` ning aniqlanmaganligi esa ko'pincha uning OQIBATI. To'liq
+    ma'lumot yo'qolmaydi: record'da `vr_reason` ALOHIDA maydon sifatida
+    qoladi.
+
+    `vr` BERILMASA (`_UNSET`) faqat 2-shart tekshiriladi -- bu
+    ORQAGA MUVOFIQLIK uchun va u YARIM javob: a'zolikni hal qiladigan
+    chaqiruvchi `vr` ni BERISHI shart (`select_primary` beradi).
 
     FAIL-CLOSED. Jadvalda yo'q har qanday juft -- CHIQARILADI, va sabab
     manbani NOMLAYDI, demak u jim qolmaydi.
@@ -1783,6 +1899,24 @@ def primary_denominator_verdict(
     strukturaviy kafolatini buzish bo'lardi. Shuning uchun noma'lum juft
     maxrajdan chiqariladi, LEKIN har record'da nomlangan sabab qoladi va
     `reduce_run` uni eksklyuziya hisobotida ko'rsatadi.
+
+    NEGA BU §17.4 NING TARTIB QULFINI ORTIQCHA QILMAYDI -- VA U
+    FAQAT QISMAN YUMSHATADI (o'lchangan, taxmin qilinmagan):
+
+      * Oyna kesilib `vr` ANIQLANMAGAN qolsa (`window_truncated`), 20.2 ning
+        aniqlanganlik sharti trial'ni O'ZI chiqaradi, demak a'zolik
+        oyna-va-`down_at_horizon` tartibiga CHIDAMLI; tartib faqat
+        BERILADIGAN SABABNI belgilaydi.
+      * LEKIN oyna horizon'dan chiqib, oxirgi probe BUZILGAN bo'lsa, oyna
+        ichida monoton invalidator ishlaydi va `vr = False` -- ANIQLANGAN,
+        demak 20.2 uni CHIQARMAYDI. Bunday trial'ni faqat §17.4 ning JUFT
+        qoidasi chiqaradi, ya'ni u yerda TARTIB A'ZOLIKNI belgilaydi.
+
+    Demak tartib qulfi endpoint uchun hali ham YUK KO'TARADI, va §16.4
+    bilan §20 ikkisi ham sababning nomlanishini talab qiladi. Tartib va
+    uning testi SAQLANADI. (Ikki shox
+    `test_20_2_tartibga_chidamlilik_FAQAT_vr_None_shoxida_amal_qiladi` da
+    o'lchanadi.)
     """
     disp = disposition if disposition in DISPOSITIONS else None
     src_known = disposition_source in DISPOSITION_SOURCES
@@ -1792,24 +1926,56 @@ def primary_denominator_verdict(
     if not src_known:
         # §16.2(B) juftga tayanadi: manba noma'lum bo'lsa juft ham noma'lum.
         return False, f"{disp}:unknown_source({disposition_source})"
-    if disposition_source in PRIMARY_DENOMINATOR_SOURCES[disp]:
-        return True, None
-    # Nomlangan eksklyuziya: o'quvchi KUZATILMAGAN natijani (`probe_gap`)
-    # KUZATILGAN no'l-hodisadan (`down_at_horizon`) ajrata olishi SHART
-    # (§16.2(B) jadvali), shuning uchun sabab manbani o'z ichiga oladi.
-    return False, f"{disp}:{disposition_source}"
+    if disposition_source not in PRIMARY_DENOMINATOR_SOURCES[disp]:
+        # Nomlangan eksklyuziya: o'quvchi KUZATILMAGAN natijani (`probe_gap`)
+        # KUZATILGAN no'l-hodisadan (`down_at_horizon`) ajrata olishi SHART
+        # (§16.2(B) jadvali), shuning uchun sabab manbani o'z ichiga oladi.
+        # JUFT sababi USTUN -- yuqoridagi docstring'ni ko'ring.
+        return False, f"{disp}:{disposition_source}"
+    # §20.2: juft ruxsat etdi, lekin predikat ANIQLANGAN bo'lishi ham SHART.
+    if vr is not _UNSET and vr is None:
+        return False, f"vr_undetermined:{vr_reason}"
+    return True, None
 
 
 def enters_primary_denominator(disposition: str | None,
-                               disposition_source: str | None) -> bool:
-    """§16.2(B): juft binar `P(VR)` maxrajiga kiradimi (`SET_BINARY_DENOMINATOR`)."""
-    return primary_denominator_verdict(disposition, disposition_source)[0]
+                               disposition_source: str | None,
+                               *,
+                               vr: bool | None | Any = _UNSET,
+                               vr_reason: str | None = None) -> bool:
+    """Trial binar `P(VR)` maxrajiga kiradimi (`SET_BINARY_DENOMINATOR`).
+
+    §16.2(B) jufti VA §20.2 aniqlanganligi -- ikkisi ham zarur. `vr`
+    berilmasa faqat juft tekshiriladi (yarim javob, orqaga muvofiqlik).
+    """
+    return primary_denominator_verdict(disposition, disposition_source,
+                                       vr=vr, vr_reason=vr_reason)[0]
 
 
 def primary_exclusion_reason(disposition: str | None,
-                             disposition_source: str | None) -> str | None:
-    """Maxrajdan chiqarilish sababi, MANBA NOMI bilan; kirsa `None`."""
-    return primary_denominator_verdict(disposition, disposition_source)[1]
+                             disposition_source: str | None,
+                             *,
+                             vr: bool | None | Any = _UNSET,
+                             vr_reason: str | None = None) -> str | None:
+    """Maxrajdan chiqarilish sababi, NOMLANGAN holda; kirsa `None`."""
+    return primary_denominator_verdict(disposition, disposition_source,
+                                       vr=vr, vr_reason=vr_reason)[1]
+
+
+def enters_survival_set(disposition: str | None,
+                        vr_reason: str | None = None) -> bool:
+    """KM/log-rank va loop-rate to'plamiga kiradimi (§6.2, §20.3).
+
+    §6.2: censored trial'lar KIRADI. §20.3 ning YAGONA chekinishi --
+    `no_episode`: unda hodisa KUTILAYOTGAN emas edi, demak censored
+    kuzatuv ("hodisa `t` gacha sodir bo'lmadi") YOLG'ON da'vo bo'lardi.
+    `r_ref_unavailable` / `throughput_unmeasurable` esa KIRADI (§20.4(3)):
+    u yerda xizmat ishdan chiqqan, hodisa kutilayotgan edi, faqat `D_probe`
+    ning OXIRI aniqlanmaydi -- bu haqiqiy right censoring.
+    """
+    if disposition not in SURVIVAL_DISPOSITIONS:
+        return False
+    return vr_reason not in SURVIVAL_EXCLUDED_VR_REASONS
 
 
 def probe_gaps(trial: Trial, params: Params) -> list[dict[str, Any]]:
@@ -1859,10 +2025,22 @@ def reduce_trial(trial: Trial, params: Params, *,
 
     disposition, disp_src, disp_conflict = derive_disposition(
         trial, gaps, down_at_horizon, window)
-    # §16.2(B): birlamchi to'plam JUFT bilan aniqlanadi. Verdict bitta joyda
-    # hisoblanadi, demak flag va sabab bir-biriga zid bo'lishi IMKONSIZ.
+
+    # §4 ning predikati -- BIRINCHI epizod bo'yicha (payload'ning `vr` i).
+    # §20.2 maxrajni shu qiymatning ANIQLANGANLIGIGA bog'laydi, shuning
+    # uchun u verdict'dan OLDIN hisoblanishi shart.
+    vr_first = episodes[0].vr if episodes else None
+    vr_first_reason = (episodes[0].vr_reason if episodes
+                       else VR_REASON_NO_EPISODE)
+
+    # §16.2(B) JUFT + §20.2 ANIQLANGANLIK -- ikki zarur shartning
+    # konyunksiyasi, BITTA joyda hisoblanadi, demak flag va sabab
+    # bir-biriga zid bo'lishi IMKONSIZ.
     in_primary, primary_excl_reason = primary_denominator_verdict(
-        disposition, disp_src)
+        disposition, disp_src, vr=vr_first, vr_reason=vr_first_reason)
+    in_survival = enters_survival_set(disposition, vr_first_reason)
+    survival_excl_reason = survival_exclusion_reason(
+        disposition, disp_src, vr_first_reason)
 
     d_sd, d_sd_cens, d_sd_cycles = compute_d_sd(trial)
     d_eff_lo = t_fault if t_fault is not None else start
@@ -1905,7 +2083,9 @@ def reduce_trial(trial: Trial, params: Params, *,
     vr_values = [e.vr for e in episodes]
     loop_detected = bool(len(invs) >= 5 and not any(v is True for v in vr_values))
 
-    vr_first = episodes[0].vr if episodes else None
+    # `vr_first` / `vr_first_reason` YUQORIDA hisoblangan (§20.2 verdict'i
+    # ularga tayanadi) -- bu yerda QAYTA hisoblanmaydi, aks holda ikki
+    # qiymat ajralib ketishi mumkin bo'lardi.
     vr_any = _kleene_any(vr_values) if episodes else None
     fr_a_trial = _kleene_any([e.fr_a for e in episodes]) if episodes else None
 
@@ -1932,7 +2112,7 @@ def reduce_trial(trial: Trial, params: Params, *,
     payload: dict[str, Any] = {
         "derived": True,
         "reducer_version": REDUCER_VERSION,
-        "preregistration_sections": ["4", "5", "6", "12", "16", "17"],
+        "preregistration_sections": ["4", "5", "6", "12", "16", "17", "20"],
         "arm": trial.arm,
         "pressure_band": trial.pressure_band,
         "params": params.as_dict(),
@@ -1946,9 +2126,16 @@ def reduce_trial(trial: Trial, params: Params, *,
         # NOMLAYDI, demak o'quvchi kuzatilMAGAN natijani (`censored:probe_gap`)
         # kuzatilgan no'l-hodisadan (`censored:down_at_horizon`, maxrajga
         # KIRADI) ajrata oladi.
+        # §20.2: a'zolik IKKI zarur shartning konyunksiyasi -- juft RUXSAT
+        # etishi VA `vr` ANIQLANGAN bo'lishi. `vr_reason` alohida maydon
+        # bo'lib qoladi, demak `exclusion_reason` bitta sababni bersa ham
+        # to'liq ma'lumot yo'qolmaydi.
         "included_in_primary": in_primary,
-        "included_in_survival": disposition in SURVIVAL_DISPOSITIONS,
+        # §20.3: `no_episode` IKKALA to'plamdan ham chiqadi -- shuning uchun
+        # bu flag endi `disposition` dan EMAS, `enters_survival_set()` dan.
+        "included_in_survival": in_survival,
         "exclusion_reason": primary_excl_reason,
+        "survival_exclusion_reason": survival_excl_reason,
         # §16.4: eksklyuziya darajasi QAYSI to'plam ustida hisoblanganini
         # NOMLASHI SHART -- shuning uchun record'ning o'zi to'plam nomini
         # ko'taradi va `exclusion_reason` hech qachon nomsiz qolmaydi.
@@ -1997,7 +2184,15 @@ def reduce_trial(trial: Trial, params: Params, *,
 
         "vr": vr_first,
         "vr_any": vr_any,
-        "vr_reason": episodes[0].vr_reason if episodes else "no_episode",
+        # §20.2: sabab NOMLANGAN maydon -- maxrajdan chiqarilish qarori
+        # shu qiymatga tayanadi, demak u yagona joydan keladi.
+        "vr_reason": vr_first_reason,
+        # §20.4(2): 5-band (throughput) BAHOLANDIMI. `vr=True` hech qachon
+        # 5-bandsiz chiqmaydi (quyidagi fail-closed qo'riqchi), lekin
+        # auditor buni RECORD'DAN ko'rishi kerak, kodni o'qimasdan.
+        "vr_band5_evaluated": (episodes[0].throughput_ratio is not None
+                               if episodes else False),
+
         "invalidators": list(episodes[0].invalidators) if episodes else [],
         "provisional_invalidators": (list(episodes[0].provisional_invalidators)
                                      if episodes else []),
@@ -2087,23 +2282,37 @@ def select_primary(trial_records: Iterable[dict[str, Any]]) -> list[dict[str, An
     kuzatilgan no'l-hodisa); `censored` + `probe_gap` KIRMAYDI (natija
     kuzatilmadi, §4).
 
+    §20.2: va `vr` ANIQLANGAN bo'lishi SHART. `vr is None` -- sababi nima
+    bo'lishidan qat'i nazar -- chiqariladi (`no_episode`,
+    `r_ref_unavailable`, `throughput_unmeasurable`, `window_truncated`).
+    Ikki shart KONYUNKSIYA: biri ikkinchisining o'rnini bosmaydi.
+
     Eksklyuziya JIMGINA bo'lmasligi uchun bu selektor NOMLANGAN va alohida:
     reducer hech qachon trial'ni chiqishdan olib tashlamaydi.
     """
     return [r for r in trial_records
             if enters_primary_denominator(r.get("disposition"),
-                                          r.get("disposition_source"))]
+                                          r.get("disposition_source"),
+                                          vr=r.get("vr"),
+                                          vr_reason=r.get("vr_reason"))]
 
 
 def select_survival(trial_records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     """Kaplan-Meier / log-rank va loop-rate uchun (§6.2: censored KIRADI).
 
-    §16 BU TO'PLAMNI O'ZGARTIRMAYDI (§16.4: `("complete", "censored")` --
+    §16 BU TO'PLAMNI O'ZGARTIRMAGAN (§16.4: `("complete", "censored")` --
     "to'g'ri"). §6.2 DAVOMIYLIKNI `T_trial` da censor qiladi, binar natijani
     emas, shuning uchun `probe_gap` ham, `down_at_horizon` ham bu yerda
-    censored davomiylik sifatida qoladi -- manba bu to'plamga TA'SIR QILMAYDI.
+    censored davomiylik sifatida qoladi -- `disposition_source` bu to'plamga
+    TA'SIR QILMAYDI.
+
+    §20.3 BITTA chekinish qo'shdi -- `no_episode` IKKALA to'plamdan ham
+    chiqadi (v1.5 dan beri birinchi shunday kategoriya), chunki u yerda
+    hodisa KUTILAYOTGAN emas edi va censored kuzatuv chiqarish yolg'on
+    da'vo bo'lardi. Qoida `enters_survival_set()` da, YAGONA joyda.
     """
-    return [r for r in trial_records if r.get("disposition") in SURVIVAL_DISPOSITIONS]
+    return [r for r in trial_records
+            if enters_survival_set(r.get("disposition"), r.get("vr_reason"))]
 
 
 def disposition_counts(trial_records: Iterable[dict[str, Any]]) -> dict[str, int]:
@@ -2209,6 +2418,20 @@ def exclusion_report(trial_records: Sequence[dict[str, Any]], *,
     return out
 
 
+def survival_exclusion_reason(disposition: str | None,
+                              disposition_source: str | None,
+                              vr_reason: str | None = None) -> str | None:
+    """Survival to'plamidan chiqarilish sababi, NOMLANGAN holda (§16.4, §20.3)."""
+    if enters_survival_set(disposition, vr_reason):
+        return None
+    if vr_reason in SURVIVAL_EXCLUDED_VR_REASONS:
+        # §20.3: sabab `disposition` EMAS -- `complete:derived` deb yozish
+        # chalg'ituvchi bo'lardi, chunki trial `disposition` i sababli
+        # chiqmaydi, PREDIKAT INSTANSIYALANMAGANI sababli chiqadi.
+        return f"vr_undetermined:{vr_reason}"
+    return f"{disposition}:{disposition_source}"
+
+
 def _exclusion_counts(rows: Sequence[dict[str, Any]],
                       analysis_set: str) -> dict[str, Any]:
     """Bitta yacheyka uchun sanoq (yordamchi -- `exclusion_report` ichida)."""
@@ -2222,9 +2445,13 @@ def _exclusion_counts(rows: Sequence[dict[str, Any]],
         if id(r) in inc_ids:
             continue
         reason = (primary_exclusion_reason(r.get("disposition"),
-                                           r.get("disposition_source"))
+                                           r.get("disposition_source"),
+                                           vr=r.get("vr"),
+                                           vr_reason=r.get("vr_reason"))
                   if analysis_set == SET_BINARY_DENOMINATOR
-                  else f"{r.get('disposition')}:{r.get('disposition_source')}")
+                  else survival_exclusion_reason(r.get("disposition"),
+                                                 r.get("disposition_source"),
+                                                 r.get("vr_reason")))
         reasons[str(reason)] = reasons.get(str(reason), 0) + 1
     return {
         "n_total": n_total,
@@ -2233,6 +2460,113 @@ def _exclusion_counts(rows: Sequence[dict[str, Any]],
         "exclusion_rate": (n_exc / n_total) if n_total else None,
         "reasons": dict(sorted(reasons.items())),
     }
+
+
+def injector_effectiveness_report(trial_records: Sequence[dict[str, Any]]
+                                  ) -> dict[str, Any]:
+    """§20.3: `no_episode` darajasi -- INJEKTOR SAMARADORLIGI metrikasi.
+
+    §9.3 har trial'ga AYNAN BITTA injeksiya beradi, P1 ning yagona fault'i
+    `clean_crash` (`exit(1)` / `SIGKILL` / `SIGSEGV`), va SUT o'ldirilsa
+    socket contract buzilishi SHART. Demak muzlatilgan P1 dizaynida
+    `no_episode` NATIJA emas, **injeksiya ishlamaganini** bildiradi -- trial
+    NUQSONI.
+
+    §20.3 ning muzlatilgan hisobot qoidasi: daraja `(arm x pressure)`
+    bo'yicha ALOHIDA beriladi, INJEKTOR SAMARADORLIGI deb nomlanadi, va
+    boshqa eksklyuziyalar bilan BIRLASHTIRILMAYDI. Nolga teng bo'lmagan
+    daraja PILOTNI GATE QILADI, chunki §9.2 ning to'rtala mexanizmi ham
+    injeksiyaning ishlashini nazarda tutadi.
+
+    Shuning uchun obyekt `metric` nomini VA `must_not_pool_with` ni
+    ko'taradi: birlashtirish taqiqi MASHINA O'QIY OLADIGAN shaklda, izohda
+    emas.
+    """
+    def counts(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
+        n_total = len(rows)
+        n_ne = sum(1 for r in rows
+                   if r.get("vr_reason") == VR_REASON_NO_EPISODE)
+        return {
+            "n_total": n_total,
+            "n_no_episode": n_ne,
+            # `None` = o'lchanmadi (trial yo'q), `0.0` = o'lchangan no'l.
+            "no_episode_rate": (n_ne / n_total) if n_total else None,
+            "injection_effective_rate": ((n_total - n_ne) / n_total
+                                         if n_total else None),
+            "gates_pilot": n_ne > 0,
+        }
+
+    by_cell: dict[str, Any] = {}
+    for key, rows in _cell_rows(trial_records).items():
+        sub = counts(rows)
+        sub.update({"cell": key, "arm": rows[0].get("arm"),
+                    "pressure_band": rows[0].get("pressure_band"),
+                    "metric": METRIC_INJECTOR_EFFECTIVENESS,
+                    "rate_denominator": "all_trials_in_cell"})
+        by_cell[key] = sub
+
+    out = counts(trial_records)
+    out.update({
+        "metric": METRIC_INJECTOR_EFFECTIVENESS,
+        "rate_denominator": "all_trials_in_cell",
+        "vr_reasons": [VR_REASON_NO_EPISODE],
+        # §20.3: "boshqa eksklyuziyalar bilan birlashtirilmaydi".
+        "must_not_pool_with": [METRIC_INSTRUMENTATION_LOSS],
+        "excluded_from": [SET_BINARY_DENOMINATOR, SET_SURVIVAL],
+        "by_cell": by_cell,
+    })
+    return out
+
+
+def instrumentation_loss_report(trial_records: Sequence[dict[str, Any]]
+                                ) -> dict[str, Any]:
+    """§20.4(4): instrumentatsiya yo'qolishi -- `probe_gap` + 5-band o'lchanmagan.
+
+    Bu sinfda savol TUG'ILDI, javob KUZATILMADI. §4 ning `probe_gap` i va
+    §20.4 ning `r_ref_unavailable` / `throughput_unmeasurable` i bir xil
+    epistemologik sinfda, shuning uchun BIRGA beriladi -- va `no_episode`
+    bilan BIRLASHTIRILMAYDI, chunki u boshqa nuqson sinfi (injeksiya
+    ishlamadi, §20.3).
+
+    FARQ (§20.4(3)): bu sinf KM/log-rank ga KIRADI (hodisa kutilayotgan
+    edi, faqat `D_probe` ning oxiri aniqlanmaydi -- haqiqiy right
+    censoring), `no_episode` esa kirmaydi.
+    """
+    def counts(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
+        n_total = len(rows)
+        n_gap = sum(1 for r in rows if r.get("disposition_source")
+                    in INSTRUMENTATION_LOSS_SOURCES)
+        n_band5 = sum(1 for r in rows if r.get("vr_reason")
+                      in INSTRUMENTATION_LOSS_VR_REASONS)
+        n_loss = n_gap + n_band5
+        return {
+            "n_total": n_total,
+            "n_probe_gap": n_gap,
+            "n_band5_unmeasured": n_band5,
+            "n_instrumentation_loss": n_loss,
+            "instrumentation_loss_rate": (n_loss / n_total) if n_total else None,
+        }
+
+    by_cell: dict[str, Any] = {}
+    for key, rows in _cell_rows(trial_records).items():
+        sub = counts(rows)
+        sub.update({"cell": key, "arm": rows[0].get("arm"),
+                    "pressure_band": rows[0].get("pressure_band"),
+                    "metric": METRIC_INSTRUMENTATION_LOSS,
+                    "rate_denominator": "all_trials_in_cell"})
+        by_cell[key] = sub
+
+    out = counts(trial_records)
+    out.update({
+        "metric": METRIC_INSTRUMENTATION_LOSS,
+        "rate_denominator": "all_trials_in_cell",
+        "vr_reasons": sorted(INSTRUMENTATION_LOSS_VR_REASONS),
+        "disposition_sources": sorted(INSTRUMENTATION_LOSS_SOURCES),
+        "must_not_pool_with": [METRIC_INJECTOR_EFFECTIVENESS],
+        "excluded_from": [SET_BINARY_DENOMINATOR],   # survival'ga KIRADI
+        "by_cell": by_cell,
+    })
+    return out
 
 
 def window_containment_report(trial_records: Sequence[dict[str, Any]]
@@ -2357,6 +2691,11 @@ def reduce_run(run: RawRun, params: Params | None = None, *,
                                    analysis_set=SET_BINARY_DENOMINATOR)
     excl_survival = exclusion_report(out_trials, analysis_set=SET_SURVIVAL)
     excl_window = window_containment_report(out_trials)
+    # §20.3 / §20.4(4): IKKI BOSHQA nuqson sinfi, IKKI ALOHIDA hisobot.
+    # Ular bir-biriga qo'shilmaydi -- har biri `must_not_pool_with` ni
+    # o'zida ko'taradi.
+    injector = injector_effectiveness_report(out_trials)
+    instr_loss = instrumentation_loss_report(out_trials)
     summary = {
         "derived": True,
         "reducer_version": REDUCER_VERSION,
@@ -2401,17 +2740,31 @@ def reduce_run(run: RawRun, params: Params | None = None, *,
         # shartini bajarib bo'lmaydigan trial'lar soni.
         "n_window_containment_not_evaluated": excl_window["n_not_evaluated"],
 
+        # --- §20.3 / §20.4(4): IKKI SINF, HECH QACHON POOL QILINMAYDI -----
+        "injector_effectiveness": injector,
+        "instrumentation_loss": instr_loss,
+        "no_episode_rate_injector_effectiveness": injector["no_episode_rate"],
+        "instrumentation_loss_rate": instr_loss["instrumentation_loss_rate"],
+        # §20.3: nolga teng bo'lmagan `no_episode` darajasi PILOTNI GATE
+        # QILADI -- bu flag o'sha hukmni mashina o'qiydigan qiladi.
+        "pilot_gated_by_injector_effectiveness": injector["gates_pilot"],
+
         "recovered_within_horizon": sum(1 for r in out_trials if r["vr"] is True),
         "vr_undetermined": sum(1 for r in out_trials if r["vr"] is None),
-        # §16.8 / §17: maxrajga kirgan, biroq `vr is None` bo'lgan trial.
-        # §16.8 ochiq savol edi; §17.4 unga javob berdi, demak bu son endi
-        # DIAGNOSTIKA emas, TIRIK ASSERTION: `window_truncated` sababli
-        # `vr=None` bo'lgan trial maxrajda qolsa, §17.4 kuchda EMAS.
-        # Qolgan sabablar (`no_episode`, `r_ref_unavailable`,
-        # `throughput_unmeasurable`) §4 ning 5-bandiga va "epizod yo'q"
-        # holatiga tegishli -- ularni §16 ham, §17 ham HAL QILMAGAN, shuning
-        # uchun ular sabab bo'yicha OCHIQ sanaladi va jimgina `false` deb
-        # yozilmaydi.
+        # §20.2: `vr = None` ning sabablari BUTUN run bo'yicha -- maxrajdan
+        # chiqarilgach ma'lumot yo'qolmasligi uchun. `no_episode` shu yerda
+        # ko'rinadi (va injektor hisobotida alohida).
+        "vr_undetermined_counts_by_reason": _count_by(
+            r["vr_reason"] for r in out_trials if r["vr"] is None),
+        # §20.2 dan keyin bu son STRUKTURAVIY ravishda NOL: aniqlanganlik
+        # maxrajning ZARUR sharti, demak `vr = None` trial maxrajga
+        # kira OLMAYDI. Shuning uchun u endi diagnostika ham, ochiq
+        # savolning ko'rsatkichi ham emas -- §20.2 ning kuchda ekanini
+        # tekshiradigan TIRIK INVARIANT. Nolga teng bo'lmasa, qoida
+        # buzilgan.
+        #
+        # Saqlanadi, chunki uni hisoblash arzon va u bitta sonda butun
+        # §16.2(B) + §17.4 + §20.2 zanjirini tekshiradi.
         "vr_undetermined_in_binary_denominator": sum(
             1 for r in primary_trials if r["vr"] is None),
         "vr_undetermined_in_binary_denominator_by_reason": _count_by(
@@ -2562,6 +2915,23 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {key}: past_pressure={c['n_window_past_pressure']} "
                   f"past_horizon={c['n_window_past_horizon']} "
                   f"/{c['n_total']} (rate={c['window_exclusion_rate']})")
+        # §20.3 / §20.4(4): IKKI SINF ALOHIDA chiqadi va QO'SHILMAYDI.
+        inj, il = s["injector_effectiveness"], s["instrumentation_loss"]
+        print(f"[{inj['metric']}] no_episode: {inj['n_no_episode']}"
+              f"/{inj['n_total']} (rate={inj['no_episode_rate']})  "
+              f"pilot gate: {'GATED' if inj['gates_pilot'] else 'ok'}")
+        for key, c in inj["by_cell"].items():
+            print(f"  {key}: no_episode={c['n_no_episode']}/{c['n_total']} "
+                  f"(rate={c['no_episode_rate']})")
+        print(f"[{il['metric']}] probe_gap={il['n_probe_gap']} "
+              f"band5_unmeasured={il['n_band5_unmeasured']} "
+              f"/{il['n_total']} (rate={il['instrumentation_loss_rate']})")
+        print(f"  (bu ikki sinf QO'SHILMAYDI -- §20.3/§20.4: "
+              f"{inj['metric']} != {il['metric']})")
+        print(f"vr aniqlanmagan sabablari: "
+              f"{s['vr_undetermined_counts_by_reason']}  "
+              f"maxrajda (§20.2 invarianti, 0 bo'lishi shart): "
+              f"{s['vr_undetermined_in_binary_denominator']}")
         for k, v in paths.items():
             print(f"  {k}: {v}")
     return 0
