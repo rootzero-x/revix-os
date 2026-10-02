@@ -1,4 +1,5 @@
-"""REVIX buyruq qatori vositasi -- `doctor`, `status`, `health`, `events`, `version`.
+"""REVIX buyruq qatori vositasi -- `doctor`, `status`, `health`, `events`,
+`version`, `run`, `analyze`, `figures`.
 
 Subkomanda'lar:
   doctor   -- muhit pre-flight tekshiruvi: bu mashinada eksperiment XAVFSIZ
@@ -7,6 +8,9 @@ Subkomanda'lar:
   health   -- mashina uchun siqilgan sog'liq satri
   events   -- JSONL hodisa oqimini o'qiladigan shaklda chiqarish
   version  -- VERSION fayli, git commit, ishchi daraxt tozaligi
+  run      -- driver (`revix.driver`): bitta run = bitta katalog
+  analyze  -- offline analiz (`revix.analyze`): trial_metrics -> analysis.json
+  figures  -- figuralar (`revix.figures`): analysis.json -> figures/<nom>.svg
 
 DIZAYN QOIDALARI (buzilmaydi):
 
@@ -35,6 +39,16 @@ DIZAYN QOIDALARI (buzilmaydi):
   6. **`doctor` FAIL bo'lsa non-zero bilan chiqadi.** Bu uni skriptdan
      gate sifatida ishlatish mumkin qiladi -- pre-flight tekshiruvining butun
      ma'nosi shu.
+
+  7. **`run` / `analyze` / `figures` -- faqat DELEGATSIYA.** Har handler o'z
+     `Namespace`'ini argv ro'yxatiga aylantiradi va `revix.<modul>.main(argv)`
+     ni chaqiradi; modulning ichki funksiya/dataclass/konstantalari import
+     QILINMAYDI. NEGA: bog'lanish bitta funksiyaga tushadi, modulga flag
+     qo'shilsa bu yerni o'zgartirish shart emas va aylanma import bo'lmaydi.
+     Modul LAZY (handler ichida) import qilinadi: `figures.py` matplotlib'ni
+     import qiladi, `doctor` esa aynan buzuq muhitni tashxis qilish uchun bor
+     -- top-level import uni matplotlib yo'q mashinada ham yiqitardi.
+     Modul yo'q bo'lsa -- aniq xabar va non-zero chiqish, traceback emas.
 
 Bu fayldagi har bir chegara va kutilgan qiymat hujjatlangan EMPIRIK faktdan
 olingan: `docs/architecture/01-muhit-tekshiruvlari.md` (muhit),
@@ -111,12 +125,18 @@ PRESSURE_WINDOW_MAX_S = 12.0
 MIN_RATE_WINDOW_S = 2.0
 
 REQUIRED_MODULES = ("psutil", "dbus", "numpy", "scipy")
+# IXTIYORIY modullar: yo'qligi na pilotni, na tahlilni to'xtatadi -- faqat
+# `revix figures` figura chiqara olmaydi (04-driver-va-analiz-shartnomasi §3).
+# `doctor` FAIL'i o'lchashni to'xtatadigan narsalar uchun ajratilgan, shuning
+# uchun bular yo'q bo'lsa WARN, FAIL emas.
+OPTIONAL_MODULES = ("matplotlib",)
 # `dbus` import nomi; distributiv nomi boshqacha (`dbus-python`).
 _MODULE_DISTS = {
     "psutil": ("psutil",),
     "dbus": ("dbus-python", "dbus_python"),
     "numpy": ("numpy",),
     "scipy": ("scipy",),
+    "matplotlib": ("matplotlib",),
 }
 
 # Delegated subtree'da haqiqatan yozilishi kerak bo'lgan fayllar
@@ -1219,44 +1239,72 @@ def check_python_version() -> Check:
                  {"version": [v.major, v.minor, v.micro], "executable": sys.executable})
 
 
-def check_python_modules() -> Check:
-    """`psutil`, `dbus`, `numpy`, `scipy`.
+def _module_version(name: str) -> str | None:
+    """Modul versiyasi; modul yo'q bo'lsa `None`, versiya noma'lum bo'lsa "mavjud".
 
-    `find_spec` ishlatiladi, IMPORT emas: scipy/numpy importi sekundlarga
-    cho'zilishi mumkin va pre-flight tekshiruvi tez bo'lishi kerak.
+    `find_spec` ishlatiladi, IMPORT emas: scipy/numpy/matplotlib importi
+    sekundlarga cho'zilishi mumkin va pre-flight tekshiruvi tez bo'lishi kerak.
+    """
+    try:
+        spec = importlib.util.find_spec(name)
+    except (ImportError, ValueError):
+        return None
+    if spec is None:
+        return None
+    for dist in _MODULE_DISTS.get(name, (name,)):
+        try:
+            return importlib.metadata.version(dist)
+        except importlib.metadata.PackageNotFoundError:
+            continue
+    return "mavjud"
+
+
+def check_python_modules() -> Check:
+    """MAJBURIY: `psutil`, `dbus`, `numpy`, `scipy`. IXTIYORIY: `matplotlib`.
+
+    Majburiy modul yo'q -> FAIL (o'lchash yoki tahlil to'xtaydi). Faqat
+    ixtiyoriy modul yo'q -> WARN: `revix figures` ishlamaydi, lekin pilot va
+    tahlil to'xtamaydi, shuning uchun FAIL (gate) bo'lmaydi.
+
+    `found`/`missing` kalitlari FAQAT majburiy modullar haqida va oldingi
+    ma'nosini saqlaydi; ixtiyoriylar alohida `optional_found`/`optional_missing`
+    da (kalit qo'shiladi, qayta ishlatilmaydi).
     """
     key, title = "python_modules", "Python modullari"
-    required = ", ".join(REQUIRED_MODULES)
+    required = (
+        f"{', '.join(REQUIRED_MODULES)} (majburiy); "
+        f"{', '.join(OPTIONAL_MODULES)} (ixtiyoriy)"
+    )
     consequence = (
         "`numpy`/`scipy` yo'q -> statistik tahlil (PREREGISTRATION §10) "
         "ishlamaydi; `psutil` yo'q -> jarayon/resurs o'lchovi yo'q; `dbus` "
-        "yo'q -> systemd unit holatini D-Bus orqali o'qib bo'lmaydi."
+        "yo'q -> systemd unit holatini D-Bus orqali o'qib bo'lmaydi; "
+        "`matplotlib` yo'q -> `revix figures` figura chiqara olmaydi (pilot va "
+        "tahlil to'xtamaydi, shuning uchun bu faqat WARN)."
     )
-    found: dict[str, str | None] = {}
-    missing: list[str] = []
-    for name in REQUIRED_MODULES:
-        try:
-            spec = importlib.util.find_spec(name)
-        except (ImportError, ValueError):
-            spec = None
-        if spec is None:
-            missing.append(name)
-            found[name] = None
-            continue
-        ver = None
-        for dist in _MODULE_DISTS.get(name, (name,)):
-            try:
-                ver = importlib.metadata.version(dist)
-                break
-            except importlib.metadata.PackageNotFoundError:
-                continue
-        found[name] = ver or "mavjud"
-    observed = ", ".join(f"{k}={v}" for k, v in found.items() if v is not None) or "hech biri"
+    found: dict[str, str | None] = {n: _module_version(n) for n in REQUIRED_MODULES}
+    missing = [n for n, v in found.items() if v is None]
+    optional_found: dict[str, str | None] = {
+        n: _module_version(n) for n in OPTIONAL_MODULES}
+    optional_missing = [n for n, v in optional_found.items() if v is None]
+
+    present = [f"{k}={v}" for k, v in {**found, **optional_found}.items()
+               if v is not None]
+    observed = ", ".join(present) or "hech biri"
     if missing:
         observed += "  -- YETMAYDI: " + ", ".join(missing)
-    status = PASS if not missing else FAIL
+    if optional_missing:
+        observed += "  -- ixtiyoriy yetmaydi: " + ", ".join(optional_missing)
+    if missing:
+        status = FAIL
+    elif optional_missing:
+        status = WARN
+    else:
+        status = PASS
     return Check(key, title, status, observed, required, consequence,
-                 {"found": found, "missing": missing})
+                 {"found": found, "missing": missing,
+                  "optional_found": optional_found,
+                  "optional_missing": optional_missing})
 
 
 # --- KVM --------------------------------------------------------------------
@@ -2112,6 +2160,120 @@ def cmd_version(args: argparse.Namespace, want_json: bool) -> int:
 
 
 # ===========================================================================
+# subkomanda'lar: run, analyze, figures -- DELEGATSIYA
+# ===========================================================================
+#
+# Bu uch handler hech narsani O'ZI bajarmaydi: `Namespace` -> argv ro'yxati ->
+# `revix.<modul>.main(argv)`. Modulning ichki funksiyalari/dataclass'lari/
+# konstantalari BU YERGA import qilinmaydi (qoida 7, fayl boshidagi docstring).
+#
+# Chiqish kodi: modul qaytargan kod O'ZGARTIRILMASDAN uzatiladi (modul o'z
+# "yomon" holatini o'zi biladi). Yagona kod, uni BU YER hosil qiladi --
+# EXIT_MODULE_UNAVAILABLE: modul ishga tushmadi ham.
+
+# 127 -- `_run()` dagi "buyruq topilmadi" shell konvensiyasi bilan bir xil.
+# 1 emas: 1 modul ISHLADI va yomon natija topdi degani; 2 emas: argparse
+# xatosi uchun band. Chaqiruvchi "ishlamadi" va "ishladi, lekin yomon" ni
+# ajrata olishi kerak.
+EXIT_MODULE_UNAVAILABLE = 127
+
+
+def _module_unavailable(cmd: str, target: str, reason: str, want_json: bool) -> int:
+    """Modul ishga tushmadi: aniq xabar + `EXIT_MODULE_UNAVAILABLE`, traceback YO'Q."""
+    hint = "qaysi modul yetishmayotganini `revix doctor` ko'rsatadi"
+    if want_json:
+        print(json.dumps({
+            "report_schema_version": REPORT_SCHEMA_VERSION,
+            "tool": f"revix {cmd}",
+            "ok": False,
+            "error": "module_unavailable",
+            "module": target,
+            "detail": reason,
+        }, indent=2, ensure_ascii=False))
+    else:
+        print(f"revix {cmd}: {reason}", file=sys.stderr)
+        print(f"  ({hint})", file=sys.stderr)
+    return EXIT_MODULE_UNAVAILABLE
+
+
+def _delegate(cmd: str, module: str, argv: list[str], want_json: bool) -> int:
+    """`revix.<module>.main(argv)` ni LAZY import qilib chaqiradi.
+
+    LAZY (modul darajasida emas): `figures.py` matplotlib'ni import qiladi va
+    `revix doctor` matplotlib yo'q mashinada ham ishlashi SHART -- u aynan
+    buzuq muhitni tashxis qilish uchun bor.
+
+    Import muvaffaqiyatsizligi uch xil bo'ladi va uchalasi ham aniq xabar
+    beradi: modulning O'ZI yo'q; modul bor, lekin uning bog'liqligi (masalan
+    matplotlib) yo'q; modul `main` ni bermaydi (shartnoma buzilgan).
+    """
+    target = f"{__package__ or 'revix'}.{module}"
+    try:
+        mod = importlib.import_module(target)
+    except ModuleNotFoundError as exc:
+        if exc.name == target:
+            reason = f"`{target}` moduli topilmadi"
+        else:
+            reason = (f"`{target}` import qilinmadi: `{exc.name}` moduli "
+                      f"yetishmayapti")
+        return _module_unavailable(cmd, target, reason, want_json)
+    except ImportError as exc:
+        return _module_unavailable(
+            cmd, target, f"`{target}` import qilinmadi: {exc}", want_json)
+
+    entry = getattr(mod, "main", None)
+    if not callable(entry):
+        return _module_unavailable(
+            cmd, target,
+            f"`{target}` da `main(argv)` yo'q (shartnoma buzilgan)", want_json)
+
+    try:
+        rc = entry(argv)
+    except SystemExit as exc:
+        # Modulning argparse'i `ap.error()` -> SystemExit(2). Handler butun
+        # son qaytaradi; `main()` shartnomasi shu.
+        if exc.code is None:
+            return 0
+        if isinstance(exc.code, int):
+            return exc.code
+        print(exc.code, file=sys.stderr)
+        return 1
+    return 0 if rc is None else int(rc)
+
+
+def cmd_run(args: argparse.Namespace, want_json: bool) -> int:
+    argv = ["--run-dir", args.run_dir, "--seed", str(args.seed)]
+    if args.blocks is not None:
+        argv += ["--blocks", str(args.blocks)]
+    if args.only is not None:
+        argv += ["--only", args.only]
+    if args.dry_run:
+        argv.append("--dry-run")
+    if want_json:
+        argv.append("--json")
+    return _delegate("run", "driver", argv, want_json)
+
+
+def cmd_analyze(args: argparse.Namespace, want_json: bool) -> int:
+    argv = ["--trials", args.trials, "--run-meta", args.run_meta,
+            "--out", args.out]
+    if args.sweep is not None:
+        argv += ["--sweep", args.sweep]
+    if want_json:
+        argv.append("--json")
+    return _delegate("analyze", "analyze", argv, want_json)
+
+
+def cmd_figures(args: argparse.Namespace, want_json: bool) -> int:
+    argv = ["--analysis", args.analysis, "--out-dir", args.out_dir]
+    for name in args.only or []:
+        argv += ["--only", name]
+    if want_json:
+        argv.append("--json")
+    return _delegate("figures", "figures", argv, want_json)
+
+
+# ===========================================================================
 # argparse
 # ===========================================================================
 
@@ -2160,6 +2322,57 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("version", parents=[common],
                        help="VERSION fayli, git commit, daraxt tozaligi")
     p.set_defaults(func=cmd_version)
+
+    # run / analyze / figures: flag'lar argv'ga aylantirilib `revix.<modul>.main`
+    # ga uzatiladi (cmd_run va h.k.). Qiymatlar bu yerda talqin QILINMAYDI --
+    # ularning ma'nosi va tekshiruvi modulniki.
+    p = sub.add_parser(
+        "run", parents=[common],
+        help="driver: bitta run = bitta katalog (`--dry-run` jadvalni chiqaradi)",
+        description="`revix.driver` ni ishga tushiradi. Bayroqlar o'zgartirilmay "
+                    "uzatiladi. Mavjud run katalogiga yozilmaydi (datasets/ "
+                    "append-only).")
+    p.add_argument("--run-dir", required=True, metavar="PATH",
+                   help="run katalogi (yangi bo'lishi shart: mavjud katalog xato)")
+    p.add_argument("--seed", type=int, required=True, metavar="INT",
+                   help="randomizatsiya urug'i (run_meta.json'dagi rng_seed)")
+    p.add_argument("--blocks", type=int, default=None, metavar="INT",
+                   help="bloklar soni (berilmasa -- driver'ning default'i)")
+    p.add_argument("--only", default=None, metavar="SPEC",
+                   help="jadvalning bir qismi (SPEC sintaksisi driver'niki, "
+                        "o'zgartirilmay uzatiladi)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="hech narsa ishga tushirmaydi, faqat jadvalni chiqaradi")
+    p.set_defaults(func=cmd_run)
+
+    p = sub.add_parser(
+        "analyze", parents=[common],
+        help="offline analiz: trial_metrics + run_meta -> analysis.json",
+        description="`revix.analyze` ni ishga tushiradi (qat'iy offline). "
+                    "Bayroqlar o'zgartirilmay uzatiladi.")
+    p.add_argument("--trials", required=True, metavar="PATH",
+                   help="reduce.py chiqargan trial_metrics JSONL")
+    p.add_argument("--run-meta", required=True, metavar="PATH",
+                   help="run_meta.json")
+    p.add_argument("--out", required=True, metavar="PATH",
+                   help="analysis.json chiqish yo'li")
+    p.add_argument("--sweep", default=None, metavar="PATH",
+                   help="sezgirlik sweep kiritmasi (ixtiyoriy)")
+    p.set_defaults(func=cmd_analyze)
+
+    p = sub.add_parser(
+        "figures", parents=[common],
+        help="figuralar: analysis.json -> <out-dir>/<nom>.svg (+ .json)",
+        description="`revix.figures` ni ishga tushiradi (matplotlib kerak; yo'q "
+                    "bo'lsa aniq xabar bilan non-zero chiqadi). Faqat "
+                    "analysis.json o'qiladi.")
+    p.add_argument("--analysis", required=True, metavar="PATH",
+                   help="analysis.json")
+    p.add_argument("--out-dir", required=True, metavar="DIR",
+                   help="figuralar katalogi")
+    p.add_argument("--only", action="append", default=None, metavar="NAME",
+                   help="faqat shu figura (bir necha marta berish mumkin)")
+    p.set_defaults(func=cmd_figures)
     return ap
 
 
