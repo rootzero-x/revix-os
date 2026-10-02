@@ -13,7 +13,7 @@
 
 | Daraja | Nima | Pre-registration | Holat |
 |---|---|---|---|
-| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.9` ⛔ | **bloklangan** — (a) §17.5 va §18.6 ochiq qarorlari, ikkalasi **o'lchov bilan zarur deb tasdiqlandi** (§21.2, §21.5) va **birgalikda** hal qilinadi; (b) §21.7 gate: generator §9.4 invariantlarini majburlamaydi |
+| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.10` ⛔ | **bloklangan** — (a) §17.5 va §18.6 ochiq qarorlari, ikkalasi **o'lchov bilan zarur deb tasdiqlandi** (§21.2, §21.5) va **birgalikda** hal qilinadi; (b) §21.7 gate: generator §9.4 invariantlarini majburlamaydi. **Bloklamaydigan, lekin majburiy:** §22.4(3) harness narxi differentsiali |
 | **CAL — kalibratsiya** | har `(fault × action)` uchun `P̂(VR)` → `Repairs()` matritsasi | kerak | P1 dan keyin |
 | **P2 — confirmatory** | to'liq fault taksonomiyasi × arm A/B/C × pressure × pulse duration | kerak, P1 effect size'idan `n` hisoblanadi | CAL dan keyin |
 
@@ -75,6 +75,15 @@ uni chegirib tashlar edi.
 
 Busiz `harm_indicator` (FR-B) talqin qilinmaydi va "restart PSI ni oshirdi" ni
 "fault PSI ni oshirdi" dan ajratib bo'lmaydi.
+
+> **⚠️ Bu DiD atributsiyasi harness differentsiali bilan confounded**
+> (`PREREGISTRATION.md` §22.3–§22.5). O'lchangan: probe sog'lom target'da
+> `down` target'dan **1.39×** qimmat, va `no_action` eng ko'p downtime'li
+> arm, demak **eng kam** instrumentatsiya yuki ko'taradi. Natijada
+> `A − no_action` ayirmasi action'ga **ortiqcha yozadi** — ya'ni action'ning
+> PSI narxi **oshirib** ko'rsatiladi, bu esa loyihaning o'z tezisiga **mos
+> keladigan** yo'nalish. §22.4(3) bo'yicha har qanday PSI-atributsiya
+> da'vosi bu differentsialni **hisobga olishi SHART**.
 
 > **`no_action` — nazorat, trend yacheykasi EMAS** (`PREREGISTRATION.md` §16.2).
 > §10.1 ning birlamchi Cochran–Armitage trend testi **arm `A` ichida**
