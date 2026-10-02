@@ -121,6 +121,82 @@ def test_tort_holat_matni_HAM_klassi_HAM_turlicha():
     assert len(set(classes.values())) == 4, classes
 
 
+def test_olchanmadi_SABABSIZ_korsatilMAYDI():
+    """`state-indicators.md` §4.2-4: sababsiz `n/m` -- TAQIQ.
+
+    Busiz nima buzilardi: sababsiz "o'lchanmadi" o'quvchiga asbob
+    buzilganmi, kalit yo'qmi yoki interfeys mavjud emasmi -- ayta
+    olmaydi, va uchta butunlay boshqa holat bitta belgiga yig'ilardi.
+    """
+    out = gui.missing_html(gui.REASON_SYSFS_ABSENT)
+    assert "reason=sysfs_absent" in visible_text(out)
+    # Default ham SABABLI -- sababsiz chiqish yo'li YO'Q.
+    assert "reason=" in visible_text(gui.missing_html())
+    assert "reason=" in visible_text(gui.value_html(None))
+
+
+def test_notogri_sabab_kodi_JIM_QABUL_QILINMAYDI():
+    """Sabab yopiq lug'atdan; noma'lum kod -- `ValueError`.
+
+    Busiz nima buzilardi: lug'at ochiq bo'lsa, sabab vaqt o'tib "-" yoki
+    "bilmadim" ga aylanardi va `n/m` yana sababsiz holatga qaytardi.
+    """
+    with pytest.raises(ValueError, match="noma'lum"):
+        gui.missing_html("oylab-topilgan-sabab")
+    with pytest.raises(ValueError):
+        gui.value_html(None, reason="")
+    assert gui.REASON_NOT_REPORTED in gui.MISSING_REASONS
+    assert gui.REASON_SYSFS_ABSENT in gui.MISSING_REASONS
+
+
+def test_olchanmadi_va_ishga_tushirilmadi_BESH_KANAL_bilan_ajraladi():
+    """Rang YAGONA KANAL EMAS (§4.5): shakl, matn, teg, `data-state`, joylashuv.
+
+    O'lchangan fakt (branding §4.5): monoxromda `#FF3B30` va `#888888`
+    kontrasti 1.00:1 -- bir xil kulrang. Shuning uchun holat rangdan
+    MUSTAQIL ravishda ham o'qilishi SHART.
+    """
+    nm = gui.missing_html()
+    nr = gui.norun_html()
+
+    # 1-kanal: CSS klassi (shtrix vs bo'sh, yaxlit vs punktir chegara).
+    assert "v-missing" in nm and "v-norun" in nr
+    # 2-kanal: ko'rinadigan matn yorlig'i.
+    assert gui.TEXT_NOT_MEASURED in visible_text(nm)
+    assert gui.TEXT_NOT_YET_RUN in visible_text(nr)
+    # 3-kanal: zich teglar (`n/m` vs `n/r`).
+    assert gui.TAG_NOT_MEASURED in visible_text(nm)
+    assert gui.TAG_NOT_YET_RUN in visible_text(nr)
+    assert gui.TAG_NOT_MEASURED != gui.TAG_NOT_YET_RUN
+    # 4-kanal: dasturiy ma'no + ekran o'quvchi yorlig'i.
+    assert f'data-state="{gui.STATE_NOT_MEASURED}"' in nm
+    assert f'data-state="{gui.STATE_NOT_YET_RUN}"' in nr
+    assert 'role="img"' in nm and 'role="img"' in nr
+    assert 'aria-label="not measured, reason: not_reported"' in nm
+    assert 'aria-label="not run"' in nr
+    # 5-kanal: katakda RAQAM YO'Q -> sonli ustunga aralashib `0` bo'lmaydi.
+    assert not has_digit(visible_text(nm))
+    assert not has_digit(visible_text(nr))
+
+
+def test_data_state_qiymatlari_INGLIZCHA_yopiq_enum():
+    """`data-state` -- mashina qiymati, tarjima QILINMAYDI (§2)."""
+    assert gui.STATE_NOT_MEASURED == "not_measured"
+    assert gui.STATE_NOT_YET_RUN == "not_run"
+
+
+def test_manba_yoq_not_run_ga_QOSHILMAYDI():
+    """"Manba yo'q" `not_run` EMAS: biri kutilmoqda, biri kutilmaydi.
+
+    Busiz nima buzilardi: mavjud bo'lmagan ishni rejadagi ish deb
+    ko'rsatish -- o'quvchi disk panelini "keyin to'ladi" deb kutardi.
+    """
+    ns = gui.nosource_html()
+    assert f'data-state="{gui.STATE_NOT_YET_RUN}"' not in ns
+    assert 'data-state="no_source"' in ns
+    assert gui.TEXT_NOT_YET_RUN not in visible_text(ns)
+
+
 def test_uch_holat_matnida_raqam_yoq_toplami():
     """Uchta "qiymat yo'q" matni raqamsiz; faqat NOL son ko'rsatadi."""
     for text in (gui.TEXT_NOT_MEASURED, gui.TEXT_NOT_YET_RUN, gui.TEXT_NO_SOURCE):
@@ -146,9 +222,16 @@ def test_olchanmagan_qiymatda_BIRLIK_ham_bosilmaydi():
 
     Busiz nima buzilardi: "o'lchanmadi s" qiymat go'yo mavjud bo'lib
     ko'rinardi va birlik o'lchovning bo'lganini da'vo qilardi.
+
+    Tekshiruv shakli: birlik berilgan va berilmagan chiqish AYNI BIR XIL,
+    ya'ni birlik butunlay e'tiborsiz qoldiriladi. Bu "chiqishda `s` harfi
+    yo'q" dan kuchliroq: ikkinchisi "reason" so'zidagi `s` dan yiqilardi.
     """
-    assert "s" not in visible_text(gui.value_html(None, unit="s")).replace(
-        gui.TEXT_NOT_MEASURED, "")
+    assert gui.value_html(None, unit="s") == gui.value_html(None)
+    assert gui.value_html(None, unit="GiB") == gui.value_html(None)
+    assert "unit" not in gui.value_html(None, unit="s")
+    # O'lchangan qiymatda esa birlik KO'RINADI (test o'zini sinaydi).
+    assert "GiB" in visible_text(gui.value_html(5, unit="GiB"))
 
 
 def test_kb_html_none_uchun_savol_belgisi_BERMAYDI():
@@ -777,6 +860,10 @@ def test_figura_svg_i_yoq_bolsa_HALI_ISHGA_TUSHIRILMADI():
 def test_aktivlar_mavjud_va_rang_FAQAT_css_da():
     """Rang AYNAN bitta joyda -- `style.css` `:root` (branding almashtirishi).
 
+    Tokenlar `docs/branding/tokens.css` v1.0 ning AYNAN nomlari (`--rx-*`),
+    shunda branding o'sha faylni aktiv sifatida tashlaganda bu bloк
+    almashtiriladi va markup tegilmaydi.
+
     Busiz nima buzilardi: markup'ga tarqagan literal rang brendni
     almashtirishni butun GUI ni qayta yozishga aylantirardi.
     """
@@ -784,9 +871,13 @@ def test_aktivlar_mavjud_va_rang_FAQAT_css_da():
     assert "style.css" in files
     assert "app.js" in files
     css = open(files["style.css"], encoding="utf-8").read()
-    for token in ("--revix-black-0", "--revix-red", "--revix-green",
-                  "--color-critical", "--color-healthy"):
+    for token in ("--rx-bg-0", "--rx-fg-2", "--rx-line", "--rx-fail",
+                  "--rx-fail-solid", "--rx-ok", "--rx-ok-solid",
+                  "--rx-hatch", "--rx-border-strong", "--rx-numeric"):
         assert token in css, token
+    # Eski, branding'ga mos BO'LMAGAN nomlar qolmagan.
+    assert "--revix-" not in css
+    assert "--color-" not in css
     # Markup'da va skriptda hex rang YO'Q.
     py = open(os.path.join(gui.PKG_DIR, "gui.py"), encoding="utf-8").read()
     js = open(files["app.js"], encoding="utf-8").read()
@@ -803,10 +894,16 @@ def test_css_da_gradient_glow_va_animatsiya_YOQ():
     """
     raw = open(gui._asset_files()["style.css"], encoding="utf-8").read()
     css = re.sub(r"/\*.*?\*/", " ", raw, flags=re.S).lower()
-    assert "--revix-black-0" in css, "izoh olib tashlash qoidalarni ham yedi"
-    for banned in ("gradient", "box-shadow", "text-shadow", "@keyframes",
+    assert "--rx-bg-0" in css, "izoh olib tashlash qoidalarni ham yedi"
+    for banned in ("box-shadow", "text-shadow", "@keyframes",
                    "animation:", "transition:"):
         assert banned not in css, banned
+    # Gradient taqiqlangan, LEKIN `--rx-hatch` istisno: u qattiq to'xtash
+    # nuqtalari bilan takrorlanuvchi chiziq naqshi, gradient emas
+    # (`docs/branding/tokens.css` izohi). Shuning uchun `repeating-` siz
+    # gradient qidirilаdi.
+    assert re.findall(r"(?<!repeating-)(?:linear|radial)-gradient\(", css) == []
+    assert "repeating-linear-gradient(" in css, "shtrix naqshi yo'qolgan"
 
 
 def test_yangi_boglliqlik_YOQ_faqat_stdlib():
@@ -820,12 +917,19 @@ def test_yangi_boglliqlik_YOQ_faqat_stdlib():
     assert imports <= allowed, imports - allowed
     # Tashqi havola ham yo'q (offline ishlashi SHART): CDN yo'q, font
     # havolasi yo'q, `@import` yo'q.
+    #
+    # IZOHLAR OLIB TASHLANADI: aktivlarning dizayn qoidalari aynan shu
+    # taqiqlarni NOMLAB taqiqlaydi ("tashqi font yo'q: CDN va @font-face
+    # yo'q"), demak atama izohda uchraydi. Taqiq KODGA tegishli, prozaga emas.
     for name, path in gui._asset_files().items():
-        text = open(path, encoding="utf-8").read()
+        raw = open(path, encoding="utf-8").read()
+        text = re.sub(r"/\*.*?\*/", " ", raw, flags=re.S)
+        text = re.sub(r"(?m)^\s*//.*$", " ", text)
         assert "http://" not in text, name
         assert "https://" not in text, name
         assert "cdn" not in text.lower(), name
         assert "@import" not in text.lower(), name
+        assert "@font-face" not in text.lower(), name
 
 
 def test_sahifa_HTML_i_CSP_self_bilan_beriladi():
@@ -956,7 +1060,7 @@ def test_server_HAQIQATAN_loopbackda_javob_beradi(tmp_path):
         css = resp.read().decode("utf-8")
         assert resp.status == 200
         assert resp.getheader("Content-Type") == "text/css; charset=utf-8"
-        assert "--revix-black-0" in css
+        assert "--rx-bg-0" in css
 
         # Noma'lum yo'l -- 404, lekin HALOL HTML sahifa.
         conn.request("GET", "/aniq-yoq-sahifa")

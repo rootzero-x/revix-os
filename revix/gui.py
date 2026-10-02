@@ -153,6 +153,41 @@ TEXT_NOT_YET_RUN = "hali ishga tushirilmadi"
 TEXT_NO_SOURCE = "manba yo'q"
 TEXT_MEASURED_ZERO = "o'lchangan nol"
 
+# Zich teglar (`docs/branding/state-indicators.md` §5). Mashina qiymatlari
+# (`data-state`) INGLIZCHA va yopiq enum -- tarjima QILINMAYDI; ekranda
+# ko'rinadigan matn esa o'zbekcha (DEVELOPMENT.md §6 til jadvali).
+TAG_NOT_MEASURED = "n/m"
+TAG_NOT_YET_RUN = "n/r"
+STATE_NOT_MEASURED = "not_measured"
+STATE_NOT_YET_RUN = "not_run"
+
+# `state-indicators.md` §4.2-4: SABABSIZ `n/m` -- TAQIQ. Shuning uchun
+# `missing_html()` sababni MAJBURIY oladi va u yopiq lug'atdan bo'lishi
+# SHART. Hujjat sabab kodlarini "illyustrativ taklif" deb beradi va yopiq
+# lug'atni amalga oshiruvchiga qoldiradi -- bu o'sha lug'at.
+#
+# NEGA yopiq: erkin matnli sabab vaqt o'tib "yo'q", "-" va "bilmadim" ga
+# aylanadi, va o'sha paytda `n/m` yana sababsiz holatga qaytadi.
+REASON_NOT_REPORTED = "not_reported"            # manba maydonni qiymatsiz berdi
+REASON_KEY_ABSENT = "key_absent"                # manbada kalit umuman yo'q
+REASON_SYSFS_ABSENT = "sysfs_absent"            # kernel interfeysi yo'q (cpufreq)
+REASON_SCOPE_NO_DATA = "scope_no_data"          # PSI scope bu resursni bermadi
+REASON_SOURCE_ERROR = "source_error"            # o'qish istisno bilan tugadi
+REASON_HORIZON_NOT_REPORTED = "horizon_not_reported"
+REASON_TIME_UNIT_NOT_DECLARED = "time_unit_not_declared"
+REASON_PROBE_GAP = "probe_gap"                  # probe uzilishi > 2xP
+
+MISSING_REASONS: frozenset[str] = frozenset({
+    REASON_NOT_REPORTED,
+    REASON_KEY_ABSENT,
+    REASON_SYSFS_ABSENT,
+    REASON_SCOPE_NO_DATA,
+    REASON_SOURCE_ERROR,
+    REASON_HORIZON_NOT_REPORTED,
+    REASON_TIME_UNIT_NOT_DECLARED,
+    REASON_PROBE_GAP,
+})
+
 SYNTHETIC_BANNER_TEXT = (
     "SINTETIK MA'LUMOT -- HAQIQIY O'LCHOV EMAS. Bu sahifadagi raqamlar "
     "qo'lda yasalgan fixture'dan keladi va natija sifatida ISHLATILMAYDI."
@@ -257,19 +292,66 @@ def esc(value: Any) -> str:
     return html.escape("" if value is None else str(value), quote=True)
 
 
-def missing_html() -> str:
-    """`None` = o'lchanmadi. Chiqishda BIRORTA RAQAM YO'Q (qoida 2)."""
-    return f'<span class="val v-missing">{esc(TEXT_NOT_MEASURED)}</span>'
+def missing_html(reason: str = REASON_NOT_REPORTED) -> str:
+    """`None` = o'lchanmadi. Chiqishda BIRORTA RAQAM YO'Q (qoida 2).
+
+    `reason` MAJBURIY (`docs/branding/state-indicators.md` §4.2-4: sababsiz
+    `n/m` -- taqiq) va yopiq lug'atdan (`MISSING_REASONS`). Noma'lum kod --
+    `ValueError`, jim qabul EMAS: busiz lug'at vaqt o'tib ochilib ketardi
+    va sabab yana ma'nosiz erkin matnga aylanardi.
+
+    BESH KANAL (§4.5), chunki rang eng zaif kanal -- monoxromda
+    `--rx-fail` va `--rx-fg-2` kontrasti 1.00:1, ya'ni BIR XIL kulrang:
+      1. shakl/to'ldirish -- CSS `.v-missing` shtrixi + yaxlit chegara,
+      2. matn yorlig'i -- "o'lchanmadi" + zich teg `n/m`,
+      3. sabab -- `reason=<kod>` ko'rinadi,
+      4. dasturiy ma'no -- `data-state="not_measured"` + `aria-label`,
+      5. joylashuv -- katakda RAQAM YO'Q, demak sonli ustunga aralashib
+         `0` bo'la olmaydi.
+
+    `role="img"` + `aria-label`: ekran o'quvchi `n/m` ni "n slash m" deb
+    o'qimaydi (§4.5-4).
+    """
+    if reason not in MISSING_REASONS:
+        raise ValueError(
+            f"noma'lum `not_measured` sababi: {reason!r}; "
+            f"yopiq lug'at: {', '.join(sorted(MISSING_REASONS))}")
+    label = f"not measured, reason: {reason}"
+    return (f'<span class="val v-missing" data-state="{STATE_NOT_MEASURED}"'
+            f' role="img" aria-label="{esc(label)}">'
+            f'<span class="plate">{esc(TEXT_NOT_MEASURED)}'
+            f'<span class="tag">{esc(TAG_NOT_MEASURED)}</span>'
+            f'<span class="reason">reason={esc(reason)}</span>'
+            f"</span></span>")
 
 
 def norun_html() -> str:
-    """Artifact hali yo'q -- "hali ishga tushirilmadi" (o'lchanmadi EMAS)."""
-    return f'<span class="val v-norun">{esc(TEXT_NOT_YET_RUN)}</span>'
+    """Artifact hali yo'q -- "hali ishga tushirilmadi" (o'lchanmadi EMAS).
+
+    `state-indicators.md` §4.3: ichi BO'SH + PUNKTIR chegara, ya'ni
+    `not_measured` dan IKKI mustaqil kanal bilan ajraladi (to'ldirish va
+    chegara turi). Sabab SHART EMAS -- hali bajarilmagani sababning o'zi
+    (§4.3-3).
+    """
+    label = "not run"
+    return (f'<span class="val v-norun" data-state="{STATE_NOT_YET_RUN}"'
+            f' role="img" aria-label="{esc(label)}">'
+            f"{esc(TEXT_NOT_YET_RUN)}"
+            f'<span class="tag">{esc(TAG_NOT_YET_RUN)}</span></span>')
 
 
 def nosource_html() -> str:
-    """Birorta modul bu qiymatni chiqarmaydi -- to'rtinchi, alohida holat."""
-    return f'<span class="val v-nosource">{esc(TEXT_NO_SOURCE)}</span>'
+    """Birorta modul bu qiymatni chiqarmaydi -- to'rtinchi, alohida holat.
+
+    `state-indicators.md` ning yetti holatida bu YO'Q, va ataylab
+    `not_run` ga QO'SHILMAYDI: `not_run` "hali bajarilmagan, KUTILMOQDA"
+    deydi, bu esa "uni ishlab chiqaradigan kod yo'q" deydi. Ikkisini
+    birlashtirish mavjud bo'lmagan ishni rejadagi ish deb ko'rsatardi.
+    """
+    label = "no source: no module produces this value"
+    return (f'<span class="val v-nosource" data-state="no_source"'
+            f' role="img" aria-label="{esc(label)}">'
+            f"{esc(TEXT_NO_SOURCE)}</span>")
 
 
 def _default_fmt(v: Any) -> str:
@@ -286,7 +368,8 @@ def _default_fmt(v: Any) -> str:
 
 
 def value_html(value: Any, unit: str | None = None,
-               fmt: Callable[[Any], str] | None = None) -> str:
+               fmt: Callable[[Any], str] | None = None,
+               reason: str = REASON_NOT_REPORTED) -> str:
     """Bitta qiymatni TO'RT HOLATNI AJRATIB ko'rsatadi (qoida 2).
 
       * `None`  -> "o'lchanmadi", RAQAMSIZ va birliksiz. Birlik ham
@@ -301,7 +384,7 @@ def value_html(value: Any, unit: str | None = None,
       * qolgani -> o'lchangan qiymat, escape qilingan holda.
     """
     if value is None:
-        return missing_html()
+        return missing_html(reason)
     if isinstance(value, bool):
         # NEGA alohida o'zgaruvchi: f-string IFODASI ichida backslash
         # Python 3.12 dan oldin sintaksis xatosi, loyiha minimumi esa 3.11
@@ -317,28 +400,28 @@ def value_html(value: Any, unit: str | None = None,
     return f'<span class="val v-num">{text}{suffix}</span>'
 
 
-def kb_html(kb: Any) -> str:
+def kb_html(kb: Any, reason: str = REASON_NOT_REPORTED) -> str:
     """kB qiymati odam o'qishi uchun. `None` -> o'lchanmadi, `0` -> nol.
 
     `cli.human_kb()` ATAYLAB ishlatilmaydi `None` uchun: u `"?"` qaytaradi,
     va `"?"` to'rt holatning qaysi biri ekanini aytmaydi (qoida 2).
     """
     if kb is None:
-        return missing_html()
+        return missing_html(reason)
     if isinstance(kb, bool) or not isinstance(kb, int):
-        return value_html(kb)
-    return value_html(kb, fmt=lambda v: cli.human_kb(int(v)))
+        return value_html(kb, reason=reason)
+    return value_html(kb, fmt=lambda v: cli.human_kb(int(v)), reason=reason)
 
 
-def rate_html(v: Any) -> str:
+def rate_html(v: Any, reason: str = REASON_NOT_REPORTED) -> str:
     """PSI stall tezligi (`total=` delta'sidan, `cli.sample_psi_rates`)."""
-    return value_html(v, fmt=lambda x: f"{float(x):.4f}")
+    return value_html(v, fmt=lambda x: f"{float(x):.4f}", reason=reason)
 
 
-def text_html(value: Any) -> str:
+def text_html(value: Any, reason: str = REASON_NOT_REPORTED) -> str:
     """Fayldan kelgan ERKIN MATN uchun (qoida 5). `None` -> o'lchanmadi."""
     if value is None:
-        return missing_html()
+        return missing_html(reason)
     s = str(value)
     if not s.strip():
         # Bo'sh satr -- "o'lchanmadi" EMAS: u o'qildi va bo'sh edi.
@@ -782,8 +865,10 @@ def _psi_scope_rows(psi: dict[str, Any] | None) -> list[list[str]]:
             entry = resources.get(res)
             if entry is None:
                 # Scope bu resursni BERMADI -- o'lchanmadi, nol emas.
-                rows.append([esc(scope), esc(res), missing_html(),
-                             missing_html(), missing_html()])
+                rows.append([esc(scope), esc(res),
+                             missing_html(REASON_SCOPE_NO_DATA),
+                             missing_html(REASON_SCOPE_NO_DATA),
+                             missing_html(REASON_SCOPE_NO_DATA)])
                 continue
             rows.append([
                 esc(scope), esc(res),
@@ -931,10 +1016,11 @@ def panel_slices(live: dict[str, Any], src: Source, now_us: int) -> str:
                 ("memory.peak", text_html(snap.get("memory_peak"))),
             ]
         else:
-            # Slice yo'q -> snapshot O'LCHANMADI (nol emas).
-            rows += [("memory.current", missing_html()),
-                     ("memory.max", missing_html()),
-                     ("memory.peak", missing_html())]
+            # Slice yo'q -> cgroup fayllari yo'q, demak sabab `sysfs_absent`
+            # (snapshot O'LCHANMADI, nol EMAS).
+            rows += [("memory.current", missing_html(REASON_SYSFS_ABSENT)),
+                     ("memory.max", missing_html(REASON_SYSFS_ABSENT)),
+                     ("memory.peak", missing_html(REASON_SYSFS_ABSENT))]
         body.append(f"<h3>{esc(name)}</h3>{kv(rows)}")
     return panel("LAB / MON SLICE'LARI", src, "".join(body), now_us)
 
@@ -1122,8 +1208,12 @@ def panel_run_meta(run: dict[str, Any] | None, src: Source, now_us: int) -> str:
         ("cpu_model", text_html(meta.get("cpu_model"))),
         ("cpu_count", value_html(meta.get("cpu_count"))),
         ("mem_total_kb", kb_html(meta.get("mem_total_kb"))),
-        ("governor", value_html(meta.get("governor"))),
-        ("scaling_driver", value_html(meta.get("scaling_driver"))),
+        # §15.4: `cpufreq` sysfs interfeysi bu muhitda umuman eksport
+        # qilinmaydi -> sabab AYNAN `sysfs_absent`, umumiy "not_reported" emas.
+        ("governor", value_html(meta.get("governor"),
+                                reason=REASON_SYSFS_ABSENT)),
+        ("scaling_driver", value_html(meta.get("scaling_driver"),
+                                      reason=REASON_SYSFS_ABSENT)),
         ("python_version", text_html(meta.get("python_version"))),
     ]
     body = [kv(rows), notice(
@@ -2282,12 +2372,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     url = f"http://{opts.host}:{opts.port}/"
-    print(f"REVIX dashboard: {url}")
-    print(f"  manba: tirik cli hisobotlari + {opts.datasets_dir} run'lari")
-    print("  faqat o'qish; to'xtatish uchun Ctrl-C")
+    # `flush=True` MAJBURIY: stdout faylga yoki quvurga yo'naltirilganda
+    # Python uni buferlaydi, va `serve_forever()` qaytmaydi -- ya'ni bufer
+    # hech qachon bo'shamaydi. Bu O'LCHANDI: `python3 -m revix.gui > faylga`
+    # da URL satri 4 s dan keyin ham ko'rinmadi. Foydalanuvchiga esa aynan
+    # URL darhol kerak.
+    print(f"REVIX dashboard: {url}", flush=True)
+    print(f"  manba: tirik cli hisobotlari + {opts.datasets_dir} run'lari",
+          flush=True)
+    print("  faqat o'qish; to'xtatish uchun Ctrl-C", flush=True)
     if not is_loopback(opts.host):
         print("  OGOHLIK: loopback BO'LMAGAN manzil -- tirik tizim holati "
-              "tashqariga ochilgan", file=sys.stderr)
+              "tashqariga ochilgan", file=sys.stderr, flush=True)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
