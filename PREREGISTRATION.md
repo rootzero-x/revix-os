@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.4` |
+| **Versiya** | `preregistration/v1.5` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4) |
-| **Muhit** | Bu pre-registration **§15.1 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5) |
+| **Muhit** | Bu pre-registration **§15.1 va §16.11 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
@@ -18,6 +18,76 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.4 → v1.5 (2026-10-02)
+
+| | |
+|---|---|
+| **v1.4 sha256** | `0e1547aa9e13b6f9727ad4da9476617ad4de699653f740ad2c95b5c0688c11de` |
+| **v1.4 git tag** | `v0.1.4-preregistration` |
+| **Sabab** | **ikki mustaqil implementator bir xil bo'shliqni ko'rsatdi**: §12 `censored` ning analiz holatini aytmaydi, va shu jimlik barcha 60 `no_action` trial'ini birlamchi to'plamdan chiqarib tashlaydi |
+| **O'zgardi** | **§16 qo'shildi** (yangi bo'lim): analiz to'plamiga kirish qoidasi, `censored` ning ikki ma'nosi, §10.1/§11 ning arm qamrovi, muzlatilmagan parametrlar qoidasi, va `boot_id` kafolatining buzilishi. Mavjud bo'limlar raqamlari va matni O'ZGARMADI |
+| **O'zgarMADI** | **hech bir operatsion ta'rif, metrika, chegara, statistik test yoki falsifikatsiya mezoni** — to'liq ro'yxat §16.6 da |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan, demak eski ta'riflar ostida qayta hisoblanishi kerak bo'lgan hech narsa yo'q |
+
+**Qaror, qisqa shaklda:**
+
+1. **§10.1 ning birlamchi Cochran–Armitage trend testi arm `A` ichida
+   hisoblanadi.** `no_action` — §8.2 ning **nazorat** arm'i (PSI
+   atributsiyasi va `harm_indicator` uchun); u trend testiga yacheyka
+   bermaydi, lekin §6.2 bo'yicha KM/log-rank, loop-rate va
+   `recovered within T_trial: k/n` jadvallariga **kiradi**. Asos: §9.1 ning
+   savoli ta'rifan arm `A` haqida, §9.2 ning to'rtala mexanizmi restart'ni
+   nazarda tutadi, va pooling `P(VR) = 0` ni uchala strataga qo'shib
+   trend'ni **susaytirardi**.
+2. **"Horizon down holatda tugadi" — kuzatilgan no'l-hodisa, censoring
+   emas.** U binar `P(VR)` maxrajiga **`VR = false`** sifatida kiradi.
+   `censored` yorlig'i ikki holatni birlashtiradi va §4 ularni allaqachon
+   boshqacha ishlaydi: §4 `censored` ni *"probe uzilishi → `failed` emas"*
+   ma'nosida (**kuzatilmagan natija**) ishlatadi, §6.2 esa **downtime
+   davomiyligini** censor qiladi, binar natijani emas. §4 ning VR ta'rifi
+   horizon bilan chegaralangan, demak `t_up` bo'lmagan trial uchun
+   `VR = false` **to'liq aniqlangan**.
+3. **Yangi enum qiymati kerak emas**: farq allaqachon `reduce.py` ning
+   **`disposition_source`** maydonida (`"probe_gap"` / `"down_at_horizon"`).
+   Qoida: birlamchi to'plam **`(disposition, disposition_source)`** jufti
+   bilan aniqlanadi. §12 ning yopiq enum'iga **tegilmadi**.
+4. **§11 ning `P0` vs `P2` RMST kontrasti ham arm `A` ichida** — §10.1
+   bilan bir xil qamrov, aks holda ikki bo'lim turli arm'da bo'lib
+   qolardi. §10.2 ning "har arm uchun KM" i — taqdimot birligi; `A` vs
+   `no_action` log-rank §8.2 ning atributsiya savoliga javob beradi, H1 ga
+   emas. §10.4 bo'yicha birlamchi test **bitta**.
+
+**Zarar `no_action` da emas, arm `A` da kattaroq** (§16.3): `P2` ostida
+qaytmagan arm `A` trial'lari — **aynan H1 kutgan natija** — chiqarib
+tashlansa, `P(VR|P2)` 1 ga siljiydi, trend susayadi, va §11 ning
+falsifikatsiya qoidasi siljigan baho ustida qo'llanadi. Ya'ni **"null"
+dunyodan emas, eksklyuziyadan tug'ilishi mumkin.** §6.2 aynan shuni
+*"klassik yashirin bias"* deb nomlaydi. **Bu qaror H1 foydasiga ishlaydi
+va shu holda ochiq e'lon qilinadi** — u faqat hech qanday ma'lumot mavjud
+emasligi uchun qonuniy.
+
+**Kod o'zgartirilMADI.** `reduce.PRIMARY_DISPOSITIONS == ("complete",)` —
+muzlatilgan qiymat emas, §12 ning jimligini implementator hal qilgan joy;
+uni tuzatish **muzlatilgan matnga moslashtirish**, amendment emas. Ikkala
+modul ham test bilan qoplangan, demak o'zgarish ataylab qilingan qaror
+bo'lishi kerak. §16.4 ikki konstantaning qaysi savolga javob berishini
+qayd etadi va eksklyuziya darajasi **qaysi to'plam ustida hisoblanganini
+nomlashi shart** degan qoidani muzlatadi.
+
+**Yangi o'lchangan fakt (v1.5 ning eng og'ir topilmasi):** §1 va §14.6(5)
+ning `boot_id` kafolati **shu host'da yolg'on**. 49 s oraliqda, `boot_id`
+**aynan bir xil** bo'lgan holda PID 1 ning yoshi `62.46 s → 9.68 s` ga
+**orqaga ketdi** (to'liq o'lchov §16.11 da). §14.6(5) **zarur, lekin
+yetarli emas**; PID 1 ning `starttime` i ham yozilishi va tekshirilishi
+shart. §4 ning 3- va 4-bandlarining PID 1 restart ostidagi xatti-harakati
+**o'lchanmadi** va birinchi trial'dan oldin o'lchanishi shart.
+
+**Hal qilinMAGAN, ataylab (har biri o'z qarorini talab qiladi):**
+§16.8 `W_stab` oynasi horizon'dan oshib ketsa (`W_stab` ta'rifiga tegadi);
+§16.9 §8.2(ii) varianti §9.3 ning 120-trial panjarasida yo'q (trial soniga
+tegadi); §16.10 oltita muzlatilmagan parametr — **qiymat emas, qoida
+muzlatildi**, chunki men ularning hech birini o'lchamadim.
 
 ### v1.3 → v1.4 (2026-10-02)
 
@@ -1121,3 +1191,434 @@ tegmaydi.
 Shuning uchun v1.4 ostida eski ta'riflar bilan qayta hisoblanishi kerak
 bo'lgan hech qanday ma'lumot yo'q. Bu bo'lim faqat **o'lchangan muhitni** va
 **undan kelib chiqadigan cheklovlarni** qayd etadi.
+
+---
+
+## 16. Analiz to'plami, `censored` ning ikki ma'nosi, va muzlatilmagan parametrlar (muzlatilgan)
+
+> Bu bo'lim **v1.5 amendment** bilan qo'shildi. U **hech bir operatsion
+> ta'rifni, metrikani, chegarani, statistik testni yoki falsifikatsiya
+> mezonini o'zgartirmaydi.** U §6.2, §4, §10.1, §10.2, §11 va §12 ning
+> allaqachon muzlatilgan matnini **bir-biriga nisbatan o'qiydi** va §12 jim
+> qolgan nuqtalarni hal qiladi.
+>
+> **Nega kerak bo'ldi:** ikki mustaqil implementator (`driver.py`,
+> `analyze.py`) bir xil oqibatni ko'rsatdi — barcha 60 `no_action` trial
+> birlamchi analiz to'plamidan chiqib ketadi. v1.2 ham aynan shunday
+> hodisadan tug'ilgan: ikki implementator bir vaqtda bir xil bo'shliqni
+> ko'rsatsa, bu **pre-registration bo'shlig'i**, implementatsiya xatosi emas.
+>
+> **Nega yangi bo'lim:** mavjud bo'limlarni tahrirlash yoki qayta raqamlash
+> `revix/schema.py`, `revix/reduce.py`, `revix/prober.py` va hujjatlardagi
+> havolalarni buzardi — v1.2 (§14) va v1.4 (§15) ham oxiriga qo'shgan.
+
+### 16.1 FAKT — nima aniqlandi
+
+Ikki **committed va test bilan qoplangan** modul "birlamchi analizga qaysi
+disposition kiradi" savoliga **turli javob** beradi, va nomlari faqat bitta
+so'z bilan farq qiladi (fayllar o'qildi, **o'zgartirilmadi** — ular bu
+agentga tegishli emas):
+
+```
+reduce.PRIMARY_DISPOSITIONS            == ("complete",)              # reduce.py:117
+schedule.PRIMARY_ANALYSIS_DISPOSITIONS == ("complete", "censored")
+```
+
+`schedule.py` yana `enters_primary_analysis(disposition)` ni va o'z
+kengaytirilgan to'plamining to'ldiruvchisi bo'lgan
+`schedule.EXCLUDED_DISPOSITIONS` ni ham beradi. Endpoint'ni **amalda
+hisoblaydigan** narsa — `reduce.select_primary`, ya'ni **tor** to'plam.
+
+Oqibati: `derive_disposition` "horizon down holatda tugadi" ni **`censored`**
+ga map qiladi; `no_action` arm `Restart=no` bo'lgani uchun `clean_crash` dan
+keyin **hech qachon** qaytmaydi, demak **har doim** horizon down holatda
+tugaydi, demak **har doim** `censored`, demak **60 trial ham birlamchi
+to'plamdan chiqadi** — §8.2 esa shu arm'ni **majburiy** deb e'lon qiladi.
+
+### 16.2 QAROR — savol bitta emas, ikkita
+
+Ularni bitta savol deb ko'rish — chalkashlikning manbai.
+
+| # | savol | javob |
+|---|---|---|
+| **A** | §10.1 ning trend testi qaysi arm ustida hisoblanadi? | **faqat arm `A` ustida** |
+| **B** | "horizon down holatda tugadi" trial'lari binar endpoint'ning maxrajiga kiradimi? | **KIRADI, `VR = false` sifatida** |
+
+#### (A) Trend testi arm `A` ichida — matn buni qo'llab-quvvatlaydi
+
+§9.1 yagona savolni shunday qo'yadi: pressure *"systemd'ning o'z
+`Restart=on-failure` i bilan restart qilinadigan oson tuzatiladigan fault"*
+uchun `P(VR)` ni kamaytiradimi. Bu **ta'rifan arm `A`**.
+
+§9.2 ning to'rtta oldindan aytilgan mexanizmi — `TimeoutStartSec` oshib
+ketishi, start paytida OOM-kill, start'dan keyingi brownout, watchdog miss —
+**to'rtalasi ham restart'ni nazarda tutadi.** `Restart=no` arm'da ularning
+hech biri sodir bo'lishi mumkin emas.
+
+§8.2 `no_action` ga **o'z vazifasini** beradi: *"Busiz 'restart PSI ni
+oshirdi' ni 'fault PSI ni oshirdi' dan ajratib bo'lmaydi va `harm_indicator`
+talqin qilinmaydi."* Bu **PSI atributsiyasi** vazifasi — trend testiga
+yacheyka qo'shish vazifasi emas. `docs/research/05-metodologiya.md` §4 ham
+shunday: `no_action` → *"fault'ning o'zi PSI ni qancha oshirdi"*.
+
+**Hal qiluvchi arifmetika:** `no_action` da `P(VR) = 0` **har uchala
+pressure darajasida, konstruksiya bo'yicha**. Ikki arm'ni pool qilish uchala
+strataga bir xil nolni qo'shadi, ya'ni trend'ni **susaytiradi**, va §11 ning
+`P(VR|P0) − P(VR|P2)` farqini `0 − 0 = 0` ga intiltiradi — falsifikatsiya
+mezoni **trivial ravishda** qanoatlanadi. Pooling nafaqat keraksiz, balki
+**testni buzadi.**
+
+→ **`no_action` trial'lari trend testiga yacheyka bermaydi.** Ular §6.2
+bo'yicha KM/log-rank ga, loop-rate ga va har bir jadvalning
+`recovered within T_trial: k/n` qatoriga **kiradi**, va §8.2 bo'yicha PSI
+atributsiyasi va `harm_indicator` uchun ishlatiladi. Hech narsa
+yashirilmaydi.
+
+**Lekin §10.1 bu arm qamrovini AYTMAYDI**, va `analysis.json` ning
+`primary.cells` sxemasi (`04-driver-va-analiz-shartnomasi.md` §2.2) faqat
+`level` kaliti bilan, **`arm` kaliti bo'lmagan** holda yozilgan — ikki
+implementator'ning xavotiri aynan shundan. Shu sababli ochiq yoziladi:
+**§10.1 ning birlamchi Cochran–Armitage trend testi arm `A` ichida
+hisoblanadi**, va `analysis.json` da arm ochiq ko'rsatiladi.
+
+#### (B) "Horizon down" — kuzatilgan NO'L-HODISA, censoring EMAS
+
+§12 ning `censored` yorlig'i **ikki epistemologik jihatdan boshqa** holatni
+bitta nom ostida birlashtiradi:
+
+| sabab | nima bo'ldi | binar `VR` natijasi |
+|---|---|---|
+| **probe uzilishi > 2×P** | instrumentatsiya yo'qoldi | **kuzatilMADI** |
+| **horizon down holatda tugadi** | xizmat qaytmadi | **kuzatildi: `false`** |
+
+Matn bu ikkisini allaqachon boshqacha ishlaydi:
+
+- **§4** (invalidator'lardan keyin): *"**Probe uzilishi > 2×P** → trial
+  `censored`, **`failed` emas**. Instrumentatsiya yo'qolishi hech qachon
+  jimgina natijaga aylanmaydi."* Bu yerda `censored` ning qarshi qo'yilgani —
+  `failed`. Ya'ni §4 `censored` ni **"kuzatmagan narsani natija deb
+  yozmaymiz"** ma'nosida ishlatadi.
+- **§6.2**: *"Horizon tugasa va xizmat hali down bo'lsa → **downtime**
+  `T_trial` da censored."* Censored bo'lgan narsa — **davomiylik**, binar
+  natija emas. Downtime'ning haqiqiy qiymati `≥ T_trial`, aniq qiymati
+  noma'lum — bu haqiqiy right censoring va shuning uchun bu trial'lar
+  KM/log-rank ga kiradi.
+- **§4** ning VR ta'rifi **horizon bilan chegaralangan**: *"Epizod `E`
+  verified-recovered, agar `[t_up, t_up + W_stab]` oynasi **mavjud bo'lsa**…"*
+  `t_up` umuman paydo bo'lmagan trial uchun oyna **mavjud emas**, demak
+  `VR = false` — **to'liq aniqlangan**, yetishmayotgan kuzatuv emas.
+
+→ **`disposition_source == "down_at_horizon"`** → binar birlamchi to'plamga
+`VR = false` sifatida **kiradi**.
+→ **`disposition_source == "probe_gap"`** → binar birlamchi to'plamdan
+**chiqariladi** (natija kuzatilmagan), **lekin ulushi §12 qoidasi bo'yicha
+natija sifatida beriladi.**
+→ Ikkalasi ham §6.2 bo'yicha KM/log-rank va loop-rate ga **censored
+davomiylik** sifatida kiradi.
+
+**Yangi enum qiymati KERAK EMAS, va §12 ning yopiq enum'iga tegilMAYDI.**
+Farq allaqachon ma'lumotda: `reduce.py` har trial uchun
+**`disposition_source`** ni yozadi (`"probe_gap"` / `"down_at_horizon"` /
+`"guard_event"` / `"trial_end"` / `"derived"`). Qoida:
+
+> **Birlamchi analiz to'plami `disposition` bilan EMAS, `(disposition,
+> disposition_source)` jufti bilan aniqlanadi.**
+
+### 16.3 CHEKLOV — arm `A` uchun bu xato ANCHA og'ir
+
+Savol `no_action` ustida qo'yilgan, lekin zarar **arm `A`** da kattaroq.
+
+Arm `A` trial'i `P2` ostida restart qilishga urinib, horizon tugaguncha
+qaytmasligi mumkin — **aynan H1 oldindan aytgan natija** (§9.2 mexanizmlari
+i, ii, iv). Agar bu trial'lar birlamchi to'plamdan chiqsa:
+
+1. `P(VR|P2)` faqat **qaytgan** trial'lar ustida hisoblanadi → **1 ga qarab
+   siljiydi**;
+2. demak `P0 → P2` trendi **susayadi**;
+3. demak §11 ning qoidasi — *"trend p > 0.05 **VA** Newcombe CI yuqori
+   chegarasi < 0.15"* — **siljigan baho** ustida qo'llanadi;
+4. demak **"null" natija dunyodan emas, eksklyuziyadan tug'ilishi mumkin.**
+
+§6.2 aynan shuni ogohlantiradi: *"**Recovery bo'lmagan trial'larni tashlash —
+klassik yashirin bias**, va u tez ishdan chiqadigan arm'ni chiroyli
+ko'rsatadi."* Shuning uchun §6.2 har jadvalda **`T_trial` ichida recovered:
+k/n`** ni talab qiladi — `n` maxraji qaytmagan trial'larni **o'z ichiga
+oladi**.
+
+> **Yo'nalishni ochiq e'lon qilaman:** bu qaror H1 ning **foydasiga**
+> ishlaydi — u `P2` dagi qaytmagan trial'larni tiklaydi, demak trend'ni
+> **kuchaytiradi**. Buni bilib turib qabul qilaman, chunki (i) §6.2 bu
+> qoidani hech qanday ma'lumot mavjud bo'lishidan **oldin** muzlatgan,
+> (ii) alternativa ko'rsatib bo'ladigan darajada siljigan, (iii) hech qanday
+> ma'lumot yo'q, demak bu qarorni natijani ko'rib tanlash imkoniyati mavjud
+> emas. Agar bu qaror ma'lumot ko'rilgandan **keyin** qabul qilinsa — u
+> **qonuniy bo'lmas edi.**
+
+### 16.4 Ikki konstanta — qaysi biri qaysi savolga javob beradi
+
+16.2 dagi qarordan keyin **ikkala konstanta ham o'z savoliga to'g'ri
+javob beradi, lekin biri noto'g'ri nomlangan va biri noto'g'ri
+qo'llanilgan:**
+
+| konstanta | qaysi savolga javob beradi | holati |
+|---|---|---|
+| `schedule.PRIMARY_ANALYSIS_DISPOSITIONS == ("complete", "censored")` | **analiz to'plami butun holda** — survival, loop-rate va `k/n` jadvallariga kiradigan trial'lar (§6.2) | **to'g'ri**, lekin nomi `ANALYSIS_SET` bo'lishi kerak edi; `PRIMARY` so'zi uni §10.1 ning birlamchi testi bilan chalkashtiradi |
+| `reduce.PRIMARY_DISPOSITIONS == ("complete",)` | **binar `P(VR)` ning maxraji** (§10.1) | **to'g'ri savol, NOTO'G'RI javob** — 16.2(B) bo'yicha maxraj `complete` **va** `down_at_horizon` ni o'z ichiga olishi kerak |
+
+Ya'ni javob "biri to'g'ri, biri noto'g'ri nomlangan" **emas**: tor to'plam
+noto'g'ri nomlanmagan, u **noto'g'ri qiymatga ega**. `schedule.py` esa
+§6.2 ga mos, lekin nomi bilan chalg'itadi.
+
+**Majburiy hisobot qoidasi.** §12 eksklyuziya darajasini **natija** deb
+e'lon qiladi (*"Yuqori eksklyuziya darajasi o'zi natija — yashirilmaydi"*).
+Ikki xil to'plam ikki xil eksklyuziya darajasi beradi, demak:
+
+> **Har qanday maqolada, jadvalda yoki `analysis.json` da berilgan
+> eksklyuziya darajasi QAYSI to'plam ustida hisoblanganini NOMLASHI
+> SHART** — binar `P(VR)` maxraji, yoki survival/`k/n` analiz to'plami.
+> Nomlanmagan eksklyuziya darajasi **takrorlanuvchi emas** va natija
+> sifatida berilmaydi.
+
+`analysis.json` ning `exclusions` obyekti (`04-…` §2.2) shu sababli ikkala
+to'plam uchun **alohida** berilishi kerak.
+
+### 16.5 QAROR — §11 ning pressure kontrasti va §10.2 ning arm KM'i
+
+§10.2: *"**Birlamchi: Kaplan–Meier time-to-VR har arm uchun**, log-rank
+bilan taqqoslash."* §11: *"fail-slow shakli qo'llab-quvvatlanmaydi, agar
+`P0` va `P2` orasidagi time-to-VR RMST farqi (`τ = 8 s`) uchun 95% CI 20%
+oshishni chiqarib tashlasa."* Biri **arm** bo'yicha, ikkinchisi **pressure**
+bo'yicha — va §11 arm'ni aytmaydi, xuddi §10.1 aytmaganidek.
+
+**Xuddi shu asos bilan xuddi shunday hal qilinadi** (aks holda §10.1 va §11
+turli qamrovda bo'lib qolardi):
+
+- §10.2 ning **har arm uchun KM** — taqdimot va stratifikatsiya birligi;
+  `A` vs `no_action` log-rank §8.2 ning atributsiya savoliga javob beradi,
+  **H1 ga emas**.
+- §11 ning **`P0` vs `P2` RMST kontrasti arm `A` ICHIDA** hisoblanadi.
+  `no_action` da time-to-VR har uchala darajada ta'rifan mavjud emas, demak
+  u yerda `P0` vs `P2` kontrasti **bo'sh** — 16.2(A) dagi pooling
+  argumentining aynan o'zi.
+- §10.4 *"P1 da bitta fault class bor, demak **bitta birlamchi test**"*
+  deydi, demak §10.1 ning Cochran–Armitage testi **yagona birlamchi test**;
+  §10.2 ning KM oilasi — taqsimotlar uchun birlamchi **usul**, va §11 ning
+  RMST bandi **fail-slow ikkilamchi shakli**. Holm oilasi (§10.4)
+  o'zgarmaydi.
+
+### 16.6 NIMA O'ZGARMAYDI
+
+- `VR` ta'rifi (§4) — **o'zgarmadi.** `P(VR)` har doim "§4 shartini
+  qanoatlantirgan trial'lar ulushi" bo'lgan; o'zgargan narsa — maxrajga
+  qaysi trial'lar kirishi, va **u hech qachon pre-registration'da
+  yozilmagan edi.**
+- §10.1 ning birlamchi testi (Cochran–Armitage), §11 ning falsifikatsiya
+  qoidasi va halol power bayonoti, §10.2 ning KM/log-rank/RMST
+  (`τ = 8 s`, Cox/HR taqiqi), §10.4 ning Holm oilasi, §12 ning yopiq
+  enum'i va "aynan bitta disposition" qoidasi, `θ = 0.8`,
+  `W_stab_pilot = 8 s`, `W_stab = 60 s`, `T_conn`/`T_rt` = 50 ms,
+  `P` = 100 ms, `k_f` = 3, `ε` = 32 MiB, quiescence 0.05, `T_q` = 5 s,
+  `T_w` = 15 s, `T_w_max` = 120 s, `hold_cap_s` = 12 s,
+  `guard_sustain_s` = 15 s, arm'lar `A`/`no_action`, 20 blok / 120 trial,
+  §14 data schema — **hammasi o'zgarmadi.** §13 ga tegilmadi.
+- `PRIMARY_DISPOSITIONS == ("complete",)` **muzlatilgan qiymat emas** —
+  u §12 ning jimligini implementator hal qilgan joy. Bu bo'lim o'sha
+  jimlikni §6.2 foydasiga hal qiladi. Shuning uchun **`reduce.py` ni
+  tuzatish — muzlatilgan matnga MOSLASHTIRISH**, pre-registration'ni
+  o'zgartirish emas. Kod bu agentga tegishli emas va **o'zgartirilmadi**;
+  ikkala modul ham test bilan qoplangan, demak o'zgarish **ataylab
+  qilingan qaror** bo'lishi kerak, jimgina tuzatish emas.
+
+### 16.7 CHEKLOV — §12 va §6.2 matn sifatida ziddiyatda
+
+1. **§12 enum'i `censored` ni sanaydi, lekin uning analiz holatini
+   AYTMAYDI.** §12 faqat `contaminated` va `aborted_guard` ni ochiq
+   chiqaradi; `censored`, `washout_timeout`, `harness_error` haqida hech
+   narsa demaydi. `complete` qatori *"birlamchi analizga kiradi"* deydi —
+   bu `complete` **yetarli** shart ekanini bildiradi, **zarur** ekanini
+   bildirmaydi; kod uni zarur deb o'qidi.
+2. **§6.2 ning "tashlanmaydi, ishlanadi" qoidasi va
+   `reduce.PRIMARY_DISPOSITIONS == ("complete",)` matn sifatida
+   ziddiyatda.** Ikkisi bir vaqtda to'g'ri bo'lishi mumkin emas. Bu bo'lim
+   §6.2 ni ustun deb hal qiladi, chunki §6.2 **muzlatilgan matn**, kod
+   konstantasi esa **emas**.
+
+### 16.8 OCHIQ SAVOL — `W_stab` oynasi horizon'dan oshib ketsa
+
+16.2(B) ikki holatni hal qildi. **Uchinchi holat bor:** xizmat qaytdi,
+lekin horizon `t_up + W_stab_pilot` dan **oldin** yopildi. Bunda `VR`
+**haqiqatan ham administrativ censored** — oyna o'tarmidi yoki yo'qmi,
+biz bilmaymiz.
+
+§9.4 jadvali bu holatni to'g'ri trial'da oldini oladi (`injeksiya 3 s +
+W_stab_pilot 8 s = 11 s ≤ hold_cap_s 12 s`), lekin `P2` ostida kechikkan
+restart — **aynan H1 kutgan narsa** — `t_up` ni keyinga suradi.
+**Oyna pressure hold ichida bo'lishi SHARTmi** — §4 buni aytmaydi.
+
+**Bu savolga javob berish `W_stab` ning ta'rifiga tegadi, demak bu bo'lim
+unga javob BERMAYDI.** U birinchi trial'dan **oldin** hal qilinishi shart.
+
+**Nega birinchi darajali:** hozirgi kodda bu holat `down_at_horizon` emas,
+`complete` sifatida tushib, `VR = false` berishi mumkin — ya'ni haqiqiy
+censoring'ni **kuzatilgan muvaffaqiyatsizlik** deb yozishi mumkin. Bu
+16.3 dagiga **teskari yo'nalishdagi** bias (yana H1 foydasiga), demak u
+ham tekshirilishi shart.
+
+### 16.9 OCHIQ SAVOL — §8.2 ning (ii) varianti §9.3 jadvalida yo'q
+
+§8.2: *"**No-action arm MAJBURIY**, opsional emas: (i) injeksiya +
+`Restart=no`, (ii) injeksiya yo'q — har pressure darajasida."*
+§9.3 esa ikkita arm beradi (`A`, `no_action`) va `3 × 2 × 20 = 120`.
+Ya'ni **(ii) "injeksiya yo'q" varianti 120-trial jadvalida yo'q.**
+`docs/research/05-metodologiya.md` §4 uni alohida nazorat qatori sifatida
+sanaydi (*"injeksiya yo'q, pressure bor"*).
+
+**Hal qilinMADI**, chunki har qanday yechim §9.3 ning muzlatilgan trial
+soniga (120) tegadi. Qayd etiladi.
+
+### 16.10 CHEKLOV — muzlatilmagan parametrlar natijani YARATA oladi
+
+`revix/driver.py` parametrlarni **standart qiymat bilan** to'ldirishga
+majbur bo'ldi, chunki ular **hech qayerda muzlatilmagan**. Ikkitasi §9.2
+ning oldindan aytilgan mexanizmlarini **boshqaradi**, demak ular
+**kutilgan natijani yarata oladi** — bu §11 ning davom etish mezoni (c)
+(*"mexanizm log'larida faqat `P2` da paydo bo'ladigan takrorlanuvchi yo'l,
+masalan `Result=timeout`"*) uchun to'g'ridan-to'g'ri xavf.
+
+| # | parametr | driver tanlagani | nega xavfli |
+|---|---|---|---|
+| 1 | `TimeoutStartSec` | 10 s | §9.2 mexanizm **(i)** *"`TimeoutStartSec` oshib ketdi"* **shu qiymat bilan belgilanadi**. Kichik qiymat `Result=timeout` ni yaratadi, katta qiymat uni yo'q qiladi |
+| 2 | `WatchdogSec` | 5 s | §9.2 mexanizm **(iv)** *"watchdog miss"* **shu qiymat bilan belgilanadi**. `00-pilot-topologiya.md` §1 da `WatchdogSec=` — **qiymatsiz dial** |
+| 3 | slice `MemoryHigh` dial | 192 M | kalibratsiya **`MemoryMax=1G`** ostida o'lchangan (`02-guard-kalibratsiyasi.md` sarlavhasi), lekin `00-pilot-topologiya.md` §1 va §2 **`MemoryMax=2G`** ni muzlatadi — **qiymat ko'chirilmaydi** |
+| 4 | `P2` nishon stall tezligi | 0.70 | §9.3 ning `~60–80%` bandi **ichida**, demak buzilish emas; lekin kalibratsiya faqat 0.60 ni nishonga olgan va **0.558** ga erishgan — band'ning pastki chekkasidan **past** |
+| 5 | **`T_trial`** (horizon) | shartnoma formulasi: `t_pressure_off + w_stab_s + P` = **40.1 s** | §6.2, §6.4 unga tayanadi, lekin **hech qayerda raqamlanmagan**. 16.2(B) dan keyin u binar endpoint'ning **maxrajini to'g'ridan-to'g'ri belgilaydi**: qisqa horizon qaytmaslikni yaratadi, uzun horizon qaytishni |
+| 6 | `τ` va horizon munosabati | `τ = 8 s` muzlatilgan (§10.2) | `T_trial` muzlatilmagani uchun `τ ≤ T_trial` invarianti **tekshirilmaydi** |
+
+**`T_trial` haqida aniq:** 40.1 s — `driver-contract/v1.2` ning formulasi,
+ya'ni **qaror bilan emas, default bilan** o'rnatilgan. U quyidagi
+muzlatilgan qiymatlardan kelib chiqadigan chegaralarni **qanoatlantiradi**,
+demak u *noto'g'ri* emas — u **hal qilinmagan**.
+
+#### QAROR — raqam muzlatilMAYDI, QOIDA muzlatiladi
+
+Men bu qiymatlarning **hech birini o'lchamadim.** O'lchamagan qiymatni
+muzlatish §9.4 ning *"`ramp_above_threshold_s` pressure dosing
+kalibratsiyasidan olinadi, **taxmin qilinmaydi**"* qoidasini va v1.3 ning
+*"ma'lumot bilan asoslangan amendment, taxmin bilan emas"* majburiyatini
+buzardi. Shuning uchun **qiymat emas, qoida muzlatiladi:**
+
+1. Hammasi **birinchi pilot trial'idan OLDIN** `experiment/pressure-cal`
+   tomonidan belgilanadi va `run_meta.open_parameters` ga kalibratsiya
+   run'ining `run_id` si bilan yoziladi.
+2. Ular **barcha arm'lar bo'ylab va barcha pressure darajalari bo'ylab
+   AYNAN bir xil** bo'ladi. Aks holda ular arm/daraja bilan confound
+   bo'ladi — §8.2 probe narxi uchun aynan shu qoidani qo'yadi
+   (*"Arm'lar bo'yicha bir xil ushlanadi"*).
+3. **Hech qanday P1 natijasi ko'rilgandan keyin o'zgartirilMAYDI.**
+   Post-hoc o'zgarish **run'ni bekor qiladi**, parametrni emas.
+4. `T_trial` uchun muzlatilgan qiymatlardan kelib chiqadigan **pastki
+   chegara** (arifmetika, o'lchov emas): §9.4 jadvali `baseline 10 s +
+   ramp 5 s + injeksiya hold'ga 3 s` ⇒ injeksiya trial boshidan ≥ 18 s da;
+   §4 `W_stab_pilot = 8 s` oynasini talab qiladi ⇒ **`T_trial` ≥ 26 s**;
+   va §10.2 uchun **`τ ≤ T_trial`** (`τ = 8 s`). Shartnomaning 40.1 s
+   default'i ikkalasini ham qanoatlantiradi (`40.1 ≥ 26`, `8 ≤ 40.1`),
+   lekin **aniq qiymat kalibratsiyadan olinadi va ochiq qaror bilan
+   muzlatiladi.**
+5. §11 ning (c) mezoni mexanizm **(i)** yoki **(iv)** ga tayansa,
+   hisobotda `TimeoutStartSec` / `WatchdogSec` ning muzlatilgan qiymati va
+   *"bu mexanizmning mavjudligi shu qiymat bilan belgilangan"* bayonoti
+   **berilishi SHART.** Busiz (c) ni da'vo qilish — o'z tanlagan
+   parametrini natija deb ko'rsatish.
+6. `MemoryHigh` dial `MemoryMax=2G` topologiyasida **qayta o'lchanadi**;
+   1G ostida o'lchangan 192 M ko'chirilmaydi.
+
+#### CHEKLOV — `P2` bandi hali erishiladigan deb ko'rsatilMAGAN
+
+§9.3 `P2` ni `~60–80%` deb muzlatadi. Kalibratsiya faqat 0.60 nishonini
+sinagan va **0.558** ga erishgan — band'ning pastki chekkasidan past.
+`02-guard-kalibratsiyasi.md` §8 *"P1/P2 bandlari **erishiladigan**
+(0.30 → 0.311 ko'rsatildi)"* deydi, lekin keltirilgan o'lchov (0.311)
+**`P1` bandida** (20–35%), `P2` da emas — **ya'ni bu da'vo `P2` uchun
+o'lchov bilan qo'llab-quvvatlanmaydi.** Bu o'sha hujjatdagi overclaim,
+shu yerda qayd etiladi (fayl bu agentga tegishli emas).
+
+§9.4 ning *"analiz ERISHILGAN (uzluksiz) pressure'dan foydalanadi"*
+qarori uzluksiz analizni himoya qiladi. Lekin **kategorik** trend
+testining uchinchi stratasi erishilmasa, §10.1 ning Cochran–Armitage
+testi uch daraja o'rniga amalda **ikki darajaga qulaydi**. Bu oldindan
+e'lon qilingan xavf va kalibratsiya natijasi bilan hal qilinadi.
+
+### 16.11 FAKT + CHEKLOV — `boot_id` kafolati bu host'da BUZILGAN
+
+§1: *"Monotonic qiymatlar faqat bitta boot ichida taqqoslanadi; **`boot_id`
+bu shartni tekshirib bo'ladigan qiladi**."* §14.6 invariant 5: *"`boot_id`
+sessiya ichida o'zgarmas."*
+
+**Shu mashinada o'zim o'lchadim** (faqat o'qish; hech qanday pressure,
+hech qanday unit yaratilmadi), 49 s oraliq bilan ikki marta:
+
+| o'lchov | 1-o'qish `18:18:56Z` | 2-o'qish `18:19:45Z` |
+|---|---|---|
+| `/proc/sys/kernel/random/boot_id` | `ca4e5bab-2cd8-43aa-8455-2a22ca6746f3` | `ca4e5bab-2cd8-43aa-8455-2a22ca6746f3` — **AYNAN BIR XIL** |
+| `/proc/uptime` (1-maydon) | `1975.34` s | `2024.34` s (+49.0 s, normal) |
+| `/proc/1/stat` 22-maydon | `191289` tick | **`201467`** tick (+10178 tick = **+101.78 s**) |
+| PID 1 yoshi = `uptime − starttime/HZ` | `62.46` s | **`9.68` s — ORQAGA KETDI** |
+| `getconf CLK_TCK` | `100` | `100` |
+
+Qo'shimcha o'lchovlar (1-o'qish): `systemctl show -p
+UserspaceTimestampMonotonic` = `1913200622` µs (= 1913.2 s), ya'ni
+systemd'ning **o'zi** userspace 1913 s da boshlanganini aytadi, kernel
+uptime esa 1975 s; `FinishTimestampMonotonic` = `1913973576` µs;
+`CLOCK_MONOTONIC` = `CLOCK_BOOTTIME` (delta ≈ `-0.000`), demak monotonic
+soatning o'zi uzluksiz ko'rinadi.
+
+**FAKT:** `boot_id` o'zgarmagan holda PID 1 ning yoshi 62.46 s dan 9.68 s
+ga **kamaydi**, va uning `starttime` i uptime 49 s o'tganda 101.78 s
+oldinga sakradi. Bu faqat bitta narsa bilan izohlanadi: **PID 1 (systemd)
+`boot_id` o'zgarmagan holda qayta ishga tushdi** (hisob: yangi PID 1
+uptime ≈ `2014.67` s da boshlangan, bu ikki o'qish orasidagi oraliqda).
+
+**TALQIN:** `boot_id` ning o'zgarmasligi **endi bitta uzluksiz systemd
+instansiyasini KAFOLATLAMAYDI.** §1 ning *"`boot_id` bu shartni tekshirib
+bo'ladigan qiladi"* da'vosi shu host'da **yolg'on**: §14.6(5) invarianti
+**zarur, lekin YETARLI EMAS.**
+
+**GIPOTEZA (o'lchanMAGAN, lekin birinchi trial'dan oldin o'lchanishi
+SHART):** systemd qayta ishga tushsa, u kuzatayotgan unit'larning
+`NRestarts` hisoblagichi nolga qaytishi va `InvocationID` yangilanishi
+mumkin. Agar `NRestarts` oyna boshida ham, oxirida ham `0` bo'lsa, §4 ning
+**4-bandi** (*"`NRestarts` butun oyna davomida o'zgarmaydi"*) **restart
+sodir bo'lgan holda ham qanoatlanadi** — ya'ni **soxta VR**. §4 ning
+3-bandi (`InvocationID` o'zgarmasligi) teskari yo'nalishda ishlaydi va
+VR ni `false` qiladi, ya'ni konservativ. **Ikkala bandning PID 1 restart
+ostidagi xatti-harakati o'lchanishi shart** — bu o'lchov **bajarilmadi.**
+
+**O'LCHANMADI:** to'liq WSL VM restart'ida `boot_id` o'zgaradimi —
+**bu o'lchov bajarilmadi**, chunki avvalgi VM restart'idan oldin
+`boot_id` yozib olinmagan edi. (Wall-clock va uptime farqi o'sha
+restart'ni ko'rsatadi: `17:21Z` da uptime ≈ 2 daqiqa, `18:18Z` da
+1975 s ≈ 32.9 daqiqa, ya'ni ~60 daqiqa wall-clock ichida uptime ~31
+daqiqa o'sgan.)
+
+**Majburiy qo'shimcha shart (yangi invariant EMAS — §14.6 qayta
+raqamlanMAYDI):** `boot_id` ga qo'shimcha ravishda **PID 1 ning
+`starttime` i (`/proc/1/stat` 22-maydon)** `run_meta` va har
+`env_snapshot` da yozilishi, va validator **uni ham** sessiya ichida
+o'zgarmas deb tekshirishi shart. O'zgargan bo'lsa — run **bekor**, chunki
+monotonic taqqoslanuvchanlik va `NRestarts`/`InvocationID` bookkeeping'i
+bir vaqtda shubhali bo'ladi. Bu §14.6(5) ni **almashtirmaydi**, uni
+**to'ldiradi**.
+
+> Bu fakt §15.1 ning muhit fingerprint'ini **kengaytiradi.** §15 muzlatilgan
+> bo'lgani uchun u yerga yozilmaydi — **§15.1 va 16.11 birga o'qiladi.**
+> Bu shu muhitda ishlashning **feasibility gate**'i hamdir: trial davomida
+> systemd qayta ishga tushsa, transient unit'lar va `--collect` unit'lari
+> yo'qoladi. `00-pilot-topologiya.md` §6 ning qadam tartibi shu sababdan
+> ham majburiy.
+
+### 16.12 NATIJA — yo'q
+
+**Hech qanday eksperiment ishga tushirilmadi. Hech qanday natija yo'q.**
+Shuning uchun bu bo'limdagi hech bir qaror hech qanday kuzatilgan
+natijani ko'rgandan keyin qabul qilinmagan, va eski ta'riflar ostida
+qayta hisoblanishi kerak bo'lgan ma'lumot yo'q.
