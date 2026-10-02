@@ -1061,18 +1061,39 @@ def test_n_trials_in_va_out_teng_qoladi_eksklyuziya_faqat_selektorda():
             == out.summary["n_trials_out"])
 
 
-def test_deprecated_PRIMARY_DISPOSITIONS_endi_qoida_EMAS():
-    """§16.4: `PRIMARY_DISPOSITIONS` -- to'g'ri savol, NOTO'G'RI javob.
+def test_PRIMARY_DISPOSITIONS_OLIB_TASHLANDI_va_qaytarilmaydi():
+    """§16.4: `PRIMARY_DISPOSITIONS` -- "to'g'ri savol, NOTO'G'RI javob".
 
-    U import muvofiqligi uchun saqlanadi, lekin modul uni QAROR uchun
-    ISHLATMAYDI: qoida -- `enters_primary_denominator()`. Bu test o'sha
-    farqni qulflaydi, ya'ni kimdir qoidani eski konstantaga qaytarsa test
-    yiqiladi.
+    Bu test oldin shim'ning MAVJUDLIGINI qulflardi (yagona iste'molchi
+    `revix/analyze.py` hali ko'chmagan edi, va §16.6 jimgina o'zgarishni
+    taqiqlaydi). Iste'molchi `enters_primary_denominator()` ga ko'chgach
+    shim olib tashlandi, demak qulf TESKARIGA aylanadi: nom QAYTA
+    TIKLANMASLIGI kerak.
+
+    Nega kuchliroq: §16.2(B) dan keyin maxraj `(disposition,
+    disposition_source)` jufti bilan aniqlanadi, demak `disposition`-ga
+    asoslangan har qanday konstanta TA'RIFAN yetarli emas -- uni qaytarish
+    7-qoidaning (i) bandini, ya'ni "bitta ruxsat-to'plami" invariantini
+    buzadi.
     """
-    assert R.PRIMARY_DISPOSITIONS == ("complete",)
-    # Eski qoida bo'yicha bu juft CHIQARILARDI; yangi qoida bo'yicha KIRADI.
-    assert "censored" not in R.PRIMARY_DISPOSITIONS
+    assert not hasattr(R, "PRIMARY_DISPOSITIONS")
+    # Qoida qayerda yashaydi -- OCHIQ: juft bilan ishlaydigan predikat.
     assert R.enters_primary_denominator("censored", "down_at_horizon") is True
+    assert R.enters_primary_denominator("censored", "probe_gap") is False
+    # 7-qoida: RUXSAT-ro'yxati bor, RAD-ro'yxati YO'Q -- ikkinchisi paydo
+    # bo'lsa ikkisi ajralib ketishi mumkin bo'lardi.
+    assert isinstance(R.PRIMARY_DENOMINATOR_SOURCES, dict)
+    assert all(isinstance(v, frozenset)
+               for v in R.PRIMARY_DENOMINATOR_SOURCES.values())
+    assert not [n for n in dir(R) if "EXCLUDED_SOURCES" in n]
+    # Modul manba kodida ham nom qolmadi (izohlar olib tashlangan holda) --
+    # `test_analyze.py` dagi migratsiya qulfining aynasi.
+    src = os.path.join(os.path.dirname(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__)))), "revix", "reduce.py")
+    code = "\n".join(
+        line.split("#")[0] for line in
+        open(src, encoding="utf-8").read().splitlines())
+    assert "PRIMARY_DISPOSITIONS" not in code
 
 
 # --- 16. §17 hukmi: oyna pressure hold ICHIDA bo'lishi shart ----------------
@@ -1237,6 +1258,13 @@ def test_holat_b_T_h_SIZ_HAM_aniqlanadi():
     assert payload["included_in_primary"] is False
 
 
+# ===========================================================================
+# ⚠ TARTIB QULFI -- §17.4 ning markaziy testi. Buni o'chirmang, yumshatmang.
+#    U tartib argumentini EHTIMOLIY dalildan KO'RSATILGAN dalilga aylantiradi:
+#    bir xil fixture ustida ikki tartib ikki TESKARI natija beradi.
+# ===========================================================================
+
+
 def test_oyna_holati_down_at_horizon_dan_OLDIN_klassifikatsiya_qilinadi():
     """§17.4 ning TARTIB qulfi -- bu test bo'lmasa hukm JIMGINA bekor bo'ladi.
 
@@ -1244,10 +1272,17 @@ def test_oyna_holati_down_at_horizon_dan_OLDIN_klassifikatsiya_qilinadi():
     "xizmat qaytdi, keyin yana yiqildi" va "oyna kesildi" holatlarini HAM
     ushlaydi. Agar u OLDIN tekshirilsa, bu trial `censored:down_at_horizon`
     bo'lardi -- va o'sha juft §16.2(B) bo'yicha binar maxrajga KIRADI,
-    ya'ni §17.4(1) buzilardi.
+    ya'ni §17.4(1) ("oynasi hold ichida bo'lmagan trial `VR = false` deb
+    yozilMAYDI va maxrajga kiritilMAYDI") buzilardi.
 
     Fixture: oyna horizon'dan chiqadi VA oxirgi probe buzilgan, demak
-    IKKI shart bir vaqtda to'g'ri.
+    IKKI shart bir vaqtda to'g'ri -- aynan shu ustma-ustlik tartibni
+    KUZATILADIGAN qiladi.
+
+    Ikkinchi qism -- MEXANIK KONTRFAKT: `derive_disposition` ayni shu
+    trial'da oyna argumentisiz (eski tartibning aynasi) chaqiriladi va
+    natija teskari bo'lishi KO'RSATILADI. Ya'ni "tartib muhim" degan da'vo
+    mulohaza emas, o'lchov.
     """
     out = R.reduce_run(build_late_recovery(last_fails=True).run())
     p = out.trials[0]
@@ -1258,6 +1293,34 @@ def test_oyna_holati_down_at_horizon_dan_OLDIN_klassifikatsiya_qilinadi():
     assert p["disposition_source"] == "window_past_horizon"
     assert p["disposition_source"] != "down_at_horizon"
     assert p["included_in_primary"] is False
+    assert p["exclusion_reason"] == "censored:window_past_horizon"
+
+    # --- MEXANIK KONTRFAKT: bir xil trial, ikki tartib ---------------------
+    trial = R.split_trials(build_late_recovery(last_fails=True).run())[0]
+    prm = R.Params()
+    gaps = R.probe_gaps(trial, prm)
+    down = bool(trial.probes) and not trial.probes[-1].passed
+    assert down is True
+
+    # (1) ESKI tartib = oyna klassifikatsiyasi YO'Q (`window=None`).
+    old_disp, old_src, _ = R.derive_disposition(trial, gaps, down)
+    assert (old_disp, old_src) == ("censored", "down_at_horizon")
+    assert R.enters_primary_denominator(old_disp, old_src) is True   # KIRARDI
+    # Va KIRGANDA `VR` nima bo'lardi -- `False`, ya'ni aynan §17.4(1) ning
+    # taqiqlagani: kuzatilmagan natija kuzatilgan muvaffaqiyatsizlik bo'lib.
+    assert p["vr"] is False
+
+    # (2) YANGI tartib = oyna klassifikatsiyasi BOR.
+    window = R.classify_window_containment(
+        p["t_up_us"], prm, hold_end_us=trial.hold_end_us,
+        horizon_end_us=trial.horizon_end_us)
+    new_disp, new_src, _ = R.derive_disposition(trial, gaps, down, window)
+    assert (new_disp, new_src) == ("censored", "window_past_horizon")
+    assert R.enters_primary_denominator(new_disp, new_src) is False   # CHIQADI
+
+    # Ikki tartib TESKARI javob beradi -- da'vo shu bilan ko'rsatilgan.
+    assert (R.enters_primary_denominator(old_disp, old_src)
+            is not R.enters_primary_denominator(new_disp, new_src))
     assert p["exclusion_reason"] == "censored:window_past_horizon"
     # Eski tartib bo'lsa bu juft maxrajga KIRARDI -- shuni ham qulflaymiz.
     assert R.enters_primary_denominator("censored", "down_at_horizon") is True
