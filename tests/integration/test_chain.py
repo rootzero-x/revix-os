@@ -181,39 +181,122 @@ def _reduced(base_dir, tmp_path):
     return R.write_output(out, str(tmp_path / "derived"), run)
 
 
+def _analyze_args(base_dir, paths, out, *, events=True):
+    """`revix analyze` argv: --events (prober_stop narxi, §8.2) va --episodes
+    (FR-A per-action/per-episode, §5) bilan."""
+    args = ["--trials", paths["trials"], "--run-meta",
+            os.path.join(base_dir, "run_meta.json"), "--out", str(out),
+            "--episodes", paths["episodes"], "--sweep", paths["sweep"]]
+    if events:
+        args += ["--events", os.path.join(base_dir, "events.jsonl")]
+    return args
+
+
+def test_prober_stop_har_trial_uchun_narx_bilan_va_arm_ga_ulanadi(base_dir, tmp_path):
+    """§8.2 per-trial narxning TRANSPORTI (analyze `--events` shu yo'ldan
+    o'qiydi): `prober_stop` har trial uchun alohida emitter'dan, envelope'da
+    `trial_id`, `cost.core_percent` bilan; arm `trials.jsonl` orqali ulanadi.
+    reduce.py `prober_stop` ni O'QIMAYDI -- bu yagona yo'l."""
+    paths = _reduced(base_dir, tmp_path)
+    arm = {t["trial_id"]: t["arm"] for t in read_jsonl(paths["trials"])}
+    stops = [r for r in read_jsonl(os.path.join(base_dir, "events.jsonl"))
+             if r["record_type"] == "prober_stop"]
+    assert len(stops) == len(arm) == 12
+    assert {r["trial_id"] for r in stops} == set(arm)
+    assert len({r["emitter"] for r in stops}) == 12      # har trial'ga o'z prober'i
+    by_arm = {}
+    for r in stops:
+        assert r["cost"]["synthetic"] is True
+        by_arm.setdefault(arm[r["trial_id"]], []).append(r["cost"]["core_percent"])
+    assert set(by_arm) == {"A", "no_action"}
+    assert all(len(v) == 6 and v == [S.SYNTHETIC_CORE_PERCENT] * 6
+               for v in by_arm.values())
+    starts = [r for r in read_jsonl(os.path.join(base_dir, "events.jsonl"))
+              if r["record_type"] == "prober_start"]
+    assert {r["trial_id"] for r in starts} == set(arm)   # §14.2: CSV <-> run
+    assert V.validate_run_dir(base_dir).findings == []   # per-trial seq/emitter OK
+
+
 def test_zanjir_analiz(base_dir, tmp_path):
     """reduce chiqishi -> `revix.analyze` -> analysis.json.
 
-    `revix/analyze.py` parallel yoziladi; yo'q bo'lsa test SKIP (bu qism
-    ishga tushmagan -- o'tgan deb hisoblanmaydi). CLI delegatsiyasi
-    (`revix analyze`) bergan argv bilan chaqiriladi.
+    `revix/analyze.py` yo'q bo'lsa test SKIP (bu qism ishga tushmagan --
+    o'tgan deb hisoblanmaydi). `--events` va `--episodes` bilan: probe_cost
+    bo'limi o'lchangan `prober_stop` narxidan to'ldiriladi.
     """
     analyze = pytest.importorskip("revix.analyze")
     paths = _reduced(base_dir, tmp_path)
     out = tmp_path / "analysis.json"
-    rc = analyze.main(["--trials", paths["trials"], "--run-meta",
-                       os.path.join(base_dir, "run_meta.json"),
-                       "--out", str(out)])
+    rc = analyze.main(_analyze_args(base_dir, paths, out))
     assert rc in (0, None)
     a = json.load(open(out, encoding="utf-8"))
     assert a["schema_version"] == 1
     assert a["preregistration_sha256"] == S.SYNTHETIC_SHA
     assert a["n_trials"]["total"] == 12
+    pc = a["probe_cost"]
+    assert pc["budget_percent"] == S.PROBE_COST_BUDGET_PERCENT
+    assert set(pc["by_arm"]) == {"A", "no_action"}
+    for arm in pc["by_arm"].values():
+        assert arm["core_percent"] == [S.SYNTHETIC_CORE_PERCENT] * 6
+
+
+def _figdir(out_dir):
+    """§3: figuralar `<out-dir>/figures/<nom>.svg` (+ yonida `<nom>.json`)."""
+    return os.path.join(str(out_dir), "figures")
+
+
+def _sidecar(out_dir, name):
+    with open(os.path.join(_figdir(out_dir), name + ".json"),
+              encoding="utf-8") as fh:
+        return json.load(fh)
 
 
 def test_zanjir_figura(base_dir, tmp_path):
-    """analysis.json -> `revix.figures` (matplotlib kerak)."""
+    """analysis.json -> `revix.figures` (matplotlib kerak).
+
+    §3 majburiy `probe_cost` figurasi: o'lchangan narx bilan CHIZILADI
+    (placeholder EMAS). Assertion yumshatilmagan.
+    """
     analyze = pytest.importorskip("revix.analyze")
     figures = pytest.importorskip("revix.figures")
     paths = _reduced(base_dir, tmp_path)
     out = tmp_path / "analysis.json"
-    analyze.main(["--trials", paths["trials"], "--run-meta",
-                  os.path.join(base_dir, "run_meta.json"), "--out", str(out)])
+    assert analyze.main(_analyze_args(base_dir, paths, out)) in (0, None)
     figdir = tmp_path / "figures"
     rc = figures.main(["--analysis", str(out), "--out-dir", str(figdir)])
     assert rc in (0, None)
-    svgs = [f for f in os.listdir(figdir) if f.endswith(".svg")]
-    assert svgs and all(os.path.isfile(figdir / (s[:-4] + ".json")) for s in svgs)
+    fd = _figdir(figdir)
+    svgs = [f for f in os.listdir(fd) if f.endswith(".svg")]
+    assert svgs and all(os.path.isfile(os.path.join(fd, s[:-4] + ".json"))
+                        for s in svgs)
+    sc = _sidecar(figdir, "probe_cost")
+    assert sc["status"] != "placeholder", sc["placeholder_reason"]
+    assert {a["arm"] for a in sc["data"]["arms"]} == {"A", "no_action"}
+    assert all(a["n_unmeasured"] == 0 for a in sc["data"]["arms"])
+
+
+def test_zanjir_figura_narxsiz_prober_stop_korinadigan_placeholder(tmp_path):
+    """Manfiy tomon: `prober_stop` da `cost` YO'Q -> probe_cost figurasi
+    ANIQ yorliqli placeholder bo'ladi va narx TO'QILMAYDI (jimgina nol yoki
+    budjet qiymati emas)."""
+    analyze = pytest.importorskip("revix.analyze")
+    figures = pytest.importorskip("revix.figures")
+    d = str(tmp_path / "nocost")
+    S.write_run(d, with_cost=False)
+    paths = _reduced(d, tmp_path)
+    out = tmp_path / "analysis.json"
+    analyze.main(_analyze_args(d, paths, out))
+    a = json.load(open(out, encoding="utf-8"))
+    vals = [v for arm in (a.get("probe_cost") or {}).get("by_arm", {}).values()
+            for v in arm["core_percent"]]
+    assert all(v is None for v in vals)                  # to'qilgan raqam yo'q
+    figdir = tmp_path / "figures"
+    figures.main(["--analysis", str(out), "--out-dir", str(figdir)])
+    sc = _sidecar(figdir, "probe_cost")
+    assert sc["status"] == "placeholder"
+    assert sc["placeholder_reason"]
+    assert sc["data"] is None
+    assert os.path.isfile(os.path.join(_figdir(figdir), "probe_cost.svg"))     # yorliqli placeholder chizilgan
 
 
 # --- 3. NEGATIV zanjir: noto'g'ri run validator'dan o'tmaydi ----------------
@@ -435,3 +518,23 @@ def test_xom_oqimda_bystander_sut_filtri_bilan_otadi(run_dir):
     assert rep.findings == [], [str(f) for f in rep.findings]
     assert V.main(["--run-dir", run_dir, "--sut-unit", S.SUT,
                    "--sut-target", "sut"]) == 0
+
+
+def test_xom_oqimda_bystander_reducer_ko_rinishi_sut_ga_filtrlanadi(run_dir, tmp_path):
+    """Nega `--sut-unit`/`--sut-target` kerak: filtrlanmagan reduksiya bystander
+    NRestarts'ini SUT'nikiga aralashtiradi; filtrlangan ko'rinish toza run
+    bilan AYNAN bir xil `trial_metrics` beradi."""
+    clean_run, _ = V.load_run_dir(run_dir)
+    want = {t["__trial_id__"]: (t["n_restarts_delta"], t["n_invocations"], t["vr"])
+            for t in R.reduce_run(clean_run).trials}
+    _add_bystander(run_dir)
+    run, _ = V.load_run_dir(run_dir)
+    raw = {t["__trial_id__"]: (t["n_restarts_delta"], t["n_invocations"], t["vr"])
+           for t in R.reduce_run(run).trials}
+    assert raw != want                                   # aralashgan: buzilgan
+    view = V.reducer_view(run, S.SUT, "sut")
+    got = {t["__trial_id__"]: (t["n_restarts_delta"], t["n_invocations"], t["vr"])
+           for t in R.reduce_run(view).trials}
+    assert got == want
+    assert V.validate_run(run, sut_unit=S.SUT, sut_target="sut").ok
+    assert not V.validate_run(run).ok                    # bayroqsiz: rad

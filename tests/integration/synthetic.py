@@ -42,6 +42,11 @@ GUARD_START_US = 1_000_000
 SUT = "revix-sut.service"
 BYSTANDER = "revix-bystander.service"
 SYNTHETIC_REAL_BASE_US = 1_700_000_000_000_000
+# prober_stop.cost (prober.cost_report() shakli) -- SINTETIK, o'lchov EMAS.
+# Barcha arm'larda bir xil (§8.2: narx arm'lar bo'yicha bir xil ushlanadi) va
+# budjetdan (1%) past: bu raqam prober haqida HECH NARSA da'vo qilmaydi.
+SYNTHETIC_CORE_PERCENT = 0.25
+PROBE_COST_BUDGET_PERCENT = 1.0
 
 
 def gen(uptime_s: float, ticks: int = GUEST_START_TICKS) -> dict[str, Any]:
@@ -86,11 +91,24 @@ def run_meta_payload(sched: Schedule, only: tuple[str, ...] = ()) -> dict[str, A
     }
 
 
+def synthetic_cost(n_probes: int) -> dict[str, Any]:
+    """`prober.cost_report()` shaklidagi SINTETIK narx (`synthetic: True`)."""
+    frac = SYNTHETIC_CORE_PERCENT / 100.0
+    return {"synthetic": True, "elapsed_s": 40.1, "cpu_total_s": 40.1 * frac,
+            "core_fraction": frac, "core_percent": SYNTHETIC_CORE_PERCENT,
+            "probes": n_probes, "budget_percent": PROBE_COST_BUDGET_PERCENT,
+            "budget_exceeded": False, "max_rss_kb": 1.0}
+
+
 def write_run(run_dir: str, *, n_blocks: int = 2, seed: int = SEED,
-              only: tuple[str, ...] = ()) -> Schedule:
+              only: tuple[str, ...] = (), with_cost: bool = True) -> Schedule:
     """Kontrakt §1 tartibidagi sintetik run katalogini yozadi.
 
     `run_dir` allaqachon bo'lsa -- xato (`datasets/` append-only, §1).
+    HAR trial uchun alohida prober jarayoni (kontrakt v1.1 §4.5-a): o'z
+    `emitter` i (`prober:<pid>`), `prober_start` va `prober_stop` (envelope
+    `trial_id` bilan). `with_cost=False` -- `prober_stop` da `cost` YO'Q
+    (manfiy holat: narx o'lchanmagan).
     """
     os.makedirs(run_dir, exist_ok=False)
     sched = p1_schedule(seed, n_blocks)
@@ -201,8 +219,13 @@ def write_run(run_dir: str, *, n_blocks: int = 2, seed: int = SEED,
                           "cycle": seq, "seq": seq, "trial_id": tid})
                 k += 1
                 n_probes += 1
+            stop = {"cycles": n_probes, "probes": n_probes, "detections": 0,
+                    "harness_errors": 0, "overruns": 0, "skipped_cycles": 0,
+                    "emit_errors": 0}
+            if with_cost:
+                stop["cost"] = synthetic_cost(n_probes)
             emit(ev, pe, "prober_stop", t0 + T_TRIAL_US + 20_000, tid, blk,
-                 cycles=n_probes, probes=n_probes)
+                 **stop)
 
             if level != "P0":              # P0 = generator idle
                 emit(pw, prs, "pressure_start", at(15.0), mode="synthetic")
