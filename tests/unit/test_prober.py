@@ -12,6 +12,8 @@ import json
 import os
 import shutil
 import socket
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -121,6 +123,97 @@ class FakeSut:
             self.sock.close()
         except OSError:
             pass
+        try:
+            os.unlink(self.path)
+        except OSError:
+            pass
+
+
+# --- §8.2 uchun ALOHIDA PROTSESSDAGI SUT ------------------------------------
+
+_PROC_SUT_SRC = r"""
+import os, socket, sys, time
+path = sys.argv[1]
+s = socket.socket(socket.AF_UNIX, socket.SOCK_SEQPACKET)
+s.bind(path)
+s.listen(64)
+print("ready", file=sys.stderr, flush=True)
+progress = 100
+inv = "a1" * 16
+while True:
+    try:
+        conn, _ = s.accept()
+    except OSError:
+        break
+    try:
+        conn.recv(4096)
+        progress += 1
+        conn.send(("OK progress=%d pid=%d invocation=%s rss_kb=5120 mono_us=%d"
+                   % (progress, os.getpid(), inv,
+                      time.clock_gettime_ns(time.CLOCK_MONOTONIC) // 1000)).encode())
+    except OSError:
+        pass
+    try:
+        conn.close()
+    except OSError:
+        pass
+"""
+
+
+class ProcSut:
+    """`FakeSut` ning ALOHIDA PROTSESSDAGI varianti -- §8.2 narx o'lchovi uchun.
+
+    NEGA: `Prober.cost_report()` `time.process_time()` va
+    `getrusage(RUSAGE_SELF)` ni o'qiydi; ikkisi ham PROTSESS bo'yicha, ya'ni
+    protsessning BARCHA thread'larini qo'shadi. `FakeSut` esa prober bilan BIR
+    protsessda thread sifatida ishlaydi -- demak uning accept tsikli
+    prober'ning o'z narxi deb HISOBOTGA tushardi.
+
+    O'LCHANGAN (2 s, 1 target, 10 Hz, python3.14.7, 3 takror):
+      `FakeSut` thread sifatida -> process_time 1.24% / 1.27% / 1.24%,
+                                   prober'ning O'Z thread'i 0.57% / 0.59% / 0.56%
+      SUT alohida protsessda     -> process_time 0.61% / 0.60% / 0.61%
+    Ya'ni eski rig'da §8.2 hisobotidagi raqamning ~55% i TEST SERVER'iga
+    tegishli edi va budjet buzilishi SOXTA bo'lgan.
+
+    Ishlab chiqarish topologiyasi aynan shunday: SUT -- `sut.c`, alohida
+    protsess (`revixlab.slice`), prober esa `revixmon.slice` da bitta
+    thread'li O'Z protsessi (§8.2). Budjetni o'lchaydigan test prober'dan
+    boshqa hech narsani o'lchamasligi kerak, aks holda §8.2 ning
+    "self-perturbation" bayonoti asbobning o'zi tufayli yolg'on bo'ladi.
+
+    Protokolning prober ko'radigan tomoni `FakeSut` bilan bir xil
+    (`sut-protocol/v1`: `PROBE` -> `OK progress=... pid=... invocation=...`),
+    va `progress` har javobda oshadi -- `FakeSut` dagi bilan bir xil test
+    soddalashtirishi.
+    """
+
+    def __init__(self, path):
+        self.path = str(path)
+        self.proc = None
+
+    def start(self):
+        self.proc = subprocess.Popen(
+            [sys.executable, "-c", _PROC_SUT_SRC, self.path],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        # "ready" = bind + listen TUGADI. Busiz birinchi probe'lar
+        # `conn_refused` bo'lib, narx butunlay boshqa kod yo'lida o'lchanardi.
+        line = self.proc.stderr.readline()
+        if line.strip() != b"ready":
+            self.stop()
+            raise AssertionError(f"protsess SUT ishga tushmadi: {line!r}")
+        return self
+
+    def stop(self):
+        if self.proc is None:
+            return
+        self.proc.kill()
+        self.proc.wait(timeout=5.0)
+        try:
+            self.proc.stderr.close()
+        except OSError:
+            pass
+        self.proc = None
         try:
             os.unlink(self.path)
         except OSError:
@@ -579,13 +672,21 @@ def test_csv_yozish_xatosi_tsiklni_toxtatmaydi(rig, sockdir):
 
 
 def test_pacing_10hz_va_drift_yigmaydi(rig, sockdir):
-    """~2 s da probe soni 10 Hz ga yaqin va xato YIG'ILMAYDI.
+    """~2 s da probe soni 10 Hz ga yaqin, xato YIG'ILMAYDI va narx §8.2 budjetida.
 
     `sleep(P)` ishlatilsa har tsiklda probe narxi qo'shilib, ideal gridga
     nisbatan chetlashish monoton o'sardi. Absolut deadline'da chetlashish
     faqat scheduler jitter'i bo'lib qoladi.
+
+    SUT bu testda ALOHIDA PROTSESSDA (`ProcSut`), `FakeSut` thread'ida emas.
+    NEGA (§8.2): shu test probe narxi budjetini ham tekshiradi, va
+    `cost_report()` protsess bo'yicha CPU o'qiydi -- bir protsessdagi test
+    server'ining accept tsikli prober'ning narxi deb hisoblanardi va budjet
+    buzilishi SOXTA chiqardi (raqamlar `ProcSut` docstring'ida). Pacing
+    bayonotlari server turiga bog'liq emas; `ProcSut` ustiga u ishlab
+    chiqarish topologiyasini (`sut.c` alohida protsess) o'ynaydi.
     """
-    sut = FakeSut(os.path.join(sockdir, "sut.sock"), step=1).start()
+    sut = ProcSut(os.path.join(sockdir, "sut.sock")).start()
     try:
         r = rig([("sut", sut.path)])
         r.prober.run(max_seconds=2.0)
@@ -616,7 +717,8 @@ def test_pacing_10hz_va_drift_yigmaydi(rig, sockdir):
     # field'ini bosib o'tdi). Bu hech qachon 0 dan boshqa bo'lmasligi kerak.
     assert stop[0]["emit_errors"] == 0
     assert stop[0]["harness_errors"] == 0
-    # §8.2: o'z narxi yadroning 1% dan past bo'lishi kerak.
+    # §8.2: o'z narxi yadroning 1% dan past bo'lishi kerak. Bu PROBER'ning
+    # narxi -- shuning uchun SUT yuqorida alohida protsessda.
     cost = stop[0]["cost"]
     assert cost["core_percent"] is not None
     print(f"\n[probe narxi] core={cost['core_percent']:.3f}% "
