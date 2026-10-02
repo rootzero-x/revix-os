@@ -80,6 +80,14 @@ class Builder:
                         sources=["<memory>"])
 
 
+def timing(horizon_end_us, pressure_off_s=32.0):
+    """`trial_end.timing` (driver TrialTiming): T_h va horizon. `0` = hech
+    qachon o'rnatilmagan (monotonic timestamp, o'lchangan nol EMAS)."""
+    return {"begin_mono_us": T0, "pressure_off_mono_us":
+            T0 + int(pressure_off_s * 1_000_000) if pressure_off_s else 0,
+            "horizon_end_mono_us": horizon_end_us}
+
+
 def gen(uptime, ticks=4242):
     """Guest generation markeri: PID 1 starttime + uptime o'qishi."""
     return {"pid1_starttime_ticks": ticks, "uptime_s": uptime}
@@ -151,7 +159,8 @@ def clean(sched=None, tid=None) -> Builder:
           ActiveExitTimestampMonotonic=T0 + 1_000_000)
     b.add("env_snapshot", T0 + T_TRIAL_US - 1, guest_generation=gen(42.0))
     b.add(R.RT_TRIAL_END, T0 + T_TRIAL_US, disposition="complete",
-          reason="synthetic", overhead_us=1_500_000)
+          reason="synthetic", overhead_us=1_500_000,
+          timing=timing(T0 + T_TRIAL_US))
     b.add("prober_stop", T0 + T_TRIAL_US + 50_000, emitter="prober:2")
     b.add(V.RT_GUARD_STOP, T0 + T_TRIAL_US + 1_000_000, trial_id=None,
           emitter="guard:3", tripped=False)
@@ -1705,6 +1714,9 @@ def two_trials(offset=60_000_000):
         for k in keys:
             if isinstance(r.get(k), int) and r[k] > 0:
                 r[k] += offset
+        if isinstance(r.get("timing"), dict):
+            r["timing"] = {k: (v + offset if v else v)
+                           for k, v in r["timing"].items()}
         return r
 
     skip = (R.RT_RUN_META, V.RT_GUARD_START)
@@ -1952,3 +1964,128 @@ def test_t_trial_tolerantligi_bitta_probe_davri():
     recs(b, R.RT_TRIAL_END)[0]["mono_us"] = T0 + T_TRIAL_US + P + 1
     assert "trial_horizon_mismatch" in codes(V.validate_run(b.run()),
                                              V.SEVERITY_ERROR)
+
+
+# --- 22. §17.4-5: verifikatsiya oynasi pressure hold ICHIDA (v1.6) -----------
+#
+# clean(): t_up = T0 + 1.3 s, W_stab = 8 s -> oyna oxiri T0 + 9.3 s;
+# T_h = T0 + 32 s, T_trial = T0 + 40.1 s.
+
+
+def _set_timing(b, **kw):
+    t = recs(b, R.RT_TRIAL_END)[0]["timing"]
+    t.update(kw)
+    return t
+
+
+def test_oyna_hold_ichida_complete_otadi():
+    rep = V.validate_run(clean().run())
+    assert rep.findings == []
+
+
+def test_oyna_hold_dan_chiqsa_complete_xato():
+    """t_up + W_stab > T_h: §4 kattaligi O'LCHANMAGAN, `complete` bo'lolmaydi."""
+    b = clean()
+    _set_timing(b, pressure_off_mono_us=T0 + 6_000_000)       # 9.3 s > 6 s
+    f = find(V.validate_run(b.run()), "window_outside_hold_complete")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.detail["window_containment"] == "past_pressure"
+    assert f.detail["slack_to_hold_us"] < 0
+    assert f.trial_id == TID
+
+
+def test_oyna_horizon_dan_chiqsa_complete_xato_Th_siz_ham():
+    """(b) T_h ni TALAB QILMAYDI: T_h o'lchanmagan bo'lsa ham aniqlanadi."""
+    b = clean()
+    _set_timing(b, pressure_off_mono_us=0, horizon_end_mono_us=T0 + 8_000_000)
+    recs(b, R.RT_TRIAL_END)[0]["mono_us"] = T0 + 8_000_000
+    for r in b.records:                  # trial_end'dan keyingi hodisalarni olib tashlash
+        if r["record_type"] in ("env_snapshot",) and r["mono_us"] > T0 + 8_000_000:
+            r["mono_us"] = T0 + 7_999_999
+    b.probes = [p for p in b.probes if p["mono_us_send"] <= T0 + 8_000_000]
+    f = find(V.validate_run(b.run()), "window_outside_hold_complete")
+    assert f.detail["window_containment"] == "past_horizon"
+
+
+def test_oyna_chegarada_teng_hold_ichida_hisoblanadi():
+    """§17.4 shartni `<=` bilan yozadi: t_up + W == T_h -- hali XATO EMAS."""
+    b = clean()
+    _set_timing(b, pressure_off_mono_us=T0 + 1_300_000 + 8_000_000)
+    assert "window_outside_hold_complete" not in codes(V.validate_run(b.run()))
+    _set_timing(b, pressure_off_mono_us=T0 + 1_300_000 + 8_000_000 - 1)
+    assert "window_outside_hold_complete" in codes(V.validate_run(b.run()),
+                                                   V.SEVERITY_ERROR)
+
+
+def test_Th_olchanmagan_bolsa_hukm_toqilmaydi_faqat_ogohlantirish():
+    """`pressure_off_mono_us == 0` -- "hech qachon o'rnatilmagan", o'lchangan
+    nol EMAS: disposition o'zgarmaydi, lekin soni ko'rinadi."""
+    b = clean()
+    _set_timing(b, pressure_off_mono_us=0)
+    rep = V.validate_run(b.run())
+    f = find(rep, "window_containment_not_evaluated")
+    assert f.severity == V.SEVERITY_WARNING
+    assert f.detail["n"] == 1
+    assert "window_outside_hold_complete" not in codes(rep)
+    assert rep.ok is True
+
+
+def test_timing_yoq_bolsa_ham_hukm_toqilmaydi():
+    b = clean()
+    del recs(b, R.RT_TRIAL_END)[0]["timing"]
+    rep = V.validate_run(b.run())
+    assert "window_containment_not_evaluated" in codes(rep, V.SEVERITY_WARNING)
+    assert rep.ok is True
+
+
+def test_censored_trial_oyna_tekshiruviga_kirmaydi():
+    """§17.4-5 faqat `complete` ga tegishli: reducer `censored` qiladi, xato yo'q."""
+    b = clean()
+    _set_timing(b, pressure_off_mono_us=T0 + 6_000_000)
+    recs(b, R.RT_TRIAL_END)[0]["disposition"] = "censored"
+    rep = V.validate_run(b.run())
+    assert "window_outside_hold_complete" not in codes(rep)
+
+
+def test_cross_check_oyna_holatini_reducer_bilan_bir_xil_beradi():
+    """Cross-check endi `WindowContainment` ni uzatadi: reducer `censored:
+    window_past_pressure` desa, validator ham shuni hosil qiladi (stale
+    qo'ng'iroq bo'lsa 'complete:derived' deb haqiqiy farqni yashirardi)."""
+    b = clean()
+    _set_timing(b, pressure_off_mono_us=T0 + 6_000_000)
+    f = find(V.validate_run(b.run()), "disposition_cross_check")
+    assert f.detail == {"driver": "complete", "reducer": "censored",
+                        "reducer_source": "window_past_pressure"}
+    # va aynan reducerning o'zi bilan mos:
+    out = R.reduce_run(b.run())
+    t = out.trials[0]
+    assert (t["disposition"], t["disposition_source"]) == (
+        "censored", "window_past_pressure")
+
+
+def test_oyna_w_stab_run_meta_timeline_dan_olinadi():
+    """Kengroq W_stab (60 s) bilan oyna 32 s hold'ga sig'maydi."""
+    b = clean()
+    meta_of(b)["timeline"] = dict(TrialTimeline().as_dict(), w_stab_s=60.0)
+    f = find(V.validate_run(b.run()), "window_outside_hold_complete")
+    assert f.detail["w_stab_us"] == 60_000_000
+
+
+def test_timing_pressure_off_trial_oynasidan_tashqarida_xato():
+    b = clean()
+    _set_timing(b, pressure_off_mono_us=T0 - 5)
+    f = find(V.validate_run(b.run()), "trial_timing_invalid")
+    assert f.severity == V.SEVERITY_ERROR
+
+
+def test_timing_horizon_trial_end_mono_us_ga_teng_bolishi_shart():
+    b = clean()
+    _set_timing(b, horizon_end_mono_us=T0 + 30_000_000)
+    assert "trial_timing_invalid" in codes(V.validate_run(b.run()),
+                                           V.SEVERITY_ERROR)
+
+
+def test_timing_nol_hech_qachon_ornatilmagan_xato_emas():
+    b = clean()
+    _set_timing(b, pressure_off_mono_us=0, horizon_end_mono_us=0)
+    assert "trial_timing_invalid" not in codes(V.validate_run(b.run()))

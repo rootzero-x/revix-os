@@ -538,3 +538,78 @@ def test_xom_oqimda_bystander_reducer_ko_rinishi_sut_ga_filtrlanadi(run_dir, tmp
     assert got == want
     assert V.validate_run(run, sut_unit=S.SUT, sut_target="sut").ok
     assert not V.validate_run(run).ok                    # bayroqsiz: rad
+
+
+# --- 5. §17: verifikatsiya oynasi pressure hold ICHIDA (v1.6/v1.7) ---------
+
+ENTERING_PAIRS = {("complete", "trial_end"), ("complete", "derived"),
+                  ("censored", "down_at_horizon")}
+
+
+def _early_pressure_off(d):
+    """Birinchi `A` (raw `complete`) trial'ning T_h sini t_up + W_stab dan
+    OLDINGA suradi: oyna hold'dan chiqadi (§17.3(a))."""
+    def f(recs):
+        for r in recs:
+            if (r["record_type"] == "trial_end"
+                    and r["disposition"] == "complete"):
+                b = next(x for x in recs if x["record_type"] == "trial_begin"
+                         and x["trial_id"] == r["trial_id"])
+                r["timing"]["pressure_off_mono_us"] = b["mono_us"] + 6_000_000
+                return
+    edit_events(d, f)
+
+
+def test_zanjir_toza_run_reducer_faqat_uchta_juft_maxrajga_kiradi(base_dir):
+    """Allow-list: faqat uchta (disposition, source) juft binar maxrajga
+    kiradi; boshqa har juft chiqariladi va NOMLANADI (`unknown_source` yo'q)."""
+    run, _ = V.load_run_dir(base_dir)
+    out = R.reduce_run(run)
+    entered = {(t["disposition"], t["disposition_source"])
+               for t in out.trials if t["included_in_primary"]}
+    assert entered and entered <= ENTERING_PAIRS
+    for t in out.trials:
+        assert "unknown_source" not in str(t["exclusion_reason"])
+    assert out.summary["n_window_containment_not_evaluated"] == 0
+    assert out.summary["window_containment_counts"]["inside_hold"] == 6
+    assert out.summary["window_containment_counts"]["past_pressure"] == 0
+
+
+def test_zanjir_oyna_holddan_chiqqan_complete_validatordan_otmaydi(run_dir):
+    """Reducer trial'ni `censored:window_past_pressure` qilib CHIQARADI (u
+    tashlamaydi), lekin xom `trial_end` `complete` deb qolgan -- bu §17.4-5
+    bo'yicha validator XATOSI: o'lchanmagan narsa o'lchov deb yozilgan."""
+    _early_pressure_off(run_dir)
+    run, _ = V.load_run_dir(run_dir)
+    rep = V.validate_run(run)
+    assert rep.ok is False
+    assert "window_outside_hold_complete" in error_codes(rep)
+    out = R.reduce_run(run)                          # reducer tushunadi
+    hit = [t for t in out.trials
+           if t["disposition_source"] == "window_past_pressure"]
+    assert len(hit) == 1 and hit[0]["disposition"] == "censored"
+    assert hit[0]["included_in_primary"] is False
+    assert "window_past_pressure" in hit[0]["exclusion_reason"]
+    assert out.summary["n_trials_out"] == 12         # trial tashlanmadi
+    assert V.main(["--run-dir", run_dir]) == 1
+
+
+def test_zanjir_Th_olchanmagan_run_ogohlantirish_bilan_otadi(run_dir):
+    """`pressure_off_mono_us = 0` ("hech qachon o'rnatilmagan"): hukm
+    to'qilmaydi, validator xato bermaydi, lekin soni ko'rinadi va reducer
+    summary'si bilan mos."""
+    def f(recs):
+        for r in recs:
+            if r["record_type"] == "trial_end":
+                r["timing"]["pressure_off_mono_us"] = 0
+    edit_events(run_dir, f)
+    rep = V.validate_run_dir(run_dir)
+    assert rep.ok is True, [str(x) for x in rep.errors]
+    w = next(x for x in rep.warnings
+             if x.code == "window_containment_not_evaluated")
+    run, _ = V.load_run_dir(run_dir)
+    out = R.reduce_run(run)
+    # validator faqat raw `complete` trial'larni sanaydi (6 ta A trial);
+    # reducer summary'si `no_t_up` bo'lmaganlarini: kamida shular.
+    assert w.detail["n"] == 6
+    assert out.summary["n_window_containment_not_evaluated"] >= 6
