@@ -1,0 +1,67 @@
+# REVIX: system-slice shabloni -- O'RNATILADI, LEKIN YOQILMAYDI.
+#
+# BU SLICE ISHLATILMADI. Hech qanday unit unga joylashtirilmadi, va
+# 09-iso-qurilishi.md §7 bo'yicha u KECHIKTIRILGAN.
+#
+# ==========================================================================
+# NEGA bu fayl mavjud
+# ==========================================================================
+# 00-pilot-topologiya.md §4 "Root kerak" ro'yxatining oxirgi bandi:
+#       "harness'ni system slice'ga ko'chirish"
+# va INSTALLATION.md §4 uning sababini aytadi:
+#       "oomd kill scope'idan butunlay chiqish -- guard'ning qoldiq riskini
+#        yopadigan YAGONA to'liq yechim (SECURITY.md §4.1)".
+# Ya'ni bu imkoniyat aynan "root kerak = guest'ga tegishli" bandiga kiradi,
+# va image uni TEXNIK JIHATDAN mumkin qiladi. Shuning uchun shablon shu
+# yerda turadi: keyingi o'quvchi uni noldan o'ylab topmasligi kerak.
+#
+# ==========================================================================
+# NEGA YOQILMAYDI
+# ==========================================================================
+# Harness'ni `user@UID.service` ierarxiyasidan `system.slice` ga ko'chirish
+# O'LCHOV TOPOLOGIYASINI o'zgartiradi:
+#   * 00-pilot-topologiya.md §1 cgroup topologiyasi `user@UID.service`
+#     ostidagi `revixlab.slice`/`revixmon.slice` ga tayanadi;
+#   * `revix/cgroup.py:user_service_cgroup()` va `revix/units.py`
+#     (LAB_SLICE/MON_SLICE, `cg.user_child()`) shu yo'lni hisoblaydi;
+#   * doctor #6 `psi_cgroup` `user@UID.service` ning PSI fayllarini o'qiydi;
+#   * 02-guard-kalibratsiyasi.md dagi guard chegaralari `user@` scope'ida
+#     o'lchangan.
+# Demak ko'chirish PREREGISTRATION.md §15 muhit fingerprint'iga TA'SIR
+# QILADI va guard'ni QAYTA KALIBRLASHNI talab qiladi.
+#
+# §15 MUZLATILGAN. Shuning uchun qaror MENING emas, frozen hujjat
+# EGASINING qarori. Men shablonni qo'yaman va yoqmayman.
+#
+# Yoqilgan taqdirda BAJARILISHI SHART bo'lgan narsalar (hujjat uchun):
+#   1. 00-pilot-topologiya.md §6 qadam 3 -- guard testi QAYTA bajariladi
+#      ("Retrofit qilinmaydi");
+#   2. qadam 4 -- pressure dosing kalibratsiyasi QAYTA bajariladi;
+#   3. `revix/cgroup.py` va `revix/units.py` yangi yo'lni bilishi kerak --
+#      bu KOD o'zgarishi, konfiguratsiya emas;
+#   4. `run_meta` ga topologiya o'zgarishi oshkora yozilishi kerak.
+#
+# ==========================================================================
+# Cheklovlar 00-pilot-topologiya.md §2 dan ko'chirildi (SONLAR
+# O'ZGARTIRILMADI -- ular o'lchangan qiymatlar, taxmin emas).
+# ==========================================================================
+# NEGA bu yerda MemoryMax YO'Q: 00 §2 ning shift'i trial ichida
+# o'rnatiladi (`set-property --runtime`), chunki u pressure band'iga qarab
+# o'zgaradi. Slice darajasida qattiq qiymat yozilsa, u trial parametrini
+# JIMGINA ustidan bosib ketardi.
+#
+# NEGA `MemorySwapMax=0`: 00 §2 ning majburiy bandi -- swap thrash
+# o'lchovni buzadi va SSD'ni yemiradi (§3.3).
+# NEGA `TasksMax` va `CPUQuota`: 00 §2 -- runaway fork yoki CPU yuki
+# butun tizimni band qilmasligi uchun.
+
+[Unit]
+Description=REVIX harness slice (system scope) -- SHABLON, YOQILMAGAN
+Documentation=file:///opt/revix/docs/architecture/00-pilot-topologiya.md
+Documentation=file:///opt/revix/docs/architecture/09-iso-qurilishi.md
+Before=slices.target
+
+[Slice]
+MemorySwapMax=0
+TasksMax=512
+CPUQuota=400%

@@ -1,0 +1,56 @@
+# REVIX: `io` controller'ini cgroup root'ning subtree_control'iga yoqadi.
+#
+# BU UNIT ISHGA TUSHIRILMADI, sabab: guard kalibratsiyasi davom etmoqda
+# (hech qanday image qurilmadi, hech qanday guest boot qilinmadi).
+#
+# NEGA alohida unit kerak:
+#   `Delegate=` (10-revix-delegate.conf) `user@UID.service` ga QAYSI
+#   controller'lar berilishini aytadi, lekin controller cgroup ROOT'da
+#   `subtree_control` ga yoqilgan bo'lmasa, uni pastga bera ham bo'lmaydi.
+#   FAKT (07-wsl-muhit-tekshiruvlari.md §1.3 #4): host'da
+#   `cgroup.controllers` da `io` BOR, `cgroup.subtree_control` da YO'Q.
+#   Ya'ni yetishmayotgan qadam aynan shu yozuv.
+#
+# NEGA bu `io.max` NI O'ZI YOZMAYDI:
+#   00-pilot-topologiya.md §4 prinsipi -- privilegiyali operatsiya
+#   "sessiyaga BIR MARTA ishlaydi va HAR TRIAL'DA HECH NARSA QILMAYDI".
+#   Bu unit faqat delegatsiyani OCHADI; `io.max` ni keyin harness
+#   privilegiyasiz, delegated subtree ichida yozadi. Shu bilan o'lchov
+#   davomida hech qanday root process tirik emas.
+#
+# NEGA `Type=oneshot` + `RemainAfterExit=yes`:
+#   bir martalik sozlash; `RemainAfterExit` holatni `systemctl status` da
+#   ko'rinadigan qiladi, demak "delegatsiya ochilganmi" savoliga javob bor.
+#
+# NEGA `Before=user@.service`:
+#   `user@UID.service` tug'ilganda `io` allaqachon subtree_control'da
+#   bo'lishi kerak, aks holda `Delegate=... io` jimgina e'tiborsiz
+#   qoldiriladi va doctor #4 baribir WARN beradi.
+#
+# FAIL-CLOSED: `ExecStart` da `||` yoki `-` prefiksi YO'Q. Yozuv
+# muvaffaqiyatsiz bo'lsa unit FAILED bo'ladi, va `revix doctor` #4
+# `io_delegation` WARN bilan buni ko'rsatadi. Jimgina "ishladi" holati
+# bo'lmaydi.
+#
+# GIPOTEZA (09-iso-qurilishi.md §8 G5): bu guest'da ishlaydi va fault
+#   class 6 (`io_stall`) ochiladi.
+#   O'LCHOVI: boot'dan keyin
+#       cat /sys/fs/cgroup/cgroup.subtree_control      # `io` ko'rinishi kerak
+#       revix doctor --json | jq '.checks[]|select(.key=="io_delegation")'
+#   BU O'LCHOV BAJARILMADI.
+
+[Unit]
+Description=REVIX: enable io controller delegation in cgroup root
+Documentation=file:///opt/revix/docs/architecture/09-iso-qurilishi.md
+DefaultDependencies=no
+After=sysinit.target
+Before=user@.service basic.target
+ConditionPathExists=/sys/fs/cgroup/cgroup.subtree_control
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'echo +io > /sys/fs/cgroup/cgroup.subtree_control'
+
+[Install]
+WantedBy=sysinit.target

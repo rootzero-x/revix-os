@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# `revix` -- REVIX CLI wrapper.
+#
+# NEGA wrapper mavjud:
+#   09-iso-qurilishi.md §4 ning qabul mezoni `revix doctor` deb yozilgan, va
+#   `python3 -m revix.cli` `sys.path` da repo root'ni talab qiladi.
+#
+# NEGA `pip install` / console_scripts EMAS:
+#   INSTALLATION.md §3: "`pip install`, `setup.py` yoki `pyproject.toml`
+#   YO'Q -- bu ataylab. Repo `python3 -m revix.<modul>` sifatida repo
+#   root'dan ishlatiladi." Wrapper o'sha chaqiruvni AYNAN saqlaydi va
+#   paketlash sxemasi o'ylab topilmaydi.
+#
+# NEGA `cd` + `exec`:
+#   `cd` -> repo root `sys.path[0]` bo'ladi, demak `revix` paketi topiladi.
+#   `exec` -> qo'shimcha shell jarayoni QOLMAYDI. Bu muhim: harness
+#   jarayonlari `systemd-run --user --slice=...` orqali tug'iladi va
+#   oraliq shell cgroup hisobini hamda signal yetkazishni chalkashtiradi
+#   (01-muhit-tekshiruvlari.md §6, SECURITY.md §1).
+#
+# OGOHLIK (INSTALLATION.md §3): `revix` orqali `guard`, `pressure`,
+# `psi_sampler`, `prober` modullarini TO'G'RIDAN-TO'G'RI ishga tushirish
+# faqat `--help` uchun xavfsiz. Haqiqiy pressure yoki o'lchov jarayonlari
+# MAJBURIY ravishda `systemd-run --user --slice=...` orqali ishga
+# tushiriladi -- aks holda ular chaqiruvchi vositaning cgroup'ida tug'iladi.
+
+set -euo pipefail
+
+REVIX_HOME="${REVIX_HOME:-/opt/revix}"
+
+if [ ! -d "$REVIX_HOME/revix" ]; then
+  printf 'revix: XATO: %s/revix topilmadi.\n' "$REVIX_HOME" >&2
+  printf 'revix: REVIX_HOME ni to\xe2\x80\x99g\xe2\x80\x99ri yo\xe2\x80\x99lga qo\xe2\x80\x99ying yoki packaging/install-revix.sh ni bajaring.\n' >&2
+  exit 1
+fi
+
+# NEGA git mavjudligi tekshirilmaydi: bu wrapper'ning ishi emas. `revix
+# doctor` ning #17/#18 tekshiruvlari aynan shuni hisobot qiladi
+# (revix/cli.py:check_git_present / check_git_clean), va wrapper o'sha
+# diagnostikani yashirmasligi kerak.
+
+cd "$REVIX_HOME"
+exec python3 -m revix.cli "$@"
