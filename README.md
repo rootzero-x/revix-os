@@ -66,10 +66,12 @@ backoff'iga nisbatan kam downtime va kam false-recovery beradi.
 | Texnologiya auditi | ✅ bajarildi |
 | Prior art skani | ✅ bajarildi (tekshirish darajalari bilan) |
 | Research gap | ✅ aniqlandi |
-| **Pre-registration (P1)** | ✅ **muzlatildi** (`v1.3`, 3 amendment) |
-| Muhit tekshiruvlari | ✅ empirik |
-| Guard kalibratsiyasi | ✅ o'lchandi va tasdiqlandi |
-| **Pilot harness** | 🟡 komponentlar tayyor, driver qoldi |
+| **Pre-registration (P1)** | ✅ **muzlatildi** (`v1.4`, 4 amendment, teglangan) |
+| **Driver/analiz shartnomasi** | ✅ **muzlatildi** (`driver-contract/v1.2`, teglangan) |
+| Muhit tekshiruvlari | ✅ empirik — ikki mashina: [`01`](docs/architecture/01-muhit-tekshiruvlari.md), [`07`](docs/architecture/07-wsl-muhit-tekshiruvlari.md) |
+| Guard kalibratsiyasi | ✅ o'lchangan (**boshqa mashinada**) · 🟡 bu mashinada qayta kalibratsiya |
+| **Pilot harness** | ✅ barcha modullar yozildi |
+| Pressure dosing kalibratsiyasi | ⏳ **pilotni gate qiladi** |
 | Pilot eksperiment | ⏳ |
 | Kalibratsiya (`Repairs()`) | ⏳ |
 | Confirmatory eksperiment | ⏳ |
@@ -88,17 +90,33 @@ backoff'iga nisbatan kam downtime va kam false-recovery beradi.
 | `revix/prober.py` | ✅ | o'lchov prober'i, 10 Hz contract baholash |
 | `revix/stats.py` | ✅ | Cochran-Armitage, KM, log-rank, RMST, Newcombe |
 | `revix/reduce.py` | ✅ | VR / FR-A / downtime, sensitivity sweep |
-| `revix/validate.py` | ✅ | run validatori (8 invariant) |
+| `revix/validate.py` | ✅ | run validatori (kengaytirilgan invariantlar) |
 | `revix/schedule.py` | ✅ | randomized block design, washout, disposition |
 | `revix/units.py` | ✅ | systemd transient unit manager (D-Bus) |
-| `revix/cli.py` | ✅ | `revix doctor` / `status` / `health` / `events` |
-| `revix/driver.py` | ⏳ | trial orkestratsiyasi — **keyingi qadam** |
+| `revix/cli.py` | ✅ | `doctor` / `status` / `health` / `events` / `run` / `analyze` / `figures` |
+| `revix/driver.py` | ✅ | trial orkestratsiyasi (10 majburiyat, `--dry-run`) |
+| `revix/analyze.py` | ✅ | offline analiz → `analysis.json` |
+| `revix/figures.py` | ✅ | faqat `analysis.json` dan figura + raqam sidecar'i |
 
-**Testlar: 369 ta o'tadi** (`python3 -m pytest tests/unit/ -q`).
+### O'lchangan holat (2026-10-02, bu mashinada)
+
+```
+make -C revix all              -> rc=0, ogohlantirishsiz (-Werror, C11)
+python3 -m pytest tests/ -q    -> 866 passed, 1 failed, 1 skipped
+python3 -m revix.cli doctor    -> 15 PASS, 3 WARN, 0 FAIL (exit 0)
+```
+
+Muhit: WSL2 Kali, kernel `6.6.87.2-microsoft-standard-WSL2`, systemd 257,
+Python 3.14.7, 9.71 GiB RAM, 12 CPU. **`systemd-oomd` o'rnatilmagan**,
+`cpufreq` va `thermal_zone` sysfs interfeyslari **yo'q** — oqibatlari
+[`07-wsl-muhit-tekshiruvlari.md`](docs/architecture/07-wsl-muhit-tekshiruvlari.md)
+va `PREREGISTRATION.md` §15 da.
+
+Yiqilgan 1 test — driver'ning o'z fixture'i validatorning kengaytirilgan
+invariantlariga yetmaydi (tuzatilmoqda). Skip qilingan 1 test — oomd mavjud
+bo'lgan holat uchun; bu mashinada oomd yo'q.
 
 **Hech qanday eksperiment hali ishga tushirilmadi. Hech qanday natija hali yo'q.**
-
----
 
 ## Hujjatlar
 
@@ -111,6 +129,12 @@ backoff'iga nisbatan kam downtime va kam false-recovery beradi.
 | [`docs/research/04-novelty-statement.md`](docs/research/04-novelty-statement.md) | Hissa nima va nima emas |
 | [`docs/research/05-metodologiya.md`](docs/research/05-metodologiya.md) | Eksperiment darajalari, fault taksonomiyasi, asoslash |
 | [`docs/architecture/00-pilot-topologiya.md`](docs/architecture/00-pilot-topologiya.md) | Pilot cgroup topologiyasi va xavfsizlik chegarasi |
+| [`docs/architecture/01-muhit-tekshiruvlari.md`](docs/architecture/01-muhit-tekshiruvlari.md) | Empirik muhit tekshiruvlari va tuzoqlar (avvalgi mashina) |
+| [`docs/architecture/02-guard-kalibratsiyasi.md`](docs/architecture/02-guard-kalibratsiyasi.md) | Guard chegaralari va pressure mexanizmi — o'lchangan (avvalgi mashina) |
+| [`docs/architecture/03-sut-protokoli.md`](docs/architecture/03-sut-protokoli.md) | **Muzlatilgan** SUT wire protokoli (`sut-protocol/v1`) |
+| [`docs/architecture/04-driver-va-analiz-shartnomasi.md`](docs/architecture/04-driver-va-analiz-shartnomasi.md) | **Muzlatilgan** driver va analiz shartnomasi (`driver-contract/v1.2`) |
+| [`docs/architecture/06-condition-pressure-tajribasi.md`](docs/architecture/06-condition-pressure-tajribasi.md) | `ConditionMemoryPressure=` restart yo'lini gate qilmasligi — tajriba |
+| [`docs/architecture/07-wsl-muhit-tekshiruvlari.md`](docs/architecture/07-wsl-muhit-tekshiruvlari.md) | Hozirgi mashinaning o'lchangan muhiti va cheklovlari |
 
 ---
 
