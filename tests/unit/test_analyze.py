@@ -22,6 +22,8 @@ ko'rsatilgan: test "o'zini o'zi tasdiqlaydigan" bo'lmasligi kerak.
 """
 import json
 import math
+import pathlib
+import re
 
 import pytest
 
@@ -125,6 +127,56 @@ def cells_to_trials(counts, *, arm="A", disposition="complete"):
     return out
 
 
+def _env(record_type, trial_id):
+    return {
+        "schema_version": 1, "record_type": record_type,
+        "stream": record_type, "run_id": "SYNTH-run",
+        "session_id": "SYNTH-sess", "boot_id": "SYNTH-boot",
+        "trial_id": trial_id, "block_index": 0, "seq": 1,
+        "mono_us": 0, "real_us": 0, "emitter": "SYNTH:1",
+    }
+
+
+def episode(trial_id, index, fr_a, action_fr_a):
+    """Bitta `episode` record'i -- `reduce.EpisodeResult.as_dict()` shaklida.
+
+    `action_fr_a` -- per-action FR-A qiymatlari ro'yxati
+    (`EpisodeResult.actions[].fr_a`); bo'sh ro'yxat = epizodda action yo'q
+    (masalan `no_action` arm, `reduce.build_episodes` anchor'ni onset'ga
+    qo'yadi).
+    """
+    rec = _env("episode", trial_id)
+    rec.update({
+        "derived": True,
+        "episode_id": f"{trial_id}:e{index}",
+        "index": index,
+        "fr_a": fr_a,
+        "n_actions": len(action_fr_a),
+        "actions": [{"action_id": f"{trial_id}:a{k}",
+                     "action_class": "restart",
+                     "mono_us": 0, "fr_a": v}
+                    for k, v in enumerate(action_fr_a)],
+    })
+    return rec
+
+
+def prober_stop(trial_id, core_percent, *, budget_percent=1.0,
+                omit_trial_id=False):
+    """Bitta `prober_stop` record'i -- `prober.py` AYNAN shu shaklda yozadi:
+    envelope'da `trial_id`, payload'da `cost` = `cost_report()`."""
+    rec = _env("prober_stop", None if omit_trial_id else trial_id)
+    rec.update({
+        "cycles": 100, "probes": 100, "detections": 1,
+        "cost": {"elapsed_s": 10.0, "cpu_total_s": 0.04,
+                 "core_fraction": (None if core_percent is None
+                                   else core_percent / 100.0),
+                 "core_percent": core_percent,
+                 "budget_percent": budget_percent,
+                 "budget_exceeded": False},
+    })
+    return rec
+
+
 def sweep_cell(trial_id, w_stab_s, theta, *, vr=True, vr_reason="verified",
                disposition="complete"):
     return {
@@ -157,8 +209,10 @@ def full_sweep(trial_id, *, truncated_from_s=None):
     return out
 
 
-def build(trials, *, sweep=None, meta=None, n_boot=N_BOOT_TEST):
+def build(trials, *, sweep=None, meta=None, n_boot=N_BOOT_TEST,
+          episodes=None, prober_stops=None):
     return A.build_analysis(trials, meta or run_meta(), sweep,
+                            episodes=episodes, prober_stops=prober_stops,
                             n_boot=n_boot, generated_mono_us=123456)
 
 
@@ -668,6 +722,123 @@ def test_fr_b_hisoblanmaydi_va_sabab_shartnomada_korsatilgan_aynan_satr():
     assert "value" not in fr_b                # soxta nol BERILMAYDI
 
 
+# --- 10b. FR-A: `--episodes` bilan §5 ning HAQIQIY ta'riflari -------------
+
+
+def _fr_a_fixture():
+    """Sintetik FR-A holati -- per-epizod va per-action AYNAN FARQLANADI.
+
+    QO'LDA HISOB.
+      T1 (`complete`), IKKI epizod:
+          e0: fr_a = True,  action FR-A = [True, False]
+          e1: fr_a = False, action FR-A = [False]
+      T2 (`complete`), bitta epizod:
+          e0: fr_a = None,  action FR-A = [None]
+      T3 (`contaminated`, birlamchi analizdan tashqarida), bitta epizod:
+          e0: fr_a = True,  action FR-A = [True]
+
+      per_episode: birlamchi epizodlar = [True, False, None]
+                   o'lchangani 2 ta, True 1 ta  => 1/2 = 0.5
+                   n_undetermined = 1
+      per_action:  birlamchi action'lar = [True, False, False, None]
+                   o'lchangani 3 ta, True 1 ta  => 1/3
+      T3 ning epizodi KIRMAYDI (§12) => `fr_a_episodes_outside_primary`.
+
+    E'TIBOR: T1 da `n_episodes = 2`, demak `--episodes` siz ishlaydigan
+    "aynan yechiladigan quyi to'plam" yo'li T1 ni UMUMAN ko'rmaydi. Shuning
+    uchun bu fixture ikki yo'lni ajratib ko'rsatadi.
+    """
+    trials = [
+        trial("SYNTH-T1", n_episodes=2, n_actions=3, fr_a=True),
+        trial("SYNTH-T2", n_episodes=1, n_actions=1, fr_a=None, vr=None),
+        trial("SYNTH-T3", disposition="contaminated", n_episodes=1,
+              n_actions=1, fr_a=True, vr=None),
+    ]
+    eps = [
+        episode("SYNTH-T1", 0, True, [True, False]),
+        episode("SYNTH-T1", 1, False, [False]),
+        episode("SYNTH-T2", 0, None, [None]),
+        episode("SYNTH-T3", 0, True, [True]),
+    ]
+    return trials, eps
+
+
+def test_fr_a_episodes_bilan_per_action_va_per_episode_haqiqiy_hisoblanadi():
+    """§5 FR-A ni HAR ACTION va HAR EPIZOD uchun ta'riflaydi."""
+    trials, eps = _fr_a_fixture()
+    obj = build(trials, episodes=eps)
+    fa = obj["false_recovery"]["fr_a"]
+    assert fa["per_episode"] == pytest.approx(0.5)
+    assert fa["per_action"] == pytest.approx(1 / 3)
+    assert fa["n_undetermined"] == 1
+    assert fa["basis"]["source"] == "episodes.jsonl (--episodes)"
+    assert fa["basis"]["n_episodes"] == 3       # T3 ning epizodi kirmaydi
+    assert fa["basis"]["n_actions"] == 4
+    assert fa["basis"]["n_resolvable_per_episode"] == 2
+    assert fa["basis"]["n_resolvable_per_action"] == 3
+    assert {"fr_a_episodes_outside_primary", "fr_a_undetermined"} <= warn_codes(obj)
+
+
+def test_fr_a_episodes_siz_eski_tor_denominator_saqlanadi():
+    """`--episodes` siz ham himoya qilinadigan narsa chiqadi, hech narsa emas.
+
+    QO'LDA HISOB. Aynan shu fixture'da `--episodes` siz faqat
+    `n_episodes == 1` bo'lgan trial'lar ko'rinadi: T1 (2 epizod) chiqib
+    ketadi, T3 birlamchi emas, demak faqat T2 qoladi -- va uning FR-A si
+    `None`. Shuning uchun ikkala ulush ham `None` va sabab `warnings` da.
+    """
+    trials, _eps = _fr_a_fixture()
+    obj = build(trials)
+    fa = obj["false_recovery"]["fr_a"]
+    assert fa["per_episode"] is None
+    assert fa["per_action"] is None
+    assert fa["basis"]["source"] == ("trials.jsonl exactly-resolvable subset "
+                                     "(no --episodes)")
+    assert "fr_a_episodes_absent" in warn_codes(obj)
+    # Taxmin qilinmaydi: `None` -> `0.0` AYLANMAYDI.
+    assert not isinstance(fa["per_action"], float)
+    assert not isinstance(fa["per_episode"], float)
+
+
+def test_fr_a_basis_ikki_yolda_ham_beriladi():
+    """`basis` -- qaysi denominator ishlatilganining YOZUVI."""
+    trials, eps = _fr_a_fixture()
+    for episodes in (eps, None):
+        fa = build(trials, episodes=episodes)["false_recovery"]["fr_a"]
+        assert "basis" in fa
+        assert fa["basis"]["trial_set"] == "primary (disposition == complete)"
+        assert fa["basis"]["n_trials"] == 2        # birlamchi: T1, T2
+
+
+def test_fr_a_actionsiz_epizod_per_action_denominatoriga_kirmaydi():
+    """`no_action` arm: epizodda action yo'q => per-action FR-A TA'RIFLANMAGAN.
+
+    QO'LDA HISOB. Ikki epizod: biri action'li (fr_a=True), biri action'siz.
+    per_episode = 1/2 = 0.5 (ikkisi ham o'lchangan).
+    per_action   = 1/1 = 1.0 (faqat bitta action bor; action'siz epizod
+    denominatorga KIRMAYDI -- nol deb olinmaydi).
+    """
+    trials = [trial("SYNTH-A", arm="A", n_episodes=1, n_actions=1, fr_a=True),
+              trial("SYNTH-N", arm="no_action", n_episodes=1, n_actions=0,
+                    fr_a=False)]
+    eps = [episode("SYNTH-A", 0, True, [True]),
+           episode("SYNTH-N", 0, False, [])]
+    obj = build(trials, episodes=eps)
+    fa = obj["false_recovery"]["fr_a"]
+    assert fa["per_episode"] == pytest.approx(0.5)
+    assert fa["per_action"] == pytest.approx(1.0)
+    assert fa["basis"]["n_actions"] == 1
+    assert "fr_a_episode_without_action" in warn_codes(obj)
+
+
+def test_episode_record_topilmasa_rad_etiladi(tmp_path):
+    p = tmp_path / "episodes.jsonl"
+    p.write_text(json.dumps({"record_type": "trial_metrics"}) + "\n",
+                 encoding="utf-8")
+    with pytest.raises(A.AnalysisError, match="episode"):
+        A.load_episodes(str(p))
+
+
 def test_kirishda_hisoblangan_fr_b_bolsa_analiz_rad_etiladi():
     """§5: P1 da `Repairs()` YO'Q. Kirishda FR-B bo'lsa -- versiya ziddiyati."""
     t = trial("SYNTH-1", fr_b={"computed": True, "value": False,
@@ -909,17 +1080,125 @@ def test_downtime_kvantili_shartnomadagi_ichki_shaklga_ega():
 # --- 12b. §8.2 probe narxi: zanjir uzilgan, TO'QILMAYDI -------------------
 
 
-def test_probe_cost_zanjir_uzilgan_bolim_chiqarilmaydi_va_sabab_warnings_da():
-    """§8.2 narxni talab qiladi, lekin `reduce.py` uni CHIQARMAYDI.
+def test_probe_cost_manba_yoq_bolsa_bolim_chiqarilmaydi_va_sabab_warnings_da():
+    """§8.2 narxni talab qiladi; manba bo'lmasa narx TO'QILMAYDI.
 
     FAKT (tekshirilgan): `prober.cost_report()` `core_percent` va
     `budget_percent` beradi va `prober_stop` ga yozadi, lekin `reduce.py`
-    `prober_stop` ni o'qimaydi -- `trial_metrics` da narx YO'Q. Nol yoki
-    budjet qiymati berish §8.2 ni tekshirilgandek ko'rsatardi.
+    bu record turini o'qimaydi -- `trial_metrics` da narx YO'Q. `--events`
+    ham berilmasa bo'lim UMUMAN chiqmaydi, shunda `figures.py` yo'qligini
+    ANIQLAY oladi va placeholder chizadi. Nol yoki budjet qiymati berish
+    §8.2 ni tekshirilgandek ko'rsatardi.
     """
     obj = build([trial("SYNTH-1"), trial("SYNTH-2")])
     assert "probe_cost" not in obj
     assert "probe_cost_absent" in warn_codes(obj)
+
+
+def test_probe_cost_events_dan_per_trial_olinadi_va_armga_boglanadi():
+    """§8.2 -- `prober_stop.cost` dan, `trial_id` bo'yicha, arm bo'yicha.
+
+    `driver-contract/v1.1` §4.5(a): driver HAR TRIAL uchun bitta prober
+    jarayoni ishga tushiradi, demak `prober_stop` har trial uchun bir marta
+    chiqadi va envelope'ida shu trial'ning `trial_id` si bor.
+
+    QO'LDA HISOB. Trial tartibi: A/T1, A/T2, A/T4, no_action/T3.
+    `prober_stop`: T1 -> 0.42, T2 -> 0.51, T3 -> None. T4 uchun record YO'Q.
+      by_arm["A"]["core_percent"]         = [0.42, 0.51, None]
+      by_arm["no_action"]["core_percent"] = [None]
+    T4 -> `probe_cost_partial` (1/4).
+    """
+    trials = [trial("SYNTH-T1", arm="A"), trial("SYNTH-T2", arm="A"),
+              trial("SYNTH-T4", arm="A"), trial("SYNTH-T3", arm="no_action")]
+    stops = [prober_stop("SYNTH-T1", 0.42), prober_stop("SYNTH-T2", 0.51),
+             prober_stop("SYNTH-T3", None)]
+    obj = build(trials, prober_stops=stops)
+    pc = obj["probe_cost"]
+    assert pc["budget_percent"] == 1.0            # §8.2: bir yadroning 1%
+    assert pc["by_arm"]["A"]["core_percent"] == [0.42, 0.51, None]
+    assert pc["by_arm"]["no_action"]["core_percent"] == [None]
+    assert "prober_stop" in pc["source"]
+    assert "probe_cost_partial" in warn_codes(obj)
+    assert "probe_cost_absent" not in warn_codes(obj)
+
+
+def test_probe_cost_trial_id_siz_record_hisobga_olinmaydi():
+    """`trial_id` yo'q bo'lsa narx trial'ga va arm'ga BOG'LANMAYDI."""
+    trials = [trial("SYNTH-T1", arm="A")]
+    stops = [prober_stop("SYNTH-T1", 0.42),
+             prober_stop("SYNTH-?", 9.99, omit_trial_id=True)]
+    obj = build(trials, prober_stops=stops)
+    assert obj["probe_cost"]["by_arm"]["A"]["core_percent"] == [0.42]
+    assert "probe_cost_no_trial_id" in warn_codes(obj)
+
+
+def test_probe_cost_begona_trial_id_jadvalga_kirmaydi():
+    trials = [trial("SYNTH-T1", arm="A")]
+    stops = [prober_stop("SYNTH-T1", 0.42), prober_stop("SYNTH-GHOST", 0.9)]
+    obj = build(trials, prober_stops=stops)
+    assert obj["probe_cost"]["by_arm"]["A"]["core_percent"] == [0.42]
+    assert "probe_cost_orphan" in warn_codes(obj)
+
+
+def test_probe_cost_takrorlangan_trial_id_warning_beradi():
+    """§4.5(a) har trial uchun BITTA prober jarayonini talab qiladi."""
+    trials = [trial("SYNTH-T1", arm="A")]
+    stops = [prober_stop("SYNTH-T1", 0.42), prober_stop("SYNTH-T1", 0.77)]
+    obj = build(trials, prober_stops=stops)
+    assert obj["probe_cost"]["by_arm"]["A"]["core_percent"] == [0.77]
+    assert "probe_cost_duplicate_trial_id" in warn_codes(obj)
+
+
+def test_probe_cost_budjet_manbadan_olinadi_va_farq_qayd_etiladi():
+    """Manbadagi budjet modulda muzlatilganidan farq qilsa -- JIMGINA QOLMAYDI.
+
+    O'lchov MANBADAGI chegaraga nisbatan qilingan, shuning uchun hisobotda
+    manbadagisi beriladi va farq `warnings` ga tushadi.
+    """
+    trials = [trial("SYNTH-T1", arm="A")]
+    stops = [prober_stop("SYNTH-T1", 0.42, budget_percent=2.0)]
+    obj = build(trials, prober_stops=stops)
+    assert obj["probe_cost"]["budget_percent"] == 2.0
+    assert "probe_cost_budget_mismatch" in warn_codes(obj)
+
+
+def test_prober_stop_record_topilmasa_bosh_royxat_va_oz_warning_kodi(tmp_path):
+    """`--events` berilgan, lekin narx yo'q => jimgina nol narx BERILMAYDI,
+    lekin bu XATO ham emas.
+
+    §2.3 #6: hisoblab bo'lmaslik xato emas -- u `warnings` ga tushadi.
+    Lekin `None` (bayroq berilmagan) va `[]` (bayroq berilgan, fayl bo'sh)
+    AJRATILADI: ikkinchisi "noto'g'ri fayl" signali.
+    """
+    p = tmp_path / "events.jsonl"
+    p.write_text(json.dumps({"record_type": "probe_sample"}) + "\n",
+                 encoding="utf-8")
+    assert A.load_events(str(p)) == []
+
+    obj = build([trial("SYNTH-1")], prober_stops=[])
+    assert "probe_cost" not in obj
+    codes = warn_codes(obj)
+    assert "probe_cost_events_empty" in codes
+    # Bayroq berilmagan holat BOSHQA kod beradi.
+    assert "probe_cost_events_empty" not in warn_codes(build([trial("SYNTH-1")]))
+
+
+def test_probe_cost_budjet_konstantasi_proberdagi_bilan_bir_xil():
+    """IKKI JOYDA muzlatilgan qiymat uchun REGRESSIYA QULFI.
+
+    `analyze.py` `prober` ni IMPORT QILMAYDI (qoida 1: offline analiz
+    o'lchov modullaridan bog'liq bo'lmaydi), shuning uchun
+    `PROBE_COST_BUDGET_PERCENT` ikki faylda takrorlanadi. Izoh yetarli
+    emas: biri o'zgarsa chiqishdagi budjet jimgina noto'g'ri bo'lardi.
+    Bu test `prober.py` ni MATN sifatida o'qiydi -- import qilmaydi.
+    """
+    src = (pathlib.Path(A.__file__).parent / "prober.py").read_text(
+        encoding="utf-8")
+    m = re.search(r"^PROBE_COST_BUDGET_PERCENT\s*=\s*([0-9.]+)", src,
+                  re.MULTILINE)
+    assert m is not None, "prober.py da PROBE_COST_BUDGET_PERCENT topilmadi"
+    assert float(m.group(1)) == A.PROBE_COST_BUDGET_PERCENT
+    assert A.PROBE_COST_BUDGET_PERCENT == 1.0      # §8.2: bir yadroning 1%
 
 
 def test_probe_cost_kirishda_bolsa_arm_boyicha_beriladi():
@@ -1041,8 +1320,10 @@ def test_chiqish_kirish_fayli_ustiga_yozilmaydi(tmp_path):
         A._assert_not_input(str(t), [str(t)])
 
 
-def test_main_analysis_json_yozadi_va_sweep_ni_qabul_qiladi(tmp_path, capsys):
-    """CLI shartnomasi: `--trials`, `--run-meta`, `--out`, `--sweep`, `--json`."""
+def test_main_analysis_json_yozadi_va_hamma_bayroqni_qabul_qiladi(tmp_path,
+                                                                  capsys):
+    """CLI shartnomasi: `--trials`, `--run-meta`, `--out`, `--sweep`,
+    `--episodes`, `--events`, `--json`."""
     trials = cells_to_trials({"P0": (5, 6), "P1": (4, 6), "P2": (2, 6)})
     tp = tmp_path / "trials.jsonl"
     tp.write_text("".join(json.dumps(r) + "\n" for r in trials),
@@ -1054,18 +1335,52 @@ def test_main_analysis_json_yozadi_va_sweep_ni_qabul_qiladi(tmp_path, capsys):
                           for c in full_sweep("SYNTH-P0-0",
                                               truncated_from_s=60)),
                   encoding="utf-8")
+    ep = tmp_path / "episodes.jsonl"
+    ep.write_text("".join(json.dumps(episode(r["trial_id"], 0, False,
+                                             [False])) + "\n"
+                          for r in trials), encoding="utf-8")
+    ev = tmp_path / "events.jsonl"
+    ev.write_text("".join(json.dumps(prober_stop(r["trial_id"], 0.5)) + "\n"
+                          for r in trials), encoding="utf-8")
     out = tmp_path / "analysis.json"
 
     rc = A.main(["--trials", str(tp), "--run-meta", str(mp),
-                 "--out", str(out), "--sweep", str(sp), "--json"])
+                 "--out", str(out), "--sweep", str(sp),
+                 "--episodes", str(ep), "--events", str(ev), "--json"])
     assert rc == 0
     assert out.exists()
     obj = json.loads(out.read_text(encoding="utf-8"))
     assert obj["analysis_version"] == "p1/v1"
     assert obj["n_trials"]["total"] == 18
     assert len(obj["sensitivity"]["grid"]) == 15
+    # §5: `--episodes` berilgan => HAQIQIY ta'riflar ishlatilgan.
+    fa = obj["false_recovery"]["fr_a"]
+    assert fa["basis"]["source"] == "episodes.jsonl (--episodes)"
+    assert fa["per_action"] == pytest.approx(0.0)
+    assert fa["per_episode"] == pytest.approx(0.0)
+    # §8.2: `--events` berilgan => `probe_cost` MAVJUD va arm bo'yicha.
+    assert obj["probe_cost"]["budget_percent"] == 1.0
+    assert obj["probe_cost"]["by_arm"]["A"]["core_percent"] == [0.5] * 18
     # `--json` stdout'ga ham AYNAN shu obyektni beradi.
     assert json.loads(capsys.readouterr().out) == obj
+
+
+def test_main_ixtiyoriy_bayroqlarsiz_ham_ishlaydi_lekin_bolim_yoq(tmp_path):
+    """`--episodes` / `--events` siz ham chiqish YARATILADI, lekin §8.2
+    bo'limi yo'q va sabab `warnings` da."""
+    trials = cells_to_trials({"P0": (5, 6), "P1": (4, 6), "P2": (2, 6)})
+    tp = tmp_path / "trials.jsonl"
+    tp.write_text("".join(json.dumps(r) + "\n" for r in trials),
+                  encoding="utf-8")
+    mp = tmp_path / "run_meta.json"
+    mp.write_text(json.dumps(run_meta()), encoding="utf-8")
+    out = tmp_path / "analysis.json"
+    assert A.main(["--trials", str(tp), "--run-meta", str(mp),
+                   "--out", str(out)]) == 0
+    obj = json.loads(out.read_text(encoding="utf-8"))
+    assert "probe_cost" not in obj
+    codes = {w["code"] for w in obj["warnings"]}
+    assert {"probe_cost_absent", "fr_a_episodes_absent"} <= codes
 
 
 def test_main_json_bayrogisiz_ham_ishlaydi(tmp_path):
