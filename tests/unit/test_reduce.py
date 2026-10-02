@@ -288,6 +288,9 @@ def test_probe_uzilishi_censored_failed_emas():
     assert payload["disposition_source"] == "probe_gap"
     assert payload["disposition_conflict"] is True
     assert payload["included_in_primary"] is False
+    # §16.2(B): sabab MANBANI nomlaydi -- kuzatilMAGAN natija (`probe_gap`)
+    # kuzatilgan no'l-hodisadan (`down_at_horizon`) ajralishi SHART.
+    assert payload["exclusion_reason"] == "censored:probe_gap"
     # Censored trial KM/log-rank va loop-rate ga KIRADI (§6.2).
     assert payload["included_in_survival"] is True
 
@@ -340,10 +343,16 @@ def test_horizon_down_holatda_tugadi_downtime_censored_trial_tashlanmaydi():
     assert p["time_to_vr_us"] == 5_100_000
     assert p["time_to_vr_censored"] is True
     assert p["time_to_first_up_censored"] is True
-    # §6.2: censored trial KM/log-rank ga kiradi, birlamchi binar analizga yo'q.
+    # §6.2: censored trial KM/log-rank ga kiradi.
     assert p["included_in_survival"] is True
     assert R.select_survival(out.trials) == [p]
-    assert R.select_primary(out.trials) == []
+    # §16.2(B) (v1.5): `down_at_horizon` -- KUZATILGAN NO'L-HODISA, demak u
+    # binar maxrajga HAM `VR = false` sifatida KIRADI. Oldin bu assert
+    # `select_primary(...) == []` edi -- o'sha §16.4 "NOTO'G'RI javob" deb
+    # hukm qilgan qiymatning ifodasi.
+    assert R.select_primary(out.trials) == [p]
+    assert p["included_in_primary"] is True
+    assert p["exclusion_reason"] is None
     assert out.summary["disposition_counts"]["censored"] == 1
 
 
@@ -368,7 +377,17 @@ def test_trial_hech_qachon_tashlanmaydi():
     assert len(out.trials) == 3
     assert out.summary["disposition_counts"]["complete"] == 1
     assert out.summary["disposition_counts"]["censored"] == 2
-    assert out.summary["recovered_k_of_n"] == [1, 1]     # "T_trial ichida k/n"
+    # §16.2(B): ikki `censored` trial'ning MANBALARI boshqa -- biri
+    # `down_at_horizon` (maxrajga kiradi), biri `probe_gap` (kirmaydi), demak
+    # maxraj n = 2 (complete + down_at_horizon), k = 1.
+    # Oldin bu [1, 1] edi, chunki `down_at_horizon` chiqarilgan edi (§16.4).
+    assert out.summary["recovered_k_of_n"] == [1, 2]     # "T_trial ichida k/n"
+    assert out.summary["recovered_k_of_n_set"] == R.SET_BINARY_DENOMINATOR
+    # §6.2 / §16.4: analiz to'plami uchun `k/n` maxraji UCHALASINI oladi.
+    # k = 2, chunki `probe_gap` trial'ining o'zida VR true (uzilish oynadan
+    # tashqarida), lekin u binar MAXRAJGA kirmaydi (§4: natija kuzatilmadi) --
+    # aynan shu sababli ikki to'plam ikki xil `k/n` beradi va NOMLANISHI shart.
+    assert out.summary["recovered_k_of_n_analysis_set"] == [2, 3]
 
 
 # --- 6. D_sd nol, D_eff haqiqiy (brownout) ---------------------------------
@@ -775,3 +794,279 @@ def test_w_stab_kichik_bolsa_oyna_qisqa_va_vr_tezroq_tasdiqlanadi():
     assert eps[0].window_end_us == T0 + 11_500_000
     assert eps[0].vr is True
     assert payload["time_to_vr_us"] == 1_500_000
+
+
+# --- 15. §16 hukmi: analiz to'plami (disposition, disposition_source) jufti --
+#
+# Bu bo'lim REGRESSIYA QULFI: PREREGISTRATION.md §16.2(B) hukmini kelajakdagi
+# o'zgarish JIMGINA bekor qila olmasligi uchun. §16.3 nega muhimligini
+# aytadi: `P2` ostida qaytmagan arm `A` trial'i AYNAN H1 oldindan aytgan
+# natija (§9.2 mexanizmlari i, ii, iv), demak uni maxrajdan chiqarish
+# "null natijani dunyodan emas, EKSKLYUZIYADAN" yaratishi mumkin.
+
+
+def build_no_action_never_recovers(trial_id="t0", *, arm="no_action"):
+    """`no_action` arm: injeksiya + `Restart=no` -> hech qachon qaytmaydi.
+
+    ACTION RECORD YO'Q (arm hech narsa qilmaydi), demak §4.1 anchor'i
+    onset bo'ladi (`anchor_source="onset"`). Horizon down holatda tugaydi.
+    """
+    b = Builder(trial_id)
+    b.add(R.RT_TRIAL_BEGIN, T0, arm=arm, pressure_band="P2",
+          fault_class="clean_crash")
+    b.unit_state(T0, n_restarts=0, invocation="inv1",
+                 enter=T0 - 1_000_000, exit_=0)
+    b.oom(T0, 0)
+    _baseline(b)
+    b.add(R.RT_FAULT_INJECT, T0 + 10_000_000, kind="exit",
+          mono_us_after_call=T0 + 10_000_000)
+    for k in range(100, 151):                    # 51 buzilgan probe, qaytish yo'q
+        b.probe(k, outcome="conn_refused", progress=None, invocation=None)
+    b.unit_state(T0 + 12_000_000, active_state="failed", result="exit-code",
+                 n_restarts=0, invocation="inv1",
+                 enter=T0 - 1_000_000, exit_=T0 + 10_000_000)
+    b.add(R.RT_TRIAL_END, T0 + 15_100_000, disposition="censored")
+    return b
+
+
+def test_down_at_horizon_binar_maxrajga_vr_false_sifatida_kiradi():
+    """§16.2(B): `censored` + `down_at_horizon` -> maxrajga KIRADI, `VR=false`.
+
+    §4 ning VR ta'rifi horizon bilan chegaralangan: oyna "MAVJUD BO'LSA".
+    `t_up` umuman paydo bo'lmagan trial uchun oyna mavjud EMAS, demak
+    `VR = false` -- TO'LIQ ANIQLANGAN, yetishmayotgan kuzatuv emas.
+    """
+    out = R.reduce_run(build_never_recovers().run())
+    p = out.trials[0]
+    assert (p["disposition"], p["disposition_source"]) == ("censored",
+                                                           "down_at_horizon")
+    assert p["vr"] is False                     # `None` EMAS -- aniqlangan
+    assert p["vr_reason"] == "no_up_probe"
+    assert p["included_in_primary"] is True
+    assert p["exclusion_reason"] is None
+    assert R.enters_primary_denominator("censored", "down_at_horizon") is True
+    assert R.select_primary(out.trials) == [p]
+
+
+def test_probe_gap_binar_maxrajdan_chiqariladi_va_sabab_manbani_nomlaydi():
+    """§16.2(B) + §4: instrumentatsiya yo'qolishi jimgina natijaga aylanmaydi.
+
+    `probe_gap` -> natija KUZATILMADI -> binar maxrajdan chiqariladi, LEKIN
+    sabab manbani NOMLAYDI (§16.4: nomsiz eksklyuziya takrorlanuvchi emas).
+    """
+    drop = tuple(range(130, 141))                # 1.1 s uzilish > 2xP
+    out = R.reduce_run(build_restart_trial(FULL_STEP, drop=drop).run())
+    p = out.trials[0]
+    assert (p["disposition"], p["disposition_source"]) == ("censored",
+                                                           "probe_gap")
+    assert p["included_in_primary"] is False
+    assert p["exclusion_reason"] == "censored:probe_gap"
+    assert "probe_gap" in p["exclusion_reason"]   # MANBA nomlangan
+    assert R.enters_primary_denominator("censored", "probe_gap") is False
+    assert R.select_primary(out.trials) == []
+    # §6.2: davomiylik censored, binar natija emas -> survival'ga KIRADI.
+    assert R.select_survival(out.trials) == [p]
+
+
+def test_toliq_no_action_yacheykasi_bosh_birlamchi_toplam_BERMAYDI():
+    """§16.1 + §16.2(B): BU HUKM AYNAN SHU HOLAT UCHUN MAVJUD.
+
+    `no_action` arm `Restart=no` bo'lgani uchun `clean_crash` dan keyin HECH
+    QACHON qaytmaydi, demak HAR DOIM horizon down holatda tugaydi. Eski
+    qoida ostida yacheykaning BARCHA trial'lari birlamchi to'plamdan chiqib
+    ketardi (§16.1: "60 trial ham birlamchi to'plamdan chiqadi").
+    """
+    recs, probes = [], []
+    for i in range(5):
+        b = build_no_action_never_recovers(f"t{i}")
+        recs.extend(b.records)
+        probes.extend(b.probes)
+    out = R.reduce_run(R.RawRun(records=recs, probes=probes, sources=[]))
+    assert out.summary["n_trials_in"] == out.summary["n_trials_out"] == 5
+    primary = R.select_primary(out.trials)
+    assert len(primary) == 5                     # BO'SH EMAS -- hukmning mohiyati
+    assert all(r["arm"] == "no_action" for r in primary)
+    # Konstruksiya bo'yicha `P(VR) = 0`, lekin MAXRAJ bor: 0/5, 0/0 EMAS.
+    assert all(r["vr"] is False for r in primary)
+    assert out.summary["recovered_k_of_n"] == [0, 5]
+    assert out.summary["exclusion_rate_binary_pvr_denominator"] == 0.0
+
+
+def test_ikki_eksklyuziya_darajasi_ALOHIDA_va_IKKALASI_HAM_NOMLANGAN():
+    """§16.4: eksklyuziya darajasi QAYSI to'plam ustida hisoblanganini
+    NOMLASHI SHART; nomlanmagan daraja natija sifatida BERILMAYDI.
+
+    Fixture: 1 complete + 1 down_at_horizon + 1 probe_gap + 1 aborted_guard.
+      * binar maxraj             -> complete + down_at_horizon = 2/4 kiradi,
+                                    eksklyuziya 2/4 = 0.5
+      * survival analiz to'plami -> complete + 2 censored = 3/4 kiradi,
+                                    eksklyuziya 1/4 = 0.25
+    Ikki to'plam -> IKKI XIL daraja, shuning uchun nom MAJBURIY.
+    """
+    guard_b = build_restart_trial(FULL_STEP)
+    guard_b.add(R.RT_GUARD_EVENT, T0 + 12_000_000, trial_id=None,
+                emitter="guard:9", reason="sustained_pressure",
+                action="kill_subtree")
+    recs, probes = [], []
+    builders = (build_restart_trial(FULL_STEP),
+                build_never_recovers(),
+                build_restart_trial(FULL_STEP, drop=tuple(range(130, 141))),
+                guard_b)
+    for i, b in enumerate(builders):
+        for r in b.records:
+            r = dict(r)
+            r["trial_id"] = f"t{i}"
+            recs.append(r)
+        for r in b.probes:
+            r = dict(r)
+            r["trial_id"] = f"t{i}"
+            probes.append(r)
+    out = R.reduce_run(R.RawRun(records=recs, probes=probes, sources=[]))
+    s = out.summary
+    assert s["n_trials_in"] == s["n_trials_out"] == 4
+
+    # Ikki daraja ALOHIDA maydonlarda va har biri O'Z NOMINI ko'taradi.
+    assert set(s["exclusions"]) == {R.SET_BINARY_DENOMINATOR, R.SET_SURVIVAL}
+    eb = s["exclusions"][R.SET_BINARY_DENOMINATOR]
+    es = s["exclusions"][R.SET_SURVIVAL]
+    assert eb["analysis_set"] == R.SET_BINARY_DENOMINATOR
+    assert es["analysis_set"] == R.SET_SURVIVAL
+
+    assert (eb["n_total"], eb["n_included"], eb["n_excluded"]) == (4, 2, 2)
+    assert eb["exclusion_rate"] == pytest.approx(0.5)
+    assert (es["n_total"], es["n_included"], es["n_excluded"]) == (4, 3, 1)
+    assert es["exclusion_rate"] == pytest.approx(0.25)
+
+    # Ikki daraja HAR XIL -- aynan shu sababli §16.4 nomni majburiy qiladi.
+    assert eb["exclusion_rate"] != es["exclusion_rate"]
+
+    # Skalyar maydon nomlari ham to'plamni NOMLAYDI.
+    assert s["exclusion_rate_binary_pvr_denominator"] == pytest.approx(0.5)
+    assert s["exclusion_rate_survival_analysis_set"] == pytest.approx(0.25)
+
+    # Sabablar MANBA bilan: probe_gap va aborted_guard ajratiladi.
+    assert eb["reasons"]["censored:probe_gap"] == 1
+    assert eb["reasons"]["aborted_guard:guard_event"] == 1
+    assert "censored:down_at_horizon" not in eb["reasons"]   # KIRGAN, chiqmagan
+
+    # §16.2(B): juft bo'yicha hisobot `censored` ning ikki ma'nosini ajratadi.
+    assert s["disposition_source_counts"]["censored:probe_gap"] == 1
+    assert s["disposition_source_counts"]["censored:down_at_horizon"] == 1
+
+
+def test_eksklyuziya_darajasi_nomsiz_toplam_uchun_BERILMAYDI():
+    """§16.4: nomlanmagan to'plam ustida daraja hisoblanmaydi -- fail-closed."""
+    with pytest.raises(R.ReductionError, match="analiz to'plami"):
+        R.exclusion_report([], analysis_set="primary")
+
+
+def test_notogri_disposition_source_jimgina_maxrajga_TUSHMAYDI():
+    """FAIL-CLOSED (§16.2(B)): jadvalda yo'q juft -> CHIQARILADI + NOMLANGAN.
+
+    Juft bilan aniqlangan to'plamda noma'lum manba -- noma'lum juft. U
+    jimgina maxrajga tushsa, §16.2(B) hukmi kelajakda yangi manba qo'shilishi
+    bilan JIMGINA buzilardi.
+    """
+    for bad in ("sentinel_future_source", "", None, "DOWN_AT_HORIZON"):
+        assert R.enters_primary_denominator("censored", bad) is False
+        reason = R.primary_exclusion_reason("censored", bad)
+        assert reason is not None
+        assert "unknown_source" in reason and str(bad) in reason
+    # Noma'lum `disposition` ham xuddi shunday: chiqariladi va nomlanadi.
+    assert R.enters_primary_denominator("failed", "down_at_horizon") is False
+    assert "unknown_disposition" in R.primary_exclusion_reason(
+        "failed", "down_at_horizon")
+    # Selektor ham xuddi shu qoidani ishlatadi (yagona manba).
+    recs = [{"disposition": "censored", "disposition_source": "future_source",
+             "vr": False},
+            {"disposition": "censored", "disposition_source": "down_at_horizon",
+             "vr": False}]
+    assert R.select_primary(recs) == [recs[1]]
+
+
+def test_derive_disposition_ishlab_chiqaradigan_HAR_MANBA_ochiq_ishlanadi():
+    """`DISPOSITION_SOURCES` ning har qiymati jadvalda OCHIQ hal qilinadi.
+
+    §16.2(B) juftga tayanadi, demak "ishlanmagan manba" degan holat
+    qolmasligi SHART: har (disposition, source) jufti uchun verdict aniq va
+    kirmasa sabab NOMLANGAN.
+    """
+    assert set(R.DISPOSITION_SOURCES) == {"probe_gap", "down_at_horizon",
+                                          "guard_event", "trial_end",
+                                          "derived"}
+    assert set(R.PRIMARY_DENOMINATOR_SOURCES) == set(DISPOSITIONS)
+    for disp in DISPOSITIONS:
+        for src in R.DISPOSITION_SOURCES:
+            inc, reason = R.primary_denominator_verdict(disp, src)
+            assert isinstance(inc, bool)
+            assert (reason is None) is inc        # kirdi <=> sabab yo'q
+            if not inc:
+                assert src in reason and disp in reason
+    # Maxrajga kiradigan juftlar -- AYNAN §16.2(B) aytgan to'plam.
+    entering = {(d, s) for d in DISPOSITIONS for s in R.DISPOSITION_SOURCES
+                if R.enters_primary_denominator(d, s)}
+    assert entering == {("complete", "trial_end"), ("complete", "derived"),
+                        ("censored", "down_at_horizon")}
+
+
+def test_select_survival_OZGARMADI_complete_va_censored():
+    """§16.4: analiz to'plami (`("complete","censored")`) -- togri, tegilmaydi.
+
+    §6.2 DAVOMIYLIKNI `T_trial` da censor qiladi, binar natijani EMAS,
+    shuning uchun `probe_gap` ham, `down_at_horizon` ham bu yerda qoladi va
+    `disposition_source` bu to'plamga TA'SIR QILMAYDI.
+    """
+    assert R.SURVIVAL_DISPOSITIONS == ("complete", "censored")
+    recs = [{"disposition": "complete", "disposition_source": "trial_end"},
+            {"disposition": "censored", "disposition_source": "probe_gap"},
+            {"disposition": "censored", "disposition_source": "down_at_horizon"},
+            {"disposition": "censored", "disposition_source": "trial_end"},
+            {"disposition": "aborted_guard", "disposition_source": "guard_event"},
+            {"disposition": "contaminated", "disposition_source": "trial_end"},
+            {"disposition": "washout_timeout", "disposition_source": "trial_end"},
+            {"disposition": "harness_error", "disposition_source": "trial_end"}]
+    assert R.select_survival(recs) == recs[:4]
+
+
+def test_n_trials_in_va_out_teng_qoladi_eksklyuziya_faqat_selektorda():
+    """4-qoida + §6.2: selektor QAYSI trial'ni qaytarishini o'zgartiradi,
+    record SONINI hech qachon o'zgartirmaydi."""
+    recs, probes = [], []
+    builders = (build_restart_trial(FULL_STEP),
+                build_never_recovers(),
+                build_no_action_never_recovers(),
+                build_restart_trial(FULL_STEP, drop=tuple(range(130, 141))))
+    for i, b in enumerate(builders):
+        for r in b.records:
+            r = dict(r)
+            r["trial_id"] = f"t{i}"
+            recs.append(r)
+        for r in b.probes:
+            r = dict(r)
+            r["trial_id"] = f"t{i}"
+            probes.append(r)
+    out = R.reduce_run(R.RawRun(records=recs, probes=probes, sources=[]))
+    assert out.summary["n_trials_in"] == 4
+    assert out.summary["n_trials_out"] == 4
+    assert len(out.trials) == 4
+    # Har trial'da AYNAN BITTA disposition va juftning ikkala a'zosi bor (§12).
+    for r in out.trials:
+        assert r["disposition"] in DISPOSITIONS
+        assert r["disposition_source"] in R.DISPOSITION_SOURCES
+    # Eksklyuziya faqat selektor ichida: chiqish soni = kirish soni.
+    assert (out.summary["exclusions"][R.SET_BINARY_DENOMINATOR]["n_total"]
+            == out.summary["n_trials_out"])
+
+
+def test_deprecated_PRIMARY_DISPOSITIONS_endi_qoida_EMAS():
+    """§16.4: `PRIMARY_DISPOSITIONS` -- to'g'ri savol, NOTO'G'RI javob.
+
+    U import muvofiqligi uchun saqlanadi, lekin modul uni QAROR uchun
+    ISHLATMAYDI: qoida -- `enters_primary_denominator()`. Bu test o'sha
+    farqni qulflaydi, ya'ni kimdir qoidani eski konstantaga qaytarsa test
+    yiqiladi.
+    """
+    assert R.PRIMARY_DISPOSITIONS == ("complete",)
+    # Eski qoida bo'yicha bu juft CHIQARILARDI; yangi qoida bo'yicha KIRADI.
+    assert "censored" not in R.PRIMARY_DISPOSITIONS
+    assert R.enters_primary_denominator("censored", "down_at_horizon") is True

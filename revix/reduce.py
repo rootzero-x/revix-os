@@ -7,6 +7,9 @@ PREREGISTRATION.md ni amalga oshiradi:
   * §5  -- FR-A (birlamchi, oracle-free) va FR-B (ikkilamchi, matritsaga nisbatan)
   * §6  -- uchta downtime o'lchovi, right censoring, latency qoidalari
   * §12 -- trial disposition yopiq enum
+  * §16 -- analiz to'plami `(disposition, disposition_source)` jufti bilan
+           aniqlanadi (§16.2(B)), va eksklyuziya darajasi QAYSI to'plam
+           ustida hisoblanganini nomlaydi (§16.4)
 
 QAT'IY QOIDALAR (buzilmaydi):
 
@@ -23,8 +26,10 @@ QAT'IY QOIDALAR (buzilmaydi):
      `trial_metrics` record chiqadi. Recovery bo'lmagan trial'larni tashlash --
      klassik yashirin bias (§6.2), shuning uchun u strukturaviy jihatdan
      imkonsiz: `reduce_run()` kirish va chiqish sonini tekshiradi, eksklyuziya
-     esa faqat NOMLANGAN selektorlar (`select_primary`) orqali va `disposition`
-     qayd etilgan holda bo'ladi.
+     esa faqat NOMLANGAN selektorlar (`select_primary`, `select_survival`)
+     orqali va `(disposition, disposition_source)` jufti qayd etilgan holda
+     bo'ladi (§16.2(B)). Selektor QAYSI trial'ni qaytarishini o'zgartiradi,
+     record SONINI hech qachon o'zgartirmaydi.
   5. **PSI hech qanday ta'rifga kirmaydi** (§5 sirkulyarlik kafolati). Bu modul
      PSI qiymatlarini O'QIMAYDI ham: VR, FR va downtime ta'riflari PSI'ga
      bog'liq bo'lsa, "PSI gating FR ni kamaytiradi" tavtologiyaga aylanadi.
@@ -113,11 +118,86 @@ DRT_TRIAL = "trial_metrics"
 DRT_SWEEP = "sweep_cell"
 DRT_SUMMARY = "reduction_summary"
 
-# Birlamchi analizga kiradigan disposition (§12).
+# `disposition_source` -- reducer'ning MAHALLIY yopiq enum'i. §12 ning
+# disposition enum'i emas: bu `derive_disposition` yorliqni QAYSI FAKT asosida
+# qo'yganini aytadi. Aynan shu beshta qiymat ishlab chiqariladi.
+DISPOSITION_SOURCES = (
+    "probe_gap",         # §4: probe uzilishi > 2xP -- instrumentatsiya yo'qoldi
+    "down_at_horizon",   # §12: horizon down holatda tugadi -- xizmat qaytmadi
+    "guard_event",       # §12: host guard trip qildi
+    "trial_end",         # harness'ning o'z `trial_end.disposition` yorlig'i
+    "derived",           # hech qanday maxsus fakt yo'q -> `complete`
+)
+
+# --- ikki analiz to'plami: NOMLARI MAJBURIY (§16.4) -------------------------
+#
+# NEGA (§16.4): §12 eksklyuziya darajasini NATIJA deb e'lon qiladi, va
+# ikki xil to'plam ikki xil darajani beradi. §16.4 shuning uchun majburiy
+# qoida qo'yadi: "har qanday ... berilgan eksklyuziya darajasi QAYSI to'plam
+# ustida hisoblanganini NOMLASHI SHART ... Nomlanmagan eksklyuziya darajasi
+# takrorlanuvchi EMAS". Shu sababli to'plam nomlari KONSTANTA -- hisobot
+# maydonlari ularni matn sifatida takrorlamaydi.
+SET_BINARY_DENOMINATOR = "binary_pvr_denominator"   # §10.1 binar P(VR) maxraji
+SET_SURVIVAL = "survival_analysis_set"              # §6.2 KM/log-rank, k/n
+
+# NEGA (§16.2(B)): BIRLAMCHI (binar `P(VR)`) ANALIZ TO'PLAMI `disposition`
+# BILAN EMAS, `(disposition, disposition_source)` JUFTI BILAN ANIQLANADI.
+#
+# §12 ning `censored` yorlig'i ikki epistemologik jihatdan BOSHQA holatni
+# bitta nom ostida birlashtiradi, va muzlatilgan matn ularni allaqachon
+# boshqacha ishlaydi:
+#
+#   * `probe_gap`       -> instrumentatsiya yo'qoldi, natija KUZATILMADI.
+#     §4: "Probe uzilishi > 2xP -> trial `censored`, `failed` EMAS.
+#     Instrumentatsiya yo'qolishi hech qachon jimgina natijaga aylanmaydi."
+#     => binar maxrajdan CHIQARILADI, lekin ulushi §12 bo'yicha beriladi.
+#   * `down_at_horizon` -> xizmat qaytmadi, natija KUZATILDI: `false`.
+#     §4 ning VR ta'rifi horizon bilan chegaralangan: "oynasi MAVJUD
+#     BO'LSA". `t_up` paydo bo'lmagan trial uchun oyna mavjud emas, demak
+#     `VR = false` -- TO'LIQ ANIQLANGAN, yetishmayotgan kuzatuv emas.
+#     => binar maxrajga `VR = false` sifatida KIRADI.
+#
+# Ikkalasi ham §6.2 bo'yicha KM/log-rank va loop-rate ga censored DAVOMIYLIK
+# sifatida kiradi -- §6.2 davomiylikni censor qiladi, binar natijani emas.
+# Shuning uchun `SURVIVAL_DISPOSITIONS` va `select_survival` O'ZGARMAYDI.
+#
+# NEGA JUFT, MAPPING SHAKLIDA (§16.2(B)): jadval har `disposition` uchun
+# RUXSAT ETILGAN `disposition_source` to'plamini OCHIQ sanaydi, demak
+# (i) qoida call site'da bitta nom bilan o'qiladi
+# (`enters_primary_denominator(...)`), (ii) yangi `disposition_source`
+# qo'shilsa u avtomatik ravishda maxrajga TUSHMAYDI -- jadvalda yo'q qiymat
+# fail-closed tarzda chiqariladi, (iii) §12 ning yopiq enum'iga TEGILMAYDI va
+# yangi disposition qiymati YARATILMAYDI.
+PRIMARY_DENOMINATOR_SOURCES: dict[str, frozenset[str]] = {
+    # To'liq o'lchandi (§12) -- manbasidan qat'i nazar maxrajga kiradi.
+    "complete": frozenset({"trial_end", "derived"}),
+    # §16.2(B): faqat `down_at_horizon`. `probe_gap` KUZATILMAGAN natija,
+    # `trial_end` esa harness `censored` dedi-yu sababini reducer ko'rmadi --
+    # ikkisi ham fail-closed chiqariladi.
+    "censored": frozenset({"down_at_horizon"}),
+    # §12: ochiq chiqariladi, lekin ulushi natija sifatida beriladi.
+    "contaminated": frozenset(),
+    "aborted_guard": frozenset(),
+    # §12 bularning analiz holatini AYTMAYDI (§16.7-1) -> fail-closed.
+    "washout_timeout": frozenset(),
+    "harness_error": frozenset(),
+}
+
+# DEPRECATED -- §16.4 bu konstantani "to'g'ri savol, NOTO'G'RI javob" deb
+# hukm qildi: binar maxraj `complete` VA `down_at_horizon` ni o'z ichiga
+# olishi kerak. U endi bu moduldagi HECH QANDAY qarorda ishlatilmaydi;
+# qoida `PRIMARY_DENOMINATOR_SOURCES` + `enters_primary_denominator()`.
+# Faqat import muvofiqligi uchun saqlanadi (`revix/analyze.py` uni import
+# qiladi va u BOSHQA agentga tegishli -- bu yerda qiymati o'zgartirilsa
+# o'sha modulning xatti-harakati JIMGINA o'zgarardi, §16.6 esa o'zgarish
+# "ataylab qilingan qaror" bo'lishini talab qiladi).
+# Qiymati o'z-o'zidan YETARLI EMAS: `disposition_source` ham tekshirilishi SHART.
 PRIMARY_DISPOSITIONS = ("complete",)
+
 # Kaplan-Meier / log-rank va loop-rate ga kiradigan disposition (§6.2):
 # censored trial'lar KIRADI -- ularni tashlash tez ishdan chiqadigan arm'ni
-# chiroyli ko'rsatadigan yashirin bias.
+# chiroyli ko'rsatadigan yashirin bias. §16.4: bu `SET_SURVIVAL` to'plami,
+# ya'ni "analiz to'plami butun holda". §16 bu to'plamni O'ZGARTIRMAYDI.
 SURVIVAL_DISPOSITIONS = ("complete", "censored")
 
 
@@ -1452,6 +1532,64 @@ def derive_disposition(trial: Trial, gaps: list[dict[str, Any]],
     return final, src, conflict
 
 
+# --- birlamchi analiz to'plami: (disposition, disposition_source) jufti -----
+#
+# §16.2(B) hukmi. Bu uchta funksiya -- qoidaning YAGONA manbasi: `reduce_trial`
+# ning `included_in_primary` / `exclusion_reason` maydonlari ham, `select_primary`
+# selektori ham, `reduce_run` ning eksklyuziya darajalari ham shu yerdan
+# hisoblanadi, demak ular bir-biridan AJRALIB KETA OLMAYDI.
+
+
+def primary_denominator_verdict(
+    disposition: str | None,
+    disposition_source: str | None,
+) -> tuple[bool, str | None]:
+    """Trial binar `P(VR)` maxrajiga kiradimi + KIRMASA NOMLANGAN SABAB.
+
+    §16.2(B): to'plam `(disposition, disposition_source)` jufti bilan
+    aniqlanadi. Qaytadi: `(included, exclusion_reason)`; `included is True`
+    bo'lsa sabab `None` (§... "`None` = o'lchanmadi" emas, bu yerda
+    "chiqarilmadi" -- shuning uchun flag ALOHIDA qaytariladi).
+
+    FAIL-CLOSED. Jadvalda yo'q har qanday juft -- CHIQARILADI, va sabab
+    manbani NOMLAYDI, demak u jim qolmaydi.
+
+    NEGA ISTISNO EMAS, NOMLANGAN EKSKLYUZIYA (§16.6 + 4-qoida): noma'lum
+    `disposition_source` da `raise` qilish `reduce_trial` ni ichidan
+    yiqitardi, ya'ni BUTUN run reduksiyasi to'xtardi va 119 to'g'ri trial
+    HAM chiqishga tushmasdi -- bu aynan §6.2 ning "trial tashlanmaydi"
+    strukturaviy kafolatini buzish bo'lardi. Shuning uchun noma'lum juft
+    maxrajdan chiqariladi, LEKIN har record'da nomlangan sabab qoladi va
+    `reduce_run` uni eksklyuziya hisobotida ko'rsatadi.
+    """
+    disp = disposition if disposition in DISPOSITIONS else None
+    src_known = disposition_source in DISPOSITION_SOURCES
+
+    if disp is None:
+        return False, f"unknown_disposition({disposition}):{disposition_source}"
+    if not src_known:
+        # §16.2(B) juftga tayanadi: manba noma'lum bo'lsa juft ham noma'lum.
+        return False, f"{disp}:unknown_source({disposition_source})"
+    if disposition_source in PRIMARY_DENOMINATOR_SOURCES[disp]:
+        return True, None
+    # Nomlangan eksklyuziya: o'quvchi KUZATILMAGAN natijani (`probe_gap`)
+    # KUZATILGAN no'l-hodisadan (`down_at_horizon`) ajrata olishi SHART
+    # (§16.2(B) jadvali), shuning uchun sabab manbani o'z ichiga oladi.
+    return False, f"{disp}:{disposition_source}"
+
+
+def enters_primary_denominator(disposition: str | None,
+                               disposition_source: str | None) -> bool:
+    """§16.2(B): juft binar `P(VR)` maxrajiga kiradimi (`SET_BINARY_DENOMINATOR`)."""
+    return primary_denominator_verdict(disposition, disposition_source)[0]
+
+
+def primary_exclusion_reason(disposition: str | None,
+                             disposition_source: str | None) -> str | None:
+    """Maxrajdan chiqarilish sababi, MANBA NOMI bilan; kirsa `None`."""
+    return primary_denominator_verdict(disposition, disposition_source)[1]
+
+
 def probe_gaps(trial: Trial, params: Params) -> list[dict[str, Any]]:
     """Trial ichidagi probe uzilishlari > 2xP (§4)."""
     out: list[dict[str, Any]] = []
@@ -1488,6 +1626,10 @@ def reduce_trial(trial: Trial, params: Params, *,
 
     disposition, disp_src, disp_conflict = derive_disposition(
         trial, gaps, down_at_horizon)
+    # §16.2(B): birlamchi to'plam JUFT bilan aniqlanadi. Verdict bitta joyda
+    # hisoblanadi, demak flag va sabab bir-biriga zid bo'lishi IMKONSIZ.
+    in_primary, primary_excl_reason = primary_denominator_verdict(
+        disposition, disp_src)
 
     d_sd, d_sd_cens, d_sd_cycles = compute_d_sd(trial)
     d_eff_lo = t_fault if t_fault is not None else start
@@ -1557,7 +1699,7 @@ def reduce_trial(trial: Trial, params: Params, *,
     payload: dict[str, Any] = {
         "derived": True,
         "reducer_version": REDUCER_VERSION,
-        "preregistration_sections": ["4", "5", "6", "12"],
+        "preregistration_sections": ["4", "5", "6", "12", "16"],
         "arm": trial.arm,
         "pressure_band": trial.pressure_band,
         "params": params.as_dict(),
@@ -1566,10 +1708,19 @@ def reduce_trial(trial: Trial, params: Params, *,
         "disposition_raw": trial.disposition_raw,
         "disposition_source": disp_src,
         "disposition_conflict": disp_conflict,
-        "included_in_primary": disposition in PRIMARY_DISPOSITIONS,
+        # §16.2(B): to'plam `(disposition, disposition_source)` jufti bilan
+        # aniqlanadi -- `disposition` bilan EMAS. `exclusion_reason` MANBANI
+        # NOMLAYDI, demak o'quvchi kuzatilMAGAN natijani (`censored:probe_gap`)
+        # kuzatilgan no'l-hodisadan (`censored:down_at_horizon`, maxrajga
+        # KIRADI) ajrata oladi.
+        "included_in_primary": in_primary,
         "included_in_survival": disposition in SURVIVAL_DISPOSITIONS,
-        "exclusion_reason": (None if disposition in PRIMARY_DISPOSITIONS
-                             else disposition),
+        "exclusion_reason": primary_excl_reason,
+        # §16.4: eksklyuziya darajasi QAYSI to'plam ustida hisoblanganini
+        # NOMLASHI SHART -- shuning uchun record'ning o'zi to'plam nomini
+        # ko'taradi va `exclusion_reason` hech qachon nomsiz qolmaydi.
+        "primary_analysis_set": SET_BINARY_DENOMINATOR,
+        "survival_analysis_set": SET_SURVIVAL,
 
         "t_trial_us": t_trial_us,
         "trial_begin_us": start,
@@ -1681,16 +1832,29 @@ def sweep_is_complete(cells: Sequence[dict[str, Any]],
 
 
 def select_primary(trial_records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Birlamchi analizga kiradigan trial'lar (§12: faqat `complete`).
+    """Binar `P(VR)` maxrajiga kiradigan trial'lar -- `SET_BINARY_DENOMINATOR`.
+
+    §16.2(B): to'plam `(disposition, disposition_source)` JUFTI bilan
+    aniqlanadi. `censored` + `down_at_horizon` KIRADI (`VR = false`,
+    kuzatilgan no'l-hodisa); `censored` + `probe_gap` KIRMAYDI (natija
+    kuzatilmadi, §4).
 
     Eksklyuziya JIMGINA bo'lmasligi uchun bu selektor NOMLANGAN va alohida:
     reducer hech qachon trial'ni chiqishdan olib tashlamaydi.
     """
-    return [r for r in trial_records if r.get("disposition") in PRIMARY_DISPOSITIONS]
+    return [r for r in trial_records
+            if enters_primary_denominator(r.get("disposition"),
+                                          r.get("disposition_source"))]
 
 
 def select_survival(trial_records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Kaplan-Meier / log-rank va loop-rate uchun (§6.2: censored KIRADI)."""
+    """Kaplan-Meier / log-rank va loop-rate uchun (§6.2: censored KIRADI).
+
+    §16 BU TO'PLAMNI O'ZGARTIRMAYDI (§16.4: `("complete", "censored")` --
+    "to'g'ri"). §6.2 DAVOMIYLIKNI `T_trial` da censor qiladi, binar natijani
+    emas, shuning uchun `probe_gap` ham, `down_at_horizon` ham bu yerda
+    censored davomiylik sifatida qoladi -- manba bu to'plamga TA'SIR QILMAYDI.
+    """
     return [r for r in trial_records if r.get("disposition") in SURVIVAL_DISPOSITIONS]
 
 
@@ -1701,6 +1865,70 @@ def disposition_counts(trial_records: Iterable[dict[str, Any]]) -> dict[str, int
         d = str(r.get("disposition"))
         counts[d] = counts.get(d, 0) + 1
     return counts
+
+
+def disposition_source_counts(trial_records: Iterable[dict[str, Any]]
+                              ) -> dict[str, int]:
+    """§16.2(B): juft bilan aniqlangan to'plam juft bo'yicha HISOBOT talab qiladi.
+
+    `disposition_counts` o'zi yetarli emas: u `censored:probe_gap` ni
+    `censored:down_at_horizon` dan ajratmaydi, holbuki ularning biri
+    maxrajga kiradi, ikkinchisi yo'q. Kalit -- `"<disposition>:<source>"`.
+    """
+    counts: dict[str, int] = {}
+    for r in trial_records:
+        key = f"{r.get('disposition')}:{r.get('disposition_source')}"
+        counts[key] = counts.get(key, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def exclusion_report(trial_records: Sequence[dict[str, Any]], *,
+                     analysis_set: str) -> dict[str, Any]:
+    """Bitta analiz to'plami uchun eksklyuziya hisoboti -- NOMI BILAN (§16.4).
+
+    §12: *"Yuqori eksklyuziya darajasi o'zi natija -- yashirilmaydi."*
+    §16.4: *"Har qanday maqolada, jadvalda yoki `analysis.json` da berilgan
+    eksklyuziya darajasi QAYSI to'plam ustida hisoblanganini NOMLASHI
+    SHART ... Nomlanmagan eksklyuziya darajasi takrorlanuvchi emas va natija
+    sifatida berilmaydi."*
+
+    Shuning uchun qaytarilgan obyektning O'ZIDA `analysis_set` kaliti bor:
+    daraja hisobotdan nusxalab olinsa ham nomi birga ketadi.
+
+    `rate` -- `None` bo'lmaydi faqat `n_total > 0` bo'lsa; `n_total == 0` da
+    `None` ("o'lchanmadi"), `0.0` EMAS ("o'lchangan no'l") -- modulning
+    `None`/`0` disiplinasi.
+    """
+    if analysis_set == SET_BINARY_DENOMINATOR:
+        included = select_primary(trial_records)
+    elif analysis_set == SET_SURVIVAL:
+        included = select_survival(trial_records)
+    else:
+        raise ReductionError(f"nomsiz/noma'lum analiz to'plami: {analysis_set!r}")
+
+    n_total = len(trial_records)
+    n_inc = len(included)
+    n_exc = n_total - n_inc
+    inc_ids = {id(r) for r in included}
+    reasons: dict[str, int] = {}
+    for r in trial_records:
+        if id(r) in inc_ids:
+            continue
+        reason = (primary_exclusion_reason(r.get("disposition"),
+                                           r.get("disposition_source"))
+                  if analysis_set == SET_BINARY_DENOMINATOR
+                  else f"{r.get('disposition')}:{r.get('disposition_source')}")
+        key = str(reason)
+        reasons[key] = reasons.get(key, 0) + 1
+
+    return {
+        "analysis_set": analysis_set,
+        "n_total": n_total,
+        "n_included": n_inc,
+        "n_excluded": n_exc,
+        "exclusion_rate": (n_exc / n_total) if n_total else None,
+        "reasons": dict(sorted(reasons.items())),
+    }
 
 
 # --- run reduksiyasi va yozish ---------------------------------------------
@@ -1754,6 +1982,13 @@ def reduce_run(run: RawRun, params: Params | None = None, *,
             f"trial yo'qoldi: kirish {len(trials)}, chiqish {len(out_trials)}")
 
     meta = run.run_meta or {}
+    primary_trials = select_primary(out_trials)
+    survival_trials = select_survival(out_trials)
+    # §16.4: IKKI to'plam -> IKKI eksklyuziya darajasi, va har biri o'z nomini
+    # ko'taradi. Nomsiz daraja natija sifatida BERILMAYDI.
+    excl_binary = exclusion_report(out_trials,
+                                   analysis_set=SET_BINARY_DENOMINATOR)
+    excl_survival = exclusion_report(out_trials, analysis_set=SET_SURVIVAL)
     summary = {
         "derived": True,
         "reducer_version": REDUCER_VERSION,
@@ -1763,14 +1998,46 @@ def reduce_run(run: RawRun, params: Params | None = None, *,
         "n_episodes": len(out_eps),
         "n_sweep_cells": len(out_sweep),
         "disposition_counts": disposition_counts(out_trials),
-        "n_primary": len(select_primary(out_trials)),
-        "n_survival": len(select_survival(out_trials)),
+        # §16.2(B): juft bo'yicha hisobot -- `censored:probe_gap` va
+        # `censored:down_at_horizon` bir xil `disposition` ostida yashirinmaydi.
+        "disposition_source_counts": disposition_source_counts(out_trials),
+        "n_primary": len(primary_trials),
+        "n_survival": len(survival_trials),
+
+        # --- §16.4: IKKI EKSKLYUZIYA DARAJASI, IKKALASI HAM NOMLANGAN ------
+        # Nomlar `SET_BINARY_DENOMINATOR` / `SET_SURVIVAL` konstantalaridan
+        # keladi, demak maydon nomi bilan obyekt ichidagi `analysis_set` nomi
+        # AJRALIB KETMAYDI. Ikkalasi bir funksiyadan (`exclusion_report`)
+        # hisoblanadi, demak ularning ta'rifi ham ajralib keta olmaydi.
+        "exclusions": {
+            SET_BINARY_DENOMINATOR: excl_binary,
+            SET_SURVIVAL: excl_survival,
+        },
+        # Skalyar sifatida ko'chirib olinadigan daraja HAM nomni o'z maydon
+        # nomida ko'taradi -- §16.4: "Nomlanmagan eksklyuziya darajasi
+        # takrorlanuvchi emas va natija sifatida berilmaydi."
+        "exclusion_rate_binary_pvr_denominator": excl_binary["exclusion_rate"],
+        "exclusion_rate_survival_analysis_set": excl_survival["exclusion_rate"],
+
         "recovered_within_horizon": sum(1 for r in out_trials if r["vr"] is True),
         "vr_undetermined": sum(1 for r in out_trials if r["vr"] is None),
+        # §16.8 OCHIQ SAVOL -- bu modul unga JAVOB BERMAYDI, lekin uni
+        # YASHIRMAYDI ham: maxrajga kirgan, biroq `vr is None` bo'lgan trial
+        # "oyna horizon'dan oshib ketdi" holati bo'lishi mumkin (haqiqiy
+        # administrativ censoring). U jimgina `VR = false` deb hisoblanmasligi
+        # uchun soni ALOHIDA beriladi.
+        "vr_undetermined_in_binary_denominator": sum(
+            1 for r in primary_trials if r["vr"] is None),
         # §6.2: har jadvalda "T_trial ichida recovered: k/n" beriladi.
-        "recovered_k_of_n": [sum(1 for r in select_primary(out_trials)
-                                 if r["vr"] is True),
-                             len(select_primary(out_trials))],
+        # `recovered_k_of_n` -- binar maxraj ustida (§10.1); §16.4 ga ko'ra
+        # `k/n` jadvallari ANALIZ TO'PLAMI ustida ham beriladi, shuning uchun
+        # ikkinchisi alohida va NOMLANGAN maydonda.
+        "recovered_k_of_n_set": SET_BINARY_DENOMINATOR,
+        "recovered_k_of_n": [sum(1 for r in primary_trials if r["vr"] is True),
+                             len(primary_trials)],
+        "recovered_k_of_n_analysis_set": [
+            sum(1 for r in survival_trials if r["vr"] is True),
+            len(survival_trials)],
         "fr_a_true": sum(1 for r in out_trials if r["fr_a"] is True),
         "fr_b_computed": any(r["fr_b"]["computed"] for r in out_trials),
         "sweep_complete": (sweep_is_complete(out_sweep) if sweep else False),
@@ -1881,9 +2148,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"trial: {s['n_trials_out']}/{s['n_trials_in']}  "
               f"epizod: {s['n_episodes']}  sweep: {s['n_sweep_cells']}")
         print(f"disposition: {s['disposition_counts']}")
-        print(f"T_trial ichida recovered: "
+        print(f"disposition:source: {s['disposition_source_counts']}")
+        print(f"T_trial ichida recovered [{s['recovered_k_of_n_set']}]: "
               f"{s['recovered_k_of_n'][0]}/{s['recovered_k_of_n'][1]}  "
-              f"(VR aniqlanmagan: {s['vr_undetermined']})")
+              f"(VR aniqlanmagan: {s['vr_undetermined']}, "
+              f"maxrajda: {s['vr_undetermined_in_binary_denominator']})")
+        print(f"T_trial ichida recovered [{SET_SURVIVAL}]: "
+              f"{s['recovered_k_of_n_analysis_set'][0]}"
+              f"/{s['recovered_k_of_n_analysis_set'][1]}")
+        # §16.4: eksklyuziya darajasi HAR DOIM to'plam nomi bilan chiqadi.
+        for set_name in (SET_BINARY_DENOMINATOR, SET_SURVIVAL):
+            e = s["exclusions"][set_name]
+            print(f"eksklyuziya [{e['analysis_set']}]: "
+                  f"{e['n_excluded']}/{e['n_total']} "
+                  f"(rate={e['exclusion_rate']})  sabablar: {e['reasons']}")
         for k, v in paths.items():
             print(f"  {k}: {v}")
     return 0
