@@ -2,12 +2,14 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.6` |
+| **Versiya** | `preregistration/v1.7` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7) |
 | **Muhit** | Bu pre-registration **§15.1 va §16.11 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
-| **⚠️ Ochiq qaror** | **§17.5 — hal qilinmagan dizayn nuqsoni.** Birinchi pilot trial'idan OLDIN loyiha egasi qaror qabul qilishi shart. |
+| **⚠️ Ochiq qaror 1** | **§17.5 — hal qilinmagan dizayn nuqsoni** (stabilizatsiya oynasi pressure hold'ga sig'maydi). |
+| **⚠️ Ochiq qaror 2** | **§18.6 — §11 ning fail-slow limbi ishlamaydi** (chegara kvantlash polida). |
+| | Ikkala qaror ham **birinchi pilot trial'idan OLDIN** va **birgalikda** qabul qilinishi shart (§18.6 ning bog'liqlik izohi). |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
@@ -19,6 +21,124 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.6 → v1.7 (2026-10-03)
+
+| | |
+|---|---|
+| **v1.6 sha256** | `69a6948c977bdbb54ceec39b73c6db6c73ea1344d010c20d7b05911333f8f5f9` |
+| **v1.6 git tag** | `v0.1.6-preregistration` |
+| **Sabab** | §11 ning **fail-slow limbi hisoblanmaydi**: *"20% oshish"* ning referens kattaligi aytilmagan, ayirish tartibi va yo'nalish ham aytilmagan |
+| **O'zgardi** | **§18 qo'shildi** (yangi bo'lim). Mavjud bo'limlar raqamlari va matni O'ZGARMADI |
+| **O'zgarMADI** | **hech bir operatsion ta'rif, metrika, chegara, statistik test yoki falsifikatsiya mezoni.** §11 ning ikkala limbi ham **matn sifatida o'zgarmadi**; `τ = 8 s` va `20%` **o'zgartirilmadi** |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan, demak eski ta'riflar ostida qayta hisoblanishi kerak bo'lgan hech narsa yo'q |
+
+> **Sana haqida:** bu amendment ustidagi ish 2026-10-02 da boshlangan va
+> kalendar kuni ish davomida almashdi; muzlatilgan sana **2026-10-03**,
+> ya'ni haqiqiy commit kuni. §18 da **hech qanday yangi o'lchov yo'q** —
+> 18.4 ning butun arifmetikasi muzlatilgan qiymatlardan chiqarilgan.
+> §15.1 va §16.11 dagi o'lchovlar **2026-10-02** da olingan va shu sana
+> ostida qoladi.
+
+**Muammo:** §11 ning kuchli shakl limbi to'liq aniqlangan
+(*"Newcombe CI ning **yuqori chegarasi < 0.15**"*), fail-slow limbi esa
+*"95% CI **20% oshishni** chiqarib tashlasa"* deydi va **nimaning 20% i**
+ekanini aytmaydi. Ayirish tartibi (`P2 − P0` yoki teskarisi) va
+*"chiqarib tashlash"* ning yo'nalishi ham aytilmagan. Ya'ni
+**§11 ning ikki limbidan biri hisoblanmaydi** — va §17 ning argumenti
+bu yerga ham qo'llanadi: hisoblab bo'lmaydigan pre-registered qoida
+hech narsani falsifikatsiya qilmaydi.
+
+**QAROR (§18.2) — referens `RMST(P0)`, matnning O'Z konvensiyasidan:**
+
+1. §11 ning davom etish mezoni **(b)** pressure effektini
+   *"`D_eff` `P2` da **≥1.5× `P0`**, bootstrap CI **1.0 ni** chiqarib
+   tashlaydi"* shaklida ifodalaydi — ya'ni §11 ning o'z grammatikasi
+   **`P0` ga nisbatan karrali**, va fail-slow limbi xuddi shu
+   grammatikada yozilgan;
+2. §10.2 RMST farqini *"**τ sekund ichida tejalgan kutilgan downtime**"*
+   deb o'qiydi, demak bazasi solishtirma darajaning downtime'i;
+3. `P0` — dizaynning solishtirma darajasi (§9.3).
+
+Qolgan nomzodlar rad etiladi: `τ` ning 20% i boshqa bayonot; `P0` ning
+**o'rtachasi** §10.2 da taqiqlangan; farqning 20% i sirkulyar.
+
+Formalizatsiya (arm `A` ichida, §16.5):
+```
+Δ(P2,P0) := RMST_A(P2, τ=8 s) − RMST_A(P0, τ=8 s)
+thr      := 0.20 × RMST_A(P0, τ=8 s)
+fail-slow QO'LLAB-QUVVATLANMAYDI  ⟺  CI95_upper[ Δ(P2,P0) ] < thr
+```
+Sxema `survival.rmst.pressure_difference` da ayirish tartibini **ochiq**
+ko'rsatishi shart (`orientation: "P2_minus_P0"`) — aytilmagan ishora
+qoidani hisoblanmaydigan qiladigan yana bir yo'l.
+
+**§18.3:** RMST bu yerda `∫₀^τ S(t)dt` = **τ horizonidagi kutilgan
+downtime**, va `time-to-VR` hodisa vaqti **`t_up`** da, oyna oxirida
+emas — aks holda `time-to-VR ≥ 8 s` bo'lib `RMST ≡ τ` va limb **ayni
+degenerat** bo'lardi. §6.1 ning `D_probe` ta'rifi (*"VR shartini
+qanoatlantiruvchi oynaning **birinchi probe'i**"*) va §6.3 ning
+verification-latency taqiqi bu anchor'ni qo'llab-quvvatlaydi.
+
+**CHEKLOV (§18.4) — chegara kvantlash polida.** Muzlatilgan
+qiymatlardan chiqarilgan (`P = 100 ms`, `RestartSec = 100 ms`, §6.1,
+§9.2); yagona noma'lum `t_start` **o'lchanmagan**:
+```
+D_probe(P0) = t_start + (0.2 … 0.4) s      ⇒  RMST(P0) ≈ E[D_probe(P0)]
+t_start = 0.1 s ⇒ thr ≈ 80 ms  ;  t_start = 0.8 s ⇒ thr ≈ 220 ms
+          ⇒  thr ≈ 0.8 … 2.2 probe davri      (0.20 × τ = 1.6 s = 16 davr)
+```
+§6.1 `D_probe` ni *"±P kvantlash, har chekkada +P/2 bias"* bilan beradi.
+**Demak: §9.2 ning o'zi aytgan rejimda (`P(VR|P0) ≈ 1.0`, tez tuzalish)
+inkor shoxi ERISHIB BO'LMAYDI va qo'llab-quvvatlash shoxi deyarli
+avtomatik. Bitta muzlatilgan jumla — dizayn AYTGAN rejimda shtamp, va
+faqat dizayn BO'LMAYDI deb aytgan rejimda haqiqiy test.**
+
+**CHEKLOV (§18.5) — uchinchi mustaqil sabab:** `thr` baholangan
+kattalik, demak `CI95[Δ]` ni xuddi shu ma'lumotdan baholangan
+chegaraga qarshi taqqoslash **95% qoplamaga ega emas**. Statistik
+to'g'ri shakl nisbat ustida (`CI95_upper[ρ] < 1.20`), lekin §10.2
+effect measure sifatida ayni **"RMST difference"** ni muzlatadi. Ya'ni
+**nisbiy chegara va muzlatilgan absolut effect measure mos kelmaydi.**
+Bootstrap (`Δ*` va `thr*` ni har resample'da qayta hisoblash) —
+hisoblash yo'li, qaror emas, va 18.4 ning polini hal qilmaydi.
+
+**HAL QILINMAGANI, ATAYLAB (§18.6):** 18.2 limbni hisoblanadigan
+qildi, lekin 18.4 uni **ishlamaydigan** ko'rsatadi. Tuzatish referensni
+o'zgartirishni, ya'ni §11 ning **ma'nosini** o'zgartirishni talab
+qiladi — **shuning uchun bu tanlovni qilmayman.** F1–F4 variantlari,
+narxlari va **bias yo'nalishlari** §18.6 da; **tanlov qilinmagan.**
+F1 (matnga sodiq) **H1 foydasiga**, F2 (`referens = τ`) **H1 ga
+qarshi** bias beradi — teskari yo'nalishlar, ya'ni tanlov texnik emas,
+ilmiy. §17.5 ning O1 varianti `W_stab_pilot` ni, demak ehtimol `τ` ni
+ham o'zgartirgani uchun **§17.5 va §18.6 birga hal qilinishi kerak.**
+
+**Bias yo'nalishi ochiq e'lon qilinadi (§18.7):** 18.2 ning qarori
+fail-slow / H1 **FOYDASIGA** ishlaydi, chunki inkor shoxini erishib
+bo'lmaydigan qiladi. Bilib turib qabul qilinadi, chunki referens
+**tanlanmagan — o'qilgan**; menga qulay variant aslida **F2** bo'lardi
+(u limbni ishlaydigan va meni qattiqqo'l ko'rsatardi), lekin F2 matn
+bilan qo'llab-quvvatlanmaydi; hech qanday ma'lumot mavjud emas; va
+cheklovning o'zi ochiq yozilgan, demak maqolada *"fail-slow limbi bu
+pilotda fail-slow'ni inkor qila olmaydi"* deb yoziladi.
+
+**OCHIQ BO'SHLIQ (§18.8):** §10.2/§11 ning *"time-to-VR"* i §6.1 ning
+uch o'lchovidan (`D_sd`, `D_probe`, `D_eff`) **birortasiga ham
+bog'lanmagan**. 18.3 `D_probe` deb o'qidi (§6.1 uni ta'rifan
+time-to-VR qiladi), lekin tanlov ahamiyatli: `D_eff` uzluksiz va
+kvantlash poli past, va §11(b) aynan `D_eff` ni ishlatadi. **Qayd
+etiladi, hal qilinmaydi — F1–F4 bilan birga hal qilinishi kerak.**
+
+**O'LCHANMADI:** `P0` ostidagi `D_probe` taqsimoti (`p50/p90/p99`) va
+`t_start`. Bu agent guest ichida **hech narsa o'lchamadi**. So'rov:
+`guard-recal` `t_start` bilan birga shuni ham bersin;
+`thr ≥ ~5 × P` bo'lsa 18.4 ning cheklovi amalda bezarar va F1 yetarli.
+
+**§14.4 havolasi (§18.9) ATAYLAB yopilmadi:** §17.8 da *"muzlatilgan
+matnni ochadigan amendment"* shartini o'zim qo'ygan edim; v1.7 matnni
+ochmaydi, demak shart bajarilmadi. Nagging element'ni yopish uchun o'z
+mezonimni jimgina yumshatish — aynan bu hujjat oldini olishi kerak
+bo'lgan narsa.
 
 ### v1.5 → v1.6 (2026-10-02)
 
@@ -2027,3 +2147,328 @@ Bu bo'limdagi hech bir qaror kuzatilgan natijani ko'rgandan keyin qabul
 qilinmagan. 17.2 ning arifmetikasi **muzlatilgan qiymatlardan**
 olingan, o'lchovdan emas; `t_start` **o'lchanmadi** va uni o'lchash
 17.5 da so'ralgan.
+
+---
+
+## 18. §11 ning fail-slow limbi — referens aniqlangan, limb ishlamaydi (muzlatilgan)
+
+> Bu bo'lim **v1.7 amendment** bilan qo'shildi. U **hech bir operatsion
+> ta'rifni, metrikani, chegarani, statistik testni yoki falsifikatsiya
+> mezonini o'zgartirmaydi.** U ikki narsani qiladi: (1) §11 ning
+> fail-slow limbidagi aytilmagan referens kattalikni **muzlatilgan
+> matnning o'z konvensiyasidan** aniqlaydi, (2) o'sha referens bilan
+> limb **hisoblanadigan, lekin ishlamaydigan** bo'lib qolishini
+> ko'rsatadi — va buni hal qilish uchun **loyiha egasiga qaror
+> qoldiradi.**
+
+### 18.1 FAKT — matn nimani aytadi va nimani aytmaydi
+
+§11, so'zma-so'z:
+
+> *"Bir vaqtda, fail-slow shakli qo'llab-quvvatlanmaydi, agar `P0` va `P2`
+> orasidagi time-to-VR RMST farqi (τ = 8 s) uchun 95% CI **20% oshishni**
+> chiqarib tashlasa."*
+
+Aytilmagan uch narsa, va uchalasi ham limbni hisoblanmaydigan qiladi:
+
+| # | aytilmagan | nega kerak |
+|---|---|---|
+| 1 | **20% — NIMANING 20% i** | nisbiy chegara baza talab qiladi |
+| 2 | **ayirish tartibi** | `RMST(P2) − RMST(P0)` yoki teskarisi; "oshish" musbat kattalik |
+| 3 | **"chiqarib tashlasa" qaysi yo'nalishda** | CI chegaradan pastda bo'lsa — effekt inkor qilinadi; yuqorida bo'lsa — tasdiqlanadi |
+
+Taqqoslash uchun: **kuchli shakl limbi to'liq aniqlangan** —
+*"`P(VR|P0) − P(VR|P2)` uchun 95% Newcombe CI ning **yuqori chegarasi
+< 0.15**"*. Ya'ni §11 ning ikki limbidan faqat fail-slow limbi
+hisoblanmaydi.
+
+> **§17 ning argumenti shu yerga ham qo'llanadi: hisoblab bo'lmaydigan
+> pre-registered qoida hech narsani falsifikatsiya qilmaydi.**
+
+### 18.2 QAROR — referens muzlatilgan matnning O'Z konvensiyasidan aniqlanadi
+
+Referens **`RMST(P0)`**. Bu ixtiro emas, uchta mustaqil matn asosi bor:
+
+1. **§11 ning o'zi, davom etish mezoni (b):** *"`D_eff` `P2` da **≥1.5×
+   `P0`**, bootstrap CI **1.0 ni** chiqarib tashlaydi."* Ya'ni §11
+   pressure effektini **`P0` ga nisbatan karrali** shaklda ifodalaydi va
+   CI ni **null nisbatga** qarshi tekshiradi. Bu §11 ning o'z grammatikasi,
+   va fail-slow limbi xuddi shu grammatikada yozilgan ("20% oshish").
+2. **§10.2:** *"**Effect measure: RMST difference** τ horizon'ga qadar —
+   … to'g'ridan-to'g'ri **"τ sekund ichida tejalgan kutilgan downtime"**
+   sifatida o'qiladi."* Demak RMST farqi — **downtime farqi**, va
+   downtime'dagi "20% oshish" ning bazasi solishtirma darajaning
+   downtime'i, ya'ni `RMST(P0)`.
+3. **`P0` — dizaynning solishtirma darajasi** (§9.3: `P0` = generator
+   idle). Boshqa hech bir daraja baza bo'lishga da'vo qilmaydi.
+
+Qolgan nomzodlar matn bilan qo'llab-quvvatlanmaydi: `τ` ning 20% i —
+"oshish" ni **horizon ulushiga** aylantiradi, bu boshqa bayonot;
+`P0` ning **o'rtacha** time-to-VR si — §10.2 *"`mean ± SD` BERILMAYDI"*
+deb taqiqlaydi; RMST **farqining** 20% i — sirkulyar.
+
+**Ayirish tartibi va yo'nalish**, §11 ning kuchli shakl limbini oynadek
+aks ettirib (*"yuqori chegarasi < 0.15"*):
+
+```
+Δ(P2,P0) := RMST_A(P2, τ=8 s) − RMST_A(P0, τ=8 s)    # pressure ostida downtime OSHISHI
+thr      := 0.20 × RMST_A(P0, τ=8 s)
+
+fail-slow shakli QO'LLAB-QUVVATLANMAYDI  ⟺  CI95_upper[ Δ(P2,P0) ] < thr
+```
+
+`_A` — §16.5 bo'yicha **arm `A` ichida**. Fail-slow ostida pressure
+recovery'ni sekinlashtiradi, demak `RMST(P2) > RMST(P0)` va `Δ > 0`;
+shuning uchun **baholanadigan kattalik `P2 − P0`**, teskarisi emas.
+
+> **Sxema talabi:** `survival.rmst.pressure_difference` ning
+> `contrast: "P0-P2"` yorlig'i **ayirish tartibini aytmaydi** — u faqat
+> juftlikni nomlaydi. Falsifikatsiya mezonidagi aytilmagan ishora —
+> qoidani hisoblanmaydigan qiladigan yana bir yo'l. Sxema ayirish
+> tartibini **ochiq** ko'rsatishi shart (masalan
+> `orientation: "P2_minus_P0"`).
+
+### 18.3 FAKT — bu yerda RMST nima, va nega `τ = 8 s` degenerat emas
+
+`time-to-VR` ning survival endpoint'i uchun RMST:
+
+```
+RMST(τ) = ∫₀^τ S(t) dt ,   S(t) = P(hali VR ga erishilmagan, t da)
+        = τ gacha VR ga erishilmagan holatda o'tkazilgan kutilgan vaqt
+        = τ horizonidagi KUTILGAN DOWNTIME
+```
+
+Bu §10.2 ning o'z o'qishi bilan **aynan bir xil**: *"τ sekund ichida
+tejalgan kutilgan downtime"*. Demak `RMST ∈ [0, τ] = [0, 8 s]` va u
+**downtime kattaligi**, recovery tezligi emas.
+
+**Muhim: `time-to-VR` hodisa vaqti `t_up` da, oyna oxirida EMAS.**
+Aks holda VR `W_stab_pilot = 8 s` oynasini talab qilgani uchun
+`time-to-VR ≥ 8 s` bo'lardi, demak `τ = 8 s` da `RMST ≡ 8 s` **har bir
+guruhda**, farq **ayni nolga teng** va limb **ayni degenerat** bo'lardi.
+
+Matn `t_up` anchor'ini qo'llab-quvvatlaydi: **§6.1** `D_probe` (asosiy
+downtime o'lchovi) ni *"failure'dan oldingi oxirgi o'tgan probe → VR
+shartini qanoatlantiruvchi oynaning **birinchi probe'i**"* deb ta'riflaydi
+— ya'ni oyna **boshida** tugaydi, oxirida emas. Va **§6.3**
+*"'Verification latency' achievement metrikasi sifatida BERILMAYDI —
+muvaffaqiyatli VR uchun u ta'rifan `W_stab`ga teng"* deb aynan oyna
+uzunligini metrikadan chiqaradi.
+
+### 18.4 CHEKLOV — chegaraning kattaligi kvantlash polida
+
+`thr = 0.20 × RMST(P0)` ning qiymati `RMST(P0)` ga bog'liq. Uni
+**muzlatilgan qiymatlardan** chiqaraman (o'lchov emas; yagona
+noma'lum — `t_start`, u **o'lchanmagan**).
+
+`P0` ostida (`clean_crash`, `Restart=on-failure`, arm `A`),
+`D_probe` ning tarkibi:
+
+| had | manba | qiymat |
+|---|---|---|
+| oxirgi o'tgan probe → haqiqiy failure | §2 (`P = 100 ms`) | ≤ 100 ms |
+| systemd crash'ni ko'rishi (`SIGCHLD`) | §3 (`L_det_sd` manfiy ham bo'lishi mumkin) | ≈ 0 |
+| `RestartSec` | §9.3, arm `A` | 100 ms |
+| SUT start davomiyligi | **MUZLATILMAGAN** (§16.10(1–2)) | `t_start` — **o'lchanmagan** |
+| `READY=1` → `t_up` (birinchi o'tgan probe) | §2, §4 1-band | ≤ 100 ms |
+
+```
+D_probe(P0) = t_start + (0.2 … 0.4) s        # qavs ichi — sof muzlatilgan overhead
+§9.2: P(VR | P0, restart) ≈ 1.0  va  D_probe(P0) << 8 s
+  ⇒  RMST(P0) ≈ E[D_probe(P0)]
+
+t_start = 0.1 s  ⇒  RMST(P0) ≈ 0.4 s  ⇒  thr ≈ 80 ms
+t_start = 0.8 s  ⇒  RMST(P0) ≈ 1.1 s  ⇒  thr ≈ 220 ms      (0.8 s — §17.2 ning dizayn shifti)
+```
+
+> **thr ≈ 0.8 … 2.2 probe davri.** Va §6.1 `D_probe` ning o'zi
+> *"±P kvantlash, har chekkada +P/2 bias"* bilan keladi, §7 esa
+> *"100 ms delta oniy tezlik deb talqin qilinmaydi"* deb ogohlantiradi.
+> Ya'ni **chegara o'lchov asbobining kvantlash polida.**
+
+Taqqoslash: `0.20 × τ = 1.6 s` = **16 probe davri.**
+
+#### Qaysi rejim qat'iy, qaysi rejim ahamiyatsiz
+
+| rejim | `RMST(P0)` | `thr` | fail-slow'ni INKOR qilish | fail-slow'ni QO'LLAB-QUVVATLASH |
+|---|---|---|---|---|
+| **`P0` tez tuzaladi** (§9.2 bu rejimni **aytadi**) | ≈ 0.4–1.1 s | ≈ 80–220 ms | `CI_upper[Δ] <` kvantlash poli kerak ⇒ **ERISHIB BO'LMAYDI** | har qanday kichik effekt chegaradan oshadi ⇒ **DEYARLI AVTOMATIK** |
+| `P0` ham 8 s ichida tuzalmaydi | → 8 s | → 1.6 s | erishiladigan | qat'iy |
+
+> **Bitta muzlatilgan jumla — dizayn o'zi AYTGAN rejimda shtamp, va faqat
+> dizayn o'zi BO'LMAYDI deb aytgan rejimda haqiqiy test.** Ikkinchi
+> rejim §9.2 ning *"Tinch holatda `P(VR | clean_crash, restart) ≈ 1.0`"*
+> bayonotiga qarshi, va u yuzaga kelsa `P0` yacheykasining o'zi
+> degenerat bo'ladi (pasayish uchun joy yo'q — §8.1 ning ceiling
+> argumenti teskari tomonga).
+
+### 18.5 CHEKLOV — nisbiy chegara muzlatilgan effect measure bilan statistik jihatdan mos kelmaydi
+
+`thr = 0.20 × RMST(P0)` — **baholangan** kattalik, konstanta emas.
+`CI95[Δ]` ni **xuddi shu ma'lumotdan** baholangan chegaraga qarshi
+taqqoslash **95% qoplamaga ega emas**: `RMST(P0)` ning noaniqligi
+ikki marta — `Δ` da va `thr` da — ishtirok etadi va korrelyatsiyalangan.
+
+Statistik jihatdan to'g'ri shakl — **nisbat** ustida:
+
+```
+ρ := RMST_A(P2, τ) / RMST_A(P0, τ)
+fail-slow QO'LLAB-QUVVATLANMAYDI  ⟺  CI95_upper[ ρ ] < 1.20
+```
+
+Lekin **§10.2 effect measure sifatida ayni "RMST difference" ni
+muzlatadi** (*"Effect measure: RMST difference"*), nisbatni emas. Demak:
+
+> **Nisbiy chegara (`20%`) va muzlatilgan absolut effect measure
+> (`difference`) bir-biriga mos kelmaydi.** Nisbat CI si §10.2 ning
+> muzlatilgan effect measure'i **emas**; difference CI si esa nisbiy
+> chegara bilan to'g'ri taqqoslanmaydi. Bu **uchinchi** mustaqil sabab,
+> nega limb hozirgi holatda hisoblanmaydi.
+
+Yumshatish (ta'rif o'zgarishi EMAS): `Δ` va `thr` ning birgalikdagi
+noaniqligini **bootstrap** bilan ushlash mumkin — har resample'da
+`Δ*` va `thr* = 0.20 × RMST*(P0)` qayta hisoblanadi va
+`Pr[Δ* ≥ thr*]` baholanadi. §10.2 bootstrap'ni allaqachon ruxsat
+etadi (*"median, p90, p99 + BCa bootstrap CI"*, §10.3 *"`scipy`
+… bootstrap'ni qoplaydi"*). **Bu hisoblash yo'li, qaror emas** —
+u 18.4 ning kvantlash polini **hal qilmaydi**.
+
+### 18.6 HAL QILMAYDIGAN QAROR — limb ishlamaydi, bu egasining tanlovi
+
+18.2 referensni aniqladi, demak limb **hisoblanadigan** bo'ldi. Lekin
+18.4 ko'rsatadi: **§9.2 ning o'zi aytgan rejimda limb fail-slow'ni
+INKOR QILA OLMAYDI**, chunki inkor shoxi o'lchov kvantlashidan
+mayda farqni ko'rsatishni talab qiladi.
+
+> **Buni 18.2 ning referensini o'zgartirmasdan tuzatib bo'lmaydi, va
+> referensni o'zgartirish §11 ning MA'NOSINI o'zgartiradi. Shuning
+> uchun men bu tanlovni QILMAYMAN.** Variantlar va narxlari pastda —
+> **tanlov qilinmagan.**
+
+| variant | nima bo'ladi | narxi | bias yo'nalishi |
+|---|---|---|---|
+| **F1** | 18.2 ni o'z holida qoldirish (`thr = 0.20 × RMST(P0)`) | matnning o'z konvensiyasiga **eng sodiq**; lekin inkor shoxi erishib bo'lmaydigan ⇒ limb amalda **bir tomonlama** | **fail-slow / H1 FOYDASIGA** — limb uni deyarli hech qachon inkor qilmaydi |
+| **F2** | referens `τ` (`thr = 0.20 × 8 s = 1.6 s`, fiksa) | o'lchanadigan, rejimdan mustaqil, kvantlashdan 16× yuqori; lekin §11 ning *"×P0"* konvensiyasiga **qarshi**, va "20% oshish" **"horizonning 20% i"** ga aylanadi — boshqa bayonot | **H1 GA QARSHI** — sub-sekundli bazada 1.6 s qo'llab-quvvatlash shoxini qat'iy, inkor shoxini oson qiladi |
+| **F3** | referens `P0` ning **medianasi** (§10.2 medianani ruxsat etadi) | 18.4 ning kvantlash muammosi **o'zgarmaydi**; qo'shimcha: KM medianasi `nan` bo'lishi mumkin (`04-driver-va-analiz-shartnomasi.md` §2.3, 8-band) | F1 bilan bir xil |
+| **F4** | nisbiy chegarani **absolut** chegara bilan almashtirish (sekundda, masalan `k × P`) | `k` ni tanlash **o'lchov talab qiladi** (`t_start` va `D_probe` taqsimoti) ⇒ v1.3 ning *"ma'lumot bilan asoslangan amendment, taxmin bilan emas"* qoidasi ostida — **hozir qilib bo'lmaydi** | o'lchovdan oldin aniq emas |
+
+**F1 va F2 teskari yo'nalishga bias beradi.** Bu — tanlov texnik emas,
+**ilmiy** ekanining belgisi, va §17.5 dagi O1–O4 bilan bir xil turdagi
+qaror. Ikkalasini **bir vaqtda** hal qilish tabiiy, chunki ikkalasi ham
+`τ = 8 s` / `W_stab_pilot = 8 s` ga bog'langan.
+
+> **Bog'liqlik, ochiq yoziladi:** §17.5 ning O1 varianti
+> (`W_stab_pilot` ni kichraytirish) `τ` ni ham o'zgartirishi mumkin
+> (§10.2/§11 da `τ = 8 s` — `W_stab_pilot` bilan bir xil raqam), va
+> `τ` o'zgarsa F2 ning chegarasi ham o'zgaradi. **§17.5 va §18.6 ni
+> alohida hal qilish ziddiyat yaratishi mumkin.**
+
+#### Qaror uchun zarur, lekin MAVJUD BO'LMAGAN o'lchov
+
+`thr` ning haqiqiy kattaligi `RMST(P0)` ga, u esa `t_start` ga
+bog'liq. **Bu o'lchov bajarilmadi** — bu agent guest ichida hech
+narsa o'lchamadi (WSL ishi to'xtatilgan).
+
+> **So'rov:** `experiment/guard-recal` `t_start` ni o'lchaganda
+> (§17.5 so'rovi), **`P0` ostidagi `D_probe` taqsimotini ham**
+> (`p50/p90/p99`) bersin. `RMST(P0)` shundan baholanadi, va
+> `thr = 0.20 × RMST(P0)` ning `P = 100 ms` ga nisbati 18.4 ning
+> xulosasini **tasdiqlaydi yoki rad etadi**. Agar
+> `thr ≥ ~5 × P` bo'lsa, 18.4 ning cheklovi amalda bezarar va F1
+> yetarli; aks holda egasi F1–F4 dan birini tanlashi **shart**.
+
+### 18.7 Bias yo'nalishini ochiq e'lon qilish
+
+**18.2 ning qarori (referens = `RMST(P0)`) fail-slow / H1 FOYDASIGA
+ishlaydi**, chunki u limbning inkor shoxini erishib bo'lmaydigan
+qiladi (18.4). Ya'ni bu qaror H1 ning fail-slow shaklini
+falsifikatsiyadan **amalda himoya qiladi**.
+
+**Buni bilib turib qabul qilaman**, chunki:
+
+1. referens **matnning o'z konvensiyasidan** kelib chiqadi (§11(b) ning
+   *"×P0"* grammatikasi, §10.2 ning downtime o'qishi), demak u
+   **tanlanmagan** — **o'qilgan**;
+2. menga qulay bo'lgan variant **F2** bo'lardi (u limbni ishlaydigan
+   qiladi va H1 ga qarshi bias beradi, ya'ni "qattiqqo'l" ko'rinardi) —
+   lekin F2 matn bilan **qo'llab-quvvatlanmaydi**, va natijani
+   yaxshi ko'rsatish uchun matnni qayta o'qish aynan bu hujjat oldini
+   olish uchun yozilgan narsa;
+3. hech qanday ma'lumot mavjud emas, demak bu qarorni natijani ko'rib
+   tanlash imkoniyati yo'q;
+4. va **cheklovning o'zi 18.4/18.6 da ochiq yozilgan**, demak qaror
+   H1 ni himoya qilsa ham, **himoya ko'rinmas emas** — maqolada
+   *"fail-slow limbi bu pilotda fail-slow'ni inkor qila olmaydi"*
+   deb yozilishi shart.
+
+> **Agar `D_probe(P0)` o'lchangandan keyin `thr` kvantlashdan ancha
+> yuqori chiqsa, 18.2 ning qarori O'ZGARMAYDI** — u o'lchangan natijaga
+> emas, matnga asoslangan. O'zgaradigan narsa — 18.4 ning cheklovi
+> kuchini yo'qotadi, va bu **yaxshi xabar**, qayta talqin emas.
+
+### 18.8 OCHIQ BO'SHLIQ — "time-to-VR" §6.1 ning uch o'lchovidan birortasiga bog'lanmagan
+
+§10.2 va §11 **"time-to-VR"** deb yozadi. §6.1 esa uchta downtime
+o'lchovini beradi: `D_sd`, **`D_probe` (asosiy)**, `D_eff`. **Qaysi
+biri survival endpoint'i ekani hech qayerda aytilmagan.**
+
+18.3 da `D_probe` deb o'qidim, chunki §6.1 uni aynan *"VR shartini
+qanoatlantiruvchi oynaning birinchi probe'i"* gacha ta'riflaydi, ya'ni
+u **ta'rifan** time-to-VR. Bu eng kuchli o'qish, lekin **matn buni
+ochiq aytmaydi**, va tanlov ahamiyatli:
+
+- `D_probe` — probe davriga kvantlangan (±P), 18.4 ning poli shundan;
+- `D_eff` — brownout'ni ham hisoblaydi, uzluksiz, kvantlash poli
+  **past**; §11(b) davom etish mezoni **aynan `D_eff`** ni ishlatadi;
+- `D_sd` — §6.1 ning o'zi uni *"eng chalg'ituvchi"* deb ataydi.
+
+> **Qayd etiladi, hal qilinMAYDI:** survival endpoint'ini `D_eff` deb
+> o'qish 18.4 ning kvantlash polini **yumshatishi mumkin** va §11(b)
+> bilan izchil bo'lardi — lekin bu `time-to-VR` ning ta'rifini
+> tanlashdir, va §11/§10.2 matni `D_probe` ni ham, `D_eff` ni ham
+> nomlamaydi. **F1–F4 bilan birga hal qilinishi kerak**, chunki u
+> `thr` ning o'lchov poliga nisbatini o'zgartiradi.
+
+### 18.9 OCHIQ MASALA — §14.4 ning havolasi: ATAYLAB yopilmadi
+
+v1.4 §15.6(2) dan beri ochiq, endi to'rtta amendment bo'ylab. §17.8 da
+shunday tavsiya berganman: *"§17.5 ning qarori muzlatilgan matnga
+baribir tegadi, shuning uchun shu amendment bu havolani tuzatish uchun
+to'g'ri joy."*
+
+**v1.7 muzlatilgan matnni ochmaydi** — u, v1.4/v1.5/v1.6 kabi, faqat
+oxiriga bo'lim qo'shadi. Demak **o'zim qo'ygan shart bajarilmadi**, va
+men uni yopmayman. Nagging element'ni yopish uchun o'z mezonimni
+jimgina yumshatish — aynan bu hujjat oldini olishi kerak bo'lgan narsa.
+
+Havola xatosi **ikki marta** qayd etilgan (§15.6(2), §17.8) va to'g'ri
+havola `04-driver-va-analiz-shartnomasi.md` §1.1 da mavjud, demak
+amaliy xavf past va hujjatlashtirilgan. **Talab to'liq kuchda:
+`units_show` unit TIRIK paytida olinadi.** Tuzatish vositasi — §17.5
+qarorini amalga oshiradigan amendment.
+
+### 18.10 NIMA O'ZGARMAYDI
+
+§11 ning **ikkala limbi ham matn sifatida o'zgarmadi** — kuchli shakl
+(`trend p > 0.05` **VA** Newcombe yuqori chegarasi `< 0.15`) va
+fail-slow (`τ = 8 s`, `20%`). `τ = 8 s`, `W_stab_pilot = 8 s`,
+`W_stab = 60 s`, `θ = 0.8`, `injection_offset = 3 s`,
+`hold_cap_s = 12 s`, `guard_sustain_s = 15 s`, `T_conn`/`T_rt` = 50 ms,
+`P` = 100 ms, `k_f` = 3, `ε` = 32 MiB, quiescence 0.05, `T_q` = 5 s,
+`T_w` = 15 s, `T_w_max` = 120 s, arm'lar `A`/`no_action`,
+`P0`/`P1`/`P2`, 20 blok / 120 trial, §10.1 Cochran–Armitage,
+§10.2 KM/log-rank/**RMST difference**/Cox-HR taqiqi, §10.4 Holm,
+§12 yopiq enum'i, §14 data schema, §16 va §17 ning qarorlari —
+**hammasi muzlatilgan holida.** §13 ga tegilmadi.
+
+Qo'shilgan narsa: aytilmagan referensning **o'qilishi**, ayirish
+tartibi va yo'nalish talabi, bir sxema maydoni talabi
+(`orientation`), va **hal qilinmagan qarorning ochiq bayonoti**.
+
+### 18.11 NATIJA — yo'q
+
+**Hech qanday eksperiment ishga tushirilmadi. Hech qanday natija yo'q.**
+18.4 ning barcha raqamlari **muzlatilgan qiymatlardan** chiqarilgan
+(`P = 100 ms`, `RestartSec = 100 ms`, §6.1 ning `D_probe` ta'rifi,
+§9.2 ning `P(VR|P0) ≈ 1.0` bayonoti); yagona noma'lum — `t_start`, va
+u **o'lchanmadi**. Uni o'lchash 18.6 da so'ralgan.

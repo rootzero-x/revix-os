@@ -13,7 +13,7 @@
 
 | Daraja | Nima | Pre-registration | Holat |
 |---|---|---|---|
-| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.6` ⚠️ | **bloklangan** — `PREREGISTRATION.md` §17.5 ochiq qarori |
+| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.7` ⚠️ | **bloklangan** — `PREREGISTRATION.md` §17.5 va §18.6 ochiq qarorlari |
 | **CAL — kalibratsiya** | har `(fault × action)` uchun `P̂(VR)` → `Repairs()` matritsasi | kerak | P1 dan keyin |
 | **P2 — confirmatory** | to'liq fault taksonomiyasi × arm A/B/C × pressure × pulse duration | kerak, P1 effect size'idan `n` hisoblanadi | CAL dan keyin |
 
@@ -157,6 +157,12 @@ Har trial uchun: VR (throughput bandi bilan), `D_probe`, `D_eff`, `D_sd`,
 termallar, host `MemAvailable`, blok indeksi, RNG seed, disposition.
 
 To'liq schema: `PREREGISTRATION.md` **§14** va `revix/schema.py`.
+
+> **Diqqat:** yuqoridagi ro'yxat `D_probe`, `D_eff` va `D_sd` ni **alohida**
+> sanaydi, lekin `PREREGISTRATION.md` §10.2/§11 ning survival endpoint'i
+> (*"time-to-VR"*) ularning **birortasiga ham ochiq bog'lanmagan**. Bu
+> ochiq bo'shliq §18.8 da qayd etilgan va §11 ning fail-slow limbining
+> ishlashiga ta'sir qiladi (§18.4).
 
 > **Havola tuzatildi (2026-10-02).** Bu qator ilgari "§7–8" ga ko'rsatardi;
 > §7 — *Pressure o'lchovi*, §8 — *Confound nazorati*. Data schema **§14** da,
