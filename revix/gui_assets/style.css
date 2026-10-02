@@ -1,0 +1,434 @@
+/* REVIX dashboard uslubi -- yagona rang manbasi.
+ *
+ * TOKENLAR `docs/branding/tokens.css` (v1.0) DAN OLINGAN va AYNAN o'sha
+ * nomlar bilan (`--rx-*`) ishlatiladi. Bu fayl o'sha tokenlarning
+ * ISTE'MOLCHISI; ziddiyat bo'lsa `docs/branding/00-design-system.md`
+ * USTUN va bu fayl tuzatiladi. `@import` ATAYLAB ishlatilmaydi: `tokens.css`
+ * `docs/` ostida va `gui_assets/` dan tashqarida, demak uni import qilish
+ * server bermaydigan yo'lga havola bo'lardi (CSP `default-src 'self'`).
+ * `tokens.css` keyinchalik aktiv sifatida ko'chirilganda quyidagi `:root`
+ * bloki O'SHA FAYL BILAN ALMASHTIRILADI -- qolgan hamma narsa tegilmaydi.
+ *
+ * DIZAYN QOIDALARI (buzilmaydi):
+ *
+ *   1. BARCHA rang AYNAN shu faylning `:root` blokida. Markup'da, `gui.py`
+ *      da yoki `app.js` da literal rang YO'Q. NEGA: `feature/branding`
+ *      faqat token qiymatlarini almashtiradi va birorta markup qatoriga
+ *      tegmaydi.
+ *
+ *   2. QIZIL va YASHIL FAQAT healthy va failed uchun (state-indicators.md
+ *      qoida H-1). Qolgan beshta holat -- neytral kulrang. NEGA: tasdiqlanmagan
+ *      holatga yoki yo'q ma'lumotga signal rangi berish uni "yaxshi yo'l" yoki
+ *      "yomon yo'l" ga joylaydi (00-design-system.md §5.3). Sariq/amber YO'Q.
+ *
+ *   3. MATN uchun `--rx-fail` / `--rx-ok` (5.65:1 / 8.79:1), TO'LDIRILGAN
+ *      YUZA uchun `--rx-fail-solid` / `--rx-ok-solid`. NEGA: `#E53935` matn
+ *      sifatida kontrastni yetarli bermaydi; u yuza rangi.
+ *
+ *   4. MA'NOLI chegara `--rx-fg-2` (`--rx-border-strong`), BEZAK chegara
+ *      `--rx-line`. NEGA: `--rx-line` (#444444) `bg-0` ga nisbatan 2.06:1 --
+ *      ma'noli outline uchun YETARLI EMAS (tokens.css izohi).
+ *
+ *   5. RANG HECH QACHON YAGONA KANAL EMAS (state-indicators.md §4.5).
+ *      O'lchangan: monoxromda `--rx-fail` (#FF3B30) va `--rx-fg-2` (#888888)
+ *      kontrasti 1.00:1 -- YA'NI BIR XIL KULRANG. Shu sababli har holat
+ *      shakl, to'ldirish turi, matn yorlig'i va `data-state` bilan ham
+ *      aytiladi.
+ *
+ *   6. NEON/cyberpunk YO'Q, gradient YO'Q, soya YO'Q, animatsiya YO'Q.
+ *      Yagona istisno -- `--rx-hatch`: u `repeating-linear-gradient` bo'lsa
+ *      ham gradient EMAS, qattiq to'xtash nuqtalari bilan takrorlanuvchi
+ *      CHIZIQ NAQSHI (tokens.css izohi). NEGA: loyiha "Kali Linux
+ *      moslashtirmasi emas" (README) va o'lchov artifact'i soxta-hacker
+ *      estetikasi bilan ishonchini yo'qotadi.
+ *
+ *   7. TO'RT HOLAT TO'RT XIL KO'RINADI: `.v-missing` (shtrix + yaxlit
+ *      chegara), `.v-norun` (bo'sh + punktir chegara), `.v-nosource`
+ *      (to'lqinli chizish) va `.v-zero` (oddiy raqam + belgi). NEGA: `None`
+ *      bilan `0` ni bir xil ko'rsatish o'lchov yaxlitligini buzadigan
+ *      yolg'on (CONTRIBUTING.md §4, state-indicators.md §4.1).
+ *
+ *   8. RAQAMLI YUZADA `tabular-nums` MAJBURIY (tokens.css `--rx-numeric`).
+ *      NEGA: proportional raqamlar ustunda qiymatlarni siljitadi va
+ *      taqqoslashni ko'z bilan buzadi.
+ */
+
+:root {
+  /* ===== docs/branding/tokens.css v1.0 dan ko'chirilgan ================== */
+
+  /* ---- Yuzalar (dark, asosiy) ---- */
+  --rx-bg-0: #080808;   /* canvas: sahifa foni */
+  --rx-bg-1: #0F0F0F;   /* panel */
+  --rx-bg-2: #151515;   /* ko'tarilgan: jadval qatori, izoh bloki */
+
+  /* ---- Neytrallar ---- */
+  --rx-fg-0: #FFFFFF;   /* urg'u: bosh qiymat, sarlavha, focus ring */
+  --rx-fg-1: #D4D4D4;   /* asosiy matn */
+  --rx-fg-2: #888888;   /* ikkilamchi matn, birlik, MA'NOLI chegara */
+  --rx-line: #444444;   /* hairline, bezak. MATN EMAS, ma'noli outline EMAS */
+
+  /* ---- Signal (faqat ma'no) ---- */
+  --rx-fail: #FF3B30;        /* failure: matn, glyph, outline  (5.65:1) */
+  --rx-fail-solid: #E53935;  /* failure: to'ldirilgan yuza */
+  --rx-ok: #22C55E;          /* verified: matn, glyph, outline (8.79:1) */
+  --rx-ok-solid: #00C853;    /* verified: to'ldirilgan yuza */
+  --rx-on-signal: #080808;   /* signal solid ustidagi matn (oq EMAS) */
+
+  /* ---- Holat belgilari ---- */
+  --rx-state-neutral: var(--rx-fg-1);   /* recovering / degraded / isolated */
+  --rx-state-unknown: var(--rx-fg-2);   /* not measured / not run */
+
+  /* ---- Tipografiya (tashqi font YO'Q: CDN va @font-face yo'q) ---- */
+  --rx-font-mono: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", Consolas, Menlo, monospace;
+  --rx-font-sans: system-ui, -apple-system, "Segoe UI", "DejaVu Sans", Arial, sans-serif;
+
+  --rx-text-label: 12px;
+  --rx-text-body: 14px;
+  --rx-text-lead: 16px;
+  --rx-text-title: 20px;
+
+  --rx-leading-body: 1.5;
+  --rx-leading-tight: 1.2;
+  --rx-weight-regular: 400;
+  --rx-weight-strong: 600;        /* 700+ ISHLATILMAYDI */
+  --rx-tracking-label: 0.08em;    /* faqat UPPERCASE label uchun */
+  --rx-numeric: tabular-nums;
+
+  /* ---- Spacing (4 px asos) ---- */
+  --rx-space-1: 4px;
+  --rx-space-2: 8px;
+  --rx-space-3: 12px;
+  --rx-space-4: 16px;
+  --rx-space-5: 24px;
+  --rx-space-6: 32px;
+
+  /* ---- Shakl ---- */
+  --rx-radius: 2px;               /* MAKSIMUM. pill / dumaloq tugma YO'Q */
+  --rx-border: 1px solid var(--rx-line);
+  --rx-border-strong: 1px solid var(--rx-fg-2);
+  --rx-focus: 2px solid var(--rx-fg-0);
+  --rx-row-height: 32px;
+
+  /* "not measured" shtrixi: gradient EMAS -- qattiq to'xtash nuqtalari. */
+  --rx-hatch: repeating-linear-gradient(45deg, var(--rx-fg-2) 0 1px, transparent 1px 4px);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--rx-bg-0);
+  color: var(--rx-fg-1);
+  font-family: var(--rx-font-sans);
+  font-size: var(--rx-text-body);
+  line-height: var(--rx-leading-body);
+}
+
+a { color: var(--rx-fg-0); text-decoration: none; border-bottom: var(--rx-border); }
+a:hover { border-bottom-color: var(--rx-fg-2); }
+a:focus-visible { outline: var(--rx-focus); outline-offset: 2px; }
+
+code, .mono, pre { font-family: var(--rx-font-mono); font-size: var(--rx-text-label); }
+
+/* --- sarlavha ------------------------------------------------------------ */
+
+.topbar {
+  border-bottom: var(--rx-border);
+  background: var(--rx-bg-1);
+  padding: var(--rx-space-3) var(--rx-space-5);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rx-space-4);
+  align-items: baseline;
+}
+.topbar .brand {
+  font-family: var(--rx-font-mono);
+  font-size: var(--rx-text-lead);
+  letter-spacing: 0.12em;
+  color: var(--rx-fg-0);
+}
+.topbar .brand-sub { color: var(--rx-fg-2); font-size: var(--rx-text-label); }
+.topbar .spacer { flex: 1 1 auto; }
+.topbar .clock {
+  font-family: var(--rx-font-mono);
+  font-size: var(--rx-text-label);
+  color: var(--rx-fg-2);
+  font-variant-numeric: var(--rx-numeric);
+}
+
+/* --- navigatsiya -------------------------------------------------------- */
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: var(--rx-border);
+  background: var(--rx-bg-0);
+  padding: 0 var(--rx-space-5);
+}
+.nav a {
+  padding: var(--rx-space-2) var(--rx-space-3);
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--rx-fg-2);
+  font-size: var(--rx-text-label);
+  white-space: nowrap;
+}
+.nav a:hover { color: var(--rx-fg-1); }
+.nav a[aria-current="page"] { color: var(--rx-fg-0); border-bottom-color: var(--rx-fg-0); }
+/* Manbasi yo'q sahifa: punktir ostki chiziq -- `not run` ning nav shakli. */
+.nav a.empty-page { border-bottom-style: dashed; border-bottom-color: var(--rx-fg-2); }
+
+/* --- maydon ------------------------------------------------------------- */
+
+main { padding: var(--rx-space-5); max-width: 1500px; }
+h1 {
+  font-size: var(--rx-text-title);
+  font-weight: var(--rx-weight-strong);
+  color: var(--rx-fg-0);
+  margin: 0 0 var(--rx-space-2);
+  line-height: var(--rx-leading-tight);
+}
+h2 { font-size: var(--rx-text-label); font-weight: var(--rx-weight-strong); margin: 0; }
+h3 {
+  font-size: var(--rx-text-label);
+  font-weight: var(--rx-weight-strong);
+  color: var(--rx-fg-0);
+  letter-spacing: var(--rx-tracking-label);
+  margin: var(--rx-space-4) 0 var(--rx-space-2);
+}
+.page-intro { color: var(--rx-fg-2); margin: 0 0 var(--rx-space-5); max-width: 90ch; }
+
+.grid { display: grid; gap: var(--rx-space-4); grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.grid-wide { grid-template-columns: 1fr; }
+
+/* --- panel -------------------------------------------------------------- */
+
+.panel { background: var(--rx-bg-1); border: var(--rx-border); border-radius: var(--rx-radius); }
+.panel > header {
+  padding: var(--rx-space-3) var(--rx-space-4);
+  border-bottom: var(--rx-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rx-space-2) var(--rx-space-4);
+  align-items: baseline;
+}
+.panel > header h2 {
+  font-family: var(--rx-font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rx-fg-0);
+}
+.panel > .body { padding: var(--rx-space-4); }
+.panel > .body > :first-child { margin-top: 0; }
+.panel > .body > :last-child { margin-bottom: 0; }
+
+/* --- manba nishoni (har panel manbasini AYTADI) ------------------------- */
+
+.source {
+  margin-left: auto;
+  font-family: var(--rx-font-mono);
+  font-size: var(--rx-text-label);
+  color: var(--rx-fg-2);
+  text-align: right;
+  font-variant-numeric: var(--rx-numeric);
+}
+.source .tier {
+  border: var(--rx-border-strong);
+  padding: 0 var(--rx-space-1);
+  margin-right: var(--rx-space-2);
+  color: var(--rx-fg-1);
+}
+/* Eskirgan o'qish ESKIRGAN ko'rinadi -- VA rang yagona kanal emas:
+   `stale` qo'shimcha ravishda punktir ostki chiziq ham beradi. */
+.source.stale .read-at,
+.source.stale .age { color: var(--rx-fail); text-decoration: underline dashed; }
+.source.stale .tier { border-color: var(--rx-fail); color: var(--rx-fail); }
+.source .err { color: var(--rx-fail); }
+.source .note { color: var(--rx-fg-2); }
+
+/* --- qiymat holatlari (QOIDA 7, state-indicators.md §4) ----------------- */
+
+.val { font-family: var(--rx-font-mono); font-variant-numeric: var(--rx-numeric); }
+
+/* o'lchangan son: urg'u rangi, aniq */
+.v-num { color: var(--rx-fg-0); }
+.v-num .unit { color: var(--rx-fg-2); margin-left: var(--rx-space-1); }
+
+/* o'lchangan NOL: son KO'RINADI + "o'lchangan nol" belgisi */
+.v-zero { color: var(--rx-fg-0); }
+.v-zero .zmark {
+  margin-left: var(--rx-space-2);
+  font-size: var(--rx-text-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rx-fg-2);
+  border: var(--rx-border);
+  padding: 0 var(--rx-space-1);
+}
+
+/* NOT MEASURED -- SHTRIX + YAXLIT chegara (state-indicators.md §4.2).
+   Matn qattiq plita ustida: shtrix chiziqlari o'qilishni pasaytiradi. */
+/* Tashqi quti SHTRIXLANGAN; ichkarida matn qattiq plita ustida. Tashqi
+   padding plitadan KATTA bo'lishi SHART, aks holda plita shtrixni butunlay
+   yopadi va "to'ldirish" kanali yo'qoladi -- bu brauzerda KO'RILDI va
+   shu sabab bilan kattalashtirildi (state-indicators.md §4.2-1: hech qachon
+   ochiq/bo'sh emas). */
+.v-missing {
+  display: inline-block;
+  background: var(--rx-bg-1) var(--rx-hatch);
+  border: var(--rx-border-strong);
+  padding: 2px var(--rx-space-3);
+  color: var(--rx-fg-2);
+}
+.v-missing .plate {
+  background: var(--rx-bg-0);
+  color: var(--rx-fg-1);
+  padding: 0 var(--rx-space-1);
+}
+.v-missing .tag { color: var(--rx-fg-2); margin-left: var(--rx-space-1); }
+.v-missing .reason { color: var(--rx-fg-2); margin-left: var(--rx-space-1); }
+
+/* NOT RUN -- BO'SH + PUNKTIR chegara (state-indicators.md §4.3).
+   Ikki kanal bilan `not measured` dan ajraladi: to'ldirish va chegara. */
+.v-norun {
+  display: inline-block;
+  background: transparent;
+  border: 1.5px dashed var(--rx-fg-2);
+  padding: 0 var(--rx-space-1);
+  color: var(--rx-fg-2);
+}
+.v-norun .tag { margin-left: var(--rx-space-1); }
+
+/* MANBA YO'Q -- uchinchi shakl: to'lqinli chizish, chegarasiz.
+   Bu loyiha qo'shimchasi: state-indicators.md ning yetti holatida "qiymatni
+   ishlab chiqaradigan KOD yo'q" holati yo'q, lekin u `not_run` dan boshqa
+   gap -- `not_run` kutilmoqda, bu esa kutilmaydi. */
+.v-nosource {
+  color: var(--rx-fg-2);
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--rx-fg-2);
+  text-underline-offset: 3px;
+}
+
+/* --- holat belgisi ------------------------------------------------------ */
+
+.badge {
+  font-family: var(--rx-font-mono);
+  font-size: var(--rx-text-label);
+  letter-spacing: var(--rx-tracking-label);
+  text-transform: uppercase;
+  border: var(--rx-border-strong);
+  padding: 0 var(--rx-space-2);
+  white-space: nowrap;
+}
+/* Faqat healthy va failed signal rangiga ega (qoida H-1). */
+.badge.ok { color: var(--rx-ok); border-color: var(--rx-ok); }
+.badge.fail { color: var(--rx-fail); border-color: var(--rx-fail); }
+/* WARN -- NEYTRAL (sariq/amber YO'Q), punktir chegara bilan ajraladi. */
+.badge.warn { color: var(--rx-state-neutral); border-style: dashed; }
+.badge.neutral { color: var(--rx-state-unknown); }
+
+/* --- jadval ------------------------------------------------------------- */
+
+.tbl-wrap { overflow-x: auto; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--rx-text-body);
+  font-variant-numeric: var(--rx-numeric);
+}
+th, td {
+  text-align: left;
+  padding: var(--rx-space-2) var(--rx-space-3);
+  border-bottom: var(--rx-border);
+  vertical-align: top;
+}
+th {
+  font-family: var(--rx-font-mono);
+  font-size: var(--rx-text-label);
+  letter-spacing: var(--rx-tracking-label);
+  text-transform: uppercase;
+  color: var(--rx-fg-2);
+  font-weight: var(--rx-weight-regular);
+  white-space: nowrap;
+}
+tr:last-child td { border-bottom: none; }
+td.num { font-family: var(--rx-font-mono); white-space: nowrap; }
+
+dl.kv { display: grid; grid-template-columns: minmax(140px, auto) 1fr; gap: var(--rx-space-2) var(--rx-space-4); margin: 0; }
+dl.kv dt { color: var(--rx-fg-2); font-size: var(--rx-text-label); }
+dl.kv dd { margin: 0; }
+
+/* --- xabarlar ----------------------------------------------------------- */
+
+.notice {
+  border: var(--rx-border);
+  border-left-width: 3px;
+  background: var(--rx-bg-2);
+  padding: var(--rx-space-3) var(--rx-space-4);
+  margin: 0 0 var(--rx-space-4);
+  max-width: 100ch;
+}
+.notice h3 { margin: 0 0 var(--rx-space-2); font-size: var(--rx-text-label); color: var(--rx-fg-0); letter-spacing: normal; }
+.notice p { margin: 0 0 var(--rx-space-2); }
+.notice p:last-child { margin-bottom: 0; }
+.notice.honesty { border-left-color: var(--rx-fg-2); }
+.notice.critical { border-left-color: var(--rx-fail); }
+/* Bo'sh holat: punktir -- `not run` bilan bir xil vizual til. */
+.notice.empty { border-style: dashed; border-left-color: var(--rx-fg-2); }
+
+/* SINTETIK -- ekranda ko'rinadigan, chetlab o'tilmaydigan ogohlik. */
+.synthetic-banner {
+  border: 2px solid var(--rx-fail);
+  background: var(--rx-bg-2);
+  color: var(--rx-fail);
+  padding: var(--rx-space-3) var(--rx-space-4);
+  margin: 0 0 var(--rx-space-5);
+  font-family: var(--rx-font-mono);
+  font-size: var(--rx-text-body);
+  letter-spacing: 0.06em;
+}
+.panel.synthetic { border-color: var(--rx-fail); }
+.panel.synthetic > header { border-bottom-color: var(--rx-fail); }
+.panel .synthetic-inline {
+  font-family: var(--rx-font-mono);
+  font-size: var(--rx-text-label);
+  letter-spacing: 0.06em;
+  color: var(--rx-fail);
+  border: 1px solid var(--rx-fail);
+  padding: 0 var(--rx-space-1);
+}
+
+/* --- xom matn (fayldan o'qilgan, ISHONCHSIZ matn) ----------------------- */
+
+pre.raw {
+  background: var(--rx-bg-0);
+  border: var(--rx-border);
+  padding: var(--rx-space-3);
+  margin: 0;
+  overflow-x: auto;
+  color: var(--rx-fg-1);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+figure.figure { margin: 0 0 var(--rx-space-4); }
+figure.figure img { max-width: 100%; background: var(--rx-fg-0); border: var(--rx-border); }
+figure.figure figcaption { color: var(--rx-fg-2); font-size: var(--rx-text-label); margin-top: var(--rx-space-2); }
+
+footer.foot {
+  border-top: var(--rx-border);
+  padding: var(--rx-space-4) var(--rx-space-5);
+  color: var(--rx-fg-2);
+  font-size: var(--rx-text-label);
+  max-width: 100ch;
+}
+
+@media (max-width: 860px) {
+  main { padding: var(--rx-space-4); }
+  .topbar, .nav { padding-left: var(--rx-space-4); padding-right: var(--rx-space-4); }
+  dl.kv { grid-template-columns: 1fr; gap: 0; }
+  dl.kv dt { margin-top: var(--rx-space-2); }
+}
