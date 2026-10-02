@@ -14,10 +14,19 @@ import pytest
 
 from revix import reduce as R
 from revix import validate as V
+from revix.schedule import Factor, TrialTimeline, make_schedule
 from revix.schema import DISPOSITIONS
 
 T0 = 1_000_000
 P = R.P_US
+
+# Bir yacheykali jadval: toza run'dagi YAGONA trial shu jadvaldan (§8.4).
+SCHED = make_schedule([Factor("arm", ("A",)),
+                       Factor("pressure_level", ("P1",))], 1, 12345)
+TID = SCHED.trials[0].trial_id
+# T_trial = t_pressure_off + w_stab_s + P (kontrakt v1.1 §5.2) = 40.1 s.
+T_TRIAL_US = 40_100_000
+N_PROBES = 402        # k = 0..401 -> T0 .. T0 + T_TRIAL (har 100 ms)
 
 
 # --- toza run quruvchi ------------------------------------------------------
@@ -27,10 +36,11 @@ class Builder:
     """`seq` har (emitter, record_type) uchun monotonik -- aynan schema.py
     dagi `Emitter` kabi, chunki validator bo'shliqni shu asosda tekshiradi."""
 
-    def __init__(self):
+    def __init__(self, tid=None):
         self.records = []
         self.probes = []
         self._seq = {}
+        self.tid = tid or TID
 
     def _env(self, rt, mono_us, trial_id, emitter, boot_id="boot1",
              schema_version=1):
@@ -38,19 +48,25 @@ class Builder:
         self._seq[key] = self._seq.get(key, 0) + 1
         return {
             "schema_version": schema_version, "record_type": rt,
+            "stream": rt,       # kontrakt v1.1 §4.2-3: stream = record_type
             "run_id": "run1", "session_id": "sess1", "boot_id": boot_id,
             "trial_id": trial_id, "block_index": 0, "seq": self._seq[key],
             "mono_us": mono_us, "real_us": 0, "emitter": emitter,
         }
 
-    def add(self, rt, mono_us=0, *, trial_id="t0", emitter="driver:1", **payload):
+    def add(self, rt, mono_us=0, *, trial_id="__default__", emitter="driver:1",
+            **payload):
+        if trial_id == "__default__":
+            trial_id = self.tid
         rec = self._env(rt, mono_us, trial_id, emitter)
         rec.update(payload)
         self.records.append(rec)
         return rec
 
     def probe(self, k, *, outcome="ok", progress=None, invocation="inv1",
-              trial_id="t0"):
+              trial_id="__default__"):
+        if trial_id == "__default__":
+            trial_id = self.tid
         rec = self._env(R.RT_PROBE, T0 + k * P, trial_id, "prober:2")
         rec.update({"mono_us_send": T0 + k * P, "outcome": outcome,
                     "progress": progress, "invocation_id_seen": invocation,
@@ -64,35 +80,81 @@ class Builder:
                         sources=["<memory>"])
 
 
-def clean() -> Builder:
-    """Barcha invariantlarni qanoatlantiradigan minimal run.
+def gen(uptime, ticks=4242):
+    """Guest generation markeri: PID 1 starttime + uptime o'qishi."""
+    return {"pid1_starttime_ticks": ticks, "uptime_s": uptime}
 
-    10 x 100 ms baseline -> fault -> 3 buzilgan probe -> restart -> 17 ok probe.
+
+def units_ok():
+    """TIRIK paytida olingan dump (`units.dump_unit_properties` shakli)."""
+    return {"revix-sut.service": {
+        "unit": "revix-sut.service", "source": "systemctl --user show",
+        "alive_before": True, "alive_after": True, "load_state": "loaded",
+        "dump_valid": True, "systemctl_rc": 0, "property_count": 2,
+        "properties": {"LoadState": "loaded", "MemoryMax": "67108864"}}}
+
+
+def clean(sched=None, tid=None) -> Builder:
+    """Barcha invariantlarni qanoatlantiradigan driver-to'liq run.
+
+    Guard start -> prober start -> trial_begin -> baseline (10 x 100 ms) ->
+    fault -> 3 buzilgan probe -> restart -> ok probe'lar -> trial_end
+    (T0 + T_trial) -> prober stop -> guard stop. Bitta trial, bitta yacheyka.
     """
-    b = Builder()
+    sched = sched or SCHED
+    tid = tid or sched.trials[0].trial_id
+    st = next(t for t in sched.trials if t.trial_id == tid)
+    arm, band = st.level("arm"), st.level("pressure_level")
+    b = Builder(tid)
     b.add(R.RT_RUN_META, 0, trial_id=None, git_dirty=False, run_mode="pilot",
-          preregistration_sha256="0b1fdd18783bd27b22d0d64291eea657",
-          rng_seed=12345)
-    b.add(R.RT_TRIAL_BEGIN, T0, arm="A", pressure_band="P1",
-          fault_class="clean_crash")
+          preregistration_sha256="SYNTHETIC-FIXTURE-NOT-A-REAL-HASH",
+          rng_seed=sched.seed, preregistration_version="synthetic",
+          started_real_us=0, started_mono_us=0, git_commit="synthetic",
+          schedule_digest=sched.digest(), schedule=sched.as_dict(),
+          uname=None, systemd_version=None, cpu_model=None, cpu_count=4,
+          mem_total_kb=None, cgroup_delegated_controllers=None,
+          oomd_effective=None,
+          governor=None, scaling_driver=None,    # WSL2: cpufreq sysfs yo'q
+          python_version="3", module_versions={}, units_show=units_ok(),
+          t_trial_us=T_TRIAL_US,
+          t_trial_formula="t_pressure_off + w_stab_s + P",
+          guest_generation=gen(1.0))
+    b.add(V.RT_GUARD_START, 100_000, trial_id=None, emitter="guard:3",
+          watch_cgroup="w", lab_cgroup="l")
+    b.add("prober_start", T0 - 100_000, emitter="prober:2", hz=10)
+    b.add(R.RT_TRIAL_BEGIN, T0, arm=arm, pressure_band=band,
+          fault_class="clean_crash", position_in_block=st.position_in_block,
+          planned_timeline=TrialTimeline().as_dict())
+    b.add("env_snapshot", T0 + 1, guest_generation=gen(2.0))
     b.add(R.RT_UNIT_STATE, T0, active_state="active", result="success",
           n_restarts=0, invocation_id="inv1",
-          active_enter_ts_mono_us=T0 - 500_000, active_exit_ts_mono_us=0)
+          active_enter_ts_mono_us=T0 - 500_000, active_exit_ts_mono_us=0,
+          recv_mono_us=T0, ActiveEnterTimestampMonotonic=T0 - 500_000,
+          ActiveExitTimestampMonotonic=0)
     for k in range(10):
         b.probe(k, progress=200 * (k + 1), invocation="inv1")
+    b.add(R.RT_BASELINE_WINDOW, T0 + 900_000, mono_us_begin=T0,
+          mono_us_end=T0 + 900_000)
     b.add(R.RT_FAULT_INJECT, T0 + 1_000_000, kind="exit",
           mono_us_before_call=T0 + 999_000, mono_us_after_call=T0 + 1_000_000)
     for k in range(10, 13):
         b.probe(k, outcome="conn_refused", progress=None, invocation=None)
     b.add(R.RT_ACTION, T0 + 1_250_000, action_id="a0", action_class="restart",
           policy_delay_us=100_000)
-    for k in range(13, 30):
+    for k in range(13, N_PROBES):
         b.probe(k, progress=200 * (k - 12), invocation="inv2")
     b.add(R.RT_UNIT_STATE, T0 + 1_300_000, active_state="active",
           result="success", n_restarts=1, invocation_id="inv2",
           active_enter_ts_mono_us=T0 + 1_300_000,
-          active_exit_ts_mono_us=T0 + 1_000_000)
-    b.add(R.RT_TRIAL_END, T0 + 3_000_000, disposition="complete")
+          active_exit_ts_mono_us=T0 + 1_000_000, recv_mono_us=T0 + 1_300_000,
+          ActiveEnterTimestampMonotonic=T0 + 1_300_000,
+          ActiveExitTimestampMonotonic=T0 + 1_000_000)
+    b.add("env_snapshot", T0 + T_TRIAL_US - 1, guest_generation=gen(42.0))
+    b.add(R.RT_TRIAL_END, T0 + T_TRIAL_US, disposition="complete",
+          reason="synthetic", overhead_us=1_500_000)
+    b.add("prober_stop", T0 + T_TRIAL_US + 50_000, emitter="prober:2")
+    b.add(V.RT_GUARD_STOP, T0 + T_TRIAL_US + 1_000_000, trial_id=None,
+          emitter="guard:3", tripped=False)
     return b
 
 
@@ -136,7 +198,7 @@ def test_trial_begin_end_siz_aniqlanadi():
     assert "trial_begin_without_end" in codes(rep, V.SEVERITY_ERROR)
     assert rep.ok is False
     f = next(f for f in rep.findings if f.code == "trial_begin_without_end")
-    assert f.trial_id == "t0"          # topish uchun kontekst bor
+    assert f.trial_id == TID          # topish uchun kontekst bor
 
 
 def test_trial_end_begin_siz_aniqlanadi():
@@ -195,14 +257,14 @@ def test_disposition_enumdan_tashqari_aniqlanadi():
 
 def test_seq_boshligi_aniqlanadi():
     b = clean()
-    lost = b.probes[5]["seq"]                         # 6..105 yo'qoldi
-    b.probes[5]["seq"] = lost + 100
+    lost = b.probes[5]["seq"]                         # 6 yo'qoldi
+    b.probes[5]["seq"] = lost + 1000    # max_seq dan ham katta
     rep = V.validate_run(b.run())
     f = next(f for f in rep.findings if f.code == "seq_gap")
     assert f.severity == V.SEVERITY_ERROR
     assert f.stream == "prober:2/probe_sample"
     assert lost in f.detail["missing_seq"]
-    assert f.detail["max_seq"] == lost + 100
+    assert f.detail["max_seq"] == lost + 1000
     assert rep.ok is False
 
 
@@ -306,7 +368,7 @@ def test_tasirsiz_action_aniqlanadi():
     f = next(f for f in rep.findings
              if f.code == "action_without_invocation_change")
     assert f.severity == V.SEVERITY_ERROR
-    assert f.trial_id == "t0"
+    assert f.trial_id == TID
     assert f.detail["action_id"] == "a0"
     assert rep.ok is False
 
@@ -442,7 +504,7 @@ def test_csv_probe_oqimida_envelope_talab_qilinmaydi(tmp_path):
     csv_path = tmp_path / "probes.csv"
     rows = ["mono_us_send,outcome,progress,invocation_id_seen,seq,trial_id"]
     for k in range(3):
-        rows.append(f"{T0 + k * P},ok,{200 * (k + 1)},inv1,{k + 1},t0")
+        rows.append(f"{T0 + k * P},ok,{200 * (k + 1)},inv1,{k + 1},{TID}")
     csv_path.write_text("\n".join(rows) + "\n")
     run = R.RawRun.load([], [str(csv_path)])
     assert "schema_version_unknown" not in codes(V.validate_run(run))
@@ -545,3 +607,1221 @@ def test_hisobotda_har_buzilish_alohida_beriladi():
     assert {"trial_begin_without_end", "disposition_missing",
             "schema_version_unknown", "seq_gap"} <= got
     assert str(rep.findings[0]).startswith(("ERROR", "WARNING"))
+
+
+# ===========================================================================
+# DRIVER CHIQISHI UCHUN QO'SHIMCHA INVARIANTLAR
+#
+# Har test toza (driver-to'liq) run'dan boshlanadi va AYNAN BITTA buzilish
+# kiritadi. `clean()` driver nimani yozishi KERAKLIGINI ifodalaydi
+# (kontrakt v1.1 §1-§5), shuning uchun u o'zi XATOSIZ o'tishi shart.
+# ===========================================================================
+
+
+def meta_of(b):
+    return next(r for r in b.records if r["record_type"] == R.RT_RUN_META)
+
+
+def recs(b, rt):
+    return [r for r in b.records if r["record_type"] == rt]
+
+
+def find(rep, code):
+    return next(f for f in rep.findings if f.code == code)
+
+
+def sched2():
+    """Ikki yacheykali jadval (A / no_action) -- to'liq blok testlari uchun."""
+    return make_schedule([Factor("arm", ("A", "no_action")),
+                          Factor("pressure_level", ("P1",))], 1, 12345)
+
+
+def tid_of(sched, arm):
+    return next(t.trial_id for t in sched.trials if t.level("arm") == arm)
+
+
+def test_toza_run_hech_qanday_finding_bermaydi():
+    """Barcha yangi tekshiruvlar toza run'da JIM: na xato, na ogohlantirish."""
+    rep = V.validate_run(clean().run())
+    assert rep.findings == [], [str(f) for f in rep.findings]
+
+
+# --- 9. envelope (§14.2) ----------------------------------------------------
+
+
+def test_envelope_maydoni_yoq_bolsa_xato():
+    b = clean()
+    del recs(b, R.RT_TRIAL_END)[0]["real_us"]
+    f = find(V.validate_run(b.run()), "envelope_field_missing")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.detail["field"] == "real_us"
+
+
+def test_boot_id_yoq_record_endi_jimgina_otmaydi():
+    """`check_boot_id` boot_id yo'q record'ni TASHLAYDI (§14.6-5 chetlab
+    o'tiladi) -- envelope tekshiruvi shu teshikni yopadi."""
+    b = clean()
+    del recs(b, R.RT_UNIT_STATE)[0]["boot_id"]
+    run = b.run()
+    assert V.check_boot_id(run) == []              # eski tekshiruv ko'rmaydi
+    f = find(V.validate_run(run), "envelope_field_missing")
+    assert f.detail["field"] == "boot_id"
+
+
+def test_stream_record_type_dan_farq_qilsa_xato():
+    b = clean()
+    recs(b, R.RT_ACTION)[0]["stream"] = "events"
+    f = find(V.validate_run(b.run()), "stream_not_record_type")
+    assert f.severity == V.SEVERITY_ERROR
+
+
+def test_umumiy_oqim_seq_bosh_oqim_kaliti_bilan_hisoblanadi():
+    """Driver bitta `events` oqimiga hamma turni yozsa va seq'ni UMUMIY
+    hisoblasa, `stream` maydoni bo'yicha kalit soxta `seq_gap` bermaydi --
+    lekin kontrakt v1.1 §4.2-3 buzilgani baribir XATO."""
+    b = clean()
+    n = 0
+    for r in b.records:
+        if r["emitter"] == "driver:1":
+            n += 1
+            r["stream"] = "events"
+            r["seq"] = n
+    rep = V.validate_run(b.run())
+    assert "seq_gap" not in codes(rep)
+    assert "stream_not_record_type" in codes(rep, V.SEVERITY_ERROR)
+
+
+def test_guard_boshqa_run_id_bilan_yozilsa_xato():
+    """guard.py `--run-id` berilmasa yangi uuid oladi (§1: bitta run = bitta
+    katalog)."""
+    b = clean()
+    recs(b, V.RT_GUARD_START)[0]["run_id"] = "boshqa-run"
+    f = find(V.validate_run(b.run()), "run_id_mismatch")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.detail["emitter"] == "guard:3"
+
+
+def test_guard_session_id_adhoc_bolsa_xato():
+    b = clean()
+    for r in b.records:
+        if r["emitter"] == "guard:3":
+            r["session_id"] = "adhoc"
+    assert "session_id_mismatch" in codes(V.validate_run(b.run()),
+                                          V.SEVERITY_ERROR)
+
+
+def test_guard_boshqa_boot_id_bilan_xato():
+    """Guard atributsiyasi monotonic vaqt bo'yicha va faqat bitta boot ichida
+    haqiqiy (§14.7). `check_boot_id` guard'ni session bo'yicha ajratadi va
+    driver bilan solishtirmaydi -- run_meta bilan solishtirish buni yopadi."""
+    b = clean()
+    for r in b.records:
+        if r["emitter"] == "guard:3":
+            r["session_id"] = "adhoc"          # eski tekshiruv ko'rmasligi uchun
+            r["boot_id"] = "boot-boshqa"
+    run = b.run()
+    assert V.check_boot_id(run) == []
+    f = find(V.validate_run(run), "boot_id_run_meta_mismatch")
+    assert f.severity == V.SEVERITY_ERROR
+
+
+# --- 10. run_meta (§1.1) ----------------------------------------------------
+
+
+def test_run_meta_maydoni_kaliti_yoq_bolsa_xato():
+    b = clean()
+    del meta_of(b)["python_version"]
+    f = find(V.validate_run(b.run()), "run_meta_field_missing")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.detail["field"] == "python_version"
+
+
+def test_run_meta_none_olchanmadi_halol_va_xato_emas():
+    """WSL2: cpufreq sysfs yo'q -> governor/scaling_driver o'lchanmaydi.
+    `None` (o'lchanmadi) validatsiya xatosi EMAS; kalit yo'qligi esa xato."""
+    b = clean()
+    m = meta_of(b)
+    assert m["governor"] is None and m["scaling_driver"] is None
+    rep = V.validate_run(b.run())
+    assert rep.findings == []
+    del m["governor"]                       # endi YOZILMAGAN
+    assert find(V.validate_run(b.run()), "run_meta_field_missing"
+                ).detail["field"] == "governor"
+
+
+def test_run_meta_identifikatsiya_maydoni_none_bolsa_xato():
+    b = clean()
+    meta_of(b)["git_commit"] = None
+    f = find(V.validate_run(b.run()), "run_meta_field_null")
+    assert f.detail["field"] == "git_commit"
+    assert f.severity == V.SEVERITY_ERROR
+
+
+def test_run_meta_rng_seed_butun_son_bolishi_shart():
+    b = clean()
+    meta_of(b)["rng_seed"] = "12345"
+    assert "run_meta_field_invalid" in codes(V.validate_run(b.run()),
+                                             V.SEVERITY_ERROR)
+
+
+def test_t_trial_us_yoq_bolsa_xato():
+    b = clean()
+    del meta_of(b)["t_trial_us"]
+    f = find(V.validate_run(b.run()), "run_meta_field_missing")
+    assert f.detail["field"] == "t_trial_us"
+
+
+def test_t_trial_us_formuladan_farq_qilsa_xato():
+    """T_trial = t_pressure_off + w_stab_s + P (kontrakt v1.1 §5.2): jimgina
+    konstanta emas, timeline'dan HISOBLANADI."""
+    b = clean()
+    meta_of(b)["t_trial_us"] = 52_000_000       # total_s ni 'horizon' qilib olish
+    rep = V.validate_run(b.run())
+    assert "t_trial_formula_mismatch" in codes(rep, V.SEVERITY_ERROR)
+    assert "trial_horizon_mismatch" in codes(rep, V.SEVERITY_ERROR)
+
+
+def test_run_mode_yoq_bolsa_xato():
+    """run_mode noma'lum bo'lsa confirmatory run'ning dirty daraxti faqat
+    ogohlantirish bo'lib qolardi (fail-open)."""
+    b = clean()
+    del meta_of(b)["run_mode"]
+    rep = V.validate_run(b.run())
+    assert "run_mode_missing" in codes(rep, V.SEVERITY_ERROR)
+    assert "run_mode_missing" not in codes(V.validate_run(b.run(),
+                                                          run_mode="pilot"))
+
+
+def test_run_mode_yopiq_enumdan_tashqari_xato():
+    b = clean()
+    meta_of(b)["run_mode"] = "exploratory"
+    assert "run_mode_unknown" in codes(V.validate_run(b.run()),
+                                       V.SEVERITY_ERROR)
+
+
+def test_confirmatory_run_pilot_sifatida_tekshirilmaydi():
+    b = clean()
+    meta_of(b)["run_mode"] = "confirmatory"
+    rep = V.validate_run(b.run(), run_mode="pilot")
+    assert "run_mode_downgrade" in codes(rep, V.SEVERITY_ERROR)
+    assert "run_mode_downgrade" not in codes(V.validate_run(b.run()))
+
+
+# --- 10b. units_show: TIRIK dump (01-muhit §4) ---------------------------------
+
+
+def test_units_show_oldin_va_keyin_tirik_dump_otadi():
+    assert V.validate_run(clean().run()).findings == []
+
+
+def test_units_show_ochgan_unit_dumpi_xato():
+    """`systemctl show` o'chgan unit uchun rc=0 va DEFAULT'lar qaytaradi."""
+    b = clean()
+    d = meta_of(b)["units_show"]["revix-sut.service"]
+    d.update(alive_after=False, dump_valid=False)
+    rep = V.validate_run(b.run())
+    fs = [f for f in rep.findings if f.code == "units_show_dead"]
+    assert {f.detail["field"] for f in fs} == {"alive_after", "dump_valid"}
+    assert all(f.severity == V.SEVERITY_ERROR for f in fs)
+
+
+def test_units_show_default_lari_haqiqiyga_oxshasa_ham_xato():
+    """dump_valid=True deyilgan, lekin properties `LoadState=not-found`,
+    `MemoryMax=infinity` -- ichki ziddiyat."""
+    b = clean()
+    d = meta_of(b)["units_show"]["revix-sut.service"]
+    d["properties"] = {"LoadState": "not-found", "MemoryMax": "infinity"}
+    d["load_state"] = "not-found"
+    f = [f for f in V.validate_run(b.run()).findings
+         if f.code == "units_show_not_loaded"]
+    assert {x.detail["field"] for x in f} == {"load_state",
+                                              "properties.LoadState"}
+
+
+def test_units_show_tirikligi_isbotlanmagan_dump_xato():
+    """Liveness kalitlari umuman yo'q: fail-closed."""
+    b = clean()
+    d = meta_of(b)["units_show"]["revix-sut.service"]
+    for k in ("alive_before", "alive_after", "dump_valid"):
+        del d[k]
+    fs = [f for f in V.validate_run(b.run()).findings
+          if f.code == "units_show_unverifiable"]
+    assert len(fs) == 3
+
+
+def test_units_show_bosh_bolsa_xato():
+    b = clean()
+    meta_of(b)["units_show"] = {}
+    assert "units_show_empty" in codes(V.validate_run(b.run()),
+                                       V.SEVERITY_ERROR)
+
+
+def test_units_show_royxat_shakli_ham_qabul_qilinadi():
+    b = clean()
+    meta_of(b)["units_show"] = list(meta_of(b)["units_show"].values())
+    assert V.validate_run(b.run()).findings == []
+
+
+# --- 10c. jadval va digest ---------------------------------------------------
+
+
+def test_schedule_digest_schedule_py_bilan_mos():
+    """validate.py kanonik shakli schedule.Schedule.digest() dan uzoqlashsa
+    BU test ushlaydi."""
+    for seed in (1, 12345):
+        s = make_schedule([Factor("arm", ("A", "no_action")),
+                           Factor("pressure_level", ("P0", "P1", "P2"))],
+                          3, seed)
+        assert V.schedule_digest_of(s.as_dict()) == s.digest()
+
+
+def test_schedule_matn_shaklida_ham_qabul_qilinadi():
+    """Kontrakt: `schedule.to_json()` dan -- matn yoki parse qilingan obyekt."""
+    b = clean()
+    meta_of(b)["schedule"] = SCHED.to_json()
+    assert V.validate_run(b.run()).findings == []
+
+
+def test_schedule_digest_mos_kelmasa_xato():
+    b = clean()
+    meta_of(b)["schedule_digest"] = "0" * 64
+    f = find(V.validate_run(b.run()), "schedule_digest_mismatch")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.detail["recomputed"] == SCHED.digest()
+
+
+def test_schedule_qolda_ozgartirilsa_xato():
+    b = clean()
+    meta_of(b)["schedule"]["n_blocks"] = 2
+    rep = V.validate_run(b.run())
+    assert "schedule_digest_mismatch" in codes(rep, V.SEVERITY_ERROR)
+    assert "schedule_design_violation" in codes(rep, V.SEVERITY_ERROR)
+
+
+def test_rng_seed_jadval_seed_idan_farq_qilsa_xato():
+    b = clean()
+    meta_of(b)["rng_seed"] = 999
+    assert "rng_seed_mismatch" in codes(V.validate_run(b.run()),
+                                        V.SEVERITY_ERROR)
+
+
+def test_schedule_buzuq_tuzilma_xato():
+    b = clean()
+    meta_of(b)["schedule"] = {"x": 1}
+    assert "schedule_malformed" in codes(V.validate_run(b.run()),
+                                         V.SEVERITY_ERROR)
+
+
+def test_schedule_seeddan_tiklanmasa_ogohlantirish():
+    """Digest to'g'ri (jadval o'zi izchil), lekin seed'dan boshqacha chiqadi:
+    barqarorlikni schedule.py kafolatlaydi -- OGOHLANTIRISH, xato emas."""
+    b = clean(sched=sched2(), tid=tid_of(sched2(), "A"))
+    s = meta_of(b)["schedule"]
+    s["trials"] = list(reversed(s["trials"]))
+    for i, t in enumerate(s["trials"]):
+        t["position_in_block"] = i      # tartib o'zgardi, dizayn hamon to'liq
+    meta_of(b)["schedule_digest"] = V.schedule_digest_of(s)
+    rep = V.validate_run(b.run())
+    assert "schedule_not_reproducible" in codes(rep, V.SEVERITY_WARNING)
+    assert "schedule_digest_mismatch" not in codes(rep)
+
+
+# --- 11. trial to'plami jadvalga mos (§8.4) ---------------------------------
+
+
+def test_bosh_run_otmaydi():
+    rep = V.validate_run(R.RawRun())
+    assert "run_without_trials" in codes(rep, V.SEVERITY_ERROR)
+    assert "validator_internal_error" not in codes(rep)
+    assert rep.ok is False
+
+
+def test_jadvalda_yoq_trial_xato():
+    b = clean()
+    b.add(R.RT_TRIAL_BEGIN, T0 + 50_000_000, trial_id="ghost", arm="A",
+          pressure_band="P1", fault_class="clean_crash", position_in_block=0,
+          planned_timeline=TrialTimeline().as_dict())
+    b.add(R.RT_TRIAL_END, T0 + 51_000_000, trial_id="ghost",
+          disposition="censored")
+    f = find(V.validate_run(b.run()), "trial_not_in_schedule")
+    assert f.detail["trial_ids"] == ["ghost"]
+
+
+def test_bajarilmagan_trial_va_yacheyka_soni_xato():
+    """Ikki yacheykali jadval, faqat bittasi bajarilgan: to'liq blok dizayni
+    buzildi va yacheykadagi trial soni dizaynnikiga teng emas."""
+    sc = sched2()
+    rep = V.validate_run(clean(sched=sc, tid=tid_of(sc, "A")).run())
+    f = find(rep, "schedule_trial_missing")
+    assert f.detail["trial_ids"] == [tid_of(sc, "no_action")]
+    g = find(rep, "cell_count_mismatch")
+    assert g.detail["expected_per_cell"] == 1
+    assert {"cell": ["no_action", "P1"], "n": 0, "expected": 1} in g.detail["cells"]
+
+
+def test_trial_arm_jadvaldan_farq_qilsa_xato():
+    """Randomizatsiya o'rniga driver tanlovi."""
+    b = clean()
+    recs(b, R.RT_TRIAL_BEGIN)[0]["arm"] = "no_action"
+    f = find(V.validate_run(b.run()), "trial_schedule_mismatch")
+    assert f.trial_id == TID
+    assert any("arm" in m for m in f.detail["mismatches"])
+
+
+def test_trial_pozitsiyasi_jadvaldan_farq_qilsa_xato():
+    b = clean()
+    recs(b, R.RT_TRIAL_BEGIN)[0]["position_in_block"] = 7
+    assert "trial_schedule_mismatch" in codes(V.validate_run(b.run()),
+                                              V.SEVERITY_ERROR)
+
+
+# --- 12. trial hodisalari ketma-ketligi (§1.2) ------------------------------
+
+
+def _drop(b, rt):
+    b.records = [r for r in b.records if r["record_type"] != rt]
+
+
+def test_baseline_window_yoq_bolsa_xato():
+    """Yo'q bo'lsa reduce.py R_ref ni JIMGINA fault'dan oldingi probe'lardan
+    oladi -- §4.5 ta'rifi o'zgaradi."""
+    b = clean()
+    _drop(b, R.RT_BASELINE_WINDOW)
+    f = find(V.validate_run(b.run()), "trial_event_missing")
+    assert f.detail["missing"] == ["baseline_window"]
+
+
+def test_fault_inject_yoq_bolsa_xato():
+    b = clean()
+    _drop(b, R.RT_FAULT_INJECT)
+    f = find(V.validate_run(b.run()), "trial_event_missing")
+    assert f.detail["missing"] == ["fault_inject"]
+
+
+def test_action_ham_defer_ham_yoq_bolsa_xato():
+    b = clean()
+    _drop(b, R.RT_ACTION)
+    f = find(V.validate_run(b.run()), "trial_event_missing")
+    assert f.detail["missing"] == ["action|action_defer"]
+
+
+def test_no_action_arm_da_action_talab_qilinmaydi():
+    """§9.3: `no_action` (Restart=no) -- action ta'rifiga ko'ra yo'q."""
+    sc = sched2()
+    b = clean(sched=sc, tid=tid_of(sc, "no_action"))
+    _drop(b, R.RT_ACTION)
+    assert "trial_event_missing" not in codes(V.validate_run(b.run()))
+
+
+def test_erta_toxtagan_trial_toliq_toplam_talab_qilmaydi():
+    """aborted_guard: baseline/fault bo'lmasligi mumkin."""
+    b = clean()
+    _drop(b, R.RT_BASELINE_WINDOW)
+    _drop(b, R.RT_FAULT_INJECT)
+    recs(b, R.RT_TRIAL_END)[0]["disposition"] = "aborted_guard"
+    assert "trial_event_missing" not in codes(V.validate_run(b.run()))
+
+
+def test_fault_inject_ikki_marta_xato():
+    b = clean()
+    extra = dict(recs(b, R.RT_FAULT_INJECT)[0])
+    extra["seq"] = 99
+    b.records.append(extra)
+    assert "trial_event_duplicate" in codes(V.validate_run(b.run()),
+                                            V.SEVERITY_ERROR)
+
+
+def test_hodisa_trial_oynasidan_tashqarida_bolsa_xato():
+    """Driver UnitWatcher buferini keyin yozib, yozish vaqti bilan
+    belgilasa -- hodisa trial_end'dan keyin chiqadi."""
+    b = clean()
+    r = recs(b, R.RT_UNIT_STATE)[-1]
+    r["mono_us"] = r["recv_mono_us"] = T0 + 90_000_000
+    f = find(V.validate_run(b.run()), "trial_event_outside_window")
+    assert f.detail["by_record_type"] == {"unit_state": 1}
+
+
+def test_baseline_fault_dan_keyin_tugasa_xato():
+    b = clean()
+    recs(b, R.RT_BASELINE_WINDOW)[0]["mono_us_end"] = T0 + 1_500_000
+    recs(b, R.RT_BASELINE_WINDOW)[0]["mono_us"] = T0 + 1_500_000
+    assert "baseline_after_fault" in codes(V.validate_run(b.run()),
+                                           V.SEVERITY_ERROR)
+
+
+def test_baseline_window_boshi_oxiridan_keyin_bolsa_xato():
+    b = clean()
+    recs(b, R.RT_BASELINE_WINDOW)[0]["mono_us_begin"] = T0 + 900_000
+    assert "baseline_window_invalid" in codes(V.validate_run(b.run()),
+                                              V.SEVERITY_ERROR)
+
+
+def test_action_fault_dan_oldin_bolsa_xato():
+    b = clean()
+    recs(b, R.RT_ACTION)[0]["mono_us"] = T0 + 500_000
+    assert "action_before_fault" in codes(V.validate_run(b.run()),
+                                          V.SEVERITY_ERROR)
+
+
+def test_fault_bracket_buzuq_bolsa_xato():
+    b = clean()
+    r = recs(b, R.RT_FAULT_INJECT)[0]
+    r["mono_us_before_call"], r["mono_us_after_call"] = (
+        r["mono_us_after_call"], r["mono_us_before_call"])
+    assert "fault_inject_bracket_invalid" in codes(V.validate_run(b.run()),
+                                                   V.SEVERITY_ERROR)
+
+
+def test_env_snapshot_yoq_bolsa_faqat_ogohlantirish():
+    b = clean()
+    _drop(b, "env_snapshot")
+    rep = V.validate_run(b.run())
+    assert codes(rep, V.SEVERITY_WARNING) == ["env_snapshot_missing"]
+    assert rep.ok is True
+
+
+def test_trial_qoshimcha_vaqti_yoq_bolsa_ogohlantirish():
+    """§1.3-9: o'lchanadi va yoziladi. Hisobot ma'lumoti -- natija
+    yaroqliligini to'smaydi, lekin jimgina ham qolmaydi."""
+    b = clean()
+    del recs(b, R.RT_TRIAL_END)[0]["overhead_us"]
+    rep = V.validate_run(b.run())
+    assert codes(rep, V.SEVERITY_WARNING) == ["trial_overhead_missing"]
+    assert rep.ok is True
+
+
+def test_trial_qoshimcha_vaqti_manfiy_bolsa_xato():
+    b = clean()
+    recs(b, R.RT_TRIAL_END)[0]["overhead_us"] = -5
+    assert "trial_overhead_invalid" in codes(V.validate_run(b.run()),
+                                             V.SEVERITY_ERROR)
+
+
+def test_trial_davomiyligi_t_trial_dan_farq_qilsa_xato():
+    """Censoring nuqtasi (§6.2) qayd etilgan horizon bo'lishi SHART."""
+    b = clean()
+    recs(b, R.RT_TRIAL_END)[0]["mono_us"] = T0 + 10_000_000
+    assert "trial_horizon_mismatch" in codes(V.validate_run(b.run()),
+                                             V.SEVERITY_ERROR)
+
+
+def test_erta_toxtagan_aborted_guard_horizon_xatosi_emas():
+    b = clean()
+    e = recs(b, R.RT_TRIAL_END)[0]
+    e["mono_us"] = T0 + 10_000_000
+    e["disposition"] = "aborted_guard"
+    assert "trial_horizon_mismatch" not in codes(V.validate_run(b.run()))
+
+
+# --- 12b. planned_timeline -- TrialTimeline invariantlari ------------------
+
+
+def _timeline(b, **over):
+    pt = recs(b, R.RT_TRIAL_BEGIN)[0]["planned_timeline"]
+    pt.update(over)
+    return pt
+
+
+def test_planned_timeline_pressure_cap_buzilsa_xato():
+    """hold_s=50 -- oomd 20 s sustained'da foydalanuvchi ilovasini o'ldiradi."""
+    b = clean()
+    _timeline(b, hold_s=50.0)
+    f = find(V.validate_run(b.run()), "planned_timeline_invalid")
+    assert "PressureCapExceeded" in f.message
+    assert f.detail["n_trials"] == 1
+
+
+def test_planned_timeline_ozi_ichki_izchil_lekin_muzlatilgan_capdan_yuqori():
+    """Driver `hold_cap_s=100` bilan izchil, lekin XAVFLI timeline yozdi:
+    cap yozilgan qiymatga emas, MUZLATILGAN konstantaga nisbatan."""
+    b = clean()
+    big = TrialTimeline(hold_s=50.0, hold_cap_s=100.0,
+                        guard_sustain_window_s=100.0).as_dict()
+    recs(b, R.RT_TRIAL_BEGIN)[0]["planned_timeline"] = big
+    assert "planned_timeline_cap_exceeded" in codes(V.validate_run(b.run()),
+                                                    V.SEVERITY_ERROR)
+
+
+def test_planned_timeline_maydoni_yoq_bolsa_default_ga_tushmaydi():
+    b = clean()
+    del _timeline(b)["hold_s"]
+    f = find(V.validate_run(b.run()), "planned_timeline_incomplete")
+    assert f.detail["missing"] == ["hold_s"]
+
+
+def test_planned_timeline_hosila_qiymati_mos_kelmasa_xato():
+    b = clean()
+    _timeline(b, total_s=1.0)
+    f = find(V.validate_run(b.run()), "planned_timeline_derived_mismatch")
+    assert f.detail["fields"] == ["total_s"]
+
+
+def test_planned_timeline_son_bolmasa_xato():
+    b = clean()
+    _timeline(b, hold_s="12")
+    assert "planned_timeline_invalid" in codes(V.validate_run(b.run()),
+                                               V.SEVERITY_ERROR)
+
+
+def test_as_dict_da_yoq_t_w_maydonlari_majburiy_emas():
+    """`TrialTimeline.as_dict()` t_w_s/t_w_max_s ni BERMAYDI: tabiiy driver
+    shu bilan yozadi va u XATO bo'lmasligi kerak."""
+    assert "t_w_s" not in TrialTimeline().as_dict()
+    assert V.validate_run(clean().run()).findings == []
+
+
+def test_planned_timeline_yoq_bolsa_xato():
+    b = clean()
+    del recs(b, R.RT_TRIAL_BEGIN)[0]["planned_timeline"]
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert f.detail["field"] == "planned_timeline"
+
+
+# --- 13. maydon nomlari (kontrakt v1.1 §4.3, §14.4) ------------------------
+
+
+def test_pressure_level_pressure_band_ornida_bolsa_xato():
+    """reduce.py `pressure_band` o'qiydi: `pressure_level` bo'lsa strata
+    jimgina None bo'ladi va birlamchi endpoint (§10.1) yo'qoladi."""
+    b = clean()
+    r = recs(b, R.RT_TRIAL_BEGIN)[0]
+    r["pressure_level"] = r.pop("pressure_band")
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert f.detail["field"] == "pressure_band"
+    assert "pressure_level" in f.message
+
+
+def test_trial_id_payload_emas_envelope_dan_olinadi():
+    """trial_id/block_index ENVELOPE maydonlari: validator ularni payload
+    ichidan qidirmaydi."""
+    assert V.RECORD_FIELD_RULES[R.RT_TRIAL_BEGIN][0] == (
+        "arm", "pressure_band", "fault_class", "position_in_block",
+        "planned_timeline")
+    assert V.validate_run(clean().run()).findings == []
+
+
+def test_unit_state_systemd_timestamp_yoq_bolsa_xato():
+    b = clean()
+    del recs(b, R.RT_UNIT_STATE)[0]["ActiveEnterTimestampMonotonic"]
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert f.detail["field"] == "ActiveEnterTimestampMonotonic"
+
+
+def test_unit_state_snake_case_alias_yoq_bolsa_xato():
+    """Xom nomlarni qoldirib snake_case ni qo'shmaslik reduce.py ni D_sd ni
+    hisoblay olmaydigan qiladi."""
+    b = clean()
+    del recs(b, R.RT_UNIT_STATE)[0]["n_restarts"]
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert f.detail["field"] == "n_restarts"
+
+
+def test_unit_state_recv_mono_us_yoq_bolsa_xato():
+    """§14.4: systemd timestamp'lari VA qabul vaqti ALOHIDA -- D-Bus
+    yetkazish kechikishi ko'rinishi uchun."""
+    b = clean()
+    recs(b, R.RT_UNIT_STATE)[0]["recv_mono_us"] = None
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert f.detail["field"] == "recv_mono_us"
+
+
+def test_unit_state_envelope_mono_us_qabul_vaqti_bolishi_shart():
+    b = clean()
+    r = recs(b, R.RT_UNIT_STATE)[0]
+    r["recv_mono_us"] = r["mono_us"] + 5
+    assert "unit_state_mono_not_recv" in codes(V.validate_run(b.run()),
+                                               V.SEVERITY_ERROR)
+
+
+def test_action_policy_delay_us_yoq_bolsa_xato():
+    """§6.3: L_dec dan ALOHIDA yozilmasa soxta taqqoslash."""
+    b = clean()
+    del recs(b, R.RT_ACTION)[0]["policy_delay_us"]
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert f.detail["field"] == "policy_delay_us"
+
+
+def test_defer_qilingan_actionda_policy_delay_talab_qilinmaydi():
+    b = clean()
+    r = recs(b, R.RT_ACTION)[0]
+    r["deferred"] = True
+    r["policy_delay_us"] = None
+    for p in b.probes:
+        p["invocation_id_seen"] = "inv1" if p["outcome"] == "ok" else None
+    for u in recs(b, R.RT_UNIT_STATE):
+        u["invocation_id"], u["n_restarts"] = "inv1", 0
+    assert "record_field_missing" not in codes(V.validate_run(b.run()))
+
+
+def _actor_signal(b, **kw):
+    payload = {"success": True, "source": "unit_state"}
+    payload.update(kw)
+    return b.add(R.RT_ACTOR_SIGNAL, T0 + 1_320_000, **payload)
+
+
+def test_actor_signal_toliq_bolsa_otadi():
+    b = clean()
+    _actor_signal(b)
+    assert V.validate_run(b.run()).findings == []
+
+
+def test_actor_signal_success_yoq_bolsa_xato():
+    """FR-A ning birlamchi operandi: yo'q bo'lsa `bool(None)` = False --
+    false recovery jimgina yo'qoladi."""
+    b = clean()
+    r = _actor_signal(b)
+    del r["success"]
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert f.detail["field"] == "success"
+
+
+def test_actor_signal_success_matn_bolsa_xato():
+    """`bool("false")` True: FR-A ni jimgina buzadi."""
+    b = clean()
+    _actor_signal(b, success="false")
+    assert "actor_signal_success_invalid" in codes(V.validate_run(b.run()),
+                                                   V.SEVERITY_ERROR)
+
+
+def test_actor_signal_manbasi_yoq_bolsa_xato():
+    b = clean()
+    r = _actor_signal(b)
+    del r["source"]
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert f.detail["field"] == "source"
+    r["actor_signal_source"] = "unit_state"          # muqobil nom ham qabul
+    assert V.validate_run(b.run()).findings == []
+
+
+def test_cgroup_events_oom_kill_yoq_bolsa_xato():
+    b = clean()
+    b.add(R.RT_CGROUP_EVENTS, T0 + 2_000_000, scope="sut")
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert f.detail["field"] == "oom_kill"
+
+
+# --- 14. probe -------------------------------------------------------------
+
+
+def test_probe_outcome_yoq_bolsa_xato():
+    """reduce.py yo'q outcome ni JIMGINA 'bad_response' deb oladi."""
+    b = clean()
+    b.probes[3]["outcome"] = None
+    f = find(V.validate_run(b.run()), "probe_outcome_unknown")
+    assert f.severity == V.SEVERITY_ERROR
+
+
+def test_probe_outcome_yopiq_enumdan_tashqari_xato():
+    b = clean()
+    b.probes[3]["outcome"] = "ok_lekin_sekin"
+    assert "probe_outcome_unknown" in codes(V.validate_run(b.run()),
+                                            V.SEVERITY_ERROR)
+
+
+def test_ok_probe_da_progress_oqilmasa_xato():
+    """§4.5: throughput bandi o'lchanmaydi -> VR jimgina None."""
+    b = clean()
+    b.probes[20]["progress"] = None
+    f = find(V.validate_run(b.run()), "probe_progress_unreadable")
+    assert f.detail["n"] == 1 and f.detail["with_progress_counter"] == 0
+
+
+def test_progress_counter_bor_lekin_progress_yoq_adapter_qollanmagan():
+    b = clean()
+    b.probes[20]["progress_counter"] = b.probes[20]["progress"]
+    b.probes[20]["progress"] = None
+    f = find(V.validate_run(b.run()), "probe_progress_unreadable")
+    assert f.detail["with_progress_counter"] == 1
+    assert "normalise_probe_row" in f.message
+
+
+def test_noma_lum_trial_id_li_probe_xato():
+    """split_trials bunday probe'ni JIMGINA tashlaydi."""
+    b = clean()
+    b.probe(500, trial_id="ghost")
+    f = find(V.validate_run(b.run()), "probe_trial_unknown")
+    assert f.trial_id == "ghost"
+
+
+def test_trial_ichida_bir_nechta_probe_target_xato():
+    b = clean()
+    for p in b.probes:
+        p["target"] = "sut"
+    b.probes[7]["target"] = "bystander"
+    f = find(V.validate_run(b.run()), "probe_targets_mixed")
+    assert f.detail["targets"] == ["bystander", "sut"]
+
+
+def test_probe_vaqti_yoq_bolsa_xato_va_validator_yiqilmaydi():
+    """Fail-closed: split_trials ReductionError ko'taradi -- istisno xatoga
+    aylanadi, validator o'zi yiqilmaydi."""
+    b = clean()
+    del b.probes[2]["mono_us_send"]
+    del b.probes[2]["mono_us"]
+    rep = V.validate_run(b.run())
+    assert "probe_time_missing" in codes(rep, V.SEVERITY_ERROR)
+    assert "validator_internal_error" in codes(rep, V.SEVERITY_ERROR)
+    assert rep.ok is False
+
+
+def test_probe_oxirgi_probe_dan_trial_endgacha_uzilish_xato():
+    """Prober trial o'rtasida o'ldi: ketma-ket probe orasida uzilish yo'q,
+    `check_probe_gaps` ko'rmaydi -- lekin horizon (§6.2) trial_end'da."""
+    b = clean()
+    b.probes = b.probes[:300]
+    run = b.run()
+    assert V.check_probe_gaps(run) == []
+    f = find(V.validate_run(run), "probe_coverage_gap")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.detail["gaps"][0]["where"] == "trailing"
+    assert "censored" in f.message
+
+
+def test_probe_qoplami_uzilishi_censored_bolsa_ogohlantirish():
+    b = clean()
+    b.probes = b.probes[:300]
+    recs(b, R.RT_TRIAL_END)[0]["disposition"] = "censored"
+    rep = V.validate_run(b.run())
+    assert "probe_coverage_gap" in codes(rep, V.SEVERITY_WARNING)
+    assert rep.ok is True
+
+
+def test_probe_boshlanishi_baseline_dan_keyin_kech_bolsa_xato():
+    b = clean()
+    b.probes = b.probes[5:]
+    renumber_probes(b)
+    f = find(V.validate_run(b.run()), "probe_coverage_gap")
+    assert f.detail["gaps"][0]["where"] == "leading"
+
+
+def test_complete_trialda_bitta_ham_probe_yoq_xato():
+    b = clean()
+    b.probes = []
+    f = find(V.validate_run(b.run()), "trial_without_probes")
+    assert f.severity == V.SEVERITY_ERROR
+
+
+def test_prober_start_yoq_bolsa_csv_run_ga_bogllanmagan():
+    """§14.2: CSV oqimlari `<stream>_start` orqali run'ga bog'lanadi."""
+    b = clean()
+    _drop(b, "prober_start")
+    f = find(V.validate_run(b.run()), "prober_start_missing")
+    assert f.severity == V.SEVERITY_ERROR
+
+
+def test_prober_stop_yoq_bolsa_ogohlantirish():
+    b = clean()
+    _drop(b, "prober_stop")
+    rep = V.validate_run(b.run())
+    assert codes(rep, V.SEVERITY_WARNING) == ["prober_stop_missing"]
+    assert rep.ok is True
+
+
+def test_har_trial_uchun_alohida_prober_normal_holat():
+    """Kontrakt v1.1 §4.5-a: har trial'ga alohida prober jarayoni. Bitta
+    uzluksiz prober KUTILMAYDI -- ikkinchi prober'ning ikkinchi
+    prober_start/stop juftligi xato emas."""
+    b = clean()
+    b.add("prober_start", T0 + 50_000_000, emitter="prober:9", trial_id=None)
+    b.add("prober_stop", T0 + 51_000_000, emitter="prober:9", trial_id=None)
+    assert V.validate_run(b.run()).findings == []
+
+
+# --- 14b. CSV probe oqimida seq: per-trial prober, per-target oqim ----------
+
+
+def csv_run(rows):
+    """rows: [(target, trial_id, seq)] -- fayldagi tartibda."""
+    probes = [{"record_type": R.RT_PROBE, "__source__": "run/probe.csv",
+               "__index__": i + 2, "target": t, "trial_id": tid, "seq": s,
+               "mono_us_send": T0 + i * P, "outcome": "ok", "progress": i}
+              for i, (t, tid, s) in enumerate(rows)]
+    return R.RawRun(records=[], probes=probes, sources=["run/probe.csv"])
+
+
+def test_csv_har_trialda_seq_1_dan_qayta_boshlansa_xato_emas():
+    rows = [("sut", "a", s) for s in (1, 2, 3)] + [("sut", "b", s) for s in (1, 2, 3)]
+    assert V.check_seq(csv_run(rows)) == []
+
+
+def test_csv_target_oqimlari_mustaqil_seq_takror_emas():
+    """prober.py: seq TARGET bo'yicha. Ikki target bir faylda: ikkalasi 1..n."""
+    rows = []
+    for s in (1, 2, 3):
+        rows += [("sut", "a", s), ("bystander", "a", s)]
+    assert V.check_seq(csv_run(rows)) == []
+
+
+def test_csv_uzluksiz_prober_davomi_xato_emas():
+    rows = [("sut", "a", s) for s in (1, 2, 3)] + [("sut", "b", s) for s in (4, 5, 6)]
+    assert V.check_seq(csv_run(rows)) == []
+
+
+def test_csv_trial_ichida_seq_boshligi_xato():
+    rows = [("sut", "a", s) for s in (1, 2, 4)]
+    f = next(f for f in V.check_seq(csv_run(rows)) if f.code == "seq_gap")
+    assert f.detail["missing_seq"] == [3]
+
+
+def test_csv_yangi_trial_boshidagi_qatorlar_yoqolsa_xato():
+    rows = [("sut", "a", s) for s in (1, 2, 3)] + [("sut", "b", s) for s in (3, 4, 5)]
+    assert any(f.code == "seq_gap" for f in V.check_seq(csv_run(rows)))
+
+
+def test_csv_birinchi_guruh_1_dan_boshlanmasa_xato():
+    rows = [("sut", "a", s) for s in (2, 3)]
+    f = next(f for f in V.check_seq(csv_run(rows)) if f.code == "seq_gap")
+    assert f.detail["missing_seq"] == [1]
+
+
+def test_csv_takroriy_seq_xato():
+    rows = [("sut", "a", s) for s in (1, 2, 2, 3)]
+    assert any(f.code == "seq_duplicate" for f in V.check_seq(csv_run(rows)))
+
+
+# --- 15. guard oqimi --------------------------------------------------------
+
+
+def _guard_event(b, mono, **kw):
+    payload = {"reason": "sustained_pressure", "action": "kill_subtree"}
+    payload.update(kw)
+    return b.add(V.RT_GUARD_EVENT, mono, trial_id=None, emitter="guard:3",
+                 **payload)
+
+
+def test_guard_start_yoq_bolsa_xato():
+    """Kontrakt §1.3-2: guard ishga tushmasa run boshlanmaydi."""
+    b = clean()
+    _drop(b, V.RT_GUARD_START)
+    f = find(V.validate_run(b.run()), "guard_start_missing")
+    assert f.severity == V.SEVERITY_ERROR
+
+
+def test_guard_stop_yoq_bolsa_xato():
+    b = clean()
+    _drop(b, V.RT_GUARD_STOP)
+    assert "guard_stop_missing" in codes(V.validate_run(b.run()),
+                                         V.SEVERITY_ERROR)
+
+
+def test_guard_event_da_trial_id_bolsa_xato():
+    """`trial_id` yo'qligi TO'G'RI (§14.7); u BOR bo'lsa xato."""
+    b = clean()
+    r = _guard_event(b, 50)
+    r["trial_id"] = TID
+    f = find(V.validate_run(b.run()), "guard_event_has_trial_id")
+    assert f.severity == V.SEVERITY_ERROR
+
+
+def test_guard_event_trial_id_siz_bolishi_xato_emas():
+    b = clean()
+    _guard_event(b, 50)                  # hech bir trial oynasida emas
+    rep = V.validate_run(b.run())
+    assert "guard_event_has_trial_id" not in codes(rep)
+    assert codes(rep, V.SEVERITY_WARNING) == ["guard_event_unattributed"]
+    assert rep.ok is True
+
+
+def test_guard_birinchi_start_bolmasa_xato():
+    b = clean()
+    recs(b, V.RT_GUARD_START)[0]["mono_us"] = T0 + 10
+    assert "guard_not_first" in codes(V.validate_run(b.run()),
+                                      V.SEVERITY_ERROR)
+
+
+def test_guard_oxirgi_stop_bolmasa_xato():
+    b = clean()
+    recs(b, V.RT_GUARD_STOP)[0]["mono_us"] = T0 + 100
+    assert "guard_not_last" in codes(V.validate_run(b.run()),
+                                     V.SEVERITY_ERROR)
+
+
+def test_guard_ishlagan_trial_complete_bolsa_xato():
+    """Driver o'z xavfsizlik guard'ining ishlaganini ko'rmagan."""
+    b = clean()
+    _guard_event(b, T0 + 5_000_000)
+    f = find(V.validate_run(b.run()), "guard_event_not_reflected")
+    assert f.trial_id == TID
+
+
+def test_guard_ishlagan_trial_aborted_guard_bolsa_otadi():
+    b = clean()
+    _guard_event(b, T0 + 5_000_000)
+    recs(b, R.RT_TRIAL_END)[0]["disposition"] = "aborted_guard"
+    rep = V.validate_run(b.run())
+    assert "guard_event_not_reflected" not in codes(rep)
+    assert rep.ok is True, [str(f) for f in rep.findings]
+
+
+# --- 16. harness_error --------------------------------------------------------
+
+
+def test_harness_error_bor_trial_complete_bolsa_xato():
+    """§12: instrument xatosi trial'ni birlamchi analizga kiritmasligi kerak."""
+    b = clean()
+    b.add(V.RT_HARNESS_ERROR, T0 + 2_000_000, emitter="prober:2",
+          where="probe", error="OSError")
+    f = find(V.validate_run(b.run()), "harness_error_not_reflected")
+    assert f.trial_id == TID
+
+
+def test_harness_error_disposition_harness_error_bolsa_otadi():
+    b = clean()
+    b.add(V.RT_HARNESS_ERROR, T0 + 2_000_000, emitter="prober:2", where="probe")
+    recs(b, R.RT_TRIAL_END)[0]["disposition"] = "harness_error"
+    assert "harness_error_not_reflected" not in codes(V.validate_run(b.run()))
+
+
+def test_trial_siz_harness_error_ogohlantirish():
+    b = clean()
+    b.add(V.RT_HARNESS_ERROR, T0 + 2_000_000, emitter="prober:2",
+          trial_id=None, where="probe")
+    rep = V.validate_run(b.run())
+    assert codes(rep, V.SEVERITY_WARNING) == ["harness_error_unattributed"]
+    assert rep.ok is True
+
+
+# --- 17. FAIL-CLOSED ----------------------------------------------------------
+
+
+def test_tekshiruv_ichidagi_istisno_xato_boladi(monkeypatch):
+    def boom(run):
+        raise RuntimeError("sinov istisnosi")
+
+    monkeypatch.setattr(V, "check_envelope", boom)
+    rep = V.validate_run(clean().run())
+    f = find(rep, "validator_internal_error")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.detail["check"] == "envelope"
+    assert rep.ok is False
+
+
+def test_istisno_boshqa_tekshiruvlarni_toxtatmaydi(monkeypatch):
+    monkeypatch.setattr(V, "check_envelope",
+                        lambda run: (_ for _ in ()).throw(ValueError("x")))
+    b = clean()
+    _drop(b, R.RT_TRIAL_END)
+    got = codes(V.validate_run(b.run()), V.SEVERITY_ERROR)
+    assert "validator_internal_error" in got
+    assert "trial_begin_without_end" in got
+
+
+def test_cli_oqib_bolmaydigan_kirish_2_qaytaradi(tmp_path, capsys):
+    rc = V.main(["--jsonl", str(tmp_path / "yoq.jsonl")])
+    assert rc == 2
+    assert "O'TMADI" in capsys.readouterr().out
+
+
+def test_cli_oqib_bolmaydigan_kirish_json(tmp_path, capsys):
+    rc = V.main(["--jsonl", str(tmp_path / "yoq.jsonl"), "--json"])
+    assert rc == 2
+    assert json.loads(capsys.readouterr().out)["ok"] is False
+
+
+def test_cli_run_dir_yoq_bolsa_otmaydi(tmp_path, capsys):
+    rc = V.main(["--run-dir", str(tmp_path / "yoq"), "--json"])
+    rep = json.loads(capsys.readouterr().out)
+    assert rc == 1
+    assert any(f["code"] == "run_dir_missing" for f in rep["findings"])
+
+
+def test_cli_run_dir_jsonl_bilan_aralashmaydi(tmp_path):
+    with pytest.raises(SystemExit):
+        V.main(["--run-dir", str(tmp_path), "--jsonl", "x.jsonl"])
+
+
+# --- 18. guest generation markeri (boot_id bu hostda YETARLI EMAS) -----------
+
+
+def _snapshots(b):
+    return recs(b, "env_snapshot")
+
+
+def test_marker_run_meta_da_yoq_bolsa_xato():
+    b = clean()
+    del meta_of(b)["guest_generation"]
+    f = find(V.validate_run(b.run()), "run_meta_field_missing")
+    assert f.detail["field"] == "guest_generation"
+
+
+def test_marker_env_snapshot_da_yoq_bolsa_xato():
+    b = clean()
+    del _snapshots(b)[0]["guest_generation"]
+    f = find(V.validate_run(b.run()), "record_field_missing")
+    assert (f.detail["record_type"], f.detail["field"]) == (
+        "env_snapshot", "guest_generation")
+
+
+def test_marker_uptime_ozgarishi_restart_emas():
+    """Uptime uzluksiz o'sadi: identifikator PID 1 starttime, uptime emas."""
+    b = clean()
+    assert _snapshots(b)[0]["guest_generation"]["uptime_s"] != \
+        _snapshots(b)[1]["guest_generation"]["uptime_s"]
+    assert V.validate_run(b.run()).findings == []
+
+
+def test_guest_restart_boot_id_ozgarmasa_ham_xato():
+    """agent/envcheck o'lchagan: WSL restart'ida boot_id O'ZGARMAYDI, lekin
+    PID 1 starttime o'zgaradi (CLOCK_MONOTONIC noldan boshlanadi)."""
+    b = clean()
+    _snapshots(b)[1]["guest_generation"] = gen(3.0, ticks=999)
+    run = b.run()
+    assert V.check_boot_id(run) == []              # eski invariant JIM
+    f = find(V.validate_run(run), "guest_restarted")
+    assert f.severity == V.SEVERITY_ERROR
+    assert "TAQQOSLANMAYDI" in f.message
+    assert f.detail["first_changed_trial"] == TID
+
+
+def test_marker_skalyar_shaklda_ham_ishlaydi():
+    b = clean()
+    meta_of(b)["guest_generation"] = "starttime:4242"
+    for r in _snapshots(b):
+        r["guest_generation"] = "starttime:4242"
+    assert V.validate_run(b.run()).findings == []
+    _snapshots(b)[1]["guest_generation"] = "starttime:7"
+    assert "guest_restarted" in codes(V.validate_run(b.run()), V.SEVERITY_ERROR)
+
+
+def test_marker_starttime_kaliti_topilmasa_xato():
+    b = clean()
+    meta_of(b)["guest_generation"] = {"uptime_s": 5.0}
+    assert "guest_generation_unreadable" in codes(V.validate_run(b.run()),
+                                                  V.SEVERITY_ERROR)
+
+
+def two_trials(offset=60_000_000):
+    """Ikki ketma-ket trial (A va no_action), bitta run, vaqt tartibida."""
+    sc = sched2()
+    first, second = sorted((tid_of(sc, "A"), tid_of(sc, "no_action")))
+    b1, b2 = clean(sc, first), clean(sc, second)
+    keys = ("mono_us", "mono_us_send", "recv_mono_us", "mono_us_begin",
+            "mono_us_end", "mono_us_before_call", "mono_us_after_call",
+            "active_enter_ts_mono_us", "active_exit_ts_mono_us",
+            "ActiveEnterTimestampMonotonic", "ActiveExitTimestampMonotonic")
+
+    def shifted(r):
+        r = dict(r)
+        for k in keys:
+            if isinstance(r.get(k), int) and r[k] > 0:
+                r[k] += offset
+        return r
+
+    skip = (R.RT_RUN_META, V.RT_GUARD_START)
+    merged = Builder(first)
+    merged.records = b1.records[:-1]
+    merged.records += [shifted(r) for r in b2.records[:-1]
+                       if r["record_type"] not in skip]
+    merged.records.append(shifted(b2.records[-1]))        # guard_stop
+    merged.probes = b1.probes + [shifted(p) for p in b2.probes]
+    for lst in (merged.records, merged.probes):
+        n = {}
+        for r in lst:
+            k = (r["emitter"], r["stream"])
+            n[k] = n.get(k, 0) + 1
+            r["seq"] = n[k]
+    return merged, first, second
+
+
+def test_ikki_ketma_ket_toza_trial_otadi():
+    b, _first, _second = two_trials()
+    rep = V.validate_run(b.run())
+    assert rep.findings == [], [str(f) for f in rep.findings]
+    assert rep.n_trials == 2
+
+
+def test_guest_restart_qaysi_trialga_tushgani_va_nechtasi_saqlangani():
+    b, first, second = two_trials()
+    for r in _snapshots(b):
+        if r["trial_id"] == second:
+            r["guest_generation"] = gen(2.0, ticks=77)
+    f = find(V.validate_run(b.run()), "guest_restarted")
+    assert f.trial_id == second
+    assert f.detail["trials_before_restart"] == [first]
+    assert f.detail["trials_from_restart"] == [second]
+
+
+def test_monotonic_vaqt_orqaga_ketsa_xato_markersiz_ham():
+    """Zaxira: marker bo'lmasa ham ikkinchi trial birinchisining ichiga
+    tushsa (origin reset) ushlanadi."""
+    b, _first, _second = two_trials(offset=10_000_000)
+    assert "monotonic_origin_regression" in codes(V.validate_run(b.run()),
+                                                  V.SEVERITY_ERROR)
+
+
+# --- 19. --only (driver filtri) ------------------------------------------------
+
+
+def test_only_filtri_bilan_qisman_run_ogohlantirish_bilan_otadi():
+    """Smoke run (`--only A`): jadval TO'LIQ yoziladi, bajarilgan qism `only`
+    da. Bu to'liq dizayn emas -- ogohlantirish, lekin xato emas."""
+    sc = sched2()
+    b = clean(sc, tid_of(sc, "A"))
+    meta_of(b)["only"] = ["A"]
+    meta_of(b)["n_trials_total"] = 2
+    meta_of(b)["n_trials_selected"] = 1
+    rep = V.validate_run(b.run())
+    assert codes(rep, V.SEVERITY_WARNING) == ["run_filtered"]
+    assert rep.ok is True
+
+
+def test_only_filtrdan_tashqari_trial_bajarilsa_xato():
+    sc = sched2()
+    b = clean(sc, tid_of(sc, "no_action"))
+    meta_of(b)["only"] = ["A"]
+    f = find(V.validate_run(b.run()), "trial_not_in_schedule")
+    assert tid_of(sc, "no_action") in f.detail["in_schedule_but_filtered"]
+
+
+def test_n_trials_selected_filtrga_mos_bolishi_shart():
+    sc = sched2()
+    b = clean(sc, tid_of(sc, "A"))
+    meta_of(b)["only"] = ["A"]
+    meta_of(b)["n_trials_selected"] = 2
+    assert "run_meta_trial_counts_mismatch" in codes(V.validate_run(b.run()),
+                                                     V.SEVERITY_ERROR)
+
+
+def test_run_meta_json_va_events_nusxasi_farq_qilsa_xato(tmp_path):
+    """Driver run_meta'ni ikki joyga yozadi: ular farq qilsa xato."""
+    b = clean()
+    d = tmp_path / "run"
+    d.mkdir()
+    with open(d / "events.jsonl", "w", encoding="utf-8") as fh:
+        for r in b.records:
+            fh.write(json.dumps(r) + "\n")
+    skip = set(V.ENVELOPE_FIELDS)
+    payload = {k: v for k, v in meta_of(b).items() if k not in skip}
+    (d / "run_meta.json").write_text(json.dumps(payload), encoding="utf-8")
+    (d / "guard.jsonl").write_text("", encoding="utf-8")
+    (d / "probe.csv").write_text("mono_us_send,outcome\n", encoding="utf-8")
+    assert "run_meta_copies_differ" not in codes(V.validate_run_dir(str(d)))
+    payload["rng_seed"] = 1
+    (d / "run_meta.json").write_text(json.dumps(payload), encoding="utf-8")
+    assert "run_meta_copies_differ" in codes(V.validate_run_dir(str(d)),
+                                             V.SEVERITY_ERROR)
+
+
+def test_trial_end_trial_begindan_oldin_bolsa_xato():
+    b = clean()
+    recs(b, R.RT_TRIAL_END)[0]["mono_us"] = T0 - 1
+    assert "trial_window_invalid" in codes(V.validate_run(b.run()),
+                                           V.SEVERITY_ERROR)
+
+
+def test_units_show_dump_dict_bolmasa_xato():
+    b = clean()
+    meta_of(b)["units_show"] = {"revix-sut.service": "LoadState=loaded"}
+    assert "units_show_malformed" in codes(V.validate_run(b.run()),
+                                           V.SEVERITY_ERROR)
+    meta_of(b)["units_show"] = "systemctl show matni"
+    assert "units_show_malformed" in codes(V.validate_run(b.run()),
+                                           V.SEVERITY_ERROR)
+
+
+def test_only_hech_bir_yacheykaga_mos_kelmasa_xato():
+    b = clean()
+    meta_of(b)["only"] = ["P9"]
+    assert "run_only_invalid" in codes(V.validate_run(b.run()), V.SEVERITY_ERROR)
+    meta_of(b)["only"] = "A"             # ro'yxat emas
+    assert "run_only_invalid" in codes(V.validate_run(b.run()), V.SEVERITY_ERROR)
