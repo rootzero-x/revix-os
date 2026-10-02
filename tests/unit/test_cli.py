@@ -193,25 +193,76 @@ def test_oomd_mustaqil_oqilgan_haqiqatga_mos(doctor_json):
     )
 
 
-def test_oomd_hujjatlangan_konfiguratsiyani_aniqlaydi(doctor_json):
-    """Shu mashinada hujjatlangan oomd konfiguratsiyasi aniqlanadi.
+def _oomd_detail(doctor_json) -> dict:
+    return next(c for c in doctor_json["checks"] if c["key"] == "oomd")["detail"]
 
-    Bu MUHIT REGRESSIYA qulfi: `docs/architecture/01-muhit-tekshiruvlari.md`
+
+def test_oomd_kill_authority_bor_bolsa_hujjatlangan_konfiguratsiya_boladi(doctor_json):
+    """oomd kill authority BOR bo'lsa, hujjatlangan konfiguratsiya aniqlanadi.
+
+    Bu MUHIT REGRESSIYA qulfining 1-yarmi: `docs/architecture/01-muhit-tekshiruvlari.md`
     §7 doctor uchun spetsifikatsiya. Agar bu test yiqilsa, mashina o'zgargan
     va guard kalibratsiyasi qayta ko'rilishi kerak -- jimgina o'tib ketmasligi
     KERAK.
         ManagedOOMMemoryPressure=kill
         ManagedOOMMemoryPressureLimit=50%
         DefaultMemoryPressureDurationSec=20s
+
+    Kill authority YO'Q mashinada (masalan systemd-oomd o'rnatilmagan) bu yerda
+    tekshiriladigan narsa yo'q -- test SKIP bo'ladi. Lekin jimgina emas: qulfning
+    2-yarmi (`test_oomd_yoqligi_MUHIT_HUJJATIDA_qayd_etilgan`) aynan shu holatda
+    ishlaydi va muhit yozuvi bo'lmasa YIQILADI.
     """
-    d = next(c for c in doctor_json["checks"] if c["key"] == "oomd")["detail"]
-    assert d["kill_authority"] is True, "oomd kill authority kutilgan edi"
+    d = _oomd_detail(doctor_json)
+    if d["kill_authority"] is not True:
+        pytest.skip(
+            "bu mashinada oomd kill authority yo'q (etalon mashinadan farq): "
+            f"managed_oom_memory_pressure={d.get('managed_oom_memory_pressure')!r}, "
+            f"oomd_active={d.get('oomd_active')!r}; qulfning 2-yarmi "
+            "(test_oomd_yoqligi_MUHIT_HUJJATIDA_qayd_etilgan) tekshiradi"
+        )
     assert d["managed_oom_memory_pressure"] == "kill"
     assert d["pressure_limit_percent"] == pytest.approx(50.0, abs=0.01)
     assert d["duration_effective_s"] == pytest.approx(20.0, abs=0.01)
     assert d["duration_source"] == "oomd.conf"
     assert d["risk"] == "high-mitigated"
     assert d["mitigation"] == cli.OOMD_MITIGATION
+
+
+# `agent/envcheck` yozadigan muhit yozuvi (WSL mashinasi).
+WSL_MUHIT_HUJJATI = os.path.join(
+    cli.REPO_ROOT, "docs", "architecture", "07-wsl-muhit-tekshiruvlari.md")
+
+
+def test_oomd_yoqligi_MUHIT_HUJJATIDA_qayd_etilgan(doctor_json):
+    """oomd kill authority YO'Q bo'lsa, bu muhit yozuvida qayd etilgan bo'lishi SHART.
+
+    MUHIT REGRESSIYA qulfining 2-yarmi. Asl sabab o'zgarmagan: mashina
+    o'zgargan bo'lsa, guard kalibratsiyasi (02-guard-kalibratsiyasi) qayta
+    ko'rilishi kerak -- jimgina o'tib ketmasligi KERAK. Shuning uchun oomd'siz
+    mashinada test faqat "yo'q" deb o'tmaydi: u yo'qligi
+    `docs/architecture/07-wsl-muhit-tekshiruvlari.md` da YOZIB QO'YILGANINI talab
+    qiladi (`systemd-oomd` eslatilishi yetarli). Yozilmagan bo'lsa -- YIQILADI.
+    """
+    d = _oomd_detail(doctor_json)
+    if d["kill_authority"] is True:
+        pytest.skip("oomd kill authority bor: qulfning 1-yarmi ishlaydi "
+                    "(test_oomd_kill_authority_bor_bolsa_hujjatlangan_konfiguratsiya_boladi)")
+    rel = os.path.relpath(WSL_MUHIT_HUJJATI, cli.REPO_ROOT)
+    tomonlama = (
+        "oomd kill authority YO'Q (mashina etalon mashinadan farq qiladi: "
+        f"oomd_active={d.get('oomd_active')!r}, "
+        f"managed_oom_memory_pressure={d.get('managed_oom_memory_pressure')!r}) "
+        "va bu muhit yozuvida qayd etilmagan. Guard kalibratsiyasi "
+        "(02-guard-kalibratsiyasi) QAYTA o'tkazilishi kerak, bosim "
+        "eksperimentidan OLDIN. "
+    )
+    assert os.path.isfile(WSL_MUHIT_HUJJATI), (
+        tomonlama + f"Muhit yozuvi fayli yo'q: {rel}")
+    with open(WSL_MUHIT_HUJJATI, encoding="utf-8", errors="replace") as fh:
+        matn = fh.read()
+    assert "systemd-oomd" in matn, (
+        tomonlama + f"{rel} mavjud, lekin `systemd-oomd` yo'qligi unda qayd etilmagan")
 
 
 def test_oomd_kill_authority_WARN_sifatida_baland_korinadi(doctor_json):
