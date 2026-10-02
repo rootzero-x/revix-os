@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.9` |
+| **Versiya** | `preregistration/v1.10` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8, v1.9) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8, v1.9, v1.10) |
 | **Muhit** | Bu pre-registration **§15.1 va §16.11 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
 | **⚠️ Ochiq qaror 1** | **§17.5 — dizayn nuqsoni** (stabilizatsiya oynasi pressure hold'ga sig'maydi). **O'LCHOV BILAN TASDIQLANDI zarur** — §21.5: `p90(t_start)` pressure ostida `5.40 s`, budjet `0.8 s`, `0/6`. |
 | **⚠️ Ochiq qaror 2** | **§18.6 — §11 ning fail-slow limbi ishlamaydi**. **O'LCHOV BILAN TASDIQLANDI zarur** — §21.3: `thr = 0.0967 s = 0.97 × P`; va §21.2 bo'yicha **OQ-12 ning javobidan qat'i nazar**. |
@@ -22,6 +22,150 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.9 → v1.10 (2026-10-03)
+
+| | |
+|---|---|
+| **v1.9 sha256** | `0cc14a006ccdf78b6f6f085284f16c1555b0dd73f304e7e3259f4fb8461939f6` |
+| **v1.9 git tag** | `v0.1.9-preregistration` |
+| **Sabab** | §8.2 ning probe narxi bandi: avval xabar qilingan budjet buzilishi **artefakt** bo'lib chiqdi, lekin bandning **ikkinchi** talabi — *"arm'lar bo'yicha bir xil ushlanadi"* — **o'lchangan holda buzilgan**, va u **confound** |
+| **O'zgardi** | **§22 qo'shildi** (yangi bo'lim). Mavjud bo'limlar raqamlari va matni O'ZGARMADI |
+| **O'zgarMADI** | **hech bir operatsion ta'rif, metrika, chegara, statistik test yoki falsifikatsiya mezoni.** §8.2 ning **to'rtala bandi ham**, §2 ning `P = 100 ms` i — **o'zgarmadi**. **F1–F4, O1–O4, C1–C2 tanlovlari QILINMADI** |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday P1 trial'i o'tkazilmagan |
+
+**1. Artefakt qayd etiladi (§22.1).** Avval xabar qilingan `1.238%`
+(§8.2 ning `>1%` budjetidan yuqori) **noto'g'ri edi**:
+`prober.cost_report()` `time.process_time()` va
+`getrusage(RUSAGE_SELF)` ni o'qiydi — ikkisi ham **process bo'yicha**,
+barcha thread'lar yig'indisi — va test rig'i soxta SUT'ni
+**prober'ning o'z processi ichida thread** sifatida ishlatgan.
+Alohida process bilan: `0.608 / 0.601 / 0.605 %`; eski rig'da
+prober'ning **o'z thread'i**: `0.574 / 0.586 / 0.563 %` — ikkisi
+**mos**, demak xabar qilingan raqamning ≈55% i testning o'z soxta
+xizmati edi. Produksiyada prober `revixmon.slice` da alohida
+process, demak process-CPU **o'sha yerda to'g'ri**; faqat rig
+noto'g'ri edi.
+
+> **Saqlanishga arzigulik metodologik qayd:** **o'z-o'zini
+> perturbatsiyani o'lchaydigan asbobning o'zi o'zining test
+> harness'i tomonidan perturbatsiya qilingan edi** — §8.2 ning
+> butun mavzusi, o'lchov zanjirining eng kutilmagan joyida.
+
+Hech bir oldingi bo'lim bu raqamga tayanmagan (§21 probe narxini
+muhokama qilmaydi), demak **retraktsiya qilinadigan qaror yo'q**.
+
+**2. CHEKLOV — kollizya yo'q bo'lmadi, TORAYDI (§22.2).**
+**Produksiya konfiguratsiyasida** (2 target — SUT **va** bystander):
+`0.77–0.88 %`, va **14 ta 8-sekundlik run'dan 1 tasi `1.007 %`**.
+Pol ≈ `0.49 %` (§2 ning talab qilgan kernel ishi ≈53%, muzlatilgan
+`P` pacing ≈9%). Demak §8.2 ning budjeti va §2 ning `P` si
+**birgalikda qanoatlantiriladi, lekin ≈0.15 pp zaxira bilan**.
+**Nega hali ham kollizya:** §8.2 budjet oshsa yagona remedy beradi
+— *"sekinlashtiriladi"* — lekin `P = 100 ms` **§2 da muzlatilgan**,
+demak **ruxsat etilgan remedy yo'q**; qolgan yo'llar probe ishini
+kamaytirish (kod — §22.8) yoki amendment. **Gate qilinmaydi**
+(`1/14`, va `0.49%` poli budjetning printsipial erishiladigan
+ekanini ko'rsatadi), lekin zaxira **produksiya
+konfiguratsiyasida** ingichka ⇒ **har qanday kelgusi o'lchov
+2 target bilan berilishi kerak**; 1-target raqamlari bu xavfni
+**ko'rsatmaydi**.
+
+**3. FAKT — narx arm'lar bo'yicha bir xil emas (§22.3).**
+8 takror × 6 s, 1 target, aralashtirilgan tartib:
+`ok` median **0.601 %** (sd 0.032); `silent` 0.480 % (sd 0.038);
+`down` median **0.433 %** (sd 0.055). Sog'lom target `down` dan
+**1.39×** qimmat, har bir holatning `sd` sidan ancha tashqarida.
+Mexanizm: buzilgan probe round-trip'ni, parse'ni va qator
+qurishning ko'p qismini o'tkazib yuboradi. **Nega bookkeeping
+emas:** `no_action` (`Restart=no`) trial oxirigacha down, ya'ni
+**eng ko'p downtime**, demak **eng kam instrumentatsiya yuki** —
+va u aynan §8.2 ning **majburiy** nazorati, vazifasi PSI
+atributsiyasi.
+
+**4. QAROR — bandning o'qilishi (§22.4).** Butun band **o'lchangan**
+registrda (*o'lchanadi / beriladi / sekinlashtiriladi*), demak
+*"bir xil ushlanadi"* matniy jihatdan **amalga oshgan yukka**
+tegishli. **Lekin amalga oshgan yuk konstruksiya bo'yicha
+qanoatlantirilmaydi** — probe'ning narxi u kuzatayotgan natijaga
+bog'liq, va tenglashtirishning yagona yo'li **padding**, u esa
+umumiy harness CPU'sini **oshirib** §8.2 ning **o'z maqsadini
+buzadi**. Ruling, uch bandli:
+
+1. **Konfiguratsiya bir xil SHART** (`hz`, `T_conn`, `T_rt`,
+   `k_f`, bo'sh `frozen_deviation()`, bir xil target to'plami) —
+   **qanoatlantirilgan**;
+2. **amalga oshgan yuk `(arm × pressure)` bo'yicha O'LCHANADI va
+   HISOBOTGA KIRITILADI** (`prober_stop` allaqachon `cost` **va**
+   `outcome_counts` ni olib yuradi) — **berilmasa band bajarilmagan
+   hisoblanadi**;
+3. **har qanday PSI-atributsiya da'vosi** (§8.2 ning maqsadi;
+   `05-metodologiya.md` §4 ning DiD i; `harm_indicator` / FR-B)
+   **harness differentsialini hisobga olishi yoki chegaralashi
+   SHART** — asbob qo'shgan narsa action'ga **yozilmaydi**.
+
+> **Ochiq yoziladi: bandning so'zma-so'z talabi BAJARILMAGAN va
+> konstruksiya bo'yicha BAJARILMAYDI.** Ruling uni **toraytiradi**,
+> demak u matnni zaiflashtiradi va **egasi rad etishi mumkin**
+> (§22.7, C1–C2).
+
+**5. QAROR — qayerda tishlaydi (§22.5).** **Birlamchi endpoint
+strukturaviy himoyalangan, ikki sabab bilan:** (i) §8.2 ning
+1-bandi harness'ni `revixmon.slice` ga qo'yadi va
+*"kovariata sifatida ishlatiladigan hech bir scope ichida emas"*
+deydi, §7 ning asosiy scope'i esa `revixlab.slice` — demak
+prober CPU'si **birlamchi kovariataga umuman kirmaydi**;
+(ii) §16.2(A) bo'yicha trend testi **arm `A` ichida**, demak
+`A ↔ no_action` farqi birlamchi endpoint'ga **kirmaydi**.
+
+**Arm `A` ichida** (derivatsiya, o'lchov emas): narx uptime ulushi
+bilan o'sadi, uptime ulushi pressure bilan kamayadi (H1 ning o'z
+prognozi) ⇒ `cost(A,P2) < cost(A,P0)`, ya'ni harness **eng kam**
+perturbatsiya qiladi **recovery eng qiyin** yacheykada. H1 yolg'on
+bo'lsa — bias **yo'q**; H1 to'g'ri bo'lsa — trend **susayadi** ⇒
+**H1 ga qarshi**. **Ikkala holatda ham differentsial prognoz
+qilingan effektni YARATA OLMAYDI.**
+
+**Atributsiya — mana shu yerda haqiqiy confound:** arm `A` da
+prober qimmatroq, demak `A − no_action` ayirmasi action'ga
+**ortiqcha yozadi** ⇒ **action'ning PSI narxi oshirib
+ko'rsatiladi**, ya'ni action haqiqatdan **zararliroq** ko'rinadi —
+va bu **loyihaning o'z tezisiga mos keladigan** yo'nalish.
+**Noqulay yo'nalish, ochiq yoziladi.**
+
+**Magnitudasi chegaralangan:** differentsial `0.168` pp **bitta
+yadroda**, 12 CPU li muhitda (§15.1) ≈ `0.014%` umumiy sig'im, va
+**kovariata scope'idan tashqarida**. 2 target'da bystander
+**hech qachon fault qilinmaydi** ⇒ uning komponenti **konstanta**.
+Demak **magnitudasi kichik, yo'nalishi tizimli** — remedy
+**analitik**, operatsion emas.
+
+**6. Bias (§22.6).** Ruling bandni **toraytiradi**, ya'ni §8.2 ni
+zaiflashtiradi. Birlamchi endpoint uchun differentsialning o'zi
+**H1 ga qarshi**, demak ruling bu yerda **H1 ga qarshi**.
+Atributsiya uchun differentsial **loyiha tezisi foydasiga**, va
+ruling uni tenglashtirmaydi, faqat hisobga olishni talab qiladi ⇒
+**agar hisobga olish bajarilmasa, bias loyiha foydasiga qoladi, va
+aynan shuning uchun §22.4(3) "SHART" deb yozilgan, "iloji bo'lsa"
+deb emas.**
+
+**7. GATE QILINMAYDI (§22.7).** §17.5 va §18.6 dan farqli, birlamchi
+endpoint xavf ostida emas, differentsial konservativ yo'nalishda va
+magnitudasi chegaralangan ⇒ **CHEKLOV va hisobot talabi**, pilotni
+bloklaydigan qaror emas. Egasi **C1** (so'zma-so'z o'qish ⇒ padding,
+§8.2 ning maqsadini buzadi — **tavsiya qilinmaydi**) yoki **C2**
+(differentsialni gate deb hisoblash ⇒ `P` §2 da muzlatilgan) ni
+tanlashi mumkin; **men tanlamadim**.
+
+**8. OCHIQ MASALA (§22.8).** `revix/schema.py` ning `csv.write` i
+har probe narxining **≈10%** i, **ataylab tegilmagan** (boshqa
+agentning fayli) — §22.2 ning ≈0.15 pp zaxirasini kengaytirish
+kerak bo'lsa **eng katta qolgan element**. Bu
+**pre-registration masalasi emas** (`P`, budjet va §2 ning
+contract bandlari o'zgarmaydi), demak kollizyani **ta'rifga
+tegmasdan** yopish yo'li. **Interpretator sabab emas** — o'sha
+agent Python 3.14 ≈18% yomonroq degan bir-takrorli taxminini
+**o'zi rad etdi** (run-to-run shovqin).
 
 ### v1.8 → v1.9 (2026-10-03)
 
@@ -3779,3 +3923,315 @@ falsifikatsiya natijasi hisoblanmadi. 21.1(b) va 21.2 ning butun
 arifmetikasi **muzlatilgan qiymatlardan**; 21.3 va 21.5 ning
 raqamlari **boshqa agentning o'lchovidan** va shu sifatida
 belgilangan.
+
+---
+
+## 22. §8.2 ning probe narxi: budjet va "arm'lar bo'yicha bir xil" (muzlatilgan)
+
+> Bu bo'lim **v1.10 amendment** bilan qo'shildi. U **hech bir operatsion
+> ta'rifni, metrikani, chegarani, statistik testni yoki falsifikatsiya
+> mezonini o'zgartirmaydi.** U: (1) avval xabar qilingan budjet
+> buzilishining **artefakt** ekanini qayd etadi, (2) kollizyaning
+> **yo'q bo'lmaganini, torayganini** ko'rsatadi, (3) §8.2 ning
+> *"arm'lar bo'yicha bir xil ushlanadi"* bandi **bajarilmaganini**
+> qayd etadi va uni qanday o'qish kerakligini hal qiladi.
+
+**Manba va provenans:** raqamlar `agent/prober` (yoki unga teng agent)
+tomonidan o'lchangan va orkestrator xabari orqali keldi. **Bu agent
+guest ichida hech narsa o'lchamadi va kodni o'qimadi.** 2-target
+raqamlari **repo testidan emas, agentning scratchpad harness'idan** —
+o'sha agent 2-target budjet assertion'ini **ataylab qo'shmagan**
+(0.77–0.88% da flaky bo'lardi va flakiness signal emas, shovqin
+bo'lardi). Mustaqil tasdiqlanmagan.
+
+### 22.1 FAKT — avvalgi budjet buzilishi ARTEFAKT edi, va sababi qayd etiladi
+
+Avval `1.238%` xabar qilingan edi (§8.2 ning `>1%` budjetidan yuqori).
+**Bu noto'g'ri.** Sabab: `prober.cost_report()` `time.process_time()`
+va `getrusage(RUSAGE_SELF)` ni o'qiydi — ikkisi ham **process bo'yicha**,
+ya'ni barcha thread'lar yig'indisi. Test rig'i soxta SUT'ni
+**prober'ning o'z processi ichida thread** sifatida ishlatgan, demak
+SUT ning CPU'si prober'ga **yozilgan**.
+
+| konfiguratsiya | 3 takror |
+|---|---|
+| SUT thread sifatida (eski rig) | 1.240 / 1.265 / 1.236 % |
+| SUT alohida process (tuzatilgan) | 0.608 / 0.601 / 0.605 % |
+| eski rig'da prober'ning **o'z thread'i** | 0.574 / 0.586 / 0.563 % |
+
+Oxirgi ikki qator bir-biriga **mos**, demak izoh to'liq: xabar
+qilingan raqamning ≈55% i testning o'z soxta xizmati edi.
+Produksiyada prober `revixmon.slice` da **alohida process**, SUT esa
+`revixlab.slice` da `sut.c` — demak process-CPU **o'sha yerda
+to'g'ri o'lchov**; faqat rig noto'g'ri edi.
+
+> **Metodologik qayd, saqlanishga arzigulik:** **o'z-o'zini
+> perturbatsiyani o'lchaydigan asbobning o'zi o'zining test harness'i
+> tomonidan perturbatsiya qilingan edi.** Bu §8.2 ning butun mavzusi
+> — kuzatuvchining kuzatilayotganga qo'shilishi — va u o'lchov
+> zanjirining **eng kutilmagan joyida** yuzaga chiqdi. Shuning uchun
+> bu yerda yozilади, nafaqat tuzatiladi.
+
+**Bu pre-registration'da hech narsani o'zgartirmaydi** va hech qanday
+oldingi bo'lim bu raqamga tayanmagan (§21 probe narxini umuman
+muhokama qilmaydi), demak **retraktsiya qilinadigan qaror yo'q**.
+
+### 22.2 CHEKLOV — kollizya YO'Q BO'LMADI, TORAYDI
+
+Budjet **sistematik** buzilmaydi. Lekin **produksiya
+konfiguratsiyasida** — 2 target, SUT **va** bystander (§8.3,
+`05-metodologiya.md` §5: bystander *"hech qachon fault
+qilinmaydi"*) — o'lchangan:
+
+```
+2 target:  0.77 – 0.88 %     va  14 ta 8-sekundlik run'dan 1 tasi  1.007 %
+pol (agar prober tomonidagi har bir Python qatori bepul bo'lsa): ≈ 0.49 %
+  — §2 ning talab qilgan kernel ishi (har probe'ga yangi socket — (a) bandi,
+    connect/send/recv/close) ≈ 53 %, muzlatilgan `P` pacing ≈ 9 %
+```
+
+> **Demak §8.2 ning `>1%` budjeti va §2 ning muzlatilgan
+> `P = 100 ms` i birgalikda qanoatlantiriladi — lekin ≈0.15 pp
+> zaxira bilan, va produksiya konfiguratsiyasida 14 run'dan 1 tasi
+> chegaradan **o'tib ketdi**.**
+
+**Nega bu hali ham kollizya:** §8.2 budjet buzilsa yagona remedy
+beradi — *"**sekinlashtiriladi**"* — ya'ni probe davrini uzaytirish.
+Lekin `P = 100 ms` **§2 da muzlatilgan**. Demak budjet produksiyada
+oshsa, **§8.2 ning ruxsat etilgan remedy'si yo'q**: qolgan yo'llar
+(a) probe'dagi ishni kamaytirish (kod, ta'rif emas — 22.8 ga qarang),
+yoki (b) amendment.
+
+**Qayd etiladi, gate QILINMAYDI:** buzilish `1/14` va u **margin**
+masalasi, ta'rif masalasi emas; `0.49%` poli esa budjetning
+**printsipial** erishiladigan ekanini ko'rsatadi. Lekin zaxira
+**ingichka** va u **produksiya konfiguratsiyasida** ingichka —
+ya'ni 1-target o'lchovlari bu xavfni **ko'rsatmaydi**. Har qanday
+kelgusi o'lchov **2 target bilan** berilishi kerak.
+
+### 22.3 FAKT — probe narxi arm'lar bo'yicha BIR XIL EMAS
+
+8 takror × 6 s, 1 target, aralashtirilgan tartib:
+
+| SUT holati | median | mean | sd |
+|---|---|---|---|
+| `ok` (sog'lom) | **0.601 %** | 0.606 | 0.032 |
+| `silent` (`rt_timeout` / `conn_timeout`) | 0.480 % | 0.488 | 0.038 |
+| `down` (`conn_refused`) | **0.433 %** | 0.450 | 0.055 |
+
+Sog'lom target `down` dan **1.39×** qimmat, va farq har bir holatning
+`sd` sidan **ancha tashqarida**. Mexanizm sodda: buzilgan probe
+round-trip'ni, parse'ni va qator qurishning ko'p qismini **o'tkazib
+yuboradi**.
+
+**Nega bu bookkeeping emas:** arm'lar **konstruksiya bo'yicha**
+downtime ulushi bilan farq qiladi. `no_action` — `Restart=no`,
+clean crash'dan keyin trial oxirigacha down (§9.3), ya'ni **eng
+ko'p downtime'li arm**, demak **eng kam instrumentatsiya yuki
+ko'taradigan** arm. Va u aynan §8.2 ning **majburiy** nazorati,
+vazifasi PSI atributsiyasi. Demak harness ikki arm'ni **turli
+miqdorda** perturbatsiya qiladi, va **o'lchanayotgan narsa bilan
+korrelyatsiyalangan yo'nalishda**.
+
+### 22.4 QAROR — bandning o'qilishi: konfiguratsiya + O'LCHANGAN va HISOBOTGA KIRITILGAN yuk
+
+§8.2 ning bandi, so'zma-so'z:
+
+> *"**Probe narxi budjeti:** prober CPU'si trial bo'yicha
+> **o'lchanadi**, yadro foizida **beriladi**. >1% bo'lsa
+> **sekinlashtiriladi**. **Arm'lar bo'yicha bir xil ushlanadi**."*
+
+**Matniy jihatdan** butun band **o'lchangan** registrda
+(*o'lchanadi / beriladi / sekinlashtiriladi*), demak *"bir xil
+ushlanadi"* ham eng tabiiy holda **o'sha o'lchangan kattalikka**
+tegishli — ya'ni **amalga oshgan yuk**, konfiguratsiya emas.
+
+**Lekin amalga oshgan yuk konstruksiya bo'yicha
+QANOATLANTIRILMAYDI:** probe'ning narxi u **kuzatayotgan natijaga**
+bog'liq (22.3). O'lik socket'ga qilingan probe'ni tirik socket'ga
+qilingan probe bilan teng qilishning yagona yo'li — **ataylab CPU
+yoqish**, ya'ni padding. Va padding §8.2 ning **o'z maqsadini
+buzadi**: u differentsialni yo'qotish uchun **umumiy** harness
+CPU'sini **oshiradi**, ya'ni o'z-o'zini perturbatsiyani kuchaytiradi.
+
+**Shuning uchun ruling, uch bandli:**
+
+1. **Konfiguratsiya bir xil bo'lishi SHART** — `hz`, `T_conn`,
+   `T_rt`, `k_f`, bo'sh `frozen_deviation()`, bir xil target
+   to'plami. **Bu qanoatlantirilgan** (o'lchangan va tasdiqlangan).
+2. **Amalga oshgan yuk `(arm × pressure)` yacheykasi bo'yicha
+   O'LCHANADI va HISOBOTGA KIRITILADI** — `prober_stop` allaqachon
+   `cost` **va** `outcome_counts` ni olib yuradi, demak mexanizm
+   ham qayta qurilади. **Hisobotda berilmasa, band bajarilmagan
+   hisoblanadi.**
+3. **Har qanday PSI-atributsiya da'vosi** (§8.2 ning o'z maqsadi;
+   `05-metodologiya.md` §4 ning difference-in-differences i;
+   `harm_indicator` / FR-B) **harness narxi differentsialini
+   hisobga olishi yoki chegaralashi SHART.** Asbob qo'shgan narsa
+   action'ga **yozilmaydi**.
+
+> **Va ochiq yoziladi: bandning so'zma-so'z talabi — "amalga oshgan
+> yuk bir xil" — BAJARILMAGAN va konstruksiya bo'yicha
+> BAJARILMAYDI.** Yuqoridagi ruling uni **toraytiradi**: men
+> *"bir xil"* ni *"bir xil konfiguratsiya + o'lchangan + hisobga
+> olingan"* deb o'qiyapman. **Bu matnni toraytirish, demak loyiha
+> egasi uni rad etishi mumkin** (22.7).
+
+### 22.5 QAROR — differentsial QAYERDA tishlaydi va qayerda tishlamaydi
+
+#### Birlamchi endpoint — strukturaviy himoyalangan, ikki sabab bilan
+
+1. **§8.2 ning 1-bandi** harness'ni `revixmon.slice` ga qo'yadi va
+   aytadi: *"**Kovariata sifatida ishlatiladigan hech bir scope
+   ichida emas**"*. §7 ning **asosiy scope**'i —
+   `revixlab.slice`. Demak prober'ning CPU'si — teng yoki teng
+   emas — **birlamchi kovariataga umuman kirmaydi**. Qoldiq kanal:
+   host darajasidagi CPU kontentsiyasi va host PSI (§7 bo'yicha
+   **exploratory**).
+2. **§16.2(A)**: §10.1 ning trend testi **arm `A` ichida**
+   hisoblanadi. Demak `A` ↔ `no_action` farqi **birlamchi
+   endpoint'ga kirmaydi**.
+
+#### Arm `A` ICHIDA differentsial pressure bo'yicha qanday boradi
+
+Bu muhim, va u **derivatsiya** (o'lchov emas): narx uptime ulushi
+bilan o'sadi (22.3), uptime ulushi esa pressure bilan
+**kamayadi** — bu aynan H1 ning o'z prognozi (§9.2). Demak arm `A`
+ichida:
+
+```
+cost(A, P2)  <  cost(A, P1)  <  cost(A, P0)
+```
+
+ya'ni harness **eng kam** perturbatsiya qiladi **aynan recovery
+eng qiyin bo'lgan** yacheykada.
+
+| H1 holati | arm `A` ichida narx | ta'siri trend'ga |
+|---|---|---|
+| H1 **yolg'on** | pressure bo'ylab ~bir xil | **bias yo'q** |
+| H1 **to'g'ri** | `P2` da **pastroq** ⇒ `P2` da kontentsiya **kamroq** | trend'ni **susaytiradi** ⇒ **H1 GA QARSHI** |
+
+> **Ikkala holatda ham differentsial prognoz qilingan effektni
+> YARATA OLMAYDI.** Birlamchi endpoint uchun mexanizm
+> **konservativ**.
+
+#### Atributsiya — mana shu yerda haqiqiy confound
+
+§8.2 ning 4-bandi `no_action` ga vazifa beradi:
+*"restart PSI ni oshirdi"* ni *"fault PSI ni oshirdi"* dan ajratish.
+`05-metodologiya.md` §4: *"Action'ning PSI hissasi — mos keladigan
+pressure'da **difference-in-differences**"*.
+
+Arm `A` da prober **qimmatroq** (ko'proq uptime), demak `A` ning
+o'lchangan yukida prober'ning **ortiqcha** CPU'si bor. Demak
+`A − no_action` ayirmasi action'ga **ORTIQCHA YOZADI**:
+
+> **Action'ning PSI narxi OSHIRIB ko'rsatiladi.** Ya'ni action
+> haqiqatda bo'lgandan **zararliroq** ko'rinadi — va bu loyihaning
+> o'z tezisiga (*pressure ostida action qimmat, shuning uchun
+> PSI-gating foydali*) **MOS KELADIGAN** yo'nalish. **Bu noqulay
+> yo'nalish va shuning uchun ochiq yoziladi.**
+
+#### Magnitudasi — chegaralangan
+
+Differentsial `0.601 − 0.433 = 0.168` pp, **bitta yadroning**
+foizida, 1 target uchun. 2 target konfiguratsiyasida bystander
+**hech qachon fault qilinmaydi**, demak uning komponenti
+**konstanta** — swing faqat SUT target'idan keladi. O'lchangan
+muhitda **12 CPU** (§15.1), demak `0.168` pp bitta yadroda
+≈ `0.014%` umumiy CPU sig'imi. Va u **kovariata scope'idan
+tashqarida** (§8.2 bandi 1).
+
+> **Demak: magnitudasi KICHIK, lekin yo'nalishi TIZIMLI.**
+> Xavf — kattalikda emas, **atributsiyaning sistematik
+> siljishida**. Shuning uchun remedy **analitik** (o'lchash +
+> hisobga olish), **operatsion emas** (tenglashtirish).
+
+### 22.6 Bias yo'nalishini ochiq e'lon qilish
+
+22.4 ning ruling'i bandni **toraytiradi**, demak u §8.2 ni
+**zaiflashtiradi** — qat'iy talab (*"bir xil"*) hisobot talabiga
+aylanadi. Yo'nalish:
+
+- **Birlamchi endpoint uchun:** differentsialning o'zi
+  **H1 ga qarshi** (22.5), demak uni tenglashtirmaslik H1 ga
+  qarshi konservativ qolishni **saqlaydi** ⇒ ruling bu yerda
+  **H1 ga qarshi**.
+- **Atributsiya uchun:** differentsial action'ning PSI narxini
+  **oshirib** ko'rsatadi, ya'ni **loyiha tezisi foydasiga**. Ruling
+  uni **tenglashtirmaydi**, faqat **hisobga olishni talab qiladi**
+  ⇒ agar hisobga olish bajarilmasa, **loyiha foydasiga** bias
+  qoladi. **Shuning uchun 22.4(3) majburiy, tavsiya emas.**
+
+**Buni bilib turib qabul qilaman**, chunki (i) so'zma-so'z talab
+**fizik jihatdan bajarilmaydi** va padding §8.2 ning maqsadini
+buzardi; (ii) differentsial **o'lchangan va qayta qurilishi
+mumkin** (`cost` + `outcome_counts`), demak u **yashirin emas**;
+(iii) hech qanday ma'lumot mavjud emas, demak qarorni natijani
+ko'rib tanlash imkoniyati yo'q. **Agar hisobga olish bajarilmasa,
+bu bias loyiha foydasiga qoladi — va aynan shuning uchun 22.4(3)
+"SHART" deb yozilgan, "iloji bo'lsa" deb emas.**
+
+### 22.7 Nima GATE qilinmaydi, va loyiha egasi nimani rad etishi mumkin
+
+**Gate qilinMAYDI.** §17.5 va §18.6 dan farqli, bu yerda
+**birlamchi endpoint xavf ostida emas** (22.5), differentsial
+**konservativ** yo'nalishda, va magnitudasi **chegaralangan**.
+Shuning uchun u **CHEKLOV va hisobot talabi**, pilotni
+bloklaydigan qaror emas.
+
+**Lekin egasi ikki narsani rad etishi mumkin, va ularni ochiq
+qoldiraman:**
+
+| # | mening o'qishim | alternativa va narxi |
+|---|---|---|
+| **C1** | *"bir xil"* = konfiguratsiya + o'lchangan + hisobga olingan (22.4) | *"bir xil"* ni **so'zma-so'z** o'qish ⇒ band **bajarilmaydi**, va yagona yo'l probe'ni **padding** qilish ⇒ umumiy harness CPU oshadi, §8.2 ning maqsadi **buziladi**. Men bu yo'lni **tavsiya qilmayman**, lekin tanlov egasining |
+| **C2** | differentsial hisobotga kiritiladi, pilot bloklanmaydi | differentsialni **gate** deb hisoblash ⇒ pilot `P` yoki probe ishi o'zgarmaguncha kutadi ⇒ `P` **§2 da muzlatilgan** (22.2) |
+
+### 22.8 OCHIQ MASALA — `csv.write` va zaxirani kengaytirish
+
+`revix/schema.py` ning `csv.write` i **har probe narxining ≈10%**
+i va u **ataylab tegilmagan** (fayl egasi boshqa agent). 22.2 ning
+≈0.15 pp zaxirasi kengaytirilishi kerak bo'lsa, **bu eng katta
+qolgan kamaytirilishi mumkin bo'lgan element**.
+
+**Bu pre-registration masalasi emas** — `P` ham, budjet ham, §2
+ning contract bandlari ham o'zgarmaydi; faqat probe'ning ichidagi
+ish kamayadi. Shuning uchun u **amendment talab qilmaydi** va
+22.2 ning kollizyasini **ta'rifga tegmasdan** yopishning yo'li.
+
+**Ruled out sabab (qayd etiladi):** interpretator **emas** —
+o'sha agent o'zining Python 3.14 ≈18% yomonroq degan bir-takrorli
+taxminini **o'zi rad etdi** (run-to-run shovqin; ikkala
+interpretator eski rig'da **aynan bir xil** yiqiladi va 3.13 bu
+yerda **bir oz qimmatroq**).
+
+### 22.9 NIMA O'ZGARMAYDI
+
+§8.2 ning **matni** — o'zgarmadi, **to'rtala bandi ham**, shu
+jumladan *"arm'lar bo'yicha bir xil ushlanadi"* va `>1%` budjeti.
+§2 ning `P = 100 ms`, `T_conn`/`T_rt` = 50 ms va contract bandlari
+(a)(b)(c) — o'zgarmadi. §7 ning asosiy scope'i, §16.2(A) ning arm
+qamrovi, §9.3 ning arm'lari — o'zgarmadi. `θ = 0.8`, `τ = 8 s`,
+`W_stab_pilot = 8 s`, `W_stab = 60 s`, `k_f` = 3,
+`injection_offset = 3 s`, `hold_cap_s = 12 s`,
+`guard_sustain_s = 15 s`, `ε` = 32 MiB, quiescence 0.05,
+`T_q` = 5 s, `T_w` = 15 s, `T_w_max` = 120 s, 20 blok / 120 trial,
+§10.1, §10.2, §10.4, §11 ning ikkala limbi, §12 ning yopiq enum'i,
+§14, §15–§21 — **hammasi muzlatilgan holida.** §13 ga tegilmadi.
+
+**F1–F4, O1–O4 va C1–C2 tanlovlari QILINMADI.**
+
+Qo'shilgan narsa: bir artefaktning qaydi (22.1), bir torayган
+kollizya (22.2), bir o'lchangan buzilish (22.3), bandning
+o'qilishi va **uch majburiy talab** (22.4), qayerda tishlashining
+tahlili (22.5), bias e'loni (22.6), va bir ochiq masala (22.8).
+
+### 22.10 NATIJA — yo'q
+
+**Hech qanday eksperiment ishga tushirilmadi. Hech qanday natija yo'q.**
+22.1–22.3 ning raqamlari **boshqa agentning o'lchovidan** va shu
+sifatida belgilangan; 2-target raqamlari **repo testidan emas**,
+scratchpad harness'idan. 22.5 ning arm `A` ichidagi pressure
+bo'yicha tartibi — **derivatsiya**, o'lchov emas, va u H1 ning o'z
+prognoziga tayanadi. Bu agent guest ichida hech narsa o'lchamadi.
