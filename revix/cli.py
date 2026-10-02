@@ -2263,6 +2263,8 @@ def cmd_analyze(args: argparse.Namespace, want_json: bool) -> int:
         argv += ["--episodes", args.episodes]
     if args.events is not None:
         argv += ["--events", args.events]
+    if args.reduction_summary is not None:
+        argv += ["--reduction-summary", args.reduction_summary]
     if want_json:
         argv.append("--json")
     return _delegate("analyze", "analyze", argv, want_json)
@@ -2372,6 +2374,13 @@ def build_parser() -> argparse.ArgumentParser:
                         "o'lchangan CPU narxi (prober_stop.core_percent) "
                         "shu orqali tahlilga yetadi; bo'lmasa probe_cost "
                         "figurasi to'ldirilmaydi (PREREGISTRATION §8.2, §3)")
+    p.add_argument("--reduction-summary", default=None, metavar="PATH",
+                   help="reduce.py'ning reduction_summary.jsonl'i (ixtiyoriy): "
+                        "eksklyuziya darajasining reducer hisoblagan ikkala "
+                        "to'plami (binary P(VR) maxraji va survival/k-n "
+                        "to'plami) shu orqali olinadi; bo'lmasa analiz o'zi "
+                        "qayta sanaydi, berilsa ikki yo'l mos kelmasligi "
+                        "exclusion_rate_mismatch beradi (PREREGISTRATION §12, §16.4)")
     p.set_defaults(func=cmd_analyze)
 
     p = sub.add_parser(
