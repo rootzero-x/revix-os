@@ -13,7 +13,7 @@
 
 | Daraja | Nima | Pre-registration | Holat |
 |---|---|---|---|
-| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.5` ✅ | rejalashtirilgan |
+| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.6` ⚠️ | **bloklangan** — `PREREGISTRATION.md` §17.5 ochiq qarori |
 | **CAL — kalibratsiya** | har `(fault × action)` uchun `P̂(VR)` → `Repairs()` matritsasi | kerak | P1 dan keyin |
 | **P2 — confirmatory** | to'liq fault taksonomiyasi × arm A/B/C × pressure × pulse duration | kerak, P1 effect size'idan `n` hisoblanadi | CAL dan keyin |
 
@@ -84,8 +84,12 @@ Busiz `harm_indicator` (FR-B) talqin qilinmaydi va "restart PSI ni oshirdi" ni
 > da `P(VR) = 0` uchala pressure darajasida, konstruksiya bo'yicha.
 >
 > Yuqoridagi jadvalning **ikkinchi qatori** ("injeksiya yo'q, pressure bor")
-> `PREREGISTRATION.md` §9.3 ning 120-trial panjarasida **yo'q** — bu ochiq
-> masala §16.9 da qayd etilgan.
+> `PREREGISTRATION.md` §9.3 ning 120-trial panjarasida **yo'q**. Bu
+> **dizayn nuqsoni** — §8.2 uni majburiy deb ataydi, §9.3 esa o'z ichiga
+> olmaydi, demak *"pressure'ning o'zi baseline"* i yo'q va PSI
+> atributsiyasi **to'liq identifikatsiya qilinmaydi**. P1 ni bloklamaydi
+> (FR-B P1 da hisoblanmaydi), lekin atributsiya da'vosi **chala** bo'ladi
+> va maqolada shunday yoziladi. To'liq bayon: §17.7.
 
 Action'ning PSI hissasi — mos keladigan pressure'da **difference-in-differences**.
 
