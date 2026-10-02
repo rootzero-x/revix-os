@@ -162,14 +162,34 @@ def test_trip_fayli_yoziladi(tmp_path):
     assert "mono_us" in d
 
 
-def test_trip_idempotent(tmp_path):
-    """Takroriy trip qayd etiladi, lekin kill qayta urinilmaydi."""
+def test_trip_fayli_birinchi_sababni_saqlaydi(tmp_path):
+    """TAHRIRLANDI -- avval bu test `test_trip_idempotent` edi va buzilgan
+    xatti-harakatni qulflab turardi:
+
+        assert [e["action"] for e in ev] == ["kill_subtree", "already_tripped"]
+
+    Ya'ni u «ikkinchi trip O'LDIRMAYDI» ni TALAB qilardi.
+
+    O'LCHOV (08-guard-rekalibratsiya.md §17) shu talabni rad etdi:
+
+        guard_event total=3257  kill_subtree=1  already_tripped=3256
+        guard.jsonl: 1751702 bayt (1.67 MiB)
+        guard_stop: tripped=true iterations=3499 elapsed_s=349.900166559
+
+    «Yagona haqiqiy kill ... Shundan keyin 2, 3 va 4-epizodlarda pressure
+    `full avg10` 95.73 ga chiqdi ..., lekin birorta kill bo'lmadi.»
+    Mustaqil takrorlash (235 s): `kill_subtree=1  already_tripped=1941`.
+
+    Testdan OLIB TASHLANMADI, QAYTA MAQSAD BERILDI: u endi haqiqatan
+    idempotent bo'lishi kerak narsani -- `trip_file` ni -- tekshiradi.
+    `trip_file` trial'ning disposition sababi (`PREREGISTRATION.md` §12),
+    demak u epizodni BOSHLAGAN sababni saqlashi kerak. Takror kill'ning
+    o'zi `test_ikkinchi_trip_yana_oldiradi` da tekshiriladi.
+    """
     g, w, log, trip, lab = make_guard(tmp_path)
     g.trip("birinchi", {})
     g.trip("ikkinchi", {})
     w.close()
-    ev = [r for r in records(log) if r["record_type"] == "guard_event"]
-    assert [e["action"] for e in ev] == ["kill_subtree", "already_tripped"]
     assert json.loads(trip.read_text())["reason"] == "birinchi", "trip fayli birinchi sababni saqlaydi"
 
 
@@ -351,3 +371,220 @@ def test_tezlik_oynasi_eng_tor_2s_ni_tanlaydi(tmp_path):
     win = (t_now - old[0]) / 1e6
     assert 2.0 <= win < 2.3, f"oyna eng tor >=2s bo'lishi kerak, {win:.2f}s bo'ldi"
     w.close()
+
+
+# --- HIMOYA BIR MARTALIK EMAS (dizayn qoidasi 6) ----------------------------
+#
+# O'lchov (08-guard-rekalibratsiya.md §17): `tripped` hech qachon tiklanmasdi,
+# demak `cgroup.kill` bitta guard jarayoniga BIR MARTA tushardi -- 350 s da
+# 1 kill va 3256 `already_tripped`. `00-pilot-topologiya.md` §3.1(b) va
+# `SECURITY.md` §2(b) bitta guard jarayonini butun 120-trial kampaniyasiga
+# qo'yadi, demak birinchi `aborted_guard` trial'idan keyin qolgan 119 trial
+# himoyasiz qolardi. `scripts/guard-test.sh` da bu KO'RINMAYDI, chunki u har
+# run'da yangi guard jarayoni yaratadi.
+
+
+def test_ikkinchi_trip_yana_oldiradi(tmp_path):
+    """Birinchidan KEYINGI trip ham `cgroup.kill` ga yozishi KERAK."""
+    g, w, log, trip, lab = make_guard(tmp_path)
+
+    g.trip("birinchi", {})
+    assert (lab / "cgroup.kill").read_text() == "1"
+
+    # Faylni olib tashlaymiz: ikkinchi kill uni QAYTA yaratishi kerak.
+    (lab / "cgroup.kill").unlink()
+    g.trip("ikkinchi", {})
+    w.close()
+
+    assert (lab / "cgroup.kill").exists(), (
+        "ikkinchi trip ham subtree'ni o'ldirishi kerak (08 §17)"
+    )
+    assert (lab / "cgroup.kill").read_text() == "1"
+    ev = [r for r in records(log) if r["record_type"] == "guard_event"]
+    assert [e["action"] for e in ev] == ["kill_subtree", "kill_subtree"]
+    assert all(e["kill_ok"] is True for e in ev)
+
+
+def test_bir_xil_sabab_bilan_har_trip_oldiradi(tmp_path, monkeypatch):
+    """Bir xil sabab takrorlanganda ham kill HAR SAFAR bajariladi.
+
+    Yozuv throttle qilinadi, KILL esa hech qachon: throttling himoyaga tegsa,
+    08 §17 ning defekti boshqa shaklda qaytib kelardi.
+    """
+    from revix import guard as gmod
+
+    kills = []
+
+    def fake_kill(path):
+        kills.append(path)
+        return True
+
+    monkeypatch.setattr(gmod.cg, "kill_subtree", fake_kill)
+    g, w, log, trip, lab = make_guard(tmp_path)
+    for _ in range(50):
+        g.trip("sustained_pressure", {"rate": 0.9})
+    w.close()
+
+    assert len(kills) == 50, f"har trip o'ldirishi kerak, {len(kills)} bo'ldi"
+    ev = [r for r in records(log) if r["record_type"] == "guard_event"]
+    assert len(ev) == 1, f"50 trip bitta yozuvga siqilishi kerak, {len(ev)} bo'ldi"
+
+
+def test_takroriy_triplar_cheklanmagan_yozuv_bermaydi(tmp_path):
+    """Bitta epizod mingta yozuv yozmasligi kerak.
+
+    O'lchov (08 §17): 350 s da 3256 ortiqcha yozuv, 1.67 MiB; 2.5 soatlik
+    kampaniyada ~84 000 yozuv va ~43 MiB bo'lardi.
+    """
+    g, w, log, trip, lab = make_guard(tmp_path)
+    for _ in range(3256):
+        g.trip("user_full_rate2s_runaway", {"rate": 0.99})
+    w.close()
+    ev = [r for r in records(log) if r["record_type"] == "guard_event"]
+    assert len(ev) == 1, f"bitta epizod bitta yozuv bermoqda, {len(ev)} bo'ldi"
+    assert ev[0]["suppressed_records"] == 0, "birinchi yozuvda bosilgan yo'q"
+    # Hodisa JIM QOLMAYDI: bosilgan yozuvlar soni xulosada bor.
+    summary = g.trip_summary()
+    assert len(summary) == 1
+    assert summary[0]["trips"] == 3256
+    assert summary[0]["suppressed_records"] == 3255
+
+
+def test_davriy_xulosa_bosilgan_yozuvlar_sonini_olib_otadi(tmp_path, monkeypatch):
+    """Throttle oynasi o'tgach yozuv qaytadi va bosilganlar sonini aytadi."""
+    from revix import guard as gmod
+
+    g, w, log, trip, lab = make_guard(tmp_path)
+    for _ in range(5):
+        g.trip("sustained_pressure", {})
+    # Oyna o'tdi deb hisoblaymiz.
+    monkeypatch.setattr(gmod, "TRIP_RECORD_INTERVAL_S", 0.0)
+    g.trip("sustained_pressure", {})
+    w.close()
+    ev = [r for r in records(log) if r["record_type"] == "guard_event"]
+    assert len(ev) == 2, f"davriy xulosa kutildi, {len(ev)} yozuv bo'ldi"
+    assert ev[0]["suppressed_records"] == 0
+    assert ev[1]["suppressed_records"] == 4, "bosilgan 4 yozuv olib o'tilishi kerak"
+    assert ev[1]["trip_index"] == 6
+
+
+def test_throttle_boshqa_sababli_tripni_yashirmaydi(tmp_path):
+    """Throttle haqiqiy IKKINCHI tripni -- boshqa SABAB bilan -- yashirmasligi
+    kerak.
+
+    08 §17: birinchi kill `user_full_rate2s_runaway` bo'ldi, keyingi
+    epizodlarda `user_full_avg10_runaway` va `user_some_avg10_runaway` ham
+    qayd etildi. Agar throttle sababni hisobga olmasa, aynan shu yangi
+    sabablar jim qolardi.
+    """
+    g, w, log, trip, lab = make_guard(tmp_path)
+    for _ in range(100):
+        g.trip("user_full_rate2s_runaway", {"rate": 0.99})
+    g.trip("user_full_avg10_runaway", {"avg10": 95.73})
+    for _ in range(100):
+        g.trip("user_full_rate2s_runaway", {"rate": 0.99})
+    g.trip("user_some_avg10_runaway", {"avg10": 96.0})
+    w.close()
+
+    ev = [r for r in records(log) if r["record_type"] == "guard_event"]
+    reasons = [e["reason"] for e in ev]
+    assert reasons == ["user_full_rate2s_runaway",
+                       "user_full_avg10_runaway",
+                       "user_some_avg10_runaway"], (
+        f"yangi sabab darhol yozilishi kerak, {reasons} bo'ldi"
+    )
+
+
+def test_kill_natijasi_ozgarsa_yozuv_bosilmaydi(tmp_path, monkeypatch):
+    """`kill_ok` True -> False o'zgarishi mustaqil hodisa va yashirilmaydi.
+
+    Aks holda himoyaning buzilishi (cgroup yo'qoldi yoki yozish xato berdi)
+    throttle ostida jim qolardi -- bu 08 §17 ning defektining xuddi shunday
+    jim shakli bo'lardi.
+    """
+    from revix import guard as gmod
+
+    ok = [True]
+    monkeypatch.setattr(gmod.cg, "kill_subtree", lambda path: ok[0])
+    g, w, log, trip, lab = make_guard(tmp_path)
+    for _ in range(20):
+        g.trip("sustained_pressure", {})
+    ok[0] = False
+    g.trip("sustained_pressure", {})
+    w.close()
+
+    ev = [r for r in records(log) if r["record_type"] == "guard_event"]
+    assert [e["kill_ok"] for e in ev] == [True, False], (
+        f"kill natijasining o'zgarishi yozilishi kerak, {ev} bo'ldi"
+    )
+
+
+def test_guard_stop_trip_xulosasini_yozadi(tmp_path, monkeypatch):
+    """Bosilgan yozuvlar `guard_stop` da yopiladi -- epizod jim qolmaydi."""
+    from revix import guard as gmod
+
+    watch = tmp_path / "watch"
+    watch.mkdir()
+    (watch / "memory.pressure").write_text(
+        "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+        "full avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+    )
+    g, w, log, trip, lab = make_guard(tmp_path, {"host_mem_available_min_kb": 1})
+    g.watch_cgroup = str(watch)
+    monkeypatch.setattr(gmod.cg, "kill_subtree", lambda path: True)
+    for _ in range(10):
+        g.trip("sustained_pressure", {})
+    g.run(max_seconds=0.0)
+    w.close()
+
+    stop = [r for r in records(log) if r["record_type"] == "guard_stop"]
+    assert stop, "guard_stop yozuvi bo'lishi kerak"
+    summary = stop[-1]["trip_summary"]
+    assert any(s["reason"] == "sustained_pressure" and s["trips"] == 10
+               and s["suppressed_records"] == 9 for s in summary), summary
+
+
+# --- FAIL-CLOSED o'zgarmadi (dizayn qoidasi 3) ------------------------------
+
+
+def test_fail_closed_kutilmagan_istisno_ham_trip(tmp_path, monkeypatch):
+    """Asosiy tsiklning har qanday istisnosi trip'ga aylanishi kerak.
+
+    08 §14.1 guard'ning fail-closed xatti-harakatini TASDIQLAGAN; bu test
+    takror kill va yozuv throttle qo'shilgandan keyin ham o'zgarmaganini
+    qulflaydi.
+    """
+    from revix import guard as gmod
+
+    watch = tmp_path / "watch"
+    watch.mkdir()
+    (watch / "memory.pressure").write_text(
+        "some avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+        "full avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+    )
+    g, w, log, trip, lab = make_guard(tmp_path, {"host_mem_available_min_kb": 1})
+    g.watch_cgroup = str(watch)
+    monkeypatch.setattr(gmod.cg, "kill_subtree", lambda path: True)
+
+    def boom(*a, **k):
+        raise RuntimeError("kutilmagan")
+
+    monkeypatch.setattr(g, "check_psi", boom)
+    rc = g.run(max_seconds=0.25)
+    w.close()
+
+    assert g.tripped, "kutilmagan istisno trip qilishi kerak"
+    assert rc == 1
+    reasons = [r["reason"] for r in records(log) if r["record_type"] == "guard_event"]
+    assert "guard_exception" in reasons
+
+
+def test_fail_closed_kuzatish_ochilmasa_trip(tmp_path):
+    """Kuzatish mumkin bo'lmasa eksperiment boshlanmasligi kerak."""
+    g, w, log, trip, lab = make_guard(tmp_path)
+    rc = g.run(max_seconds=1.0)   # watch_cgroup mavjud emas
+    w.close()
+    assert rc == 2
+    assert g.tripped
+    reasons = [r["reason"] for r in records(log) if r["record_type"] == "guard_event"]
+    assert reasons == ["watch_open_failed"]

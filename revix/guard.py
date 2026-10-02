@@ -21,6 +21,13 @@ DIZAYN QOIDALARI (buzilmaydi):
   4. Repo'dagi eng sodda fayl. Bu yerda ayyorlik qilinmaydi.
   5. Hech qachon istisnodan yiqilmaydi: yozish xatolari yutiladi, asosiy tsikl
      har qanday istisnoni trip'ga aylantiradi.
+  6. HIMOYA BIR MARTALIK EMAS. Har trip o'ldiradi. Qoida 2 («birinchi start,
+     oxirgi stop») bitta guard jarayonini butun kampaniyaga qo'yadi, demak
+     «bir marta o'ldirish» = birinchi `aborted_guard` trial'idan keyin
+     qolgan 119 trial HIMOYASIZ. O'lchov: 08-guard-rekalibratsiya.md §17 --
+     350 s da 1 kill, 3256 `already_tripped`, keyin pressure `avg10 95.73`
+     ga chiqdi va BIRORTA kill bo'lmadi. Throttling faqat YOZUVGA tegishli,
+     kill'ga HECH QACHON.
 
 PRIVILEGIYA CHEKLOVI (halol bayon): guard'ning o'zini oomd/OOM killer'dan
 himoya qilish uchun oom_score_adj ni PASAYTIRISH kerak, bu esa privilegiya
@@ -94,6 +101,20 @@ POLL_HZ = 10.0  # `total` namunasi
 AVG_CHECK_HZ = 1.0  # avgN tekshiruvi (avgN 2 s kadensda yangilanadi)
 RATE_WINDOW_US = 2_000_000  # PSI kvantlash sababli <2 s oyna ma'nosiz
 
+# Bir xil (sabab, kill natijasi) juftligi uchun yozuvlar orasidagi eng kichik
+# interval. YOZUVGA tegishli, KILL'ga EMAS.
+#
+# NEGA KERAK: 08 §17 o'lchovi -- 350 s da 3256 ortiqcha yozuv, 1.67 MiB;
+# 2.5 soatlik kampaniyada ~84 000 yozuv va ~43 MiB bo'lardi va
+# 04-driver-va-analiz-shartnomasi.md stream'lariga qo'shilardi.
+#
+# NEGA 10 s: yozuv soni endi KONSTRUKSIYA bo'yicha chegaralangan --
+# har juftlik uchun ko'pi bilan `1 + elapsed/interval`. 10 Hz poll bilan
+# 2.5 soatlik kampaniya bitta sabab uchun ~900 yozuv beradi (90 000 emas).
+# Bosilgan yozuvlar soni keyingi yozuvda `suppressed_records` da olib
+# o'tiladi, demak hech narsa YO'QOLMAYDI -- faqat siqiladi.
+TRIP_RECORD_INTERVAL_S = 10.0
+
 
 class Guard:
     def __init__(
@@ -113,6 +134,19 @@ class Guard:
         self.th = thresholds
         self.tripped = False
         self._stop = False
+        # Yozuv throttle holati, KALIT = (sabab, kill natijasi).
+        #
+        # NEGA KALITDA SABAB BOR: throttle boshqa SABAB bilan sodir bo'lgan
+        # haqiqiy ikkinchi trip'ni yashirmasligi kerak (08 §17: birinchi
+        # kill'dan keyin `user_full_avg10_runaway` va `user_some_avg10_runaway`
+        # ham qayd etilgan). Yangi sabab -- yangi kalit, demak u DOIM darhol
+        # yoziladi, throttle oynasidan qat'i nazar.
+        #
+        # NEGA KALITDA `kill_ok` HAM BOR: kill natijasining True -> False
+        # o'zgarishi mustaqil hodisa (cgroup yo'qoldi yoki yozish xato
+        # berdi). U ham yashirilmasligi kerak, aks holda himoyaning
+        # buzilishi throttle ostida jim qolardi.
+        self._trip_records: dict[tuple[str, bool | None], dict[str, float]] = {}
         # `total` tarixining halqasi: (mono_us, full_total)
         self._hist: list[tuple[int, int]] = []
         self._oom_kill_baseline = cg.vmstat().get("oom_kill", 0)
@@ -137,24 +171,76 @@ class Guard:
     def trip(self, reason: str, detail: dict) -> None:
         """Eksperiment subtree'sini o'ldiradi va hodisani qayd etadi.
 
-        Idempotent: takroriy trip qayd etiladi, lekin kill qayta urinilmaydi
-        (subtree allaqachon o'lgan).
+        HAR TRIP O'LDIRADI -- `self.tripped` kill'ni BOSHQARMAYDI.
+
+        NEGA (08 §17 o'lchovi): avval `first = not self.tripped` edi va
+        `tripped` hech qachon tiklanmasdi, demak `cgroup.kill` bitta guard
+        jarayoniga BIR MARTA tushardi. O'lchangan: 350 s / 4 epizod -> 1 kill,
+        3256 `already_tripped`; keyingi epizodlarda pressure `full avg10`
+        95.73 ga chiqdi va kill BO'LMADI. Mustaqil takrorlash: 235 s / 3
+        epizod -> 1 kill, 1941 `already_tripped`.
+        `00-pilot-topologiya.md` §3.1(b) va `SECURITY.md` §2(b) bitta guard
+        jarayonini butun 120-trial kampaniyasiga qo'yadi, demak bu birinchi
+        `aborted_guard` trial'idan keyin qolgan 119 trial'ni himoyasiz
+        qoldirardi -- aynan himoya eng kerak paytda, chunki guard'ni trip
+        qilgan trial doza chegaraga YAQIN ekanini bildiradi.
+
+        NEGA TAKROR KILL, NEGA `tripped` TIKLANMAYDI: `tripped` ni tiklash
+        «yaxshi aniqlangan chegara» talab qiladi va yagona mazmunli chegara --
+        trial chegarasi. Lekin guard'ning 1-dizayn qoidasi (va
+        `SECURITY.md` §2(b)1) guard'ning driver'ga HECH QANDAY bog'liqligi
+        bo'lmasligini talab qiladi: «qotib qolgan driver guard'ni o'chira
+        olmasligi kerak». Trial chegarasini guard'ga bildirish aynan shu
+        driver -> guard bog'liqligini yaratardi, ya'ni qotib qolgan driver
+        guard'ni abadiy «tripped» holatda ushlab turib himoyani o'chirardi.
+        Shuning uchun: kill HAR trip'da takrorlanadi (`cgroup.kill` idempotent
+        va arzon -- bitta `write(..., "1")`), `tripped` esa faqat KAMPANIYA
+        darajasidagi «kamida bir marta trip bo'ldi» faktini saqlaydi va
+        `guard_stop`, chiqish kodi va trip faylida shu ma'noda ishlatiladi.
+
+        `trip_file` esa faqat BIRINCHI sabab bilan yoziladi: u trial'ning
+        disposition sababi (`PREREGISTRATION.md` §12), ya'ni epizodni
+        BOSHLAGAN sabab, keyin kelgani emas.
         """
         first = not self.tripped
         self.tripped = True
-        killed = None
-        if first:
-            killed = cg.kill_subtree(self.lab_cgroup)
-        self._emit(
-            "guard_event",
-            {
-                "reason": reason,
-                "detail": detail,
-                "action": "kill_subtree" if first else "already_tripped",
-                "lab_cgroup": self.lab_cgroup,
-                "kill_ok": killed,
-            },
-        )
+        # KILL THROTTLE QILINMAYDI. Throttling himoyaga tegsa, bu defekt
+        # qaytib kelardi.
+        killed = cg.kill_subtree(self.lab_cgroup)
+
+        key = (reason, killed)
+        st = self._trip_records.get(key)
+        now = time.monotonic()
+        if st is None:
+            # Yangi (sabab, kill natijasi) -- DOIM yoziladi.
+            st = {"count": 0.0, "suppressed": 0.0, "last_emit": now}
+            self._trip_records[key] = st
+            emit = True
+        else:
+            emit = (now - st["last_emit"]) >= TRIP_RECORD_INTERVAL_S
+        st["count"] += 1.0
+
+        if emit:
+            self._emit(
+                "guard_event",
+                {
+                    "reason": reason,
+                    "detail": detail,
+                    "action": "kill_subtree",
+                    "lab_cgroup": self.lab_cgroup,
+                    "kill_ok": killed,
+                    # Shu kalit bo'yicha nechanchi trip, va oxirgi yozuvdan
+                    # keyin nechta yozuv bosilgan. Bosilgan yozuv YO'QOLMAYDI:
+                    # soni shu yerda olib o'tiladi.
+                    "trip_index": int(st["count"]),
+                    "suppressed_records": int(st["suppressed"]),
+                },
+            )
+            st["last_emit"] = now
+            st["suppressed"] = 0.0
+        else:
+            st["suppressed"] += 1.0
+
         if first and self.trip_file:
             try:
                 with open(self.trip_file, "w") as fh:
@@ -164,7 +250,22 @@ class Guard:
             except OSError:
                 pass
         # Guard TO'XTAMAYDI: keyingi buzilishlarni ham kuzatishda davom etadi,
-        # chunki kill'dan keyin ham qoldiq pressure bo'lishi mumkin.
+        # chunki kill'dan keyin ham qoldiq pressure bo'lishi mumkin -- va endi
+        # keyingi buzilishni faqat KUZATMAYDI, O'LDIRADI ham.
+
+    def trip_summary(self) -> list[dict]:
+        """Har (sabab, kill natijasi) juftligi bo'yicha trip hisobi.
+
+        NEGA: throttle oxirgi yozuvdan keyin yana yozuvlar bosgan bo'lishi
+        mumkin. `guard_stop` da shu xulosa berilsa, bitta epizod ham JIM
+        qolmaydi -- yozuvlar siqiladi, lekin soni hamisha qayd etiladi.
+        """
+        out = []
+        for (reason, killed), st in self._trip_records.items():
+            out.append({"reason": reason, "kill_ok": killed,
+                        "trips": int(st["count"]),
+                        "suppressed_records": int(st["suppressed"])})
+        return out
 
     # --- tekshiruvlar ---
     def check_psi(self, psi_file: cg.PsiFile, check_avg: bool) -> None:
@@ -329,7 +430,10 @@ class Guard:
             psi_file.close()
             self._emit("guard_stop", {"tripped": self.tripped,
                                       "iterations": i,
-                                      "elapsed_s": time.monotonic() - start})
+                                      "elapsed_s": time.monotonic() - start,
+                                      # Throttle bosgan yozuvlar shu yerda
+                                      # yopiladi -- hodisa jim qolmaydi.
+                                      "trip_summary": self.trip_summary()})
             self.writer.flush()
         return 1 if self.tripped else 0
 

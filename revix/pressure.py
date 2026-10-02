@@ -15,9 +15,46 @@ XAVFSIZLIK (buzilmaydi):
   * `MemorySwapMax=0` -- 5.5 GiB swap to'lib host-wide IO yaratishini oldini oladi.
   * Ichki `--max-seconds` qattiq chegara + systemd `RuntimeMaxSec=`. IKKI
     mustaqil chegara, chunki generator trial'dan uzoq yashamasligi KERAK.
+    Ikkisi ham SAQLANADI; farq shundaki endi ikkisi ham MAJBURLANADIGAN
+    bo'ldi, tavsiyaviy emas -- pastdagi EPIZOD CHEGARASI ga qarang.
   * `oom_score_adj = 1000` -- kernel global OOM killer boshqa hech narsani emas,
     AVVAL generatorni tanlaydi. (Oshirish privilegiyasiz mumkin; pasaytirish yo'q.)
   * Guard mustaqil ishlaydi va bu jarayonni istalgan paytda o'ldirishi mumkin.
+
+EPIZOD CHEGARASI -- `--max-seconds` nega endi haqiqiy chegara:
+  O'LCHOV (08-guard-rekalibratsiya.md §5): `--max-seconds 5` +
+  `RuntimeMaxSec=7s` bilan epizod `sustain_rate_threshold = 0.35` dan yuqorida
+  **16.3 s** turdi (run C5); epizodni to'xtatgan yagona narsa guard'ning
+  `cgroup.kill` i bo'ldi. `RuntimeMaxSec=` SIGTERM yubordi, lekin jarayon 10 s
+  keyin SIGKILL bilan o'ldi. Shu bilan `TESTING.md` §3 ning «ikki vaqt
+  chegarasi guard'ga TAYANMAYDI» da'vosi bu mashinada rad etildi va
+  `SECURITY.md` §2 ning qatlamli himoyasi bitta qatlamga tushdi.
+
+  SABAB (§5, kod o'qishidan -- mexanizm o'lchanmadi): `--max-seconds` faqat
+  tsikl boshida tekshirilardi, ajratish ichida emas. `memory.high` dan oshganda
+  kernel ajratuvchi task'ni reclaim throttling bilan uxlatadi va bu uyqu
+  SIGTERM bilan uzilmaydi, demak ikki chegara ham faqat ajratishlar ORASIDA
+  tekshirilardi, bittasining ICHIDAGI vaqtni esa hech biri cheklamasdi.
+
+  YECHIM: cheklanmagan kutish `add()` chaqiruvida emas, uning ichidagi
+  SAHIFAGA TEGISH tsiklida. Shuning uchun `Deadline` har sahifaga tegishdan
+  OLDIN tekshiriladi (`Allocator._touch`), va deadline o'tgan bo'lsa tsikl
+  darhol uziladi. Sahifaga tegish -- bu mexanizmda bloklashi mumkin bo'lgan
+  YAGONA amal, demak endi bloklashi mumkin bo'lgan har bir amaldan oldin
+  deadline tekshiriladi. Bu `02` §3 ning dizayniga mos: blok hajmi impuls
+  kattaligini boshqaradigan knob bo'lib qoladi, chegara esa impuls ichida
+  majburlanadi -- ya'ni DOZA o'zgarmaydi.
+
+  QOLDIQ CHEKLANMAGAN OYNA -- halol bayon: bitta sahifaga tegish (bitta page
+  fault) boshlangandan keyin uni foydalanuvchi fazosidan uzish MUMKIN EMAS.
+  Reclaim throttling uyqusining uzunligi BU HUJJATDA O'LCHANMAGAN (§5:
+  «mexanizm o'lchanmadi»), demak epizod chegarasi
+  `max_seconds + bitta uzilmas page fault` bo'ladi. Bu avvalgi oyna
+  (bitta blokning MING sahifasi, 32 MiB uchun 8192 ta) o'rniga bitta
+  sahifa -- ya'ni ANCHA kichik, lekin qat'iy ma'noda hamon cheklanmagan.
+  Kichikroq cheklanmagan oyna ham cheklanmagan: bu kafolat emas, chegara.
+  Haqiqiy oshib ketish har epizodda `pressure_stop.overrun_s` da QAYD
+  ETILADI, demak u endi taxmin emas, o'lchov bo'ladi.
 
 PI CONTROLLER: nishon -- slice'ning `total=` dan olingan 2 s oynadagi stall
 ulushi (PREREGISTRATION.md §7: `total` asosiy o'lchov, avgN kechikadi).
@@ -39,6 +76,29 @@ from .schema import Emitter, JsonlWriter, mono_us, new_run_id
 
 PAGE = 4096
 RATE_WINDOW_US = 2_000_000
+
+
+class Deadline:
+    """Epizodning absolut monoton qattiq chegarasi.
+
+    NEGA ALOHIDA SINF: avvalgi kod `time.monotonic() - start >= max_seconds` ni
+    har tsiklda qayta yozardi va shu sababli chegarani UNUTISH oson edi --
+    aynan shunday bo'ldi: `run_pi` ning baza ramp tsikli chegarani umuman
+    tekshirmasdi. Bitta obyekt ajratishning eng ichki tsiklidan asosiy
+    tsiklgacha UZATILADI, demak chegarani tekshirmaydigan yo'l qolmaydi.
+    """
+
+    def __init__(self, seconds: float, start: float | None = None) -> None:
+        self.start = time.monotonic() if start is None else start
+        self.seconds = seconds
+        self.at = self.start + seconds
+
+    def expired(self) -> bool:
+        return time.monotonic() >= self.at
+
+    def remaining(self) -> float:
+        """Chegaragacha qolgan vaqt; o'tib ketgan bo'lsa 0.0."""
+        return max(0.0, self.at - time.monotonic())
 
 
 def set_oom_score_adj(value: int = 1000) -> int | None:
@@ -67,31 +127,70 @@ class Allocator:
         self.blocks: list[mmap.mmap] = []
         self.touched_bytes = 0
 
-    def add(self, size_bytes: int) -> None:
+    @staticmethod
+    def _touch(m: mmap.mmap, deadline: Deadline | None) -> int:
+        """`m` ning har sahifasiga tegadi; deadline o'tsa DARHOL uziladi.
+
+        NEGA HAR SAHIFADAN OLDIN: 08 §5 ga ko'ra bloklashi mumkin bo'lgan
+        yagona amal -- sahifaga tegish (page fault reclaim throttling ichiga
+        tushishi mumkin, va bu uyqu SIGTERM bilan uzilmaydi). Deadline
+        bloklashi mumkin bo'lgan har bir amaldan OLDIN tekshirilsa, tsikl
+        chegaradan keyin ko'pi bilan BITTA sahifa qo'shimcha ishlaydi.
+
+        QOLDIQ: allaqachon boshlangan page fault'ni uzish mumkin emas (modul
+        izohi, EPIZOD CHEGARASI). Shuning uchun bu chegara, kafolat emas.
+
+        Qaytaradi: tegilgan bayt (deadline uzsa, so'ralgandan kichik).
+        """
+        spent = 0
+        for off in range(0, len(m), PAGE):
+            if deadline is not None and deadline.expired():
+                break
+            m[off] = 1
+            spent += PAGE
+        return spent
+
+    def add(self, size_bytes: int, deadline: Deadline | None = None) -> int:
+        """Anonim blok ajratadi va unga tegadi. Qaytaradi: tegilgan bayt.
+
+        `touched_bytes` MAP QILINGAN hajmni hisoblaydi, tegilganini emas:
+        `cap_mb` va PI bazasi rezident nishon bo'lib qoladi va `churn()` ning
+        «net o'sish yo'q» invarianti o'zgarmaydi. Chala tegilgan blok faqat
+        deadline epizodni uzgan paytda, ya'ni allaqachon to'xtash yo'lida
+        bo'lganda paydo bo'ladi.
+        """
         m = mmap.mmap(-1, size_bytes)
         # Har sahifaga tegish: ajratish o'zi sahifa bermaydi, faqat tegish beradi.
-        for off in range(0, size_bytes, PAGE):
-            m[off] = 1
+        spent = self._touch(m, deadline)
         self.blocks.append(m)
         self.touched_bytes += size_bytes
+        return spent
 
-    def retouch(self, bytes_budget: int) -> None:
+    def retouch(self, bytes_budget: int, deadline: Deadline | None = None) -> None:
         """Mavjud bloklarga qayta tegib, ularni issiq ushlaydi.
 
         Reclaim qilingan sahifalarni qaytarib olishga majbur qiladi -- bu
         ajratishni to'xtatmasdan pressure'ni ushlab turish usuli.
+
+        NEGA DEADLINE SHU YERDA HAM: bu tsikl ham sahifaga tegadi, demak u ham
+        reclaim throttling ichida uxlashi mumkin. Avval uning yagona chegarasi
+        BAYT budjeti edi (08 §5: `run_ramp` shiftga yetgandan keyin aynan shu
+        yo'lda qoladi), vaqt chegarasi yo'q edi.
         """
         if not self.blocks:
             return
         spent = 0
         for m in self.blocks:
             for off in range(0, len(m), PAGE):
+                if deadline is not None and deadline.expired():
+                    return
                 m[off] = 1
                 spent += PAGE
                 if spent >= bytes_budget:
                     return
 
-    def churn(self, n_blocks: int, block_bytes: int) -> int:
+    def churn(self, n_blocks: int, block_bytes: int,
+              deadline: Deadline | None = None) -> int:
         """AJRAT, keyin eng eskisini BO'SHAT. Tartib muhim.
 
         NEGA BU TARTIB: pressure `memory.high` dan OSHGANDA paydo bo'ladi.
@@ -109,21 +208,32 @@ class Allocator:
         olmaydi, demak high dan uzluksiz oshish ~0.98 stall beradi va o'rta
         band yo'q. Impuls + duty cycle o'rta bandni qaytaradi.
 
+        DEADLINE: har blokdan OLDIN tekshiriladi va `add()` ichiga uzatiladi.
+        NEGA BLOK HAJMI BO'LINMAYDI: `02` §3 ga ko'ra blok hajmi bitta impuls
+        stall kattaligining knob'i, ya'ni DOZA parametri. Uni bo'lish dozani
+        o'zgartirardi (va `pop(0)` semantikasini buzardi). Shuning uchun
+        chegara blokni bo'lmasdan, blok ICHIDA -- sahifa granularligida --
+        majburlanadi. Doza o'zgarmaydi, chegara esa majburlanadigan bo'ladi.
+
         Qaytaradi: haqiqatan churn qilingan blok soni.
         """
         done = 0
         for _ in range(n_blocks):
+            if deadline is not None and deadline.expired():
+                return done
             try:
-                self.add(block_bytes)          # AVVAL ajratamiz -> high dan oshadi
+                # AVVAL ajratamiz -> high dan oshadi
+                self.add(block_bytes, deadline)
             except (MemoryError, OSError):
                 return done
             if len(self.blocks) > 1:           # KEYIN eng eskisini bo'shatamiz
                 old = self.blocks.pop(0)
+                old_bytes = len(old)
                 try:
                     old.close()
                 except (BufferError, ValueError):
                     pass
-                self.touched_bytes -= block_bytes
+                self.touched_bytes -= old_bytes
             done += 1
         return done
 
@@ -201,29 +311,34 @@ class PressureGenerator:
                                       "own_cgroup": cg.own_cgroup()})
         start = time.monotonic()
         period = interval_ms / 1000.0
-        next_deadline = time.monotonic()
+        # Epizodning qattiq chegarasi. Ajratishning ENG ICHKI tsikligacha
+        # uzatiladi -- 08 §5 ning sababi aynan shu yerda tugatiladi.
+        limit = Deadline(max_seconds, start)
+        next_tick = time.monotonic()
         try:
             while not self._stop:
-                if time.monotonic() - start >= max_seconds:
+                if limit.expired():
                     break
                 if self.alloc.touched_bytes < cap_mb * 1024 * 1024:
-                    self.alloc.add(chunk_mb * 1024 * 1024)
+                    self.alloc.add(chunk_mb * 1024 * 1024, limit)
                 else:
                     # Shiftga yetdik -- issiq ushlash uchun qayta tegamiz.
-                    self.alloc.retouch(chunk_mb * 1024 * 1024)
+                    self.alloc.retouch(chunk_mb * 1024 * 1024, limit)
                 rate, total = self.current_rate()
                 self._emit("pressure_sample", {"mode": "ramp",
                                                "touched_mb": self.alloc.touched_bytes // (1 << 20),
                                                "slice_full_rate2s": rate,
                                                "slice_full_total": total})
-                next_deadline += period
-                d = next_deadline - time.monotonic()
+                next_tick += period
+                d = next_tick - time.monotonic()
                 if d > 0:
-                    time.sleep(d)
+                    # NEGA min(): tik uyqusi chegaradan OSHIB ketmasligi kerak,
+                    # aks holda chegara uyqu uzunligicha kechikardi.
+                    time.sleep(min(d, limit.remaining()))
                 else:
-                    next_deadline = time.monotonic()
+                    next_tick = time.monotonic()
         finally:
-            self._finish(start)
+            self._finish(start, limit)
         return 0
 
     def run_pi(self, target_rate: float, max_seconds: float, cap_mb: int,
@@ -266,6 +381,12 @@ class PressureGenerator:
                                       "own_cgroup": cg.own_cgroup()})
         start = time.monotonic()
         period = interval_ms / 1000.0
+        # Bir xil chegara mexanizmi `run_ramp` bilan: NEGA ikkisida ham --
+        # 08 §5 `run_ramp` ni o'lchadi, lekin sabab (ajratish ichidagi
+        # throttling uyqusi) rejimdan mustaqil, va pilot aynan `pi` rejimida
+        # ishlaydi (§11). Faqat `run_ramp` tuzatilsa pilot yo'li
+        # tuzatilmagan qolardi.
+        limit = Deadline(max_seconds, start)
         integral = 0.0
         nxt = time.monotonic()
         try:
@@ -280,22 +401,30 @@ class PressureGenerator:
             # Baza endi memory.high dan past, demak ramp stall bermaydi.
             # Kichik pauza faqat PSI oynasi to'lishi uchun.
             ramp_pause = 0.05
+            # NEGA BU TSIKLDA HAM `limit`: avval bu tsikl chegarani UMUMAN
+            # tekshirmasdi -- `max_seconds` faqat quyidagi control tsiklida
+            # ko'rilardi. Baza ajratishi throttling'ga tushsa (02 §3: baza
+            # `memory.high` ga yaqin), epizod control tsikliga YETMASDAN ham
+            # chegaradan oshib ketardi. Bu 08 §5 ning ikkinchi, o'lchanmagan
+            # yo'li.
             while self.alloc.touched_bytes < base * (1 << 20) and not self._stop:
-                self.alloc.add(block)
+                if limit.expired():
+                    break
+                self.alloc.add(block, limit)
                 r, tot = self.current_rate()
                 self._emit("pressure_ramp",
                            {"touched_mb": self.alloc.touched_bytes // (1 << 20),
                             "target_base_mb": base,
                             "slice_full_rate2s": r, "slice_full_total": tot})
-                time.sleep(ramp_pause)
+                time.sleep(min(ramp_pause, limit.remaining()))
             while not self._stop:
-                if time.monotonic() - start >= max_seconds:
+                if limit.expired():
                     break
                 rate, total = self.current_rate()
                 churned = 0
                 if rate is None:
                     # 2 s oyna hali to'lmagan: o'rtacha churn bilan boshlaymiz.
-                    churned = self.alloc.churn(2, block)
+                    churned = self.alloc.churn(2, block, limit)
                     err = None
                 else:
                     err = target_rate - rate
@@ -303,7 +432,7 @@ class PressureGenerator:
                     effort = kp * err + ki * integral
                     n = int(max(0.0, effort))
                     if n > 0:
-                        churned = self.alloc.churn(n, block)
+                        churned = self.alloc.churn(n, block, limit)
                     # n == 0 bo'lsa: hech narsa ajratmaymiz -> stall tushadi.
                 self._emit("pressure_sample",
                            {"mode": "pi",
@@ -315,20 +444,37 @@ class PressureGenerator:
                 nxt += period
                 d = nxt - time.monotonic()
                 if d > 0:
-                    time.sleep(d)
+                    time.sleep(min(d, limit.remaining()))
                 else:
                     nxt = time.monotonic()
         finally:
-            self._finish(start)
+            self._finish(start, limit)
         return 0
 
-    def _finish(self, start: float) -> None:
+    def _finish(self, start: float, limit: Deadline | None = None) -> None:
+        """Epizodni yopadi va OSHIB KETISHNI qayd etadi.
+
+        NEGA `overrun_s`: 08 §5 ning oshib ketishi (5 s so'rov -> 16.3 s)
+        generator log'idan EMAS, keyin `psi.csv` dan qayta hisoblash bilan
+        topilgan -- generator o'z log tsiklini to'xtatgani uchun. Endi
+        chegaradan qancha oshganini epizodning O'ZI yozadi, demak qoldiq
+        cheklanmagan oyna (modul izohi) taxmin emas, o'lchov bo'ladi.
+        `None` = o'lchanmagan (chegara berilmagan), `0` = o'lchangan nol.
+        """
         mb = self.alloc.touched_bytes // (1 << 20)
         self.alloc.release_all()
         if self._psi is not None:
             self._psi.close()
+        elapsed = time.monotonic() - start
+        overrun: float | None = None
+        limit_s: float | None = None
+        if limit is not None:
+            limit_s = limit.seconds
+            overrun = max(0.0, elapsed - limit.seconds)
         self._emit("pressure_stop", {"touched_mb_at_stop": mb,
-                                     "elapsed_s": time.monotonic() - start})
+                                     "elapsed_s": elapsed,
+                                     "max_seconds": limit_s,
+                                     "overrun_s": overrun})
         if self.writer is not None:
             self.writer.flush()
 
