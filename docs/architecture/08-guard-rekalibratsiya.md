@@ -47,7 +47,7 @@ ham o'zgartirilmagan**; sozlash faqat uning o'z env o'zgaruvchilari orqali.
 | Mo'ljallangan doza (0.30 / 12 s) guard'ni trip qiladimi? | ❌ **trip QILMAYDI** — lekin skript default'lari bilan **doza 0.000** (§3.4) |
 | Pressure epizodi o'z vaqt chegaralarida to'xtaydimi? | ❌ **YO'Q** — 5 s so'ralgan epizod 16.3 s davom etdi (§5) |
 | `t_start` p90 — band `P0` | **0.0497 s** (n=30, toza) → §17 budjeti (0.8 s) **bajarildi**, 16× zaxira (§15.1) |
-| `t_start` p90 — pressure ostida | **4.8133 s** (n=8; 14 urinishdan **6 tasi umuman start bo'lmadi**) → budjetdan **6×** katta (§15.2) |
+| `t_start` p90 — pressure ostida | **5.4042 s** (toza, n=6) va **4.8133 s** (kontaminatsiyalangan, n=8) → budjetdan **6–7×** katta (§15.3, §15.4) |
 | `D_probe` proxy p50 — band `P0` | **0.500 s** (n=12) → `0.20 × mean` = **0.0967 s** = **0.97 × P** < 5P → §18 qarori **KERAK** (§16) |
 | Guard birinchi trip'dan keyin ham o'ldiradimi? | ❌ **YO'Q** — 350 s da 1 kill + 3256 `already_tripped` (§17) |
 | **Pressure gate** | ⚠️ **guard qismi O'TDI; pilot hozir ishga tushirilishi MUMKIN EMAS** (§14) |
@@ -814,6 +814,25 @@ $ python3 -c "import json; from revix import units; print(json.dumps(units.prefl
 `~/.config/systemd/user/` katalogi **umuman mavjud emas** — aynan
 `set-property --runtime` ishlatilgani uchun (`02` §6 bilan bir xil natija).
 
+Yakuniy takroriy tekshiruv, barcha `t_start`/`D_probe` fazalaridan **keyin**
+(2026-10-02T22:36:42Z, `boot_id=259ee83b-98b8-47bb-8bad-a6e958a2c39b`):
+
+```
+$ systemctl --user list-units 'revix*' --all --no-legend --plain      -> (bo'sh)
+$ systemctl --user list-units --state=failed --no-legend --plain      -> (bo'sh)
+$ find …/user@1000.service -maxdepth 3 -name 'revix*'                 -> (bo'sh)
+$ ls -d …/user@1000.service/*/        -> faqat app.slice/ va init.scope/
+$ find /run/user/1000/systemd/user.control -maxdepth 3  -> No such file or directory
+$ ls -R $HOME/.config/systemd/user                      -> No such file or directory
+$ ls /run/user/1000/systemd/transient                   -> No such file or directory
+$ ls /run/user/1000 | grep -i revix                     -> (none)  [SUT socket'lari]
+$ pgrep -af "revix|gc-sentinel|gc-watch|sut"            -> (none)
+$ units.preflight()  -> {"clean": true, "problems": [], "units": [],
+                         "cgroups": [], "stale_drop_ins": []}
+$ grep -w oom_kill /proc/vmstat                         -> oom_kill 0
+$ journalctl -b 0 | grep -Eic "oomd|out of memory|invoked oom"  -> 0
+```
+
 ### 7.4 🔴 FAKT — `guard-test.sh` ning o'z teardown'i `revixlab.slice` va `revixmon.slice` ni QOLDIRADI
 
 Skript teardown'idan **keyingi** holat (run 3 ning `collateral-after.txt`,
@@ -1126,11 +1145,13 @@ faqat doza nol bo'lgani uchun, va shuning uchun bu raqam pilotga
   jarayonini butun kampaniyaga mo'ljallaydi. Bu xavfsizlik xususiyatining
   buzilishi; tuzatish `guard.py` egasining qarori.
 - **OQ-11.** `PREREGISTRATION.md` §9.2 ning (i) «`TimeoutStartSec` oshib
-  ketdi» mexanizmi bu mashinada pressure ostida **44% chastotada** yuz
-  beradi (§15.2) va `driver.py` ning `TimeoutStartSec = 10 s` default'i
-  `t_start` ning o'lchangan p99 (9.86 s) ga **juda yaqin**. Demak arm A ning
-  o'zi pressure ostida `Result=timeout` beradi va bu VR ta'rifiga
-  to'g'ridan-to'g'ri ta'sir qiladi.
+  ketdi» mexanizmi: `driver.py` ning `TimeoutStartSec = 10 s` default'i
+  `t_start` ning pressure ostidagi o'lchangan p99 ga **juda yaqin**
+  (toza o'lchov 7.20 s, kontaminatsiyalangan 9.86 s), va
+  kontaminatsiyalangan o'lchovda urinishlarning **43%** i shu chegaradan
+  oshib ketdi (§15.2, §15.4). Demak arm A ning o'zi pressure ostida
+  `Result=timeout` beradi va bu VR ta'rifiga to'g'ridan-to'g'ri ta'sir
+  qiladi.
 - **OQ-12.** §11 ning fail-slow chegarasi `0.20 × RMST(P0)` da `RMST(P0)`
   **aynan qaysi kattalik**: `D_probe` ning o'zimi (men o'lchagan, §16 →
   chegara 0.097 s ≈ 1 × P, qaror kerak) yoki `W_stab` ni o'z ichiga olgan
@@ -1172,9 +1193,10 @@ ko'rsatilmagan (OQ-8).
 muzlatilgan-qiymat qarorining **zarurligini** aniqlaydi (§14.5).
 
 **Ogohlantirish (yangi, §4 bandi 1 ga):** `t_start` pressure ostida
-p90 = 4.81 s, ya'ni `t_up − t_inject ≤ 1 s` cheklovi **bajarilmaydi**, va
-14 urinishdan 6 tasi `TimeoutStartSec=10s` ichida umuman start bo'lmadi
-(§15.2, OQ-11).
+p90 = 5.40 s (toza) / 4.81 s (kontaminatsiyalangan), ya'ni
+`t_up − t_inject ≤ 1 s` cheklovi **bajarilmaydi**; kontaminatsiyalangan
+o'lchovda 14 urinishdan 6 tasi `TimeoutStartSec=10s` ichida umuman start
+bo'lmadi (§15.2–§15.4, OQ-11).
 
 ---
 
@@ -1260,7 +1282,7 @@ himoyaning (`SECURITY.md` §2) buzilishi.
 
 | qaror | hal qiluvchi o'lchov | natija |
 |---|---|---|
-| `preregistration/v1.6` §17.5 (`t_up` oynasi) | `t_start` p90 | `P0` da **0.0497 s** → qaror kerak emas; **pressure ostida 4.8133 s va 43% start muvaffaqiyatsizligi** → **qaror KERAK** (§15) |
+| `preregistration/v1.6` §17.5 (`t_up` oynasi) | `t_start` p90 | `P0` da **0.0497 s** → qaror kerak emas; **pressure ostida 5.4042 s (toza) / 4.8133 s (kontaminatsiyalangan)**, ikki mustaqil o'lchovda 0.8 s budjetidan 6–7× katta → **qaror KERAK** (§15) |
 | `preregistration/v1.7` §18.6 (fail-slow chegarasi) | `D_probe` `P0` | `0.20 × mean` = **0.0967 s** = **0.97 × P** < 5P → **qaror KERAK**, lekin OQ-12 ga bog'liq (§16) |
 
 Ikkinchi qaror uchun diqqat: men bergan raqam `D_probe` ning o'zidan
@@ -1381,16 +1403,8 @@ min 0.3174, p50 0.5306, max 0.9266 s.
 
 **CHEKLOV — bu o'lchov kontaminatsiyalangan.** Boshida begona agentning
 `pytest tests/unit/test_validate.py` va `pytest tests/integration` run'lari
-ishlayotgan edi (oxirida yo'q). Begona CPU yuki `t_start` ni **oshiradi**,
-demak raqamlar **yuqori chegara** sifatida o'qilishi kerak. Lekin:
-- 43% start muvaffaqiyatsizligi CPU yuki bilan tushuntirilmaydi — u
-  `TimeoutStartSec=10s` ning oshib ketishi va reclaim throttling natijasi;
-- o'sha **bir xil sessiyada** `P0` o'lchovi **toza** edi va 0.04 s berdi,
-  ya'ni ikki band orasidagi ~100× farq kontaminatsiyadan kelib chiqmaydi.
-
-**Toza qayta o'lchov tavsiya etiladi** va u bajarilmadi, sabab: koordinator
-guest'ni faqat keyinchalik tozaladi va men ustuvorlikni hujjatni commit
-qilishga berdim.
+ishlayotgan edi (oxirida yo'q). Shuning uchun o'lchov **toza scope'da
+qaytarildi** — §15.3.
 
 **CHEKLOV — epizod 1 dagi bitta muvaffaqiyatsizlik guard'ga tegishli.**
 Guard shu run'da **bir marta** `kill_subtree` qildi (mono 174649189,
@@ -1403,12 +1417,80 @@ PRESS2\|4, PRESS3\|3, PRESS3\|4, PRESS4\|2) guard'ning hech qanday kill'i
 bo'lmagan paytda yuz berdi (§17 — guard birinchi trip'dan keyin boshqa
 o'ldirmaydi), demak ular **sof pressure natijasi**.
 
-### 15.3 Qisqa javob
+### 15.3 FAKT — pressure ostida, TOZA scope'da qayta o'lchandi, n = 7
+
+```
+boot_id (ikki chekkada ham) : 64dbf015-d854-4e93-b8de-cd6bfb39ecee
+pid1_starttime_ticks        : 4368 -> 4368        (o'zgarmadi)
+uptime                      : 46.30 -> 282.14 s
+interference                : [] -> []            (yo'q, ikki chekkada ham)
+vmstat oom_kill             : 0 -> 0
+lab memory.swap.current     : 0 (har o'qishda)
+guard                       : 1 kill_subtree (mono 52364545,
+                              user_full_rate2s_runaway rate=0.9828095988906408,
+                              window_us=2099951, kill_ok=true)
+qoldiq                      : units=[] cgroups=[]
+```
+
+3 epizod × 3 start, tasniflash qoidasi §15.2 bilan bir xil.
+
+| tag | rc | holat | `t_start` (s) | pre `full total=` | pre `avg10` | pressured? |
+|---|---|---|---|---|---|---|
+| PRESS1\|1 | 1 | **inactive/dead** | **START BO'LMADI** | 2207121 | 21.57 | ha |
+| PRESS1\|2 | 0 | active | 0.0471 | 4084567 | 35.42 | **yo'q** |
+| PRESS1\|3 | 0 | active | 0.0322 | 4084567 | 35.42 | **yo'q** |
+| PRESS2\|1 | 0 | active | **1.6721** | 6288685 | 33.98 | ha |
+| PRESS2\|2 | 0 | active | **2.8308** | 8070170 | 42.50 | ha |
+| PRESS2\|3 | 0 | active | **7.1958** | 11120959 | 51.28 | ha |
+| PRESS3\|1 | 0 | active | **2.1171** | 101245591 | 47.82 | ha |
+| PRESS3\|2 | 0 | active | **4.8192** | 103542297 | 56.73 | ha |
+| PRESS3\|3 | 0 | active | **5.4042** | 107980162 | 70.02 | ha |
+
+| to'plam | urinish | start bo'ldi | start bo'lmadi | min | **p50** | **p90** | **p99** | max | `≤0.8 s` |
+|---|---|---|---|---|---|---|---|---|---|
+| **PRESSURED (toza)** | **7** | 6 | **1 (14%)** | 1.6721 | **2.8308** | **5.4042** | **7.1958** | 7.1958 | **0/6** |
+| UNPRESSURED (kill'dan keyin) | 2 | 2 | 0 | 0.0322 | 0.0322 | 0.0471 | 0.0471 | 0.0471 | 2/2 |
+
+Yagona muvaffaqiyatsizlik (PRESS1\|1) guard'ning kill oynasiga to'g'ri
+keladi (kill mono 52364545, PRESS1\|1 shu paytda ishlayotgan edi), demak
+**u ham pressure'ga emas, guard'ga tegishli**. Ya'ni toza o'lchovda
+**pressure'ning o'zi sababli birorta start muvaffaqiyatsizligi yo'q**.
+
+### 15.4 Kontaminatsiyalangan va toza o'qish, yonma-yon
+
+| o'lchov | kontaminatsiyalangan (§15.2) | **toza (§15.3)** |
+|---|---|---|
+| pressured urinish | 14 | 7 |
+| `t_start` p50 | 3.6492 s | **2.8308 s** |
+| `t_start` p90 | 4.8133 s | **5.4042 s** |
+| `t_start` p99 | 9.8586 s | **7.1958 s** |
+| `≤ 0.8 s` | 0/8 | **0/6** |
+| start muvaffaqiyatsizligi | **6/14 (43%)** | **1/7 (14%), va u guard'ga tegishli** |
+
+**TALQIN.** Kontaminatsiya `t_start` ning markaziy qiymatlarini kuchli
+o'zgartirmadi (p90 4.81 → 5.40 s, ya'ni toza o'lchov biroz **kattaroq**),
+lekin **start muvaffaqiyatsizligi chastotasini keskin oshirdi** (43% → 14%,
+va toza holatda qolgan yagona holat ham guard kill'i). Demak:
+- `t_start` ning pressure ostidagi kattaligi **haqiqiy** va kontaminatsiyadan
+  kelib chiqmaydi — ikki mustaqil o'lchovda p90 = 4.8 va 5.4 s;
+- `TimeoutStartSec=10s` ning oshib ketishi esa **kontaminatsiyaga sezgir**:
+  toza guest'da bu o'lchovda yuz bermadi, lekin p99 = 7.20 s chegaraga
+  (10 s) juda yaqin, demak band desktop'da yoki kampaniya yuki ostida u
+  **yuzaga keladi** (OQ-11).
+
+### 15.5 Qisqa javob
 
 | band | n | p50 | **p90** | p99 | `p90 ≤ 0.8 s`? | §17 qarori kerakmi? |
 |---|---|---|---|---|---|---|
 | `P0` (toza) | 30 | 0.0394 | **0.0497** | 0.0643 | ✅ **HA** | **yo'q** |
+| pressured (**toza**) | 6 (+1 guard kill) | 2.8308 | **5.4042** | 7.1958 | ❌ **YO'Q** | **HA, KERAK** |
 | pressured (kontaminatsiyalangan) | 8 (+6 start bo'lmadi) | 3.6492 | **4.8133** | 9.8586 | ❌ **YO'Q** | **HA, KERAK** |
+
+**CHEKLOV:** pressured bandda n kichik (6 va 8) va bu **nazoratlangan doza
+emas** — `MODE=ramp` to'yinishga chiqadi, `lab full avg10` start paytida
+33.98–70.02 oralig'ida edi. P1/P2 bandlarida nazoratlangan doza bilan
+`t_start` ning taqsimoti **o'lchanmadi**, sabab: doza hali kalibrlanmagan
+(§3.4) va bu `experiment/pressure-cal` ning vazifasi.
 
 ---
 
@@ -1523,6 +1605,14 @@ Yagona haqiqiy kill: mono 174649189, `user_full_rate2s_runaway`,
 `rate=0.9805152380952381`, `kill_ok=True`. Shundan keyin 2, 3 va 4-epizodlarda
 pressure `full avg10` 95.73 ga chiqdi (`user_full_avg10_runaway` va
 `user_some_avg10_runaway` ham qayd etildi), lekin **birorta kill bo'lmadi**.
+
+Mustaqil takrorlash (§15.3 ning toza run'i, 235 s, 3 epizod):
+
+```
+guard_event total=1942   kill_subtree=1   already_tripped=1941
+guard.jsonl: 1043517 bayt
+guard_stop: tripped=true iterations=2355 elapsed_s=235.50028684700004
+```
 
 **TALQIN — sabab kodda ochiq:** `Guard.trip()` da
 
