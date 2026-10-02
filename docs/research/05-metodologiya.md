@@ -13,7 +13,7 @@
 
 | Daraja | Nima | Pre-registration | Holat |
 |---|---|---|---|
-| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.4` ✅ | rejalashtirilgan |
+| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.5` ✅ | rejalashtirilgan |
 | **CAL — kalibratsiya** | har `(fault × action)` uchun `P̂(VR)` → `Repairs()` matritsasi | kerak | P1 dan keyin |
 | **P2 — confirmatory** | to'liq fault taksonomiyasi × arm A/B/C × pressure × pulse duration | kerak, P1 effect size'idan `n` hisoblanadi | CAL dan keyin |
 
@@ -75,6 +75,17 @@ uni chegirib tashlar edi.
 
 Busiz `harm_indicator` (FR-B) talqin qilinmaydi va "restart PSI ni oshirdi" ni
 "fault PSI ni oshirdi" dan ajratib bo'lmaydi.
+
+> **`no_action` — nazorat, trend yacheykasi EMAS** (`PREREGISTRATION.md` §16.2).
+> §10.1 ning birlamchi Cochran–Armitage trend testi **arm `A` ichida**
+> hisoblanadi. `no_action` trial'lari §6.2 bo'yicha KM/log-rank ga, loop-rate ga
+> va har jadvalning `recovered within T_trial: k/n` qatoriga **kiradi** —
+> tashlanmaydi. Ular `P(VR)` trendiga yacheyka bermaydi, chunki `Restart=no`
+> da `P(VR) = 0` uchala pressure darajasida, konstruksiya bo'yicha.
+>
+> Yuqoridagi jadvalning **ikkinchi qatori** ("injeksiya yo'q, pressure bor")
+> `PREREGISTRATION.md` §9.3 ning 120-trial panjarasida **yo'q** — bu ochiq
+> masala §16.9 da qayd etilgan.
 
 Action'ning PSI hissasi — mos keladigan pressure'da **difference-in-differences**.
 
