@@ -13,7 +13,7 @@
 
 | Daraja | Nima | Pre-registration | Holat |
 |---|---|---|---|
-| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.3` ✅ | rejalashtirilgan |
+| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.4` ✅ | rejalashtirilgan |
 | **CAL — kalibratsiya** | har `(fault × action)` uchun `P̂(VR)` → `Repairs()` matritsasi | kerak | P1 dan keyin |
 | **P2 — confirmatory** | to'liq fault taksonomiyasi × arm A/B/C × pressure × pulse duration | kerak, P1 effect size'idan `n` hisoblanadi | CAL dan keyin |
 
@@ -141,7 +141,13 @@ Har trial uchun: VR (throughput bandi bilan), `D_probe`, `D_eff`, `D_sd`,
 `oom_kill` delta'lari, bystander contract trace'i, guard trace'i, per-CPU chastota +
 termallar, host `MemAvailable`, blok indeksi, RNG seed, disposition.
 
-To'liq schema: `PREREGISTRATION.md` §7–8 va `revix/schema.py`.
+To'liq schema: `PREREGISTRATION.md` **§14** va `revix/schema.py`.
+
+> **Havola tuzatildi (2026-10-02).** Bu qator ilgari "§7–8" ga ko'rsatardi;
+> §7 — *Pressure o'lchovi*, §8 — *Confound nazorati*. Data schema **§14** da,
+> va u aynan shunday noto'g'ri havolani tuzatish uchun **v1.2 amendment**
+> bilan qo'shilgan. Bu fayl non-normativ, shuning uchun bu tuzatish
+> amendment emas — **hujjat tuzatishi**.
 
 ---
 
