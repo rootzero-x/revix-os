@@ -13,7 +13,7 @@
 
 | Daraja | Nima | Pre-registration | Holat |
 |---|---|---|---|
-| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.7` ⚠️ | **bloklangan** — `PREREGISTRATION.md` §17.5 va §18.6 ochiq qarorlari |
+| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.8` ⚠️ | **bloklangan** — `PREREGISTRATION.md` §17.5 va §18.6 ochiq qarorlari (§19.3 bo'yicha **birgalikda**) |
 | **CAL — kalibratsiya** | har `(fault × action)` uchun `P̂(VR)` → `Repairs()` matritsasi | kerak | P1 dan keyin |
 | **P2 — confirmatory** | to'liq fault taksonomiyasi × arm A/B/C × pressure × pulse duration | kerak, P1 effect size'idan `n` hisoblanadi | CAL dan keyin |
 
@@ -162,7 +162,13 @@ To'liq schema: `PREREGISTRATION.md` **§14** va `revix/schema.py`.
 > sanaydi, lekin `PREREGISTRATION.md` §10.2/§11 ning survival endpoint'i
 > (*"time-to-VR"*) ularning **birortasiga ham ochiq bog'lanmagan**. Bu
 > ochiq bo'shliq §18.8 da qayd etilgan va §11 ning fail-slow limbining
-> ishlashiga ta'sir qiladi (§18.4).
+> ishlashiga ta'sir qiladi (§18.4, §19.3).
+>
+> **Va bir taqsimot muhim:** binar endpoint (`P(VR)`) **contract'ni
+> buzmagan** degradatsiyaga **ko'r** — 30% throughput'da ham epizod
+> yaratilmaydi, demak §4 ning predikati instansiyalanmaydi. `D_eff`
+> esa uni **hisoblaydi** (§6.1), va shu sababli §11(b) qo'shimcha emas,
+> **mustaqil zarur** mezon. To'liq bayon: §20.5.
 
 > **Havola tuzatildi (2026-10-02).** Bu qator ilgari "§7–8" ga ko'rsatardi;
 > §7 — *Pressure o'lchovi*, §8 — *Confound nazorati*. Data schema **§14** da,
