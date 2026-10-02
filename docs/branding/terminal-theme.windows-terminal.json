@@ -1,0 +1,25 @@
+{
+  "name": "REVIX",
+  "background": "#080808",
+  "foreground": "#D4D4D4",
+  "cursorColor": "#FFFFFF",
+  "selectionBackground": "#444444",
+
+  "black": "#444444",
+  "red": "#E53935",
+  "green": "#22C55E",
+  "yellow": "#888888",
+  "blue": "#888888",
+  "purple": "#888888",
+  "cyan": "#888888",
+  "white": "#D4D4D4",
+
+  "brightBlack": "#888888",
+  "brightRed": "#FF3B30",
+  "brightGreen": "#00C853",
+  "brightYellow": "#D4D4D4",
+  "brightBlue": "#D4D4D4",
+  "brightPurple": "#D4D4D4",
+  "brightCyan": "#D4D4D4",
+  "brightWhite": "#FFFFFF"
+}

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  REVIX boot screen: KONSEPT (boot-screen.md ga qarang). Terminal oynasi ko'rinishidagi 2 kadr.
+  Kadr 1: ishga tushgan zahoti. Hech narsa tekshirilmagan, shuning uchun HAMMA qator "n/r".
+  Kadr 2: `revix doctor` dan keyin. Raqamlar ILLUSTRATIV: README.md "O'lchangan holat"
+  bloki (2026-10-02, shu mashina) dan ko'chirilgan, jonli o'lchov emas.
+  Animatsiya YO'Q: kadrlar yonma-yon, kadr o'tishi faqat holat o'zgarishi.
+  Font tizim monospace; ustunlar x koordinatasi bilan tekislangan (probel bilan emas).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="584" viewBox="0 0 800 584" font-family="ui-monospace, 'Cascadia Mono', 'DejaVu Sans Mono', Consolas, monospace" font-size="14">
+<rect width="800" height="584" fill="#0F0F0F"/>
+<text x="24" y="34" fill="#888888" font-size="12" letter-spacing="0.96">1. ISHGA TUSHGANDA: hech narsa tekshirilmagan</text>
+<rect x="24" y="46" width="752" height="206" fill="#080808" stroke="#444444" stroke-width="1"/>
+<text x="48" y="78" fill="#FFFFFF" font-weight="600" letter-spacing="2">REVIX</text><text x="116" y="78" fill="#888888">0.1.0-dev</text>
+<text x="48" y="100" fill="#D4D4D4">Linux service recovery o'lchov asbobi</text>
+<text x="48" y="130" fill="#D4D4D4">muhit</text>
+<text x="190" y="130" fill="#888888">[ n/r ]</text>
+<text x="270" y="130" fill="#888888">`revix doctor` hali ishga tushirilmagan</text>
+<text x="48" y="152" fill="#D4D4D4">guard</text>
+<text x="190" y="152" fill="#888888">[ n/r ]</text>
+<text x="270" y="152" fill="#888888">guard hali ishga tushirilmagan</text>
+<text x="48" y="174" fill="#D4D4D4">eksperiment</text>
+<text x="190" y="174" fill="#888888">[ n/r ]</text>
+<text x="270" y="174" fill="#888888">hech qanday eksperiment ishga tushirilmagan</text>
+<text x="48" y="196" fill="#D4D4D4">natija</text>
+<text x="190" y="196" fill="#888888">[ n/r ]</text>
+<text x="270" y="196" fill="#888888">hech qanday natija yo'q</text>
+<text x="48" y="226" fill="#888888">keyingi qadam: revix doctor</text>
+<text x="24" y="292" fill="#888888" font-size="12" letter-spacing="0.96">2. `revix doctor` DAN KEYIN (ILLUSTRATIV: raqamlar README.md dan, jonli emas)</text>
+<rect x="24" y="304" width="752" height="250" fill="#080808" stroke="#444444" stroke-width="1"/>
+<text x="48" y="336" fill="#FFFFFF" font-weight="600" letter-spacing="2">REVIX</text><text x="116" y="336" fill="#888888">0.1.0-dev</text>
+<text x="48" y="358" fill="#D4D4D4">Linux service recovery o'lchov asbobi</text>
+<text x="48" y="388" fill="#D4D4D4">muhit</text>
+<text x="190" y="388" fill="#22C55E">[ OK ]</text>
+<text x="270" y="388" fill="#D4D4D4">15 PASS, 0 FAIL</text>
+<text x="48" y="410" fill="#D4D4D4">muhit</text>
+<text x="190" y="410" fill="#D4D4D4">[ /\ ]</text>
+<text x="270" y="410" fill="#D4D4D4">3 WARN</text>
+<text x="48" y="432" fill="#D4D4D4">cpufreq</text>
+<text x="190" y="432" fill="#888888">[ n/m ]</text>
+<text x="270" y="432" fill="#888888">sysfs interfeysi yo'q (reason: sysfs_absent)</text>
+<text x="48" y="454" fill="#D4D4D4">guard</text>
+<text x="190" y="454" fill="#888888">[ n/r ]</text>
+<text x="270" y="454" fill="#888888">guard hali ishga tushirilmagan</text>
+<text x="48" y="476" fill="#D4D4D4">eksperiment</text>
+<text x="190" y="476" fill="#888888">[ n/r ]</text>
+<text x="270" y="476" fill="#888888">hech qanday eksperiment ishga tushirilmagan</text>
+<text x="48" y="498" fill="#D4D4D4">natija</text>
+<text x="190" y="498" fill="#888888">[ n/r ]</text>
+<text x="270" y="498" fill="#888888">hech qanday natija yo'q</text>
+<text x="48" y="528" fill="#888888">3 WARN nomlari bu yerda ko'rsatilmagan: revix doctor chiqishida.</text>
+</svg>

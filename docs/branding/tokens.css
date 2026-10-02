@@ -1,0 +1,87 @@
+/*
+ * REVIX design tokens -- v1.0
+ * Manba: docs/branding/00-design-system.md (bu fayl o'sha hujjatning mashina o'qiydigan nusxasi;
+ * ikkalasi ziddiyatda bo'lsa, HUJJAT ustun va bu fayl tuzatiladi).
+ *
+ * Qoida: tokenlar MA'NO bo'yicha nomlanadi (--rx-ok, --rx-fail), rang bo'yicha emas
+ * (--rx-green). NEGA: "green" nomi dekorativ ishlatishni taklif qiladi; "ok" esa
+ * foydalanuvchini "nima uchun ok?" degan savolga majburlaydi.
+ *
+ * Bu faylda gradient YO'Q, soya YO'Q, animatsiya YO'Q -- bu ataylab (00-design-system.md §9).
+ */
+
+:root {
+  /* ---- Yuzalar (dark, asosiy) -------------------------------------------- */
+  --rx-bg-0: #080808;   /* canvas: sahifa / terminal foni */
+  --rx-bg-1: #0F0F0F;   /* panel */
+  --rx-bg-2: #151515;   /* ko'tarilgan: input, jadval qatori, hover */
+
+  /* ---- Neytrallar -------------------------------------------------------- */
+  --rx-fg-0: #FFFFFF;   /* urg'u: bosh qiymat, sarlavha, focus ring */
+  --rx-fg-1: #D4D4D4;   /* asosiy matn */
+  --rx-fg-2: #888888;   /* ikkilamchi matn, birlik, label; MA'NOLI chegara/outline */
+  --rx-line: #444444;   /* hairline, bezak. MATN EMAS. Ma'noli outline EMAS (2.06:1) */
+
+  /* ---- Signal (faqat ma'no; 00-design-system.md §5) ----------------------- */
+  --rx-fail:       #FF3B30;  /* failure: matn, glyph, outline  (5.65:1 / bg-0) */
+  --rx-fail-solid: #E53935;  /* failure: to'ldirilgan yuza; ustiga --rx-on-signal */
+  --rx-ok:         #22C55E;  /* verified: matn, glyph, outline (8.79:1 / bg-0) */
+  --rx-ok-solid:   #00C853;  /* verified: to'ldirilgan yuza;   ustiga --rx-on-signal */
+  --rx-on-signal:  #080808;  /* signal solid ustidagi matn. Oq (#FFF) EMAS: 4.23:1 / 2.24:1 */
+
+  /* ---- Yorug' sirt / chop etish (qo'shimcha; berilgan palitrada yo'q) ----- */
+  --rx-paper:       #FFFFFF;
+  --rx-ink:         #080808;  /* 20.03:1 */
+  --rx-ink-2:       #444444;  /* ikkilamchi matn qog'ozda: 9.74:1 (#888888 qog'ozda 3.54:1 -- YETARLI EMAS) */
+  --rx-fail-ink:    #A62926;  /* qog'ozda failure matni: 7.08:1 */
+  --rx-ok-ink:      #00672B;  /* qog'ozda verified matni: 7.06:1 */
+
+  /* ---- Holat belgilari (state-indicators.md) ------------------------------ */
+  --rx-state-neutral: var(--rx-fg-1);   /* recovering / degraded / isolated: rangsiz, faqat shakl */
+  --rx-state-unknown: var(--rx-fg-2);   /* not measured / not run */
+
+  /* ---- Tipografiya -------------------------------------------------------- */
+  /* Tashqi font YO'Q (CDN, @font-face yo'q): tizim fontlari. */
+  --rx-font-mono: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", Consolas, Menlo, monospace;
+  --rx-font-sans: system-ui, -apple-system, "Segoe UI", "DejaVu Sans", Arial, sans-serif;
+
+  --rx-text-label:   12px;  /* UPPERCASE label, birlik, caption */
+  --rx-text-body:    14px;  /* asosiy matn va jadval ma'lumoti */
+  --rx-text-lead:    16px;  /* bo'lim sarlavhasi */
+  --rx-text-title:   20px;  /* sahifa sarlavhasi */
+  --rx-text-figure:  28px;  /* asosiy raqam (KPI) */
+  --rx-text-display: 40px;  /* faqat boot screen / bo'sh holat */
+
+  --rx-leading-body: 1.5;
+  --rx-leading-tight: 1.2;
+  --rx-weight-regular: 400;
+  --rx-weight-strong: 600;           /* 700+ ISHLATILMAYDI */
+  --rx-tracking-label: 0.08em;       /* faqat UPPERCASE label uchun */
+  --rx-numeric: tabular-nums;        /* font-variant-numeric: har raqamli yuzada MAJBURIY */
+
+  /* ---- Spacing (4 px asos) ------------------------------------------------ */
+  --rx-space-1: 4px;
+  --rx-space-2: 8px;
+  --rx-space-3: 12px;
+  --rx-space-4: 16px;
+  --rx-space-5: 24px;
+  --rx-space-6: 32px;
+  --rx-space-7: 48px;
+  --rx-space-8: 64px;
+
+  /* ---- Shakl -------------------------------------------------------------- */
+  --rx-radius: 2px;        /* MAKSIMUM. pill / dumaloq tugma YO'Q */
+  --rx-border: 1px solid var(--rx-line);
+  --rx-border-strong: 1px solid var(--rx-fg-2);
+  --rx-focus: 2px solid var(--rx-fg-0);   /* offset 2px; rangli emas, glow emas */
+  --rx-row-height: 32px;
+
+  /* ---- "not measured" shtrixi (state-indicators.md §4) -------------------- */
+  /* Qattiq to'xtash nuqtalari: bu gradient EMAS, takrorlanuvchi chiziq naqshi. */
+  --rx-hatch: repeating-linear-gradient(45deg, var(--rx-fg-2) 0 1px, transparent 1px 4px);
+}
+
+/* Bu fayl ataylab prefers-color-scheme: light blokiga ega EMAS: asosiy yuza -- dark.
+   Yorug' sirt faqat chop etish / hujjat uchun (--rx-paper, --rx-ink, ...) va
+   komponent darajasida qo'lda tanlanadi. NEGA: avtomatik light mode qizil/yashil
+   kontrastni jimgina buzadi (yashil #00C853 oqda 2.24:1). */
