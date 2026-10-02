@@ -103,6 +103,7 @@ static _Atomic int g_latch_spin = 0;
 static _Atomic int g_latch_deadlock = 0;
 static _Atomic int g_latch_leak = 0;
 static _Atomic int g_fifo_armed = 0;
+static _Atomic int g_latch_fifo = 0;
 static char g_fifo_path[PATH_MAX];
 static double g_leak_rate_mb_s = 8.0;
 static unsigned long g_delay_ready_ms;     /* $REVIX_SUT_DELAY_READY_MS */
@@ -513,8 +514,17 @@ static void handle_fault(int *pfd, int argc, char **argv)
             return;
         }
         arm_and_ack(pfd, kind);
-        snprintf(g_fifo_path, sizeof g_fifo_path, "%s", path);
-        atomic_store(&g_fifo_armed, 1);     /* yo'l yozilgandan KEYIN */
+        /* NEGA: yo'l FAQAT latch'ni yutgan (birinchi) chaqiruvda yoziladi.
+         * Ilgari takroriy FAULT g_fifo_path ni ish thread'i open()/read()
+         * ichida o'qiyotgan paytda qayta yozardi -- ThreadSanitizer'ga ko'rinadigan
+         * data race. Endi yo'l thread'ga atomik g_fifo_armed orqali (release)
+         * e'lon qilinadi va keyin hech qachon o'zgarmaydi. Javob baribir
+         * `OK armed=block_fifo` (idempotentlik, yuqoridagi latch qoidasi bilan
+         * bir xil); protokol va fault semantikasi o'zgarmaydi. */
+        if (atomic_exchange(&g_latch_fifo, 1) == 0) {
+            snprintf(g_fifo_path, sizeof g_fifo_path, "%s", path);
+            atomic_store(&g_fifo_armed, 1);     /* yo'l yozilgandan KEYIN */
+        }
         return;
     }
 
@@ -530,9 +540,18 @@ static void handle_fault(int *pfd, int argc, char **argv)
             }
         }
         arm_and_ack(pfd, kind);
-        g_leak_rate_mb_s = rate;
-        if (atomic_exchange(&g_latch_leak, 1) == 0)
+        /* NEGA: tezlik FAQAT thread yaratilishidan OLDIN, latch'ni yutgan
+         * chaqiruvda yoziladi. leak_thread uni bir marta, boshlanishida
+         * o'qiydi; takroriy FAULT oldin buni thread ishlab turganda qayta
+         * yozardi -- ta'siri yo'q, lekin ThreadSanitizer'ga ko'rinadigan data
+         * race (o'lchov asbobida "ma'lum shovqin" bazasi qolmasin). pthread_create
+         * happens-before beradi, ya'ni qiymat thread'ga xavfsiz e'lon qilinadi.
+         * Xatti-harakat o'zgarmaydi: ilgari ham thread birinchi tezlikni
+         * ishlatardi. */
+        if (atomic_exchange(&g_latch_leak, 1) == 0) {
+            g_leak_rate_mb_s = rate;
             spawn_detached(leak_thread);
+        }
         return;
     }
 
