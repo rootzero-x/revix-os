@@ -2,11 +2,12 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.5` |
+| **Versiya** | `preregistration/v1.6` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) |
 | **Muhit** | Bu pre-registration **§15.1 va §16.11 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
+| **⚠️ Ochiq qaror** | **§17.5 — hal qilinmagan dizayn nuqsoni.** Birinchi pilot trial'idan OLDIN loyiha egasi qaror qabul qilishi shart. |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
@@ -18,6 +19,110 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.5 → v1.6 (2026-10-02)
+
+| | |
+|---|---|
+| **v1.5 sha256** | `5c0038976c861b334b5d721ae747db3aca54a0171ea8ef2c142af2667605f53b` |
+| **v1.5 git tag** | `v0.1.5-preregistration` |
+| **Sabab** | §16.8 ning ochiq savoli hal qilindi, va **§16.8 dagi ikki xato tuzatildi**; jarayonda **dizayn nuqsoni** aniqlandi |
+| **O'zgardi** | **§17 qo'shildi** (yangi bo'lim). Mavjud bo'limlar raqamlari va matni O'ZGARMADI |
+| **O'zgarMADI** | **hech bir operatsion ta'rif, metrika, chegara, statistik test yoki falsifikatsiya mezoni** — to'liq ro'yxat §17.9 da. **`W_stab_pilot`, `injection_offset`, `hold_cap_s` ATAYLAB o'zgartirilmadi** |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan, demak eski ta'riflar ostida qayta hisoblanishi kerak bo'lgan hech narsa yo'q |
+
+**O'z xatomni tuzatish (§17.1).** v1.5 §16.8 ikki narsani xato yozgan:
+
+1. *"Oyna pressure hold ichida bo'lishi SHARTmi — §4 buni aytmaydi."*
+   **Xato.** §4 ning parametr jadvali ochiq aytadi: `W_stab_pilot` —
+   *"sustained HOLD (≤12 s) **ichida sig'ishi kerak**"*, va §4 ning cheklov
+   izohi metrikaning ma'nosini belgilaydi: *"pressure davom etayotganda
+   tasdiqlangan recovery"*. Matn **jim emas** — men to'liq o'qimaganman.
+2. *"bias teskari yo'nalishda (yana H1 foydasiga)"*. **Ustun had
+   aksincha — H1 GA QARSHI.** §16.8 ikkita holatdan faqat kam
+   ehtimollisini ko'rgan.
+
+**NUQSON (§17.2) — muzlatilgan qiymatlardan olingan arifmetika:**
+
+§4 ning 1-bandi oynani **`t_up`** dan boshlaydi (*"oxirgi action'dan keyingi
+birinchi contract'dan o'tgan probe"*), v1.3 ning yarashtiruvchi arifmetikasi
+`3 + 8 = 11 ≤ 12` esa uni **`t_inject`** dan boshlanadi deb hisoblaydi —
+ya'ni jimgina **nol recovery vaqtini** nazarda tutadi. Haqiqiy shart:
+
+```
+t_up + W_stab_pilot <= t_h + hold_cap_s     =>  t_up - t_inject <= 1 s
+arm A:  RestartSec(0.1) + t_start + probe kvantlashi(<=0.1) <= 1 s
+                                            =>  t_start <= 0.8 s
+```
+
+→ **Muzlatilgan dizayn SUT'dan `P2` ostida ~0.8 s ichida ishga tushishni
+TALAB qiladi**, §9.2 esa mexanizm (i) *"`TimeoutStartSec` oshib ketdi"* va
+(iv) *"watchdog miss"* ni oldindan aytadi, ya'ni **sekin start'ni kutadi**;
+`driver.py` `TimeoutStartSec = 10 s` ni default qilgan — **oyna budjetidan
+12× katta**. Dizayn o'zi oldindan aytgan hodisa o'zining o'lchov oynasini
+buzadi.
+
+**Uch holat, ikki bias TESKARI yo'nalishda (§17.3):** (a) oyna
+pressure'dan chiqadi, horizon ichida — VR osonlashadi ⇒ `P(VR|P2)` oshadi ⇒
+**H1 ga qarshi**, va §11 ning qoidasi ostida **soxta FALSIFIKATSIYA**
+yaratishi mumkin; (b) oyna horizon'dan chiqadi — haqiqiy censoring
+`VR = false` deb yoziladi ⇒ **H1 foydasiga**. (a) `t_start > 0.8 s` da,
+(b) `t_start > ~14 s` da yuzaga keladi (`T_trial = 40.1 s` default'i
+bilan), demak **(a) ustun**.
+
+**HAL QILINGANI (§17.4):** oynasi hold ichida bo'lmagan trial §4 ning
+kattaligini **o'lchamagan**, demak `complete` + `VR = false` deb
+yozilmaydi va binar `P(VR)` maxrajiga muvaffaqiyatsizlik sifatida
+kiritilmaydi. Ikki yangi **`disposition_source`** qiymati —
+`window_past_pressure` va `window_past_horizon`; `disposition` ikkalasida
+`censored`. **§12 ning yopiq enum'iga tegilmadi** — bular `disposition`
+qiymatlari emas, va §16.2 ning `(disposition, disposition_source)`
+qoidasi ularni o'zgarmagan holda qamrab oladi. Ikkalasi §6.2 bo'yicha
+KM/log-rank ga kiradi; darajasi `(arm × pressure)` bo'yicha alohida
+beriladi, chunki **`P2` da to'plangan yuqori daraja o'zi NATIJA**.
+Validator sharti: har `complete` trial uchun
+`t_up + W_stab_pilot ≤ T_h` bajarilgan bo'lishi shart.
+
+**HAL QILINMAGANI, ATAYLAB (§17.5):** 17.4 bias'ning oldini oladi,
+**nuqsonni tuzatmaydi.** To'rt muzlatilgan qiymat birgalikda
+qanoatlantirilmaydi: `W_stab_pilot = 8 s` (§4), `injection_offset = 3 s`
+(§9.4), `hold_cap_s = 12 s` (§9.4 inv. 1), va oyna hold ichida bo'lishi
+sharti (§4). **Bu savolga javob berish muzlatilgan ta'rifga tegadi,
+shuning uchun men uni hal qilmayman** — qaror loyiha egasiga tegishli.
+O1–O4 variantlari va har birining narxi §17.5 da, **tanlov qilinmagan**.
+O3 (`hold_cap_s` ni oshirish) yagona variant hech bir ilmiy da'voni
+kuchsizlashtirmaydigan, lekin §15.3 uni shartnomaviy asosda saqlagan —
+ya'ni shartnomaviy va ilmiy asos **qarama-qarshi** ko'rsatadi.
+
+**Qaror uchun zarur, lekin MAVJUD BO'LMAGAN o'lchov:** har pressure
+bandida SUT start davomiyligi (`t_start`, `p50/p90/p99`). **Bu o'lchov
+bajarilmadi** — bu agent guest ichida hech narsa o'lchamadi. Agar
+`p90(t_start) ≤ 0.8 s` bo'lsa, nuqson amalda bezarar; aks holda O1–O4
+dan biri **birinchi pilot trial'idan oldin** tanlanishi shart.
+
+**Bias yo'nalishi ochiq e'lon qilinadi (§17.6):** 17.4 (a) va (b) ni
+ikkalasini chiqaradi, (a) ustun bo'lgani uchun **sof natija ehtimol H1
+foydasiga**. Buni bilib turib qabul qilaman, chunki alternativa —
+kuzatilmagan natijani kuzatilgan deb yozish — ikki yo'nalishda ham
+noto'g'ri, va qaror hech qanday ma'lumot mavjud bo'lmaganda ta'rif
+asosida qabul qilinadi. `t_start` o'lchangandan keyin (b) ustun bo'lsa
+ham **bu qaror o'zgarmaydi**.
+
+**§8.2 ning (ii) nazorati — endi DIZAYN NUQSONI deb ataladi (§17.7).**
+v1.5 §16.9 uni "ochiq savol" deb yozgan edi; aniqrog'i: §8.2 (ii)
+*"injeksiya yo'q, pressure bor"* nazoratini **majburiy** deb ataydi,
+§9.3 ning `3 × 2 × 20 = 120` panjarasi esa uni **o'z ichiga olmaydi**,
+demak dizayn o'zining e'lon qilingan talabini bajarmaydi. Oqibati §8.2
+ning so'zlari bilan: *"pressure'ning o'zi baseline"* i yo'q, demak PSI
+atributsiyasi **to'liq identifikatsiya qilinmaydi**. P1 ni **bloklamaydi**
+(FR-B P1 da hisoblanmaydi — §14.7), lekin atributsiya da'vosi chala
+bo'ladi va maqolada shunday yozilishi kerak. Yechim §9.3 ning trial
+soniga va §8.4 ning blok strukturasiga tegadi (uchinchi arm ⇒
+`3 × 3 × 20 = 180`), demak **loyiha egasining qarori.**
+
+**§14.4 ning "§7 tirik unit sharti" havolasi (§17.8)** v1.4 §15.6(2) dan
+beri ochiq. Tavsiya: 17.5 ning qarori muzlatilgan matnga baribir tegadi,
+shuning uchun shu amendment bu havolani tuzatish uchun to'g'ri joy.
 
 ### v1.4 → v1.5 (2026-10-02)
 
@@ -1622,3 +1727,303 @@ bir vaqtda shubhali bo'ladi. Bu §14.6(5) ni **almashtirmaydi**, uni
 Shuning uchun bu bo'limdagi hech bir qaror hech qanday kuzatilgan
 natijani ko'rgandan keyin qabul qilinmagan, va eski ta'riflar ostida
 qayta hisoblanishi kerak bo'lgan ma'lumot yo'q.
+
+---
+
+## 17. Stabilizatsiya oynasi va pressure hold — dizayn nuqsoni (muzlatilgan)
+
+> Bu bo'lim **v1.6 amendment** bilan qo'shildi va §16.8 ning ochiq savoliga
+> javob beradi. U **hech bir operatsion ta'rifni, metrikani, chegarani,
+> statistik testni yoki falsifikatsiya mezonini o'zgartirmaydi.** U ikki
+> narsani qiladi: (1) §16.8 dagi **o'z xatomni tuzatadi**, (2) nuqsonni
+> aniq ko'rsatadi va **uni hal qilish uchun loyiha egasiga qaror
+> qoldiradi** — chunki hal qilish muzlatilgan ta'rifga tegadi.
+
+### 17.1 TUZATISH — §16.8 dagi ikki da'vom XATO edi
+
+v1.5 §16.8 shunday dedi: *"**Oyna pressure hold ichida bo'lishi SHARTmi** —
+§4 buni aytmaydi."* **Bu xato.** §4 ning parametr jadvali buni ochiq
+aytadi:
+
+> | `W_stab_pilot` | **8 s** | sustained HOLD (≤12 s) **ichida sig'ishi
+> kerak**: injeksiya hold'ga 3 s kirgach boshlanadi, demak 3 + 8 = 11 ≤ 12
+> ✓ (v1.3 aniqlashtirishi) |
+
+va §4 ning cheklov izohi metrikaning **ma'nosini** ham belgilaydi:
+
+> *"`W_stab_pilot = 8 s` bilan o'lchanadigan narsa — **"pressure davom
+> etayotganda tasdiqlangan recovery"**, 60 s sustained recovery **emas**."*
+
+Demak **matn jim emas:** oyna hold ichida bo'lishi **shart**, va agar
+bo'lmasa, o'lchangan narsa §4 ning o'zi e'lon qilgan kattalik **emas**.
+§16.8 ni "§4 jim" deb yozganim — matnni to'liq o'qimaganim.
+
+**Ikkinchi xato, va u og'irroq:** §16.8 bu bo'shliqning bias'i
+*"teskari yo'nalishda (yana H1 foydasiga)"* deb yozdi. **Ustun had
+aksincha** — 17.3 ni ko'ring. §16.8 faqat ikkita holatdan **kam
+ehtimollisini** hisobga olgan.
+
+### 17.2 FAKT — arifmetika: oyna hold'ga faqat `t_start ≤ 0.8 s` bo'lsa sig'adi
+
+Hamma qiymat muzlatilgan matndan. `t_h` = hold boshlanishi.
+
+| qadam | manba | qiymat |
+|---|---|---|
+| injeksiya | §9.4 (*"injeksiya hold'ga 3 s kirgach"*) | `t_h + 3 s` |
+| hold tugashi | §9.4 invariant 1 (`hold_s ≤ hold_cap_s`) | `t_h + 12 s` |
+| oyna uzunligi | §4 (`W_stab_pilot`) | `8 s` |
+| oyna **boshi** | §4, 1-band: `t_up` = *"oxirgi action'dan keyingi **birinchi contract'dan o'tgan probe**"* | `t_up`, **`t_inject` emas** |
+
+Oyna hold ichida bo'lishi sharti:
+
+```
+t_up + 8 ≤ t_h + 12      ⇒   t_up ≤ t_h + 4
+injeksiya t_h + 3 da      ⇒   t_up − t_inject ≤ 1 s
+```
+
+Arm `A` da restart'ni **systemd o'zi** qiladi (`Restart=on-failure`), demak
+harness qaror kechikishi yo'q. `t_up − t_inject` budjeti:
+
+```
+RestartSec                 = 100 ms   (§9.3, arm A)
+SUT start davomiyligi      = t_start  (MUZLATILMAGAN — §16.10)
+probe kvantlashi           ≤ 100 ms   (§2: P = 100 ms; t_up — probe)
+                           ────────────
+0.1 + t_start + 0.1 ≤ 1    ⇒   t_start ≤ 0.8 s
+```
+
+Agar action `F_probe` ga gate qilinsa, `D_f = 300 ms` (§3: `k_f = 3`) ham
+qo'shiladi ⇒ **`t_start ≤ 0.5 s`**.
+
+> **FAKT: muzlatilgan dizayn SUT'dan `P2` pressure ostida ~0.8 s ichida
+> ishga tushib contract'dan o'tishni TALAB qiladi.**
+
+**Va bu §9.2 ga to'g'ridan-to'g'ri qarshi.** §9.2 oldindan aytilgan
+mexanizm **(i)** — *"`TimeoutStartSec` oshib ketdi"* — va **(iv)** —
+*"scheduling delay'dan watchdog miss"* — ya'ni dizayn **sekin start'ni
+kutadi**. `driver.py` esa `TimeoutStartSec = 10 s` ni default qilgan
+(§16.10), ya'ni **12× oyna budjetidan katta** start'ga ruxsat beradi.
+
+> **Dizayn o'zi oldindan aytgan hodisa — pressure ostida sekinlashgan
+> start — o'zining o'lchov oynasini buzadi.** `0.8 s < t_start < 10 s`
+> bo'lgan har qanday "muvaffaqiyatli" restart, verifikatsiya oynasi
+> pressure'dan **chiqib ketgan** restart'dir.
+
+**v1.3 ning yarashtiruvchi arifmetikasi `3 + 8 = 11 ≤ 12` oynani
+`t_inject` dan boshlanadi deb hisoblaydi**, §4 ning 1-bandi esa uni
+`t_up` dan boshlaydi. Ya'ni o'sha arifmetika **jimgina `t_up = t_inject`,
+ya'ni nol recovery vaqtini** nazarda tutadi — aynan H1 **effekt kutmagan**
+holat. v1.3 ziddiyatni to'g'ri hal qilgan, lekin `t_up ≠ t_inject` ekani
+hisobga olinmagan.
+
+### 17.3 TALQIN — uch holat, va ikki bias TESKARI yo'nalishda
+
+| holat | shart (`T_h` = hold tugashi, `T_trial` = horizon) | hozirgi kodda | binar ta'siri |
+|---|---|---|---|
+| **(c)** oyna hold ichida | `t_up + 8 ≤ T_h` | `complete`, VR o'lchandi | **to'g'ri** |
+| **(a)** oyna pressure'dan chiqadi, horizon ichida | `T_h < t_up + 8 ≤ T_trial` | `complete`, VR **hisoblanadi** | 2- va 5-bandlar **qisman pressure'siz** baholanadi ⇒ VR o'tishi **osonlashadi** ⇒ `P(VR|P2)` **oshadi** ⇒ trend **susayadi** ⇒ **H1 ga QARSHI** |
+| **(b)** oyna horizon'dan chiqadi | `t_up + 8 > T_trial` | `complete`, **`VR = false`** | haqiqiy censoring kuzatilgan muvaffaqiyatsizlik deb yoziladi ⇒ `P(VR|P2)` **kamayadi** ⇒ trend **kuchayadi** ⇒ **H1 FOYDASIGA** |
+
+**Ular bir-birini yo'qotmaydi** — bu turli trial'lar, va nisbiy
+chastotasi `T_trial` ga (muzlatilmagan, §16.10(5)) va `t_start`
+taqsimotiga (o'lchanmagan) bog'liq.
+
+**Qaysi biri ustun — hisoblab ko'rsatiladi.** Shartnomaning default
+`T_trial = 40.1 s` i va §9.4 jadvali bilan (baseline 10 s, ramp 5 s ⇒
+`t_h = 15 s`, injeksiya 18 s, hold tugashi 27 s):
+
+```
+(a) uchun kerak:  t_start > 0.8 s
+(b) uchun kerak:  t_up + 8 > 40.1  ⇒  t_up > 32.1  ⇒  t_start > ~14 s
+```
+
+> **Demak ustun had — (a), ya'ni bias ASOSAN H1 GA QARSHI.** (b) faqat
+> ~14 s dan uzun start'larda yuzaga keladi; (a) esa ~0.8 s dan uzun har
+> qanday start'da. §16.8 ning *"yana H1 foydasiga"* bahosi **xato edi**:
+> u faqat (b) ni ko'rgan.
+
+**Nega bu (a) ni "konservativ, demak xavfsiz" qilmaydi:** §11 ning
+falsifikatsiya qoidasi — *"trend p > 0.05 **VA** Newcombe CI yuqori
+chegarasi < 0.15"* — susaytirilgan trend ustida qo'llanadi, demak (a)
+**soxta FALSIFIKATSIYA** yaratishi mumkin: H1 ning kuchli shakli
+dunyodan emas, **o'lchov oynasining pressure'dan chiqib ketganidan**
+yolg'onga chiqarilishi mumkin. Pre-registered falsifikatsiya mezoni
+uchun bu soxta pozitiv bilan bir xil darajada og'ir.
+
+### 17.4 QAROR — nimani hal qilaman (hech bir muzlatilgan qiymat siljimaydi)
+
+1. **Oynasi hold ichida bo'lmagan trial §4 ning kattaligini
+   O'LCHAMAGAN.** U `complete` + `VR = false` deb yozilMAYDI va binar
+   `P(VR)` maxrajiga **muvaffaqiyatsizlik sifatida kiritilMAYDI.**
+   Sabab: §4 oynaning hold ichida bo'lishini **talab qiladi**, demak
+   oyna chiqib ketgan trial ta'rif shartini qanoatlantirmaydi —
+   natija **kuzatilmagan**, `false` emas.
+2. **Ikki yangi `disposition_source` qiymati** (§12 ning **yopiq
+   enum'iga tegilMAYDI** — bular `disposition` qiymatlari emas):
+
+   | `disposition_source` | ma'nosi |
+   |---|---|
+   | `window_past_pressure` | holat (a): `T_h < t_up + W_stab_pilot ≤ T_trial` |
+   | `window_past_horizon` | holat (b): `t_up + W_stab_pilot > T_trial` |
+
+   `disposition` ikkalasida ham **`censored`**, chunki §4 `censored` ni
+   aynan *"kuzatmagan narsani natija deb yozmaymiz"* ma'nosida ishlatadi
+   (§16.2(B) dagi asos). §16.2 ning qoidasi — birlamchi to'plam
+   **`(disposition, disposition_source)`** jufti bilan aniqlanadi —
+   o'zgarmagan holda shu ikki qiymatni ham qamrab oladi.
+3. **Ikkalasi ham binar `P(VR)` maxrajidan chiqariladi** (natija
+   kuzatilmagan) va §6.2 bo'yicha KM/log-rank va loop-rate ga
+   **censored davomiylik** sifatida **kiradi**.
+4. **Ularning darajasi `(arm × pressure)` yacheykasi bo'yicha ALOHIDA
+   beriladi**, va §16.4 ning nomlash qoidasi qo'llanadi. **`P2`
+   yacheykasida to'plangan yuqori daraja — o'zi NATIJA:** u
+   *"dizayn qiziqtirgan yacheykani o'lchay olmadi"* degan ma'noni
+   beradi, va §12 ning *"Yuqori eksklyuziya darajasi o'zi natija —
+   yashirilmaydi"* qoidasi ostida **yashirilmaydi.**
+5. **Oyna bo'sh-joy invarianti analizdan oldin tekshiriladi:** har
+   `complete` trial uchun `t_up + W_stab_pilot ≤ T_h` **bajarilgan
+   bo'lishi shart**. Bajarilmagan bo'lsa va trial `complete` deb
+   yozilgan bo'lsa — bu **validator xatosi**, jimgina o'tkazilmaydi.
+
+### 17.5 CHEKLOV — nimani HAL QILMAYMAN: bu dizayn nuqsoni, disposition bilan yopilmaydi
+
+17.4 **bias'ning oldini oladi, nuqsonni tuzatmaydi.** Agar `P2` ostida
+`t_start > 0.8 s` tipik bo'lsa, `P2` yacheykasining katta qismi
+`censored` bo'ladi va **birlamchi endpoint aynan qiziqtirgan yacheykada
+hisoblab bo'lmaydi.** Buni hech qanday disposition qoidasi tuzatmaydi.
+
+**To'rt muzlatilgan qiymat birgalikda qanoatlantirilmaydi** (realistik
+`t_start` da):
+
+| # | qiymat | manba |
+|---|---|---|
+| 1 | `W_stab_pilot = 8 s` | §4 |
+| 2 | `injection_offset = 3 s` | §9.4 |
+| 3 | `hold_cap_s = 12 s` | §9.4 invariant 1 |
+| 4 | oyna hold **ichida** bo'lishi sharti | §4 (*"ichida sig'ishi kerak"*) + §4 cheklov izohi (*"pressure davom etayotganda"*) |
+
+> **Bu savolga javob berish muzlatilgan ta'rifga tegadi, shuning uchun
+> men uni HAL QILMAYMAN.** Qaror loyiha egasiga tegishli. Pastda
+> variantlar va har birining narxi — **tanlov qilinmagan.**
+
+| variant | nima o'zgaradi | narxi |
+|---|---|---|
+| **O1** | `W_stab_pilot` kichraytiriladi | VR da'vosini **kuchsizlashtiradi** — §4 ning 5-bandi (throughput) qisqa oynada kamroq ma'noga ega. Ma'lumot tomondan arzon: §4 ning sensitivity sweep'i (`W_stab ∈ {8,10,30,60,120}`) **xom trace'lardan post-hoc** hisoblanadi (§14.5(1)), demak tanlov "qaysi biri BIRLAMCHI" haqida, hisoblanish haqida emas |
+| **O2** | `injection_offset` kichraytiriladi | 3 s hold boshidan keyin pressure'ning **barqarorlashuvi** uchun bor; kichraytirish *"o'rnatilgan pressure ostida injeksiya"* binosini kuchsizlashtiradi |
+| **O3** | `hold_cap_s` 12 s dan oshiriladi | **yagona variant hech bir ilmiy da'voni kuchsizlashtirmaydigan.** 12 s ni yaratgan oomd xavfi bu host'da **yo'q** (§15.2). LEKIN: §15.3 uni **shartnomaviy** asosda saqlagan, va §9.4 invariant 2 (`hold + ramp_above_threshold ≤ guard_sustain_s = 15 s`) **qayta tekshirilishi** va guard **qayta kalibratsiya qilinishi** shart |
+| **O4** | oyna pressure'dan chiqishiga ruxsat beriladi | §4 ning o'z cheklov izohiga (*"pressure davom etayotganda tasdiqlangan recovery"*) **qarshi** — bu raqam emas, **metrikaning ma'nosini** o'zgartiradi, demak eng og'ir variant |
+
+**O1, O2, O4 — sof ta'rif o'zgarishi. O3 — ta'rif o'zgarishi + yangi
+o'lchov (guard rekalibratsiyasi).** §15.3 ning shartnomaviy asosi va bu
+yerdagi ilmiy asos **qarama-qarshi yo'nalishga** ko'rsatadi, demak bu
+haqiqiy qaror nuqtasi, texnik tanlov emas.
+
+#### Qaror uchun zarur, lekin MAVJUD BO'LMAGAN o'lchov
+
+Nuqsonning kattaligi **`t_start` ga** bog'liq: `P0`, `P1`, `P2` ostida
+SUT'ning start davomiyligi. **Bu o'lchov bajarilmadi** — bu agent
+guest ichida hech narsa o'lchamadi (WSL ishi to'xtatilgan) va
+pressure eksperimenti `00-pilot-topologiya.md` §6 ning 3-qadami
+o'tmaguncha taqiqlangan.
+
+> **So'rov:** `experiment/pressure-cal` yoki `experiment/guard-recal`
+> har pressure bandida **SUT start davomiyligi taqsimotini** (`t_start`,
+> `READY=1` ga qadar, `p50/p90/p99`) o'lchashi kerak. `p90(t_start) ≤ 0.8 s`
+> bo'lsa — nuqson amalda bezarar va O1–O4 kerak emas. Aks holda loyiha
+> egasi O1–O4 dan birini tanlashi **shart**, va bu tanlov **birinchi
+> pilot trial'idan oldin** qilinishi kerak.
+
+### 17.6 Bias yo'nalishini ochiq e'lon qilish
+
+17.4 ning qarori holat (a) ni va holat (b) ni **ikkalasini** binar
+maxrajdan chiqaradi. Ularning bias'lari teskari bo'lgani uchun, bu
+qarorning sof yo'nalishi **oldindan aniq emas** — u `t_start`
+taqsimotiga bog'liq, va u o'lchanmagan.
+
+Aniq aytilishi mumkin bo'lgan narsa:
+
+- Hozirgi kodga nisbatan, 17.4 **(a) ni olib tashlaydi**, ya'ni
+  H1 ga qarshi ustun bias'ni olib tashlaydi ⇒ **sof ta'sir H1
+  foydasiga**;
+- va u **(b) ni ham** olib tashlaydi, ya'ni H1 foydasiga bo'lgan
+  kichikroq bias'ni ham olib tashlaydi ⇒ bu qism **H1 ga qarshi**.
+- Ustun had (a) bo'lgani uchun (17.3 hisobi), **17.4 ning sof natijasi
+  ehtimol H1 FOYDASIGA.**
+
+**Buni bilib turib qabul qilaman**, chunki alternativa — kuzatilmagan
+natijani kuzatilgan deb yozish, va u **ikki yo'nalishda ham** noto'g'ri.
+Qaror hech qanday ma'lumot mavjud bo'lmaganda qabul qilinadi, demak
+natijani ko'rib tanlash imkoniyati yo'q. **Agar `t_start` o'lchangandan
+keyin ma'lum bo'lsa-ki (b) ustun, bu qaror O'ZGARMAYDI** — u
+o'lchangan natija emas, ta'rif asosida qabul qilingan.
+
+### 17.7 DIZAYN NUQSONI — §8.2 ning (ii) nazorati §9.3 panjarasida yo'q
+
+v1.5 §16.9 buni "ochiq savol" deb qayd etgan edi. **Aniqroq aytilishi
+kerak: bu dizayn nuqsoni.**
+
+§8.2: *"**No-action arm MAJBURIY**, opsional emas: (i) injeksiya +
+`Restart=no`, (ii) injeksiya yo'q — har pressure darajasida. Busiz
+'restart PSI ni oshirdi' ni 'fault PSI ni oshirdi' dan ajratib
+bo'lmaydi va `harm_indicator` talqin qilinmaydi."*
+
+§9.3: arm'lar `A` va `no_action`; `3 × 2 × 20 = 120`.
+
+→ **(ii) "injeksiya yo'q, pressure bor" §9.3 ning panjarasida YO'Q.**
+`docs/research/05-metodologiya.md` §4 uni alohida nazorat qatori
+sifatida sanaydi.
+
+**Oqibati, §8.2 ning o'z so'zlari bilan:** (ii) bo'lmasa
+*"pressure'ning o'zi baseline"* i yo'q, demak fault'ning PSI hissasini
+pressure'ning PSI hissasidan ajratish **to'liq identifikatsiya
+qilinmaydi**. §8.2 bu nazoratni **majburiy** deb ataydi, demak uning
+yo'qligi **dizaynning e'lon qilingan talabini bajarmasligi.**
+
+**Hal qilinMAYDI:** har qanday yechim §9.3 ning muzlatilgan trial
+soniga (120) va blok strukturasiga tegadi (§8.4: blok = har
+`(arm × pressure)` yacheykadan **aynan bitta** trial). Uchinchi arm
+qo'shilsa `3 × 3 × 20 = 180` bo'ladi. **Bu loyiha egasining qarori.**
+P1 ni bloklaydimi — §8.2 ning *"`harm_indicator` talqin
+qilinmaydi"* bandi FR-B ga tegishli, va FR-B P1 da hisoblanmaydi
+(§14.7), demak **P1 ni bloklamaydi**; lekin PSI atributsiya da'vosi
+(ii) siz **chala** bo'ladi va maqolada shunday yozilishi kerak.
+
+### 17.8 OCHIQ MASALA — §14.4 ning "§7 tirik unit sharti" havolasi
+
+v1.4 §15.6(2) dan beri ochiq, uchinchi amendment bo'ylab hal
+qilinmagan. §14.4 ning `run_meta` qatori *"§7 tirik unit shartini
+ko'ring"* deydi; §7 — *Pressure o'lchovi* va unda bunday shart yo'q.
+Haqiqiy talab `docs/architecture/01-muhit-tekshiruvlari.md` §4 da, va
+`04-driver-va-analiz-shartnomasi.md` §1.1 unga **to'g'ri** havola
+qiladi.
+
+> **Tavsiya:** 17.5 ning O1–O4 qarori muzlatilgan matnga **baribir
+> tegadi.** Shu amendment — bu havolani tuzatish uchun **to'g'ri joy**,
+> chunki u mustaqil holda muzlatilgan hujjatni ochishga arzimaydi.
+> Talabning o'zi to'liq kuchda: `units_show` unit **tirik** paytida
+> olinadi.
+
+### 17.9 NIMA O'ZGARMAYDI
+
+`W_stab_pilot = 8 s`, `W_stab = 60 s`, `injection_offset = 3 s`,
+`hold_cap_s = 12 s`, `guard_sustain_s = 15 s`, `θ = 0.8`,
+`T_conn`/`T_rt` = 50 ms, `P` = 100 ms, `k_f` = 3, `ε` = 32 MiB,
+quiescence 0.05, `T_q` = 5 s, `T_w` = 15 s, `T_w_max` = 120 s,
+arm'lar `A`/`no_action`, `P0`/`P1`/`P2`, 20 blok / 120 trial,
+§10.1 ning Cochran–Armitage testi, §10.2 ning KM/log-rank/RMST
+(`τ = 8 s`, Cox/HR taqiqi), §10.4 ning Holm oilasi, §11 ning
+falsifikatsiya qoidasi va power bayonoti, §12 ning **yopiq enum'i** va
+*"aynan bitta disposition"* qoidasi, §14 data schema, §16 ning
+qarorlari — **hammasi o'zgarmadi.** §13 ga tegilmadi.
+
+Qo'shilgan narsa: ikki `disposition_source` qiymati (bular
+`disposition` qiymatlari **emas**), bir validator sharti, bir hisobot
+qoidasi, va **hal qilinmagan qaror'ning ochiq bayonoti.**
+
+### 17.10 NATIJA — yo'q
+
+**Hech qanday eksperiment ishga tushirilmadi. Hech qanday natija yo'q.**
+Bu bo'limdagi hech bir qaror kuzatilgan natijani ko'rgandan keyin qabul
+qilinmagan. 17.2 ning arifmetikasi **muzlatilgan qiymatlardan**
+olingan, o'lchovdan emas; `t_start` **o'lchanmadi** va uni o'lchash
+17.5 da so'ralgan.
