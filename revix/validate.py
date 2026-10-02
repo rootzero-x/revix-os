@@ -96,9 +96,12 @@ from .reduce import (
     RT_TRIAL_BEGIN,
     RT_TRIAL_END,
     RT_UNIT_STATE,
+    Params,
     RawRun,
     _as_int,
     _as_str,
+    derive_disposition,
+    probe_gaps,
     split_trials,
 )
 from .schedule import (
@@ -167,8 +170,12 @@ GUEST_STARTTIME_KEYS = ("pid1_starttime_ticks", "starttime_ticks",
                         "pid1_starttime", "starttime")
 
 # T_trial formulasi bilan o'lchangan horizon orasidagi ruxsat: bitta probe
-# davri (§6.1 kvantlashi). Kontrakt §5.4-5 "aynan" deydi, lekin yozish
-# kechikishi bor; tolerans -- shu fayldagi QAROR (ochiq savol sifatida qayd).
+# davri P. NEGA: kontrakt v1.1 §5.4-5 "aynan" deydi, lekin haqiqiy soat bilan
+# aynan tenglikka erishib bo'lmaydi. PREREGISTRATION.md §6.1 probe kvantlashini
+# (+-P) OCHIQ e'lon qilgan va uni jimgina "tuzatmaydi": horizon ham shu
+# aniqlik bilan o'lchanadi, demak bitta probe davri -- qulaylik emas, §6.1
+# ning o'zi e'lon qilgan noaniqlik chegarasi. Koordinator tomonidan qabul
+# qilingan qaror.
 T_TRIAL_TOLERANCE_US = P_US
 
 # Envelope'da None bo'lishi MUMKIN bo'lmagan maydonlar (§14.2). `trial_id` va
@@ -1741,8 +1748,12 @@ def check_trial_overhead(run: RawRun) -> list[Finding]:
         if not present:
             out.append(Finding(
                 "trial_overhead_missing", SEVERITY_WARNING,
-                "trial_end da qo'shimcha vaqt yo'q (kontrakt §1.3-9: o'lchanadi "
-                f"va yoziladi; maydon: {list(TRIAL_OVERHEAD_FIELDS)})",
+                "trial_end da qo'shimcha vaqt yo'q -- bajarilmagan majburiyat: "
+                "driver-contract §1.3 majburiyat 9 (\"trial qo'shimcha vaqti "
+                "o'lchanadi va yoziladi\", §9.4 v1.3). Yo'qotilgan da'vo: "
+                "kampaniya davomiyligini o'lchangan ma'lumotdan aytib "
+                "bo'lmaydi, faqat taxmin; o'lchov natijalari yaroqli "
+                f"qoladi (maydon: {list(TRIAL_OVERHEAD_FIELDS)})",
                 trial_id=tid, record_type=RT_TRIAL_END, **_where(end)))
             continue
         for f, v in present:
@@ -1813,7 +1824,6 @@ def check_probe_fields(run: RawRun) -> list[Finding]:
     bad_outcome: list[dict[str, Any]] = []
     no_prog: list[dict[str, Any]] = []
     orphan: dict[str, list[dict[str, Any]]] = {}
-    targets: dict[str, set[str]] = {}
     for rec in run.probes:
         if (_as_int(rec.get("mono_us_send")) is None
                 and _as_int(rec.get("mono_us")) is None):
@@ -1826,9 +1836,6 @@ def check_probe_fields(run: RawRun) -> list[Finding]:
         tid = _as_str(rec.get("trial_id"))
         if tid is not None and tid not in known:
             orphan.setdefault(tid, []).append(rec)
-        tg = _as_str(rec.get("target"))
-        if tid is not None and tg is not None:
-            targets.setdefault(tid, set()).add(tg)
     if no_time:
         out.append(Finding(
             "probe_time_missing", SEVERITY_ERROR,
@@ -1865,15 +1872,126 @@ def check_probe_fields(run: RawRun) -> list[Finding]:
             "yo'q -- split_trials ularni jimgina tashlaydi",
             trial_id=tid, record_type=RT_PROBE, **_where(recs[0]),
             detail={"n": len(recs)}))
+    return out
+
+
+def check_probe_targets(run: RawRun, sut_target: str | None = None) -> list[Finding]:
+    """Reducerga beriladigan probe'lar BITTA target'dan.
+
+    NEGA: `reduce.split_trials` probe'larni FAQAT `trial_id` bo'yicha
+    guruhlaydi: bystander probe'lari SUT'nikiga aralashib uzilish (§4),
+    throughput (§4.5) va downtime (§6.1) hisobini buzadi. Xom `probe.csv`
+    ikkala target'ni saqlashi MUMKIN; reducerga beriladigan ko'rinish esa
+    bitta target bo'lishi SHART (`reducer_view`, `--sut-target`). Qoida
+    `unit_state_units_mixed` bilan bir xil.
+    """
+    targets: dict[str, set[str]] = {}
+    for rec in run.probes:
+        tid, tg = _as_str(rec.get("trial_id")), _as_str(rec.get("target"))
+        if tid is not None and tg is not None:
+            targets.setdefault(tid, set()).add(tg)
+    out: list[Finding] = []
     for tid, tg in sorted(targets.items()):
         if len(tg) > 1:
             out.append(Finding(
                 "probe_targets_mixed", SEVERITY_ERROR,
                 f"trial'da bir nechta probe target: {sorted(tg)} -- "
                 "reduce.py target'ni ajratmaydi, uzilish/throughput hisobi "
-                "aralashadi", trial_id=tid, record_type=RT_PROBE,
+                "aralashadi (reducerga beriladigan kirishni bitta target'ga "
+                "filtrlang: --sut-target)", trial_id=tid, record_type=RT_PROBE,
                 detail={"targets": sorted(tg)}))
     return out
+
+
+def check_unit_state_units(run: RawRun, sut_unit: str | None = None) -> list[Finding]:
+    """Reducerga beriladigan `unit_state` lar BITTA unit'dan.
+
+    NEGA: `reduce.split_trials` `unit_state` ni FAQAT trial bo'yicha
+    guruhlaydi. Bystander unit'ning `NRestarts` va `InvocationID` qiymatlari
+    SUT'nikiga aralashsa, §4 verified-recovery ning 3-bandi (InvocationID
+    o'zgarmaydi) va 4-bandi (NRestarts o'zgarmaydi) -- `evaluate_vr` va
+    `_invocation_changed` -- yolg'on `invocation_changed`/`nrestarts_changed`
+    beradi yoki haqiqiyni yashiradi. Xom `events.jsonl` ikkala unit'ni
+    saqlashi QONUNIY (`unit` maydoni bilan ajraladi); reducerga beriladigan
+    ko'rinish esa bitta unit bo'lishi SHART. Nomi va og'irligi
+    `probe_targets_mixed` bilan bir xil. `sut_unit` berilsa, har o'lchangan
+    trial'da shu unit'ning `unit_state` i bo'lishi ham tekshiriladi
+    (aks holda 3-4 bandlar jimgina `unverified` bo'ladi).
+    """
+    units: dict[str, set[str]] = {}
+    for r in run.of_type(RT_UNIT_STATE):
+        tid, u = _as_str(r.get("trial_id")), _as_str(r.get("unit"))
+        if tid is not None and u is not None:
+            units.setdefault(tid, set()).add(u)
+    out: list[Finding] = []
+    for tid, us in sorted(units.items()):
+        if len(us) > 1:
+            out.append(Finding(
+                "unit_state_units_mixed", SEVERITY_ERROR,
+                f"trial'da bir nechta unit'ning unit_state i: {sorted(us)} -- "
+                "reduce.py unit'ni ajratmaydi, NRestarts/InvocationID "
+                "aralashadi (§4 band 3-4); reducerga beriladigan kirishni "
+                "SUT unit'iga filtrlang: --sut-unit", trial_id=tid,
+                record_type=RT_UNIT_STATE, detail={"units": sorted(us)}))
+    if sut_unit is not None:
+        for e in run.of_type(RT_TRIAL_END):
+            tid = _as_str(e.get("trial_id"))
+            if (_as_str(e.get("disposition")) in MEASURED_DISPOSITIONS
+                    and tid is not None and sut_unit not in units.get(tid, set())):
+                out.append(Finding(
+                    "sut_unit_state_missing", SEVERITY_ERROR,
+                    f"o'lchangan trial'da {sut_unit!r} ning unit_state i yo'q "
+                    "(`unit` maydoni yo'q yoki boshqa unit) -- §4 band 3-4 "
+                    "o'lchanmaydi", trial_id=tid, record_type=RT_UNIT_STATE))
+    return out
+
+
+def check_disposition_cross_check(run: RawRun,
+                                  probe_period_us: int = P_US) -> list[Finding]:
+    """Driver disposition'i `reduce.derive_disposition` bilan solishtiriladi.
+
+    NEGA: §12 -- driver yozgan `trial_end.disposition` AVTORITET
+    (`schedule.explain_disposition` orqali), `reduce.derive_disposition` esa
+    tekshiruv. Ikkisi bir trial'da farq qilsa (masalan raw `complete`, lekin
+    horizon down holatda tugagan -> reducer `censored` deydi) yashirin
+    nomuvofiqlik ko'rinadigan bo'ladi. Ma'lum ochiq savol:
+    `schedule.DISPOSITION_RULES` `harness_error` ni `aborted_guard` dan
+    yuqori qo'yadi, reducer teskarisi. Bu OGOHLANTIRISH: qaysi biri haqiqat
+    ekani kontraktda (v1.2) hal qilinadi, validator tanlamaydi.
+    """
+    prm = Params(probe_period_us=probe_period_us)
+    out: list[Finding] = []
+    for t in split_trials(run):
+        raw = t.disposition_raw
+        if t.end is None or raw is None:
+            continue
+        down = bool(t.probes) and not t.probes[-1].passed
+        final, src, _c = derive_disposition(t, probe_gaps(t, prm), down)
+        if final != raw:
+            out.append(Finding(
+                "disposition_cross_check", SEVERITY_WARNING,
+                f"driver disposition={raw!r}, reducer hosilasi={final!r} "
+                f"(manba: {src}) -- ikkisi farq qiladi (driver avtoritet, §12)",
+                trial_id=t.trial_id, record_type=RT_TRIAL_END,
+                detail={"driver": raw, "reducer": final, "reducer_source": src}))
+    return out
+
+
+def reducer_view(run: RawRun, sut_unit: str | None = None,
+                 sut_target: str | None = None) -> RawRun:
+    """Reducerga BERILADIGAN ko'rinish: faqat SUT unit_state va SUT probe.
+
+    Xom oqim ikkala unit/target'ni saqlaydi (seq/envelope tekshiruvlari
+    TO'LIQ xom oqimda ishlaydi, aks holda filtr sun'iy seq bo'shlig'i
+    yaratardi). Hisob tekshiruvlari esa reducer ko'radigan narsada.
+    `unit`/`target` maydoni yo'q record filtrlanganda tashlanadi.
+    """
+    recs = [r for r in run.records
+            if not (sut_unit is not None and r.get("record_type") == RT_UNIT_STATE
+                    and _as_str(r.get("unit")) != sut_unit)]
+    prbs = [p for p in run.probes
+            if not (sut_target is not None and _as_str(p.get("target")) != sut_target)]
+    return RawRun(records=recs, probes=prbs, sources=list(run.sources))
 
 
 def check_probe_coverage(run: RawRun, probe_period_us: int = P_US) -> list[Finding]:
@@ -2190,12 +2308,19 @@ def _safe(name: str, fn: Callable[..., list[Finding]], *args: Any,
 
 
 def validate_run(run: RawRun, *, run_mode: str | None = None,
-                 probe_period_us: int = P_US) -> Report:
+                 probe_period_us: int = P_US, sut_unit: str | None = None,
+                 sut_target: str | None = None) -> Report:
     """Barcha invariantlarni tekshiradi va HAR buzilishni qaytaradi.
 
     Birinchi xatoda to'xtamaydi: run'ni tuzatish uchun to'liq ro'yxat kerak.
     Istisno ko'tarmaydi: har tekshiruv `_safe` ichida, istisno = xato.
+
+    `sut_unit`/`sut_target`: xom oqim bir nechta unit/target saqlashi
+    mumkin; hisob tekshiruvlari (probe, action, unit_state) reducerga
+    BERILADIGAN ko'rinishda (`reducer_view`) ishlaydi. Berilmasa, run
+    aynan reducerga beriladigan narsa deb olinadi.
     """
+    rv = reducer_view(run, sut_unit, sut_target)
     checks: list[tuple[str, Callable[..., list[Finding]], tuple[Any, ...]]] = [
         ("read_errors", check_read_errors, (run,)),
         ("run_meta", check_run_meta, (run, run_mode)),
@@ -2218,11 +2343,15 @@ def validate_run(run: RawRun, *, run_mode: str | None = None,
         ("trial_overhead", check_trial_overhead, (run,)),
         ("trial_horizon", check_trial_horizon, (run,)),
         ("seq", check_seq, (run,)),
-        ("probe_fields", check_probe_fields, (run,)),
-        ("probe_gaps", check_probe_gaps, (run, probe_period_us)),
-        ("probe_coverage", check_probe_coverage, (run, probe_period_us)),
+        ("probe_fields", check_probe_fields, (rv,)),
+        ("probe_targets", check_probe_targets, (rv, sut_target)),
+        ("unit_state_units", check_unit_state_units, (rv, sut_unit)),
+        ("probe_gaps", check_probe_gaps, (rv, probe_period_us)),
+        ("probe_coverage", check_probe_coverage, (rv, probe_period_us)),
+        ("disposition_cross_check", check_disposition_cross_check,
+         (rv, probe_period_us)),
         ("prober_stream", check_prober_stream, (run,)),
-        ("actions", check_actions, (run,)),
+        ("actions", check_actions, (rv,)),
         ("guard_stream", check_guard_stream, (run,)),
         ("harness_errors", check_harness_errors, (run,)),
     ]
@@ -2241,10 +2370,12 @@ def validate_run(run: RawRun, *, run_mode: str | None = None,
 
 
 def validate_run_dir(run_dir: str, *, run_mode: str | None = None,
-                     probe_period_us: int = P_US) -> Report:
+                     probe_period_us: int = P_US, sut_unit: str | None = None,
+                     sut_target: str | None = None) -> Report:
     """Run katalogini o'qiydi va tekshiradi (o'qish muammolari ham xato)."""
     run, load_findings = load_run_dir(run_dir)
-    rep = validate_run(run, run_mode=run_mode, probe_period_us=probe_period_us)
+    rep = validate_run(run, run_mode=run_mode, probe_period_us=probe_period_us,
+                       sut_unit=sut_unit, sut_target=sut_target)
     rep.findings[:0] = load_findings
     return rep
 
@@ -2262,6 +2393,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--run-mode", default=None,
                     choices=["pilot", "confirmatory"],
                     help="run_meta dagi qiymatni bosib o'tadi")
+    ap.add_argument("--sut-unit", default=None,
+                    help="reducerga beriladigan unit_state ko'rinishi: faqat shu "
+                         "`unit` (xom oqim boshqa unit'ni saqlashi mumkin)")
+    ap.add_argument("--sut-target", default=None,
+                    help="reducerga beriladigan probe ko'rinishi: faqat shu "
+                         "`target`")
     ap.add_argument("--probe-period-ms", type=float, default=P_US / 1000.0)
     ap.add_argument("--json", action="store_true", help="JSON hisobot")
     args = ap.parse_args(argv)
@@ -2275,11 +2412,14 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.run_dir:
             rep = validate_run_dir(args.run_dir, run_mode=args.run_mode,
-                                   probe_period_us=period)
+                                   probe_period_us=period,
+                                   sut_unit=args.sut_unit,
+                                   sut_target=args.sut_target)
         else:
             run = RawRun.load(args.jsonl, args.probe_csv)
             rep = validate_run(run, run_mode=args.run_mode,
-                               probe_period_us=period)
+                               probe_period_us=period, sut_unit=args.sut_unit,
+                               sut_target=args.sut_target)
     except Exception as exc:  # noqa: BLE001 -- FAIL-CLOSED: o'qib bo'lmadi = O'TMADI
         if args.json:
             json.dump({"ok": False, "error": repr(exc)}, sys.stdout, indent=2)
