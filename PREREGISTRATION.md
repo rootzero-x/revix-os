@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.7` |
+| **Versiya** | `preregistration/v1.8` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8) |
 | **Muhit** | Bu pre-registration **§15.1 va §16.11 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
 | **⚠️ Ochiq qaror 1** | **§17.5 — hal qilinmagan dizayn nuqsoni** (stabilizatsiya oynasi pressure hold'ga sig'maydi). |
 | **⚠️ Ochiq qaror 2** | **§18.6 — §11 ning fail-slow limbi ishlamaydi** (chegara kvantlash polida). |
@@ -21,6 +21,183 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.7 → v1.8 (2026-10-03)
+
+| | |
+|---|---|
+| **v1.7 sha256** | `314deecfd9e4343a22f936556415c0248f606e33960af145ca1d70a865215fe4` |
+| **v1.7 git tag** | `v0.1.7-preregistration` |
+| **Sabab** | uchta mustaqil narsa: §16.11 ning ochiq o'lchovi **yopildi**; `analyze` §18.4 ning rejim tahlili **chala** ekanini ko'rsatdi; va `reduce-fix` §12 jim qolgan **uchinchi** nuqtani topdi (`vr = None` maxrajda) |
+| **O'zgardi** | **§19 va §20 qo'shildi** (ikki yangi bo'lim). Mavjud bo'limlar raqamlari va matni O'ZGARMADI |
+| **O'zgarMADI** | **hech bir operatsion ta'rif, metrika, chegara, statistik test yoki falsifikatsiya mezoni.** §18.2 ning referens qarori, §16.11 ning marker talabi, §16.2(B) va §17.4 — **o'zgarmadi**; §19 va §20 ularni **asoslaydi va umumlashtiradi** |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan |
+
+> **Nega bitta amendment'da ikki bo'lim:** §19 va §20 bir-biridan
+> mustaqil, lekin ikkalasi ham **hech qanday muzlatilgan qiymatga
+> tegmaydi** va ikkalasi ham oxiriga qo'shiladi, demak ularni ajratish
+> faqat versiya sonini oshirardi, hech qanday kafolat qo'shmasdan.
+>
+> **Bitta versiyada ikki qaror — bu hujjat uchun BIRINCHI marta**,
+> shuning uchun qaysi bo'lim qaysi savolga javob berishi ochiq
+> yoziladi, chalkashmasligi uchun:
+>
+> | bo'lim | qaysi savolga javob beradi | tashabbus |
+> |---|---|---|
+> | **§19** | (a) §16.11 ning ochiq o'lchovi: to'liq VM restart'da `boot_id` o'zgaradimi — **ha**, va yetarlilik chegarasi chizildi; (b) **§18.4 ning rejim tahlili chala edi** — `RMST` ning `τ` bilan chegaralanganligi ikkinchi degeneratsiyani yaratadi | orkestratorning o'lchovi + `agent/analyze` ning nuqtasi |
+> | **§20** | **sof brownout / `vr = None`**: contract buzilmagani uchun epizod yo'q (`vr_reason = "no_episode"`), lekin trial `complete`/`derived` bo'lib **binar maxrajda** qoladi; va qo'shni holat `r_ref_unavailable` | `reduce-fix` ning fixture'i |
+>
+> `no_episode` va `r_ref_unavailable` **turli da'volar** (*"o'lchash
+> uchun narsa yo'q"* va *"o'lchov muvaffaqiyatsiz bo'ldi"*) va §20.3
+> bilan §20.4 da **turlicha** ishlanadi.
+
+---
+
+**1. §19.1 — `boot_id` yetarlilik chegarasi chizildi.** §16.11 da
+*"to'liq WSL VM restart'ida `boot_id` o'zgaradimi — bu o'lchov
+bajarilmadi"* deb yozilgan edi. Endi o'lchandi: `boot_id`
+**O'ZGARADI**. Ikki restart rejimi ajratildi, har biriga bitta
+detektor:
+
+| rejim | `boot_id` | `pid1_starttime` | kim tutadi |
+|---|---|---|---|
+| to'liq VM restart | **o'zgaradi** | yana kichik | **§14.6(5)** |
+| init-only | o'zgarmaydi | **sakraydi** | **§16.11** marker'i |
+
+§16.11 ning xulosasi **aniqlashtiriladi, bekor qilinmaydi:** §1 ning
+da'vosi **umuman** yolg'on emas — **faqat init-only** holatda yolg'on;
+§14.6(5) **zarur va to'liq VM restart uchun yetarli**; §16.11 ning
+marker'i **init-only teshigini** yopadi, demak **ortiqcha emas**.
+Ikkalasi **to'ldiruvchi**. §16.11 **kuchsizlanmadi — kuchaydi.**
+
+**Provenans ochiq ajratilgan:** o'qishlar **orkestrator** tomonidan,
+bu agent tomonidan **emas** va **mustaqil tasdiqlanmagan** (WSL ishi
+to'xtatilgan). *"Yangi kernel boot"* orkestratorning **o'z**
+o'qishlari bilan yetarli (uptime `2024.34 → 544.35 s` **orqaga**;
+PID 1 yoshi boot bilan teng). *"`boot_id` o'zgardi"* esa **ikki
+agentning** o'qishiga tayanadi — eski qiymat bu agentning §16.11
+yozuvidan, yangisi orkestratordan; **bitta agent ikkalasini ham
+ko'rmagan.** Shu sababli **muzlatilgan talab:** `/proc/uptime`,
+`boot_id` va `/proc/1/stat` 22-maydoni **bitta atomik o'qish guruhi**
+sifatida, bitta record'ga yoziladi.
+
+**2. §19.2 — feasibility kuchaydi.** To'liq VM restart init-only'dan
+**qat'iy yomonroq**. §9.4 ning **≈2.5 soatlik** kampaniyasi shu
+guest'da uzilish ehtimoli **e'tiborsiz emas**, demak driver'ning
+hard-abort'i **ishga tushishi kutiladi**. **Yangi ochiq bo'shliq:**
+uzilish §8.4 ning blok strukturasini buzadi va **tugallanmagan
+bloklarning taqdiri §8.4 da aytilmagan.**
+
+**3. §19.3 — TUZATISH: §18.4 ning rejim tahlili chala edi.** §18.4
+`RMST(P0) → 8 s` rejimini *"inkor erishiladigan, qo'llab-quvvatlash
+qat'iy"* deb **sog'lom** ko'rsatgan. **Chala va chalg'ituvchi:**
+`RMST ∈ [0, τ]`, demak `Δ ≤ τ − R`, va:
+
+```
+thr <= tau - R   <=>   0.20*R <= tau - R   <=>   R <= tau/1.20 = 6.67 s
+thr >= P         <=>   R >= 0.5 s     ;    thr >= 5P  <=>  R >= 2.5 s
+```
+
+→ `R > 6.67 s` bo'lsa `thr` **erishilishi mumkin bo'lgan eng katta
+effektdan katta**: kriteriy **sodir bo'lishi mumkin bo'lmagan**
+holatni qidiradi va xulosa **ma'lumotdan emas, arifmetikadan**
+chiqadi. To'g'rilangan rejimlar: **pastki degeneratsiya**
+(`R < 0.5 s`) — inkor **aniqlanmaydi**; **tishli band**
+(`R ≈ 2.5 … 5.7 s`); **yuqori degeneratsiya** (`R > 6.67 s`) — inkor
+**avtomatik**. **Ikki degeneratsiya TESKARI xulosaga olib keladi.**
+§18.4 ning chiqarmasi `R ≈ 0.4 … 1.1 s` — **pastki degeneratsiya
+chegarasida**. `analyze` ning nuqtasi §18.2 ni kuchsizlashtirmaydi,
+**o'tkirlashtiradi**: referens chegarani masshtablamaydi — u
+kriteriyning **tishi bor-yo'qligini** belgilaydi. **Ceiling muammosi
+hech bir F variantida yo'qolmaydi** (hatto F2 ham `R > 6.4 s` da
+erishib bo'lmaydigan bo'ladi), demak **§17.5, §18.6 va §18.8 —
+bitta qarorning uch bo'lagi**, tuguni `τ = W_stab_pilot = 8 s`.
+**F1–F4 tanlovi QILINMADI.**
+
+---
+
+**4. §20 — `vr = None` maxrajda: umumlashtirilgan qoida.**
+`reduce-fix` **sof brownout** fixture'i qurdi (throughput `R_ref`
+ning 30% i, **har bir probe contract'dan o'tadi**) ⇒ epizod yo'q ⇒
+`vr = None`, `vr_reason = "no_episode"` ⇒ trial `complete`/`derived`
+bo'lib **binar maxrajda** qoladi, aniqlanmagan VR bilan.
+
+**QAROR (§20.2):** maxrajning to'g'ri ta'rifi disposition ro'yxati
+emas, **predikatning aniqlanganligi**:
+
+> **Binar `P(VR)` maxraji — §4 ning predikati ANIQLANGAN qiymat
+> (`true`/`false`) olgan trial'lar to'plami. `vr = None` — sababi
+> nima bo'lishidan qat'i nazar — maxrajdan TASHQARIDA, va sabab
+> nomlanib beriladi.**
+
+Bu **yangi qoida emas, umumlashtirish**: §16.2(B) va §17.4 undan
+kelib chiqadi. **Hech qanday yangi `disposition` qiymati kerak emas;
+§12 ning yopiq enum'iga tegilmadi.**
+
+**`no_episode` va `r_ref_unavailable` FARQLI ishlanadi** — ular
+boshqa da'volar:
+
+| | `no_episode` | `r_ref_unavailable`, `throughput_unmeasurable` |
+|---|---|---|
+| VR savoli | **tug'ilmagan** | **tug'ildi**, javob kuzatilmadi |
+| binar maxraj | **yo'q** | **yo'q** |
+| KM/log-rank | **yo'q** — §6.2 ning qoidasi *"recovery bo'lmagan"* trial'lar haqida, bu esa recovery **kutilmagan** trial | **ha**, horizon'da censored |
+| hisobot sinfi | **injektor samaradorligi** | **instrumentatsiya yo'qolishi** (`probe_gap` bilan birga) |
+
+`no_episode` — v1.5 dan beri **ikkala** to'plamdan ham chiqadigan
+birinchi kategoriya; §6.2 ga zid emas, chunki §6.2 ning qoidasi bu
+holatga **yetib bormaydi**. Va §9.3 bo'yicha har trial'da bitta
+injeksiya bo'lgani uchun `no_episode` **injeksiya ishlamaganini**
+bildiradi — **trial nuqsoni**, natija emas, va noldan farqli daraja
+**pilotni gate qiladi**.
+
+`r_ref_unavailable` uchun **qat'iy taqiq:** 1–4 bandlar ustida VR
+hisoblash **TAQIQLANADI**, chunki §4 5-bandni *"VR ni
+process-liveness'dan ajratadigan narsa"* deb ataydi va §9.2
+*"liveness-only VR ta'rifi ehtimol null pilot beradi, va bu null —
+ta'rif artefakti"* deb oldindan yozgan.
+
+**CHEKLOV (§20.5):** sof brownout **§9.2 ning (iii) mexanizmi emas**
+((iii) *"start bo'ldi"* deydi, ya'ni epizodni nazarda tutadi).
+Natijada binar endpoint contract'ni buzmagan degradatsiyaga
+**ko'r** — 30% throughput'da na `VR = false`, na invalidator, na
+epizod. **Lekin pilot ko'r emas:** §6.1 ning `D_eff` i brownout'ni
+**hisoblaydi**, va §11(b) aynan `D_eff` ni ishlatadi, demak §11(b)
+qo'shimcha emas, **mustaqil zarur** mezon. Maqolada shunday yoziladi,
+**yumshatilmaydi**. Bog'liqlik: contract'ni buzmagan pressure
+degradatsiyasi — aynan §8.2 ning (ii) nazorati o'lchashi kerak
+bo'lgan narsa, va u §9.3 panjarasida yo'q (§17.7).
+
+**Bias (§20.6):** birlamchi asos — **aniqlanganlik**, yo'nalish emas:
+qaror `P(VR)` ni har qanday `None`-siyosatidan **mustaqil** qiladi.
+Yo'nalish, **shartli**: `vr = None` maxrajda qolsa `P(VR)` pasayadi,
+va brownout `P2` da ko'proq uchrashi ehtimol, demak hozirgi holat
+trend'ni **kuchaytirardi** (H1 foydasiga) — **qaror H1 GA QARSHI
+ishlaydi**. `no_episode` ning `P2` da to'planishi **o'lchanmagan**
+taxmin, shuning uchun yo'nalish shartli e'lon qilinadi. **Bu qaror
+§16.2(B) va §18.2 bilan teskari yo'nalishga ishlaydi** — qarorlar
+bir tomonga tizmalanmayotgani ularning **yo'naltirilmayotganining**
+dalili.
+
+**TASDIQ (§20.7):** `reduce-fix` ning ikki hukmi §17 ga **zid emas**.
+(a) §17.4 ni `P0` da ham bir xil qo'llash **majburiy** — §9.4 jadvali
+barcha darajalarda amal qiladi, `P0` da generator idle (§9.3) lekin
+fazalar jadval sifatida saqlanadi; yumshatilsa trend strataları
+bo'ylab **turli kattaliklar** taqqoslanardi, aynan §17 olib tashlagan
+bias. (b) **allow-list** §8.4(3) ning fail-closed qoidasining
+to'g'ridan-to'g'ri qo'llanishi; §20.2 shu printsipni `vr` ga ham
+yoyadi — `vr` **tasdiqlab aniqlangan** bo'lishi shart.
+
+**OCHIQ BO'SHLIQ (§20.8):** §12 ning yopiq enum'ida *"injeksiya
+ishlamadi"* uchun qiymat yo'q; hozirgi kodda bunday trial
+`complete`/`derived` bo'lib qoladi, bu esa §12 ning *"to'liq
+o'lchandi"* ma'nosiga mos kelmaydi. **Hal qilinmaydi** — yopiq
+enum'ga tegadi. §20.2 bo'shliqni analiz tomondan yopgani uchun
+**P1 ni bloklamaydi**. Egasining qarori; §17.5 amendment'i tabiiy joy.
+
+**O'LCHANMADI:** `R = RMST_A(P0, τ)` va `D_probe(P0)` taqsimoti
+(§18.6/§19.3 so'rovi, endi aniq qabul mezoni bilan); `no_episode`
+ning `(arm × pressure)` bo'yicha taqsimoti.
 
 ### v1.6 → v1.7 (2026-10-03)
 
@@ -2472,3 +2649,530 @@ tartibi va yo'nalish talabi, bir sxema maydoni talabi
 (`P = 100 ms`, `RestartSec = 100 ms`, §6.1 ning `D_probe` ta'rifi,
 §9.2 ning `P(VR|P0) ≈ 1.0` bayonoti); yagona noma'lum — `t_start`, va
 u **o'lchanmadi**. Uni o'lchash 18.6 da so'ralgan.
+
+---
+
+## 19. `boot_id` ning yetarlilik chegarasi, va §18.4 ning aniqlashtirilishi (muzlatilgan)
+
+> Bu bo'lim **v1.8 amendment** bilan qo'shildi. U **hech bir operatsion
+> ta'rifni, metrikani, chegarani, statistik testni yoki falsifikatsiya
+> mezonini o'zgartirmaydi.** U uch narsani qiladi: (1) §16.11 ning
+> ochiq qolgan o'lchovini **yopadi** (boshqa agent o'lchovi, provenans
+> bilan), (2) §18.4 ning rejim tahlilini **tuzatadi va aniqlashtiradi**,
+> (3) feasibility cheklovini kuchaytiradi.
+
+### 19.1 FAKT — `boot_id` to'liq VM restart'ida O'ZGARADI; yetarlilik chegarasi chizildi
+
+§16.11 da shunday yozilgan edi: *"**O'LCHANMADI:** to'liq WSL VM
+restart'ida `boot_id` o'zgaradimi — **bu o'lchov bajarilmadi**."*
+**Endi o'lchandi.**
+
+**Provenans (aniq aytiladi):** quyidagi o'qishlar **orkestrator
+tomonidan** olingan, **bu agent tomonidan emas**. Bu agent o'lchov
+paytida guest ichida hech narsa o'qimadi (WSL ishi `guard-recal`
+uchun to'xtatilgan) va bu qiymatlarni **mustaqil tasdiqlamadi.**
+
+| o'lchov | qiymat |
+|---|---|
+| `/proc/uptime` | **544.35 s** (shu sessiyada avval: 2024.34 s) |
+| `/proc/1/stat` 22-maydon | **74** tick ⇒ PID 1 yoshi 543.6 s = boot bilan teng |
+| `boot_id` | **`580d1c88-a68b-4134-92ba-9712b5a6dd56`** |
+| `UserspaceTimestampMonotonic` | **1248170** µs (1.25 s — yangi boot) |
+| `FinishTimestampMonotonic` | **2326211** µs |
+
+**Xulosaning qaysi qismi kimning o'lchoviga tayanadi — ajratib
+yoziladi:**
+
+- *"Yangi kernel boot bo'ldi"* — **orkestratorning o'z o'lchovi bilan
+  yetarlicha asoslangan**: uptime `2024.34 s → 544.35 s` ga **orqaga
+  ketdi**, va PID 1 yoshi boot bilan teng bo'lib qoldi. Bitta agentning
+  o'qishlari buni o'zi ko'rsatadi.
+- *"`boot_id` o'zgardi"* — **ikki agentning o'qishiga tayanadi**:
+  avvalgi qiymat `ca4e5bab-2cd8-43aa-8455-2a22ca6746f3` **bu agentning
+  §16.11 dagi yozuvidan** (uptime 1975 s da), yangi qiymat
+  orkestratordan. **Bitta agent ikki qiymatni ham ko'rmagan.**
+
+#### Natija — ikki restart rejimi ajratildi, har biriga bitta detektor
+
+| restart rejimi | `boot_id` | `pid1_starttime_ticks` | kim tutadi |
+|---|---|---|---|
+| **to'liq VM restart** (yangi kernel boot) | **o'zgaradi** | yana kichik | **§14.6(5)** — allaqachon muzlatilgan |
+| **init-only** (PID 1 restart, kernel ishlashda davom etadi) | **o'zgarmaydi** | **sakraydi** | **§16.11** ning marker'i |
+
+**Shuning uchun §16.11 ning xulosasi aniqlashtiriladi, lekin
+bekor qilinMAYDI:**
+
+- §1 ning *"`boot_id` bu shartni tekshirib bo'ladigan qiladi"* da'vosi
+  **umuman yolg'on emas** — u **faqat init-only holatda** yolg'on.
+  §16.11 bu da'voni *"shu host'da yolg'on"* deb yozgan; aniqrog'i —
+  *"init-only restart uchun yolg'on, to'liq VM restart uchun
+  to'g'ri"*.
+- §14.6(5) **zarur**, va **to'liq VM restart uchun yetarli**.
+- §16.11 ning PID 1 `starttime` marker'i **init-only teshigini
+  yopadi**, demak u **ortiqcha emas** — va endi buning sababi
+  **o'lchov bilan** ko'rsatilgan.
+
+> **§16.11 kuchsizlanmadi, kuchaydi:** ilgari marker *"`boot_id` ga
+> ishonib bo'lmaydi"* degan umumiy asos bilan talab qilinardi; endi u
+> **aniq nomlangan, o'lchangan teshikni** yopadi, va `boot_id` ning
+> o'z roli ham saqlanadi. Ikki detektor **ortiqcha emas,
+> to'ldiruvchi** — ikkalasi ham talab qilinadi.
+
+#### Muzlatilgan talab — o'z-o'zini guvohlantiradigan o'qish
+
+Yuqoridagi provenans bo'linishi takrorlanmasligi uchun:
+
+> **Har bir `/proc/uptime` o'qishi bilan BIR VAQTDA `boot_id` va
+> `/proc/1/stat` 22-maydoni ham o'qiladi va bir record'ga yoziladi**
+> (`run_meta` va har `env_snapshot`, §16.11 talabini to'ldirib).
+> Shunda keyingi restart **bitta agentning o'qishlaridan** o'zi
+> guvohlanadi va ikki manbaga tayanmaydi.
+
+Bu uch maydon **bitta atomik o'qish guruhi** — alohida vaqtlarda
+olingan `uptime` va `boot_id` juftligi aynan hozirgi provenans
+bo'linishini qaytaradi.
+
+### 19.2 CHEKLOV — feasibility: to'liq VM restart init-only'dan QATTIQROQ
+
+§16.11 PID 1 restart'ini **feasibility gate** deb atagan (transient va
+`--collect` unit'lar yo'qoladi). **To'liq VM restart qat'iy yomonroq:**
+kernel ham, cgroup ierarxiyasi ham, barcha monotonic anchor'lar ham
+yangi.
+
+**Orkestrator xabari (bu agent tasdiqlamagan):** yuqoridagi restart
+`experiment/guard-recal` kalibratsiya ishlatayotganda sodir bo'lgan;
+uning unit'lari yo'qolgan va run kataloglari `guard-recal-C5` gacha
+mavjud, demak ishining bir qismi restart'dan **oshib ketgan** bo'lishi
+mumkin.
+
+**Pilot uchun amaliy oqibati:** §9.4 ning kampaniya bahosi
+**≈2.5 soat** (120 trial × ≈75 s). Shu guest'da bu davomiylikda
+uzilish ehtimoli **e'tiborsiz emas**. Demak:
+
+- driver'ning marker o'zgarishida **hard-abort** xatti-harakati
+  nazariy himoya emas — u **ishga tushishi kutiladi**;
+- uzilgan kampaniya **`harness_error`** yoki `censored` trial'lar
+  ko'rinishida chiqadi va §12 ning eksklyuziya darajasi hisobotiga
+  kiradi — **yashirilmaydi**;
+- uzilish **blok strukturasini** buzadi (§8.4: blok = har
+  `(arm × pressure)` yacheykadan **aynan bitta** trial). To'liq
+  bo'lmagan blok — **blokning o'zi** tugallanmagan, demak
+  *"blok sekin drift'ni o'ziga singdiradi"* xossasi o'sha blok uchun
+  yo'qoladi. **Tugallanmagan bloklarning taqdiri §8.4 da aytilmagan**
+  — bu **ochiq bo'shliq**, va u kampaniya uzilsa yuzaga keladi.
+
+> **TALQIN:** bu `feature/iso` ning izolyatsiyalangan QEMU guest'i
+> uchun **ilmiy** asos, qulaylik emas: o'zimiz boshqaradigan guest
+> o'zini qayta ishga tushirmaydi, demak `boot_id` va marker
+> invariantlari kampaniya davomida **ushlanadi**. §15.1 da `/dev/kvm`
+> mavjudligi o'lchangan, demak yo'l texnik jihatdan ochiq. Lekin bu
+> **§0 bo'yicha P1 qamrovidan tashqarida** va o'z pre-registration'ini
+> talab qiladi — v1.8 bu yo'lni **ochmaydi**.
+
+### 19.3 TUZATISH — §18.4 ning rejim tahlili chala edi: IKKALA chet ham degenerat
+
+§18.4 ikki rejimni shunday bergan:
+
+| rejim | §18.4 nima dedi |
+|---|---|
+| `RMST(P0)` kichik | inkor **erishib bo'lmaydi**, qo'llab-quvvatlash **deyarli avtomatik** |
+| `RMST(P0) → 8 s` | inkor **erishiladigan**, qo'llab-quvvatlash **qat'iy** |
+
+**Ikkinchi qator chala va chalg'ituvchi.** U o'sha rejimni *sog'lom*
+ko'rsatadi. Aslida u ham **degenerat**, va sababi — `RMST` ning
+**yuqoridan `τ` bilan chegaralanganligi**, ya'ni aynan `analyze`
+ko'rsatgan nuqta.
+
+#### Aniq arifmetika (hammasi muzlatilgan qiymatlardan)
+
+`R := RMST_A(P0, τ)`, `τ = 8 s`, `thr = 0.20 · R`, va
+`Δ = RMST_A(P2, τ) − R`. `RMST ∈ [0, τ]` bo'lgani uchun:
+
+```
+Δ ≤ τ − R                                  (yuqori chegara — ceiling)
+```
+
+Demak *"20% oshish"* **erishiladigan** bo'lishi uchun:
+
+```
+thr ≤ τ − R   ⟺   0.20·R ≤ τ − R   ⟺   1.20·R ≤ τ   ⟺   R ≤ τ/1.20 = 6.67 s
+```
+
+> **FAKT: agar `R > 6.67 s` bo'lsa, `thr` **erishilishi mumkin bo'lgan
+> eng katta effektdan katta** bo'ladi. Ya'ni kriteriy **sodir bo'lishi
+> MUMKIN BO'LMAGAN** holatni qidiradi, va *"fail-slow
+> qo'llab-quvvatlanmaydi"* degan xulosa ma'lumotdan emas,
+> **arifmetikadan** kelib chiqadi.**
+
+Pastki chetda, §6.1 ning kvantlashi (`±P`, har chekkada `+P/2` bias):
+
+```
+thr ≥ P   ⟺   0.20·R ≥ 0.1 s   ⟺   R ≥ 0.5 s
+thr ≥ 5P  ⟺   R ≥ 2.5 s
+```
+
+#### To'g'rilangan rejim jadvali
+
+| rejim | `R` | `thr` | kriteriy holati |
+|---|---|---|---|
+| **pastki degeneratsiya** | `< 0.5 s` | `< P` | chegara **kvantlash polidan past** ⇒ inkor **aniqlanmaydi** ⇒ fail-slow deyarli hech qachon inkor qilinmaydi |
+| **tishli band** | `≈ 2.5 … 5.7 s` | `0.5 … 1.14 s` | `thr ≥ 5P` **va** `thr ≤ ½(τ−R)` ⇒ kriteriy **haqiqiy test** |
+| **yuqori degeneratsiya** | `> 6.67 s` | `> τ − R` | *"20% oshish"* **erishib bo'lmaydigan** ⇒ inkor **arifmetik jihatdan avtomatik** |
+
+**Va §9.2 aytgan rejim qayerda:** §18.4 ning chiqarmasi
+`R ≈ 0.4 … 1.1 s` — ya'ni **pastki degeneratsiya chegarasida yoki
+undan sal yuqorida**, va **tishli banddan ancha past**.
+
+> **Shuning uchun `analyze` ning nuqtasi to'g'ri va §18.2 ni
+> kuchsizlashtirmaydi, balki uni o'tkirlashtiradi: referens kattalik
+> chegarani shunchaki masshtablamaydi — u kriteriyning TISHI bor-yo'qligini
+> belgilaydi.** Ikkala chetda ham kriteriy *"fail-slow
+> qo'llab-quvvatlanmaydi"* yoki *"qo'llab-quvvatlanadi"* degan javobni
+> **ma'lumotdan emas, rejimdan** oladi.
+
+**Diqqat — bir nozik farq:** yuqori degeneratsiyada kriteriy
+fail-slow'ni **avtomatik INKOR qiladi** (ma'lumot nimani ko'rsatsa
+ham), pastki degeneratsiyada esa **avtomatik QO'LLAB-QUVVATLAYDI**.
+Ya'ni ikki degeneratsiya **teskari xulosaga** olib keladi, va qaysi
+biriga tushishni `R` belgilaydi — u esa **o'lchanmagan**. §18.7 da
+e'lon qilingan bias yo'nalishi (H1 foydasiga) **pastki
+degeneratsiyaga, ya'ni §9.2 aytgan rejimga** tegishli va **o'zinicha
+qoladi**.
+
+#### §18.6 ning variantlariga ta'siri
+
+19.3 **F1–F4 tanlovini qilmaydi** va §18.2 ning referensini
+o'zgartirmaydi (u matndan o'qilgan, rejimdan emas). Lekin u
+variantlarni **aniqroq baholaydi**:
+
+- **F1** (`thr = 0.20·R`): §9.2 aytgan rejimda **pastki
+  degeneratsiya**. 19.3 buni endi **aniq chegara bilan** ko'rsatadi
+  (`R < 0.5 s ⇒ thr < P`).
+- **F2** (`thr = 0.20·τ = 1.6 s`): rejimdan **mustaqil** va
+  kvantlashdan `16×` yuqori — lekin `Δ ≤ τ − R` chegarasi bilan
+  taqqoslansa, `R > 6.4 s` bo'lsa F2 ham **erishib bo'lmaydigan**
+  chegaraga aylanadi (`1.6 > 8 − R ⟺ R > 6.4 s`). Ya'ni **F2 ham
+  yuqori degeneratsiyadan himoyalanmagan**, faqat chegarasi boshqa.
+- **ceiling muammosi hech bir F variantida yo'qolmaydi**, chunki u
+  `RMST ∈ [0, τ]` dan kelib chiqadi, referensdan emas. **Uni faqat
+  `τ` ni oshirish yoki endpoint'ni o'zgartirish (§18.8) hal qiladi** —
+  ikkalasi ham §17.5 ning qaroriga bog'langan.
+
+> **Demak §17.5, §18.6 va §18.8 — uchalasi bitta qarorning
+> bo'laklari**, va ularni alohida hal qilish ziddiyat yaratadi.
+> `τ = W_stab_pilot = 8 s` — uchalasining ham tuguni.
+
+#### Qaror uchun zarur, lekin MAVJUD BO'LMAGAN o'lchov
+
+`R = RMST_A(P0, τ)`. **Bu o'lchov bajarilmadi** — bu agent guest
+ichida hech narsa o'lchamadi. §18.6 ning so'rovi kuchda qoladi va
+endi **aniq qabul mezoni** bilan:
+
+| o'lchangan `R` | xulosa |
+|---|---|
+| `R < 0.5 s` | **pastki degeneratsiya** — F1 yaramaydi, egasi F2–F4 dan tanlashi shart |
+| `0.5 … 2.5 s` | chegara kvantlashdan `1–5×` — **chegara zonasi**, ehtiyotkorlik bilan |
+| `2.5 … 5.7 s` | **tishli band** — F1 yetarli |
+| `> 6.67 s` | **yuqori degeneratsiya** — hech bir nisbiy chegara ishlamaydi |
+
+### 19.4 NIMA O'ZGARMAYDI
+
+§18.2 ning qarori (referens = `RMST(P0)`, ayirish tartibi `P2 − P0`,
+yuqori chegara shakli) — **o'zgarmadi**; u matndan o'qilgan va 19.3
+uni **qo'llab-quvvatlaydi**. §16.11 ning PID 1 marker talabi —
+**o'zgarmadi**, 19.1 uni **asoslaydi**. §14.6(5) — o'zgarmadi.
+§11 ning ikkala limbi, `τ = 8 s`, `20%`, `W_stab_pilot = 8 s`,
+`W_stab = 60 s`, `θ = 0.8`, `injection_offset = 3 s`,
+`hold_cap_s = 12 s`, `guard_sustain_s = 15 s`, `T_conn`/`T_rt` = 50 ms,
+`P` = 100 ms, `k_f` = 3, `ε` = 32 MiB, quiescence 0.05, `T_q` = 5 s,
+`T_w` = 15 s, `T_w_max` = 120 s, arm'lar `A`/`no_action`,
+`P0`/`P1`/`P2`, 20 blok / 120 trial, §10.1, §10.2, §10.4, §12 ning
+yopiq enum'i, §14, §16, §17, §18 — **hammasi muzlatilgan holida.**
+§13 ga tegilmadi.
+
+Qo'shilgan narsa: bir FAKT (provenans bilan), bir atomik o'qish
+talabi, §18.4 ning **tuzatilgan** rejim tahlili, va bir ochiq
+bo'shliq (19.2: tugallanmagan bloklar).
+
+### 19.5 NATIJA — yo'q
+
+**Hech qanday eksperiment ishga tushirilmadi. Hech qanday natija yo'q.**
+19.1 ning o'lchovlari **boshqa agent tomonidan** olingan va shu
+sifatida belgilangan; bu agent ularni mustaqil tasdiqlamadi. 19.3 ning
+butun arifmetikasi **muzlatilgan qiymatlardan** chiqarilgan
+(`τ = 8 s`, `P = 100 ms`, `RMST ∈ [0, τ]`, §6.1 ning kvantlash
+bayonoti); `R` **o'lchanmadi**.
+
+---
+
+## 20. `vr = None` — maxrajga kirish aniqlanganlik bilan belgilanadi (muzlatilgan)
+
+> Bu bo'lim **v1.8 amendment** bilan qo'shildi. U **hech bir operatsion
+> ta'rifni, metrikani, chegarani, statistik testni yoki falsifikatsiya
+> mezonini o'zgartirmaydi.** U §12 jim qolgan uchinchi nuqtani hal
+> qiladi, va §16.2(B) bilan §17.4 ni **bitta umumiy printsipning**
+> xususiy hollari qilib ko'rsatadi.
+
+### 20.1 FAKT — nima aniqlandi
+
+`reduce-fix` **sof brownout** fixture'i qurdi: throughput `R_ref` ning
+30% iga tushadi, lekin **har bir probe contract'dan o'tadi**. Kodda:
+
+```
+contract buzilishi yo'q  ⇒  find_failure_onsets hech narsa topmaydi
+                         ⇒  build_episodes hech narsa qurmaydi
+                         ⇒  evaluate_vr → vr = None, vr_reason = "no_episode"
+trial `complete` / `derived`  ⇒  §16.2(B) ning kiruvchi juftlari bo'yicha
+                                 BINAR MAXRAJDA — aniqlanmagan VR bilan
+```
+
+`vr = None` ning uchta sababi kodda nomlangan: **`no_episode`**,
+**`r_ref_unavailable`**, **`throughput_unmeasurable`** (§17 ga
+tegishli `window_truncated` esa nol bo'lishi shart).
+
+**Muammo:** maxrajga kirish *natija kuzatilgan* degan da'vo. `vr = None`
+bilan maxrajda bo'lish — kuzatilmagan narsani kuzatilgan deb ko'rsatish,
+va `P(VR)` ning qiymati `None` ni implementatsiya qanday ishlashiga
+bog'liq bo'lib qoladi — aynan §16 va §17 boshqa joylarda **olib
+tashlagan** noaniqlik turi.
+
+### 20.2 QAROR — umumiy printsip, uchta holatni bir joyga yig'adi
+
+§4 VR ni **epizod `E` uchun** ta'riflaydi: *"Epizod `E`
+verified-recovered, agar …"*. Demak maxrajning to'g'ri ta'rifi
+disposition'lar ro'yxati emas, balki **predikatning aniqlanganligi**:
+
+> **Binar `P(VR)` maxraji — §4 ning predikati ANIQLANGAN qiymat
+> (`true` yoki `false`) olgan trial'lar to'plami. `vr = None` —
+> sababi nima bo'lishidan qat'i nazar — maxrajdan TASHQARIDA, va
+> sabab §12 ning *"eksklyuziya darajasi natija sifatida beriladi"*
+> qoidasi va §16.4 ning nomlash qoidasi bo'yicha **nomlanib**
+> beriladi.**
+
+Bu **yangi qoida emas, umumlashtirish** — §16.2(B) va §17.4 undan
+kelib chiqadi:
+
+| holat | `vr` | maxrajda? | manba |
+|---|---|---|---|
+| oyna o'tdi | `true` | **ha** (numerator) | §4 |
+| `t_up` yo'q, horizon down tugadi | **`false`** (aniqlangan) | **ha** | §16.2(B) |
+| probe uzilishi > 2×P | `None` | **yo'q** | §16.2(B) |
+| oyna hold'dan/horizon'dan chiqdi | `None` | **yo'q** | §17.4 |
+| **`no_episode`** | `None` | **yo'q** | **20.3** |
+| **`r_ref_unavailable`**, **`throughput_unmeasurable`** | `None` | **yo'q** | **20.4** |
+
+**Hech qanday yangi `disposition` qiymati kerak emas va §12 ning yopiq
+enum'iga tegilMAYDI.** Qoida `vr` maydonining o'ziga tayanadi, u
+allaqachon mavjud.
+
+### 20.3 QAROR — `no_episode`: savol UMUMAN tug'ilmagan
+
+Bu uchinchi epistemologik kategoriya, va u avvalgi ikkisidan **farq
+qiladi**:
+
+| kategoriya | VR savoli | javob |
+|---|---|---|
+| `down_at_horizon` | **tug'ildi** | kuzatilgan `false` |
+| `probe_gap`, §17.4 | **tug'ildi** | **kuzatilmagan** |
+| **`no_episode`** | **TUG'ILMAGAN** | — |
+
+Epizod bo'lmasa §4 ning predikati **instansiyalanmaydi**: `t_up`
+("`E` ning oxirgi action'idan keyingi birinchi contract'dan o'tgan
+probe") ta'rifi `E` ga bog'liq, `E` esa yo'q. **`None` — halol
+qiymat**, va shu sababli maxrajdan tashqarida.
+
+#### Survival'ga ham KIRMAYDI — bu birinchi shunday kategoriya
+
+§6.2 censored trial'larni KM/log-rank'ga kiritishni talab qiladi.
+**Lekin §6.2 ning qoidasi `recovery bo'lmagan` trial'lar haqida:**
+*"**Recovery bo'lmagan trial'larni tashlash** — klassik yashirin
+bias, va u tez ishdan chiqadigan arm'ni chiroyli ko'rsatadi."*
+
+`no_episode` trial — **recovery bo'lmagan trial emas.** Unda
+recovery **kutilmagan**: xizmat ishdan chiqmagan, demak hech qanday
+hodisa **kutilayotgan** emas edi. Censored kuzatuv *"hodisa `t`
+gacha sodir bo'lmadi"* degan da'vo, va u hodisaning **kutilayotgan**
+bo'lishini talab qiladi. Bu yerda u kutilayotgan emas.
+
+> **Shuning uchun `no_episode` **ikkala** to'plamdan ham chiqariladi —
+> binar maxrajdan **va** KM/log-rank'dan. Bu §6.2 ga zid emas, chunki
+> §6.2 ning qoidasi bu holatga **yetib bormaydi**.** Bu v1.5 dan beri
+> birinchi kategoriya bo'lib ikkala to'plamdan ham chiqadi, shuning
+> uchun ochiq yoziladi.
+
+#### Lekin bu trial SIFAT metrikasi — yashirilmaydi
+
+§9.3 bo'yicha **har trial'ga aynan bitta injeksiya** beriladi, va P1
+ning yagona fault'i `clean_crash` (probe → `exit(1)`, `SIGKILL`,
+`SIGSEGV`). SUT o'ldirilsa contract **buzilishi shart** (socket
+accept qilmaydi). Demak muzlatilgan P1 dizaynida `no_episode`
+**injeksiya ishlamaganini** bildiradi — natija emas, **trial
+nuqsoni**.
+
+> **Muzlatilgan hisobot qoidasi:** `no_episode` darajasi
+> `(arm × pressure)` bo'yicha **alohida** beriladi va
+> **injektor samaradorligi metrikasi** deb nomlanadi, boshqa
+> eksklyuziyalar bilan **birlashtirilmaydi**. Nolga teng bo'lmagan
+> daraja — fault injektori o'z ishini bajarmayotganini bildiradi va
+> **pilotni gate qiladi**: §9.2 ning to'rtala mexanizmi ham
+> injeksiyaning ishlashini nazarda tutadi.
+
+### 20.4 QAROR — `r_ref_unavailable` / `throughput_unmeasurable`: savol tug'ildi, 5-band baholanmaydi
+
+Bu **boshqa da'vo** va `no_episode` dan **farqli** ishlanadi.
+
+Epizod **bor**, demak VR savoli **tug'ildi**. Lekin §4 ning
+**5-bandi** (*"oyna throughput'i ≥ `θ · R_ref`"*) baholanishi uchun
+`R_ref` kerak, va u yo'q. §4 bu bandning rolini ochiq aytadi:
+
+> *"**5-band VR ni process-liveness'dan ajratadigan narsa.** Qaytgan
+> lekin 5% throughput'da ishlayotgan xizmat recovered emas. **Busiz
+> butun hissa "process tirikmi?" ga qulaydi.**"*
+
+Demak:
+
+1. **`vr = None`, maxrajdan tashqarida** — bu `probe_gap` bilan bir
+   xil sinf: savol tug'ildi, javob **kuzatilmadi**.
+2. **1–4 bandlar ustida VR hisoblash QAT'IYAN TAQIQLANADI.**
+   5-bandni tashlab 1–4 ni baholash — VR ni **liveness-only**
+   ta'rifga tushirish, va §9.2 buning natijasini oldindan yozgan:
+   *"**liveness-only VR ta'rifi ehtimol null pilot beradi, va bu
+   null — ta'rif artefakti, H1 ga qarshi dalil EMAS.**"*
+   Ya'ni bunday trial'ni "VR = true" deb yozish §9.2 ning
+   ogohlantirgan artefaktini **yaratadi**.
+3. **KM/log-rank'ga KIRADI** — `no_episode` dan farqli, bu yerda
+   hodisa **kutilayotgan** edi (xizmat ishdan chiqdi). `D_probe`
+   ning oxiri (*"VR shartini qanoatlantiruvchi oynaning birinchi
+   probe'i"*, §6.1) aniqlanmaydi, demak trial **horizon'da
+   censored** sifatida kiradi — §6.2 ning qoidasi aynan shu
+   holatga **yetib boradi**.
+4. Darajasi **instrumentatsiya yo'qolishi** sinfida, `probe_gap`
+   bilan **birga** beriladi va `no_episode` bilan
+   **birlashtirilMAYDI**.
+
+### 20.5 CHEKLOV — §4 contract'ni buzmagan brownout'ga KO'R
+
+Fixture'ning ochgan narsasi bookkeeping'dan kattaroq.
+
+**Avval bir aniqlik:** sof brownout **§9.2 ning (iii) mexanizmi
+EMAS.** (iii) *"**start bo'ldi** lekin throughput < `θ·R_ref`"* —
+ya'ni u **restart'dan keyingi** brownout va epizodni **nazarda
+tutadi**. Contract umuman buzilmagan brownout — boshqa hodisa.
+
+**Natija:** `θ = 0.8` va 30% throughput bilan xizmat **jiddiy
+degradatsiyalangan**, lekin §4 ning predikati **instansiyalanmaydi**,
+demak binar endpoint buni **umuman ko'rmaydi** — na `VR = false`, na
+invalidator, na epizod.
+
+**Lekin pilot ko'r emas:** §6.1 ning `D_eff` i
+(`P·n_failing_probes + ∫ max(0, 1 − r(t)/R_ref) dt`) aynan shu
+degradatsiyani o'lchaydi — §6.1 uning haqida *"yo'q —
+**brownout'ni ham hisoblaydi**"* deydi. Va §11 ning davom etish
+mezoni **(b)** aynan `D_eff` ni ishlatadi
+(*"`D_eff` `P2` da ≥1.5× `P0`"*).
+
+> **Shuning uchun maqolada shunday yoziladi:** binar endpoint
+> (`P(VR)`, §10.1) contract'ni buzmagan degradatsiyaga **ko'r**;
+> uzluksiz downtime o'lchovi (`D_eff`, §6.1) uni **ko'radi**; va
+> §11(b) shu sababli faqat qo'shimcha emas, **mustaqil zarur**
+> mezon. Bu **yumshatilmaydi**.
+
+**Bog'liqlik (§17.7):** contract'ni buzmagan, pressure sabab
+degradatsiya — aynan §8.2 ning (ii) nazorati
+(*"injeksiya yo'q, pressure bor"*) o'lchashi kerak bo'lgan narsa, va
+o'sha nazorat §9.3 ning panjarasida **yo'q**. Fixture shu bo'shliqni
+boshqa tomondan ko'rsatdi.
+
+### 20.6 Bias yo'nalishini ochiq e'lon qilish
+
+**Birlamchi asos — aniqlanganlik, yo'nalish emas.** Hozirgi holatda
+`P(VR)` ning qiymati `None` ni implementatsiya qanday ishlashiga
+bog'liq; qaror shu bog'liqlikni **olib tashlaydi**. Bu qaror
+`None` ni raqamga aylantirmaydi, balki uni **maxrajdan chiqaradi**,
+demak `P(VR)` har qanday `None`-siyosatidan **mustaqil** bo'ladi.
+
+**Yo'nalish, shartli ravishda va halol:** `vr = None` trial maxrajda
+qolsa, u numeratorga **kirmaydi**, demak `P(VR) = k/n` ni
+**pasaytiradi**. Pressure sabab brownout `P2` da ko'proq uchrashi
+**ehtimol**, demak hozirgi holat `P(VR|P2)` ni pasaytirib trend'ni
+**kuchaytirardi** — ya'ni **H1 foydasiga** bias. Qaror uni olib
+tashlaydi, demak **bu qaror H1 GA QARSHI ishlaydi.**
+
+> **Diqqat:** `no_episode` ning `P2` da to'planishi **o'lchanmagan**
+> taxmin. Clean_crash injeksiyasi pressure'dan qat'i nazar epizod
+> berishi kerak, demak to'planish faqat pressure injeksiya yo'lining
+> o'zini buzgan holda yuzaga keladi. Shuning uchun yo'nalish
+> **shartli** deb e'lon qilinadi, va qarorning asosi **aniqlanganlik**.
+
+**Shuni ham ochiq aytaman:** bu qaror §16.2(B) va §18.2 bilan
+**teskari yo'nalishga** ishlaydi (ular H1 foydasiga edi). Qarorlar
+bir tomonga qarab tizmalanmayotgani — ular **yo'naltirilmayotganining**
+o'zi dalili. Har biri alohida matndan chiqarilgan.
+
+### 20.7 TASDIQ — `reduce-fix` ning ikki hukmi §17 ga ZID EMAS
+
+**(a) §17.4 ni `P0` da ham bir xil qo'llash — TO'G'RI**, va asos
+`reduce-fix` aytganidan kuchliroq. §9.4 ning trial jadvali
+(*"baseline 10 s → ramp 5 s → hold, injeksiya hold'ga 3 s kirgach"*)
+**barcha pressure darajalarida** amal qiladi; `P0` da generator
+**idle** (§9.3), lekin fazalar **jadval sifatida** saqlanadi.
+Agar oyna sharti `P0` da yumshatilsa, trend testi `P2` da
+*"fazaning ichiga to'liq sig'gan oyna"* ni `P0` da *"fazadan chiqib
+ketgan oyna"* bilan taqqoslardi — ya'ni **trend strataları bo'ylab
+turli kattaliklar**, aynan §17 olib tashlagan bias. **Bir xil
+qo'llash — majburiy.**
+
+**(b) deny-list o'rniga allow-list — TO'G'RI**, va u §8.4(3) ning
+muzlatilgan fail-closed qoidasining to'g'ridan-to'g'ri qo'llanishi:
+*"Kuzatuv o'qilmasa (None) u **jim deb hisoblanMAYDI**."*
+Kelgusi `disposition_source` avtomatik **chiqariladi va nomlanadi**,
+maxrajga **sudralib kirmaydi**.
+
+> **20.2 ning qoidasi shu printsipni `vr` ga ham yoyadi:** `vr`
+> **tasdiqlab aniqlangan** bo'lishi shart (`true` yoki `false`),
+> *"aniqlanmaganligi ma'lum emas"* yetarli **emas**.
+
+### 20.8 OCHIQ BO'SHLIQ — §12 enum'ida "injeksiya ishlamadi" qiymati yo'q
+
+20.3 `no_episode` ni **trial nuqsoni** deb atadi, lekin §12 ning
+**yopiq** enum'ida unga mos qiymat yo'q: `contaminated` (biz
+yubormagan `SIGKILL` / cheklamagan `oom_kill` / bystander),
+`harness_error` (harness istisnosi), `censored` (probe uzilishi yoki
+horizon down) — **birortasi ham emas**. Hozirgi kodda u
+`complete` / `derived` bo'lib qoladi.
+
+**Hal qilinMAYDI:** yangi qiymat qo'shish §12 ning **yopiq
+enum'ini** o'zgartiradi, va *"Har trial'ga **aynan bitta**
+disposition"* qoidasi bilan birga bu muzlatilgan shartnomaga
+tegish bo'ladi. **20.2 ning qoidasi bu bo'shliqni analiz tomondan
+yopadi** (`vr = None` ⇒ maxrajdan tashqarida, sabab nomlanadi),
+demak u **P1 ni bloklamaydi**; lekin `no_episode` trial `complete`
+deb **nomlanishi** — §12 ning *"to'liq o'lchandi"* ma'nosiga mos
+kelmaydi. Egasining qarori; §17.5 amendment'i uchun tabiiy joy.
+
+### 20.9 NIMA O'ZGARMAYDI
+
+§4 ning VR ta'rifi va **5-bandi**, §6.1 ning uch downtime o'lchovi,
+§6.2 ning *"tashlanmaydi, ishlanadi"* qoidasi, §9.2 ning to'rtta
+mexanizmi va liveness-only ogohligi, §10.1, §10.2, §10.4, §11 ning
+ikkala limbi va davom etish mezonlari, §12 ning **yopiq enum'i** va
+*"aynan bitta disposition"* qoidasi, §14, §16, §17, §18, §19 —
+**hammasi muzlatilgan holida.** `θ = 0.8`, `τ = 8 s`,
+`W_stab_pilot = 8 s`, `W_stab = 60 s`, `injection_offset = 3 s`,
+`hold_cap_s = 12 s`, `guard_sustain_s = 15 s`, `T_conn`/`T_rt` =
+50 ms, `P` = 100 ms, `k_f` = 3, `ε` = 32 MiB, quiescence 0.05,
+`T_q` = 5 s, `T_w` = 15 s, `T_w_max` = 120 s, arm'lar
+`A`/`no_action`, `P0`/`P1`/`P2`, 20 blok / 120 trial —
+**o'zgarmadi.** §13 ga tegilmadi.
+
+Qo'shilgan narsa: bitta umumlashtirilgan maxraj qoidasi (20.2), ikki
+holat uchun **farqli** ishlov (20.3, 20.4), ikki hisobot sinfi, bir
+cheklov (20.5), ikki tasdiq (20.7) va bir ochiq bo'shliq (20.8).
+
+### 20.10 NATIJA — yo'q
+
+**Hech qanday eksperiment ishga tushirilmadi. Hech qanday natija yo'q.**
+Bu bo'limdagi hech bir qaror kuzatilgan natijadan keyin qabul
+qilinmagan; barcha asoslar §4, §6.1, §6.2, §9.2, §9.3, §8.4 va §12
+ning muzlatilgan matnidan. `no_episode` ning taqsimoti
+**o'lchanmagan** va 20.6 da shunday belgilangan.
