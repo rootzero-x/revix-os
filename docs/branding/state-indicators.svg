@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  REVIX holat belgilari (state vocabulary) varag'i. Spetsifikatsiya: state-indicators.md.
+  <symbol> lar (st-*) shu faylning o'zida: GUI ularni nusxalab ishlatadi. Hammasi currentColor.
+  Qora fon #080808; yashil/qizil faqat healthy va failed uchun (00-design-system.md, 5-bo'lim).
+  Ikkinchi blok: har rang UNGA TENG relative luminance'li kulrangga almashtirilgan simulyatsiya
+  (chop etishdagi oq-qora holatning taxmini; haqiqiy printerda tekshirilmagan).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1100" height="1180" viewBox="0 0 1100 1180" font-family="ui-monospace, 'Cascadia Mono', 'DejaVu Sans Mono', Consolas, monospace" font-size="14">
+<defs>
+<symbol id="st-healthy" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="6"/></symbol>
+<symbol id="st-recovering" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2A6 6 0 0 1 8 14Z"/></symbol>
+<symbol id="st-degraded" viewBox="0 0 16 16" fill="currentColor"><path d="M8 2L14.5 13.5H1.5Z"/></symbol>
+<symbol id="st-isolated" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M2 7.25H14V8.75H2Z"/></symbol>
+<symbol id="st-failed" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M2 2H14V14H2Z M3.97 5.24L5.24 3.97L8.00 6.73L10.76 3.97L12.03 5.24L9.27 8.00L12.03 10.76L10.76 12.03L8.00 9.27L5.24 12.03L3.97 10.76L6.73 8.00Z"/></symbol>
+<symbol id="st-not-measured" viewBox="0 0 16 16" fill="currentColor"><clipPath id="nm-clip"><rect x="2.75" y="2.75" width="10.5" height="10.5"/></clipPath><rect x="2.75" y="2.75" width="10.5" height="10.5" fill="none" stroke="currentColor" stroke-width="1.5"/><g clip-path="url(#nm-clip)" stroke="currentColor" stroke-width="1.25"><path d="M0 8L8 0M0 12L12 0M0 16L16 0M4 16L16 4M8 16L16 8"/></g></symbol>
+<symbol id="st-not-run" viewBox="0 0 16 16" fill="currentColor"><rect x="2.75" y="2.75" width="10.5" height="10.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.1 2.1"/></symbol>
+<pattern id="hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="4" height="4" fill="#0F0F0F"/><rect width="4" height="1" fill="#888888"/></pattern>
+</defs>
+<rect width="1100" height="1180" fill="#080808"/>
+<text x="32" y="40" fill="#FFFFFF" font-size="20" font-weight="600">REVIX holat belgilari: 7 holat</text>
+<text x="32" y="62" fill="#888888" font-size="12">glyph + matn + shakl; rang IKKINCHI kanal. Tag: CLI/ASCII shakli. Enum: mashina qiymati.</text>
+<text x="32" y="104" fill="#888888" font-size="12" letter-spacing="0.96">RANGLI (asosiy)</text>
+<rect x="32" y="118" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-healthy" x="48" y="138" width="16" height="16" color="#22C55E"/>
+<use xlink:href="#st-healthy" x="84" y="126" width="40" height="40" color="#22C55E"/>
+<text x="148" y="152" fill="#22C55E" font-weight="600">[ OK ]</text>
+<text x="240" y="152" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">HEALTHY</text>
+<text x="440" y="142" fill="#888888" font-size="12">healthy</text>
+<text x="440" y="160" fill="#D4D4D4" font-size="12">verified: predicate nomi yoniga yoziladi (VR, contract ok)</text>
+<rect x="32" y="180" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-recovering" x="48" y="200" width="16" height="16" color="#D4D4D4"/>
+<use xlink:href="#st-recovering" x="84" y="188" width="40" height="40" color="#D4D4D4"/>
+<text x="148" y="214" fill="#D4D4D4" font-weight="600">[ .. ]</text>
+<text x="240" y="214" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">RECOVERING</text>
+<text x="440" y="204" fill="#888888" font-size="12">recovering</text>
+<text x="440" y="222" fill="#D4D4D4" font-size="12">action berilgan, W_stab oynasi hali yopilmagan</text>
+<rect x="32" y="242" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-degraded" x="48" y="262" width="16" height="16" color="#D4D4D4"/>
+<use xlink:href="#st-degraded" x="84" y="250" width="40" height="40" color="#D4D4D4"/>
+<text x="148" y="276" fill="#D4D4D4" font-weight="600">[ /\ ]</text>
+<text x="240" y="276" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">DEGRADED</text>
+<text x="440" y="266" fill="#888888" font-size="12">degraded</text>
+<text x="440" y="284" fill="#D4D4D4" font-size="12">jarayon tirik, lekin contract yoki throughput bandi buzilgan</text>
+<rect x="32" y="304" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-isolated" x="48" y="324" width="16" height="16" color="#D4D4D4"/>
+<use xlink:href="#st-isolated" x="84" y="312" width="40" height="40" color="#D4D4D4"/>
+<text x="148" y="338" fill="#D4D4D4" font-weight="600">[ || ]</text>
+<text x="240" y="338" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">ISOLATED</text>
+<text x="440" y="328" fill="#888888" font-size="12">isolated</text>
+<text x="440" y="346" fill="#D4D4D4" font-size="12">qasddan ajratilgan (guard, slice, ekskluziya). Hukm EMAS</text>
+<rect x="32" y="366" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-failed" x="48" y="386" width="16" height="16" color="#FF3B30"/>
+<use xlink:href="#st-failed" x="84" y="374" width="40" height="40" color="#FF3B30"/>
+<text x="148" y="400" fill="#FF3B30" font-weight="600">[FAIL]</text>
+<text x="240" y="400" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">FAILED</text>
+<text x="440" y="390" fill="#888888" font-size="12">failed</text>
+<text x="440" y="408" fill="#D4D4D4" font-size="12">contract buzilgan va tiklanmagan (aniq aniqlangan)</text>
+<rect x="32" y="428" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-not-measured" x="48" y="448" width="16" height="16" color="#888888"/>
+<use xlink:href="#st-not-measured" x="84" y="436" width="40" height="40" color="#888888"/>
+<text x="148" y="462" fill="#888888" font-weight="600">[ n/m ]</text>
+<text x="240" y="462" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">NOT MEASURED</text>
+<text x="440" y="452" fill="#888888" font-size="12">not_measured</text>
+<text x="440" y="470" fill="#D4D4D4" font-size="12">run bo'ldi, asbob qiymat bermadi (None). Sabab MAJBURIY</text>
+<rect x="32" y="490" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-not-run" x="48" y="510" width="16" height="16" color="#888888"/>
+<use xlink:href="#st-not-run" x="84" y="498" width="40" height="40" color="#888888"/>
+<text x="148" y="524" fill="#888888" font-weight="600">[ n/r ]</text>
+<text x="240" y="524" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">NOT RUN</text>
+<text x="440" y="514" fill="#888888" font-size="12">not_run</text>
+<text x="440" y="532" fill="#D4D4D4" font-size="12">bu qadam hali bajarilmagan. Run mavjud emas</text>
+<text x="32" y="574" fill="#888888" font-size="12" letter-spacing="0.96">FAQAT LUMINANCE (kulrang simulyatsiya)</text>
+<rect x="32" y="588" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-healthy" x="48" y="608" width="16" height="16" color="#ACACAC"/>
+<use xlink:href="#st-healthy" x="84" y="596" width="40" height="40" color="#ACACAC"/>
+<text x="148" y="622" fill="#ACACAC" font-weight="600">[ OK ]</text>
+<text x="240" y="622" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">HEALTHY</text>
+<text x="440" y="612" fill="#888888" font-size="12">healthy</text>
+<text x="440" y="630" fill="#D4D4D4" font-size="12">verified: predicate nomi yoniga yoziladi (VR, contract ok)</text>
+<rect x="32" y="650" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-recovering" x="48" y="670" width="16" height="16" color="#D4D4D4"/>
+<use xlink:href="#st-recovering" x="84" y="658" width="40" height="40" color="#D4D4D4"/>
+<text x="148" y="684" fill="#D4D4D4" font-weight="600">[ .. ]</text>
+<text x="240" y="684" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">RECOVERING</text>
+<text x="440" y="674" fill="#888888" font-size="12">recovering</text>
+<text x="440" y="692" fill="#D4D4D4" font-size="12">action berilgan, W_stab oynasi hali yopilmagan</text>
+<rect x="32" y="712" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-degraded" x="48" y="732" width="16" height="16" color="#D4D4D4"/>
+<use xlink:href="#st-degraded" x="84" y="720" width="40" height="40" color="#D4D4D4"/>
+<text x="148" y="746" fill="#D4D4D4" font-weight="600">[ /\ ]</text>
+<text x="240" y="746" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">DEGRADED</text>
+<text x="440" y="736" fill="#888888" font-size="12">degraded</text>
+<text x="440" y="754" fill="#D4D4D4" font-size="12">jarayon tirik, lekin contract yoki throughput bandi buzilgan</text>
+<rect x="32" y="774" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-isolated" x="48" y="794" width="16" height="16" color="#D4D4D4"/>
+<use xlink:href="#st-isolated" x="84" y="782" width="40" height="40" color="#D4D4D4"/>
+<text x="148" y="808" fill="#D4D4D4" font-weight="600">[ || ]</text>
+<text x="240" y="808" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">ISOLATED</text>
+<text x="440" y="798" fill="#888888" font-size="12">isolated</text>
+<text x="440" y="816" fill="#D4D4D4" font-size="12">qasddan ajratilgan (guard, slice, ekskluziya). Hukm EMAS</text>
+<rect x="32" y="836" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-failed" x="48" y="856" width="16" height="16" color="#888888"/>
+<use xlink:href="#st-failed" x="84" y="844" width="40" height="40" color="#888888"/>
+<text x="148" y="870" fill="#888888" font-weight="600">[FAIL]</text>
+<text x="240" y="870" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">FAILED</text>
+<text x="440" y="860" fill="#888888" font-size="12">failed</text>
+<text x="440" y="878" fill="#D4D4D4" font-size="12">contract buzilgan va tiklanmagan (aniq aniqlangan)</text>
+<rect x="32" y="898" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-not-measured" x="48" y="918" width="16" height="16" color="#888888"/>
+<use xlink:href="#st-not-measured" x="84" y="906" width="40" height="40" color="#888888"/>
+<text x="148" y="932" fill="#888888" font-weight="600">[ n/m ]</text>
+<text x="240" y="932" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">NOT MEASURED</text>
+<text x="440" y="922" fill="#888888" font-size="12">not_measured</text>
+<text x="440" y="940" fill="#D4D4D4" font-size="12">run bo'ldi, asbob qiymat bermadi (None). Sabab MAJBURIY</text>
+<rect x="32" y="960" width="1036" height="56" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-not-run" x="48" y="980" width="16" height="16" color="#888888"/>
+<use xlink:href="#st-not-run" x="84" y="968" width="40" height="40" color="#888888"/>
+<text x="148" y="994" fill="#888888" font-weight="600">[ n/r ]</text>
+<text x="240" y="994" fill="#FFFFFF" font-weight="600" font-size="13" letter-spacing="1">NOT RUN</text>
+<text x="440" y="984" fill="#888888" font-size="12">not_run</text>
+<text x="440" y="1002" fill="#D4D4D4" font-size="12">bu qadam hali bajarilmagan. Run mavjud emas</text>
+<text x="32" y="1048" fill="#888888" font-size="12" letter-spacing="0.96">NOL, NOT MEASURED, NOT RUN VA OK: bir qatorda</text>
+<rect x="32" y="1062" width="250" height="64" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<text x="42" y="1092" fill="#FFFFFF" font-size="16" font-weight="600">0 ms</text>
+<text x="42" y="1116" fill="#D4D4D4" font-size="11">downtime (o'lchandi: nol)</text>
+<rect x="298" y="1062" width="250" height="64" fill="url(#hatch)" stroke="#888888" stroke-width="1"/>
+<rect x="308" y="1072" width="64" height="26" fill="#080808"/>
+<text x="316" y="1091" fill="#D4D4D4" font-size="16" font-weight="600">n/m</text>
+<rect x="304" y="1102" width="238" height="18" fill="#080808"/>
+<text x="308" y="1116" fill="#D4D4D4" font-size="11">NOT MEASURED  reason: probe_gap</text>
+<rect x="564" y="1062" width="250" height="64" fill="none" stroke="#888888" stroke-width="1.5" stroke-dasharray="4 4"/>
+<text x="574" y="1092" fill="#888888" font-size="16" font-weight="600">n/r</text>
+<text x="574" y="1116" fill="#888888" font-size="11">NOT RUN</text>
+<rect x="830" y="1062" width="250" height="64" fill="#0F0F0F" stroke="#444444" stroke-width="1"/>
+<use xlink:href="#st-healthy" x="840" y="1072" width="20" height="20" color="#22C55E"/>
+<text x="868" y="1089" fill="#22C55E" font-size="16" font-weight="600">OK</text>
+<text x="840" y="1116" fill="#D4D4D4" font-size="11">VR  oyna yopildi</text>
+<text x="32" y="1150" fill="#888888" font-size="12">n/m va n/r holatida hech qachon raqam, nol yoki bo'sh joy ko'rsatilmaydi.</text>
+</svg>

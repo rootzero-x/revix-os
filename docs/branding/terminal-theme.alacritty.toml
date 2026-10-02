@@ -1,0 +1,35 @@
+# REVIX terminal theme (Alacritty >= 0.13 sxemasi: [colors.*]).
+# Manba: docs/branding/terminal-theme.md. Qiymatlar shu hujjatdagi jadvalning nusxasi.
+# Yellow/blue/magenta/cyan ATAYIN neytral: palitrada bunday ranglar yo'q (terminal-theme.md §2).
+
+[colors.primary]
+background = "#080808"
+foreground = "#D4D4D4"
+
+[colors.cursor]
+cursor = "#FFFFFF"
+text = "#080808"
+
+[colors.selection]
+background = "#444444"
+text = "CellForeground"
+
+[colors.normal]
+black = "#444444"
+red = "#E53935"
+green = "#22C55E"
+yellow = "#888888"
+blue = "#888888"
+magenta = "#888888"
+cyan = "#888888"
+white = "#D4D4D4"
+
+[colors.bright]
+black = "#888888"
+red = "#FF3B30"
+green = "#00C853"
+yellow = "#D4D4D4"
+blue = "#D4D4D4"
+magenta = "#D4D4D4"
+cyan = "#D4D4D4"
+white = "#FFFFFF"

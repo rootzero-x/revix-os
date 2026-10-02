@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  REVIX icon. Qo'lda yozilgan SVG, bitta rang (fill="currentColor"), raster va tashqi font yo'q.
+
+  Shakl: faqat logo belgisi (tushish va qaytish izi + verification oynasi plankasi), konteynersiz,
+  32 x 32 maydonni to'ldirish uchun logo.svg dagi belgidan 1.25 marta kattalashtirilgan
+  (x' = 1.25x - 4, y' = 1.25y - 4.3125; koordinatalar shu formuladan hisoblangan).
+  Orqa fon YO'Q: icon qora va oq fonda bir xil geometriya bilan ishlaydi, rangni joylashtirilgan
+  kontekstning `color` qiymati beradi.
+
+  NEGA KONTEYNERSIZ: dastlab belgi to'ldirilgan kvadrat ichiga "kesib olingan" variantda sinaldi
+  (qora/oq fonda 16..160 px da ko'rib chiqildi). Kvadrat ichida iz va planka "yuz" (ko'z-burun-og'iz)
+  kabi o'qildi, bu esa o'lchov asbobiga mos emas. Konteynersiz variantda bu o'qilish yo'qoldi.
+
+  16 px da: belgi ~13.8 x 12.2 px, iz chizig'i ~1.9 px. 16 px eng kichik e'lon qilingan
+  o'lcham (00-design-system.md §10); undan kichikda o'qilishi TEKSHIRILMAGAN.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="64" height="64" role="img" aria-labelledby="t">
+  <title id="t">REVIX</title>
+  <path fill="currentColor" d="M2.25 3.8125H11.625V16.3125H17.875V3.8125H29.75V7.5625H21.625V20.0625H7.875V7.5625H2.25Z M17.875 24.4375H29.75V28.1875H17.875Z"/>
+</svg>
