@@ -767,7 +767,7 @@ def test_run_yordam_matni_ixtiyoriy_flaglarni_korsatadi(capsys):
     with pytest.raises(SystemExit):
         cli.main(["analyze", "--help"])
     out = capsys.readouterr().out
-    for flag in ("--sweep", "--episodes", "--events"):
+    for flag in ("--sweep", "--episodes", "--events", "--reduction-summary"):
         assert flag in out
     with pytest.raises(SystemExit):
         cli.main(["figures", "--help"])
@@ -854,10 +854,25 @@ def test_analyze_episodes_va_events_argv_tartibi(soxta):
         "--events", "ev.jsonl", "--json"]
 
 
+def test_analyze_reduction_summary_argv_tartibi(soxta):
+    """--reduction-summary --events dan KEYIN, --json dan OLDIN turadi."""
+    base = ["--trials", "t.jsonl", "--run-meta", "m.json", "--out", "a.json"]
+    cli.main(_MINIMAL["analyze"][1] + ["--reduction-summary", "rs.jsonl"])
+    assert soxta["analyze"].calls[-1] == base + ["--reduction-summary", "rs.jsonl"]
+    # Hamma ixtiyoriy flag, CLI'da teskari tartibda; modul argv'i qat'iy tartibda.
+    cli.main(["--json"] + _MINIMAL["analyze"][1]
+             + ["--reduction-summary", "rs.jsonl", "--events", "ev.jsonl",
+                "--episodes", "ep.jsonl", "--sweep", "sw.jsonl"])
+    assert soxta["analyze"].calls[-1] == base + [
+        "--sweep", "sw.jsonl", "--episodes", "ep.jsonl", "--events", "ev.jsonl",
+        "--reduction-summary", "rs.jsonl", "--json"]
+
+
 def test_analyze_episodes_va_events_majburiy_emas(soxta):
     cli.main(_MINIMAL["analyze"][1])
     call = soxta["analyze"].calls[-1]
-    for flag in ("--sweep", "--episodes", "--events", "--json"):
+    for flag in ("--sweep", "--episodes", "--events", "--reduction-summary",
+                 "--json"):
         assert flag not in call
 
 
