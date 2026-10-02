@@ -766,7 +766,9 @@ def test_run_yordam_matni_ixtiyoriy_flaglarni_korsatadi(capsys):
         assert flag in out
     with pytest.raises(SystemExit):
         cli.main(["analyze", "--help"])
-    assert "--sweep" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    for flag in ("--sweep", "--episodes", "--events"):
+        assert flag in out
     with pytest.raises(SystemExit):
         cli.main(["figures", "--help"])
     assert "--only" in capsys.readouterr().out
@@ -831,6 +833,32 @@ def test_analyze_argv_minimal_va_sweep(soxta):
     assert soxta["analyze"].calls[-1] == ["--trials", "t.jsonl", "--run-meta", "m.json",
                                           "--out", "a.json", "--sweep", "sw.jsonl",
                                           "--json"]
+
+
+def test_analyze_episodes_va_events_argv_tartibi(soxta):
+    """Tartib qat'iy: --sweep, --episodes, --events, --json (CLI'da qanday berilganidan qat'i nazar)."""
+    base = ["--trials", "t.jsonl", "--run-meta", "m.json", "--out", "a.json"]
+    cli.main(_MINIMAL["analyze"][1] + ["--episodes", "ep.jsonl"])
+    assert soxta["analyze"].calls[-1] == base + ["--episodes", "ep.jsonl"]
+    cli.main(_MINIMAL["analyze"][1] + ["--events", "ev.jsonl"])
+    assert soxta["analyze"].calls[-1] == base + ["--events", "ev.jsonl"]
+    cli.main(_MINIMAL["analyze"][1] + ["--episodes", "ep.jsonl", "--events", "ev.jsonl"])
+    assert soxta["analyze"].calls[-1] == base + [
+        "--episodes", "ep.jsonl", "--events", "ev.jsonl"]
+    # CLI'da teskari tartibda berilsa ham modul argv'i bir xil tartibda.
+    cli.main(["--json"] + _MINIMAL["analyze"][1]
+             + ["--events", "ev.jsonl", "--episodes", "ep.jsonl",
+                "--sweep", "sw.jsonl"])
+    assert soxta["analyze"].calls[-1] == base + [
+        "--sweep", "sw.jsonl", "--episodes", "ep.jsonl",
+        "--events", "ev.jsonl", "--json"]
+
+
+def test_analyze_episodes_va_events_majburiy_emas(soxta):
+    cli.main(_MINIMAL["analyze"][1])
+    call = soxta["analyze"].calls[-1]
+    for flag in ("--sweep", "--episodes", "--events", "--json"):
+        assert flag not in call
 
 
 def test_figures_argv_minimal(soxta):
