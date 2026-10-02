@@ -61,6 +61,7 @@ def run_meta(**over):
 
 
 def trial(trial_id, *, arm="A", pressure_band="P0", disposition="complete",
+          disposition_source="derived",
           vr=True, fr_a=False, n_episodes=1, n_actions=1,
           time_to_vr_us=2 * SEC, time_to_vr_censored=False,
           d_sd_us=1 * SEC, d_sd_censored=False,
@@ -91,6 +92,10 @@ def trial(trial_id, *, arm="A", pressure_band="P0", disposition="complete",
         "arm": arm,
         "pressure_band": pressure_band,
         "disposition": disposition,
+        # §16.2(B): birlamchi to'plam `(disposition, disposition_source)`
+        # jufti bilan aniqlanadi -- ikki `censored` turi epistemologik
+        # jihatdan boshqa.
+        "disposition_source": disposition_source,
         "disposition_conflict": False,
         "has_trial_begin": True,
         "has_trial_end": True,
@@ -246,9 +251,13 @@ def test_analysis_json_sxemasi_shartnomada_korsatilgan_kalitlarga_ega():
     assert p["falsification_rule"] == "trend p>0.05 AND newcombe_upper<0.15"
     assert isinstance(p["cells"], list) and len(p["cells"]) == 3
     for c in p["cells"]:
-        assert set(c) == {"level", "k", "n", "p_hat", "ci_lower", "ci_upper",
-                          "ci_method"}
+        # §2.2 ning kalitlari + §16.2(A) ning `arm` qamrovi.
+        assert set(c) == {"level", "arm", "k", "n", "p_hat", "ci_lower",
+                          "ci_upper", "ci_method"}
         assert c["ci_method"] == "clopper_pearson"
+        assert c["arm"] == "A"
+    assert p["arm"] == "A"
+    assert "within arm A" in p["scope"]
     assert set(p["risk_difference"]) == {"estimate", "ci_lower", "ci_upper",
                                          "ci_method", "contrast"}
     assert p["risk_difference"]["ci_method"] == "newcombe"
@@ -259,15 +268,27 @@ def test_analysis_json_sxemasi_shartnomada_korsatilgan_kalitlarga_ega():
     s = obj["survival"]
     assert set(s) >= {"km", "logrank", "rmst", "proportional_hazards_checked",
                       "censoring"}
-    assert set(s["logrank"]) == {"chi2", "p_value", "observed", "expected"}
-    assert set(s["rmst"]) >= {"tau", "by_arm", "difference"}
+    assert set(s["logrank"]) >= {"chi2", "p_value", "observed", "expected",
+                                 "by_pressure_band"}
+    assert set(s["rmst"]) >= {"tau", "by_arm", "difference",
+                              "by_pressure_band", "pressure_difference"}
     # §11 `tau = 8 s`, lekin §1 bo'yicha MIKROSEKUNDDA.
     assert s["rmst"]["tau"] == 8_000_000.0
     assert set(s["censoring"]) >= {"n_censored", "n_undetermined",
                                    "recovered_within_horizon"}
-    for arm_curve in s["km"]["by_arm"].values():
-        assert set(arm_curve) >= {"times", "survival", "at_risk",
-                                  "greenwood_var"}
+    assert set(s["km"]) >= {"by_arm", "by_pressure_band"}
+    for curve in list(s["km"]["by_arm"].values()) + list(
+            s["km"]["by_pressure_band"].values()):
+        assert set(curve) >= {"times", "survival", "at_risk",
+                              "greenwood_var"}
+    # Shartnoma §2.10 ning `pressure_difference` kalitlari.
+    assert set(s["rmst"]["pressure_difference"]) == {
+        "contrast", "tau", "estimate", "se", "ci_lower", "ci_upper"}
+    assert s["rmst"]["pressure_difference"]["contrast"] == "P0-P2"
+    assert s["rmst"]["pressure_difference"]["tau"] == 8_000_000.0
+    # §16.5 -- pressure o'qi arm `A` ICHIDA.
+    assert "within arm A" in s["km"]["by_pressure_band_scope"]
+    assert "within arm A" in s["rmst"]["by_pressure_band_scope"]
 
     fr = obj["false_recovery"]
     assert set(fr["fr_a"]) >= {"per_action", "per_episode", "n_undetermined"}
@@ -279,7 +300,12 @@ def test_analysis_json_sxemasi_shartnomada_korsatilgan_kalitlarga_ega():
     assert obj["sensitivity"]["theta"] == [0.5, 0.8, 0.95]
     assert set(obj["multiplicity"]) >= {"method", "family", "adjusted"}
     assert obj["multiplicity"]["method"] == "holm_bonferroni"
-    assert set(obj["exclusions"]) >= {"rate", "by_reason"}
+    assert set(obj["exclusions"]) >= {"rate", "by_reason", "rate_set",
+                                      "by_set"}
+    # §16.4 -- har daraja O'Z TO'PLAMINI NOMLAYDI.
+    assert set(obj["exclusions"]["by_set"]) == {"binary_p_vr_denominator",
+                                                "survival_analysis_set"}
+    assert obj["exclusions"]["rate_set"] == "binary_p_vr_denominator"
     assert isinstance(obj["warnings"], list)
 
 
@@ -985,6 +1011,261 @@ def test_falsifikatsiya_qoidasi_satri_aynan_shartnomadagidek():
     assert A.FALSIFICATION_RULE == "trend p>0.05 AND newcombe_upper<0.15"
     assert A.TREND_P_THRESHOLD == 0.05
     assert A.NEWCOMBE_UPPER_THRESHOLD == 0.15
+
+
+# --- 11b. §16.2(A): trend ARM `A` ICHIDA, pool QILINMAYDI ----------------
+
+
+def _pooling_fixture():
+    """Arm `A` da kuchli trend + `no_action` da uchala darajada `P(VR) = 0`.
+
+    QO'LDA HISOB (arm `A`): k = 10, 5, 0; n = 10, 10, 10.
+        N = 30, K = 15, p = 0.5
+        T   = 0*(10-5) + 1*(5-5) + 2*(0-5) = -10
+        Sxx = (10*0 + 10*1 + 10*4) - (10*0+10*1+10*2)^2/30
+            = 50 - 900/30 = 50 - 30 = 20
+        Var = 0.5*0.5*20 = 5
+        z   = -10/sqrt(5) = -4.47214,  chi2 = 20.0
+      `P(VR|P0) - P(VR|P2)` = 1.0 - 0.0 = 1.0
+
+    POOL QILINGANDA (`no_action` ning 0/10 lari qo'shilsa): k = 10, 5, 0;
+    n = 20, 20, 20.
+        N = 60, K = 15, p = 0.25
+        T   = 0*(10-5) + 1*(5-5) + 2*(0-5) = -10        (o'zgarmaydi)
+        Sxx = (20*0 + 20*1 + 20*4) - (20*0+20*1+20*2)^2/60
+            = 100 - 3600/60 = 100 - 60 = 40
+        Var = 0.25*0.75*40 = 7.5
+        z   = -10/sqrt(7.5) = -3.65148                  (|z| KICHRAYDI)
+      `P(VR|P0) - P(VR|P2)` = 0.5 - 0.0 = 0.5           (farq SUSAYADI)
+
+    Ya'ni pooling trend'ni SUSAYTIRADI -- §16.2(A) ning arifmetikasi.
+    """
+    trials = []
+    for lvl, k in (("P0", 10), ("P1", 5), ("P2", 0)):
+        for j in range(10):
+            trials.append(trial(f"SYNTH-A-{lvl}-{j}", arm="A",
+                                pressure_band=lvl, vr=(j < k)))
+        for j in range(10):
+            # `Restart=no` => `clean_crash` dan keyin hech qachon qaytmaydi.
+            trials.append(trial(f"SYNTH-N-{lvl}-{j}", arm="no_action",
+                                pressure_band=lvl, vr=False))
+    return trials
+
+
+def test_16_2A_trend_arm_A_ichida_hisoblanadi_pool_qilinmaydi():
+    """§16.2(A) -- pooling TESTNI BUZADI, shuning uchun arm ichida.
+
+    Yacheykalar arm `A` ning sonlarini ko'rsatishi SHART (10/10, 5/10,
+    0/10), pool qilingan 10/20, 5/20, 0/20 ni EMAS. Trend statistikasi
+    yuqoridagi qo'lda hisobga teng.
+    """
+    obj = build(_pooling_fixture())
+    p = obj["primary"]
+    assert p["arm"] == "A"
+    assert [(c["level"], c["k"], c["n"]) for c in p["cells"]] == [
+        ("P0", 10, 10), ("P1", 5, 10), ("P2", 0, 10)]
+    assert p["statistic"] == pytest.approx(-10.0 / math.sqrt(5.0), rel=1e-12)
+    assert p["statistic"] == pytest.approx(-4.4721360, rel=1e-6)
+    # Pool qilingan qiymat EMAS (u -3.65148 bo'lardi).
+    assert p["statistic"] != pytest.approx(-3.6514837, rel=1e-6)
+    assert p["risk_difference"]["estimate"] == pytest.approx(1.0)
+    assert p["risk_difference"]["contrast"] == "P0-P2"
+    assert "primary_scope_other_arms_excluded" in warn_codes(obj)
+
+
+def test_16_2A_no_action_km_va_k_n_da_QOLADI_yashirilmaydi():
+    """§16.2(A): `no_action` trend yacheykasi bermaydi, LEKIN KM/log-rank va
+    har jadvalning `k/n` qatorida QOLADI (§6.2) -- yashirilmaydi."""
+    obj = build(_pooling_fixture())
+    assert set(obj["survival"]["km"]["by_arm"]) == {"A", "no_action"}
+    assert obj["survival"]["km"]["by_arm"]["no_action"]["n_total"] == 30
+    # `k/n`: 60 trial, `vr=True` bo'lgani faqat arm `A` da 15 ta.
+    assert obj["survival"]["censoring"]["recovered_within_horizon"] == "15/60"
+    # Arm log-rank hali ham ikki arm orasida (§8.2 atributsiyasi).
+    assert obj["survival"]["logrank"]["contrast"] == "A-no_action"
+
+
+def test_16_2A_primary_k_n_arm_A_jadvalining_ozini_tasvirlaydi():
+    """`primary.recovered_within_horizon` -- O'SHA jadvalning to'plami.
+
+    QO'LDA HISOB: arm `A` da o'lchangan 30 trial, `vr=True` 15 ta => 15/30.
+    """
+    obj = build(_pooling_fixture())
+    assert obj["primary"]["recovered_within_horizon"] == "15/30"
+
+
+# --- 11c. §16.2(B): maxraj `reduce.select_primary` ning qarori -------------
+
+
+def test_16_2B_maxraj_reduce_select_primary_ga_delegat_qilinadi(monkeypatch):
+    """§16.6 -- to'plam tanlovi `reduce.py` ning YAKKA QARORI.
+
+    `agent/reduce-fix` `select_primary` ni §16.2(B) ga moslashtirmoqda
+    (`down_at_horizon` maxrajga kiradi). Bu modul tanlovni O'ZI
+    qilmasligi kerak, aks holda ikki manba ikki javob berardi. Shu sababli
+    bu test selektorni ALMASHTIRADI va chiqish AYNAN uning qaroriga
+    ergashishini tekshiradi.
+
+    QO'LDA HISOB: selektor uchala trial'ni qaytaradi; `vr` = True, False,
+    False => k = 1, n = 3.
+    """
+    trials = [
+        trial("SYNTH-ok", vr=True),
+        trial("SYNTH-dah", disposition="censored", vr=False,
+              disposition_source="down_at_horizon", time_to_vr_censored=True),
+        trial("SYNTH-dah2", disposition="censored", vr=False,
+              disposition_source="down_at_horizon", time_to_vr_censored=True),
+    ]
+    monkeypatch.setattr(A, "select_primary", lambda rows: list(rows))
+    obj = build(trials)
+    c0 = obj["primary"]["cells"][0]
+    assert (c0["k"], c0["n"]) == (1, 3)
+    assert obj["primary"]["recovered_within_horizon"] == "1/3"
+
+
+def test_16_2B_down_at_horizon_vr_false_olchangan_muvaffaqiyatsizlik(monkeypatch):
+    """§16.2(B) -- `down_at_horizon` KUZATILGAN no'l-hodisa, `None` EMAS.
+
+    §4 ning VR ta'rifi horizon bilan chegaralangan ("oyna MAVJUD bo'lsa"),
+    demak `t_up` paydo bo'lmagan trial uchun oyna mavjud emas va
+    `VR = false` TO'LIQ ANIQLANGAN. `reduce.evaluate_vr` buni allaqachon
+    shunday beradi (`vr=False`, `reason="no_up_probe"`,
+    `window_complete=True`), shuning uchun u maxrajga kirganda
+    `vr is not None` filtri uni TASHLAMAYDI.
+
+    Qarama-qarshi holat: `probe_gap` -- instrumentatsiya yo'qoldi, natija
+    kuzatilmagan, va u maxrajdan CHIQADI (bu qaror `reduce.py` da).
+    """
+    trials = [trial("SYNTH-ok", pressure_band="P2", vr=True),
+              trial("SYNTH-dah", pressure_band="P2", disposition="censored",
+                    vr=False, disposition_source="down_at_horizon",
+                    time_to_vr_censored=True)]
+    monkeypatch.setattr(A, "select_primary", lambda rows: list(rows))
+    obj = build(trials)
+    p2 = [c for c in obj["primary"]["cells"] if c["level"] == "P2"][0]
+    assert (p2["k"], p2["n"]) == (1, 2)
+    assert p2["p_hat"] == pytest.approx(0.5)
+    # `vr_undetermined` CHIQMASLIGI kerak: `False` aniqlangan natija.
+    assert "vr_undetermined" not in {
+        w["code"] for w in obj["warnings"] if w["where"].startswith("primary")}
+
+
+# --- 11d. §16.4: ikki eksklyuziya darajasi, har biri to'plamini nomlab ----
+
+
+def test_16_4_ikki_eksklyuziya_darajasi_har_biri_toplamini_nomlaydi():
+    """§16.4 -- nomlanmagan eksklyuziya darajasi TAKROLANUVCHI EMAS.
+
+    QO'LDA HISOB. 10 trial: 6 `complete`, 2 `censored:probe_gap`,
+    1 `censored:down_at_horizon`, 1 `contaminated`.
+      binar maxraj (`reduce.select_primary`, hozirgi holatda `complete`):
+        kiritilgan 6, chiqarilgan 4 => rate = 4/10 = 0.4
+      survival to'plami (`complete` + `censored`):
+        kiritilgan 9, chiqarilgan 1 (`contaminated`) => rate = 1/10 = 0.1
+    Ikki to'plam -> IKKI daraja. Bitta `rate` maydoni o'zi yetarli emas.
+    """
+    trials = ([trial(f"SYNTH-c{i}") for i in range(6)]
+              + [trial(f"SYNTH-g{i}", disposition="censored", vr=None,
+                       disposition_source="probe_gap",
+                       time_to_vr_censored=True) for i in range(2)]
+              + [trial("SYNTH-h", disposition="censored", vr=False,
+                       disposition_source="down_at_horizon",
+                       time_to_vr_censored=True)]
+              + [trial("SYNTH-x", disposition="contaminated", vr=None)])
+    ex = build(trials)["exclusions"]
+    binary = ex["by_set"]["binary_p_vr_denominator"]
+    surv = ex["by_set"]["survival_analysis_set"]
+    assert binary["rate"] == pytest.approx(0.4)
+    assert binary["n_included"] == 6 and binary["n_excluded"] == 4
+    assert surv["rate"] == pytest.approx(0.1)
+    assert surv["n_included"] == 9 and surv["n_excluded"] == 1
+    # Har blok O'Z to'plamini NOMLAYDI.
+    assert binary["set"] == "binary_p_vr_denominator"
+    assert surv["set"] == "survival_analysis_set"
+    # Ikki `censored` turi AJRATILADI (§16.2(B)).
+    assert binary["by_reason"]["censored:probe_gap"] == 2
+    assert binary["by_reason"]["censored:down_at_horizon"] == 1
+    assert surv["by_reason"] == {"contaminated:derived": 1}
+    # `rate` kaliti saqlanadi, lekin NOMLANGAN.
+    assert ex["rate"] == pytest.approx(binary["rate"])
+    assert ex["rate_set"] == "binary_p_vr_denominator"
+
+
+def test_16_4_disposition_source_yoq_bolsa_warning_beriladi():
+    obj = build([trial("SYNTH-1", disposition_source=None)])
+    assert "disposition_source_missing" in warn_codes(obj)
+
+
+# --- 11e. §16.5 / §2.10: §11 ning pressure kontrasti ----------------------
+
+
+def test_16_5_pressure_kontrasti_hisoblanadi_va_schema_gap_tushadi():
+    """Shartnoma §2.10 slotlari to'ldirildi => eski ogohlantirish TUSHADI.
+
+    Fixture: arm `A` da `P0` tez (1 s), `P2` sekin (6 s), ikkisi ham event.
+    `tau = 8_000_000 us`. `P0` egri chizig'i 1 s da 0 ga tushadi, demak
+    `RMST(P0) = 1 s`; `P2` 6 s da tushadi, demak `RMST(P2) = 6 s`.
+    `contrast = "P0-P2"` => estimate = 1 - 6 = -5 s = -5_000_000 us.
+    (Manfiy => `P2` SEKINROQ, `stats.rmst` docstring'i bo'yicha.)
+    """
+    trials = [trial("SYNTH-p0", arm="A", pressure_band="P0",
+                    time_to_vr_us=1 * SEC),
+              trial("SYNTH-p2", arm="A", pressure_band="P2",
+                    time_to_vr_us=6 * SEC)]
+    obj = build(trials)
+    pd = obj["survival"]["rmst"]["pressure_difference"]
+    assert pd["contrast"] == "P0-P2"
+    assert pd["tau"] == 8_000_000.0
+    assert pd["estimate"] == pytest.approx(-5 * SEC)
+    assert obj["survival"]["rmst"]["by_pressure_band"]["P0"]["estimate"] \
+        == pytest.approx(1 * SEC)
+    assert obj["survival"]["rmst"]["by_pressure_band"]["P2"]["estimate"] \
+        == pytest.approx(6 * SEC)
+    assert obj["survival"]["km"]["by_pressure_band"]["P0"]["times"] \
+        == [1.0 * SEC]
+    assert obj["survival"]["logrank"]["by_pressure_band"]["contrast"] == "P0-P2"
+    # Eski bo'shliq ogohlantirishi ENDI CHIQMAYDI.
+    assert "schema_gap_rmst_pressure_contrast" not in warn_codes(obj)
+    # 20% chegarasining mos miqdori §11 da yozilmagan => HUKM berilmaydi.
+    assert "fail_slow_threshold_reference_unspecified" in warn_codes(obj)
+    assert "fail_slow_supported" not in pd
+
+
+def test_16_5_pressure_kontrasti_faqat_arm_A_ichida():
+    """§16.5 -- `no_action` pressure kontrastiga KIRMAYDI.
+
+    Fixture: arm `A` da faqat `P0` bor; `no_action` da `P2` bor. Agar
+    pool qilinsa `P0` vs `P2` kontrasti hisoblanardi -- lekin u arm'lar
+    orasidagi farqni pressure farqi deb ko'rsatardi. Arm ichida `P2`
+    bo'sh, demak kontrast HISOBLANMAYDI va buni AYTADI.
+    """
+    trials = [trial("SYNTH-a", arm="A", pressure_band="P0",
+                    time_to_vr_us=1 * SEC),
+              trial("SYNTH-n", arm="no_action", pressure_band="P2",
+                    time_to_vr_us=6 * SEC)]
+    obj = build(trials)
+    pd = obj["survival"]["rmst"]["pressure_difference"]
+    assert pd["estimate"] is None
+    assert pd["contrast"] == "P0-P2"          # kontrast NOMI baribir bor
+    assert set(obj["survival"]["rmst"]["by_pressure_band"]) == {"P0"}
+    assert "rmst_pressure_difference_not_computable" in warn_codes(obj)
+    # Shartnoma §3.1 degradatsiyasi: figura buni AYTADI va arm kontrastini
+    # O'RNIGA ko'rsatmaydi.
+    assert "fail_slow_not_evaluable" in warn_codes(obj)
+
+
+def test_16_5_arm_kontrasti_pressure_kontrasti_bilan_ALMASHTIRILMAYDI():
+    """Ikki kontrast ALOHIDA maydonlarda va BOSHQA savolga javob beradi."""
+    trials = [trial("SYNTH-a0", arm="A", pressure_band="P0",
+                    time_to_vr_us=1 * SEC),
+              trial("SYNTH-a2", arm="A", pressure_band="P2",
+                    time_to_vr_us=6 * SEC),
+              trial("SYNTH-n0", arm="no_action", pressure_band="P0",
+                    time_to_vr_us=7 * SEC)]
+    r = build(trials)["survival"]["rmst"]
+    assert r["difference"]["contrast"] == "A-no_action"
+    assert r["pressure_difference"]["contrast"] == "P0-P2"
+    assert r["difference"]["estimate"] != r["pressure_difference"]["estimate"]
 
 
 # --- 12. downtime: UCHALASI HAM har doim ----------------------------------

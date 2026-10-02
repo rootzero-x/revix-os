@@ -50,8 +50,21 @@ DIZAYN QOIDALARI (buzilmaydi):
      tomonidan hisoblanadi va `run_meta.t_trial_us` da yoziladi. Analiz uni
      QAYTA HISOBLAMAYDI va TAXMIN QILMAYDI -- `recovered_within_horizon:
      "k/n"` nisbati AYNAN shu horizon'ga nisbatan, va u raqamsiz o'qilmaydi.
-  8. **EKSKLYUZIYA DARAJASI NATIJA** (§12). `exclusions` bloki sababga
-     ko'ra ajratilib beriladi; jimgina eksklyuziya YO'Q.
+  8. **EKSKLYUZIYA DARAJASI NATIJA** (§12), va u QAYSI TO'PLAM ustida
+     hisoblanganini NOMLAYDI (§16.4). Ikki to'plam -- binar `P(VR)`
+     maxraji va survival/`k/n` analiz to'plami -- ikki darajani beradi,
+     va nomlanmagan daraja TAKRORLANUVCHI EMAS.
+  9. **QAMROV OCHIQ YOZILADI** (§16.2(A), §16.5). Birlamchi trend testi
+     va §11 ning `P0`-`P2` RMST kontrasti arm `A` ICHIDA hisoblanadi,
+     arm'lar bo'ylab pool qilinMAYDI. Qamrov chiqishda ko'rsatiladi,
+     chunki arm'siz yacheyka POOL QILINGAN natija deb o'qilishi mumkin.
+ 10. **TO'PLAM TANLOVI `reduce.py` NING QARORI.** Bu modul
+     `reduce.select_primary` / `select_survival` ni chaqiradi va
+     `disposition` yoki `disposition_source` bo'yicha O'ZI filtrlamaydi
+     (§16.6: `reduce.py` ni tuzatish -- muzlatilgan matnga MOSLASHTIRISH,
+     demak u YAKKA MANBA bo'lib qoladi). `included_in_primary` /
+     `included_in_survival` field'lari O'QILMAYDI -- ikki manba ikki
+     javob berardi.
 
 SXEMA QO'SHIMCHALARI -- OCHIQ RO'YXAT (shartnoma §2.2 ning kalitlari
 MAJBURIY MINIMUM deb o'qiladi, chunki §2.3 ning #4 va #8 majburiyatlari
@@ -68,6 +81,17 @@ amendment savoli, bu yerda O'ZBOSHIMCHALIK bilan hal qilinmaydi):
   * `survival.rmst.difference.contrast` va
     `primary.risk_difference.contrast` -- belgisiz/nomsiz farq TALQIN
     QILINMAYDI.
+  * `primary.arm`, `primary.scope`, `primary.cells[].arm`,
+    `survival.km.by_pressure_band_scope`,
+    `survival.rmst.by_pressure_band_scope` -- §16.2(A) ga ko'ra qamrov
+    `analysis.json` da OCHIQ ko'rsatiladi. §2.2 ning `cells` sxemasi
+    faqat `level` kaliti bilan yozilgani §16.2(A) da chalkashlikning
+    manbai deb NOMLANGAN, shuning uchun arm yacheykaning O'ZIDA ham bor.
+  * `exclusions.rate_set`, `exclusions.by_set.{binary_p_vr_denominator,
+    survival_analysis_set}` -- §16.4 ning majburiy hisobot qoidasi.
+  * `survival.logrank.by_pressure_band.contrast`,
+    `survival.logrank.contrast` -- log-rank qaysi ikki guruh orasida
+    ekani ko'rinmasa natija talqin qilinmaydi.
   * `time_unit` (yuqori daraja) -- `analysis.json` dagi BARCHA vaqt qiymati
     MIKROSEKUNDDA (§1 vaqt disiplinasi: har davomiylik `CLOCK_MONOTONIC`
     mikrosekundda). Sekundga aylantirish shartnoma ruxsat bermagan birlik
@@ -192,6 +216,23 @@ TIME_UNIT = "us"
 # §9.3 -- P1 pressure darajalari, TARTIBLANGAN. Cochran-Armitage AYNAN shu
 # tartibga tayanadi (§10.1: "P0 < P1 < P2 bo'ylab").
 PRESSURE_LEVELS = ("P0", "P1", "P2")
+
+# PREREGISTRATION.md §16.2(A) -- §10.1 ning birlamchi trend testi ARM `A`
+# ICHIDA hisoblanadi, arm'lar bo'ylab POOL QILINMAYDI. Xuddi shu asos bilan
+# §16.5 §11 ning `P0`-`P2` RMST kontrastini ham arm `A` ichiga qo'yadi.
+#
+# NEGA (§16.2(A) ning hal qiluvchi arifmetikasi): `no_action` arm
+# `Restart=no`, demak `clean_crash` dan keyin xizmat hech qachon qaytmaydi,
+# demak `P(VR) = 0` UCHALA pressure darajasida KONSTRUKSIYA BO'YICHA. Ikki
+# arm'ni pool qilish uchala strataga BIR XIL nolni qo'shadi -- bu trend'ni
+# SUSAYTIRADI va §11 ning `P(VR|P0) - P(VR|P2)` farqini `0 - 0 = 0` ga
+# intiltiradi, ya'ni falsifikatsiya mezoni TRIVIAL ravishda qanoatlanadi.
+# Pooling nafaqat keraksiz -- u TESTNI BUZADI.
+#
+# `no_action` yashirilmaydi: u §6.2 bo'yicha KM/log-rank ga va har
+# jadvalning `k/n` qatoriga KIRADI, va §8.2 bo'yicha PSI atributsiyasi
+# vazifasini bajaradi (trend yacheykasi vazifasini emas).
+PRIMARY_ARM = "A"
 
 # §11 -- RMST horizon'i: `tau = 8 s`, MIKROSEKUNDDA (§1). OLDINDAN
 # belgilangan: ma'lumotga qarab tanlangan `tau` -- garden of forking paths
@@ -498,6 +539,18 @@ def check_inputs(trials: Sequence[dict[str, Any]], log: WarningLog) -> None:
             raise AnalysisError(
                 f"trial {r.get('trial_id')!r}: disposition yopiq enumdan "
                 f"tashqarida (§12): {d!r}")
+    # §16.2(B) -- birlamchi to'plam `(disposition, disposition_source)` jufti
+    # bilan aniqlanadi. Tanlovni `reduce.select_primary` qiladi, lekin
+    # `disposition_source` yo'q bo'lsa eksklyuziya hisoboti ikki `censored`
+    # turini AJRATA OLMAYDI (§16.4: nomlanmagan daraja takrorlanuvchi emas).
+    n_no_src = sum(1 for r in trials if not r.get("disposition_source"))
+    if n_no_src:
+        log.add("disposition_source_missing", "exclusions",
+                f"{n_no_src}/{len(trials)} trial'da `disposition_source` yo'q "
+                "-- §16.2(B) ning ikki `censored` turi (`down_at_horizon` "
+                "kuzatilgan no'l-hodisa, `probe_gap` kuzatilmagan) "
+                "AJRATILMAYDI; eksklyuziya hisoboti shu darajada KAMROQ "
+                "aniq bo'ladi. Taxmin qilinmaydi")
     n_conflict = sum(1 for r in trials if r.get("disposition_conflict"))
     if n_conflict:
         log.add("disposition_conflict", "n_trials",
@@ -549,13 +602,48 @@ def primary_section(primary_trials: Sequence[dict[str, Any]],
     birlamchi emas" model uchun talab qiladi. Ma'lumotdan olingan score --
     forking path; teng masofali 0,1,2 Cochran-Armitage ning standart
     konvensiyasi va ma'lumotga BOG'LIQ EMAS.
+
+    QAMROV -- ARM `A` ICHIDA (§16.2(A)). `PRIMARY_ARM` izohida sabab
+    to'liq yozilgan. Qamrov chiqishda OCHIQ ko'rsatiladi (`primary.arm` va
+    har yacheykaning `arm` maydoni), chunki §2.2 ning `cells` sxemasi
+    faqat `level` kaliti bilan yozilgan va arm'siz yacheyka POOL QILINGAN
+    natija deb o'qilishi mumkin -- §16.2(A) chalkashlikning manbai aynan
+    shu ekanini aytadi.
+
+    MAXRAJ -- `reduce.select_primary` NING QARORI (§16.2(B), §16.4). Bu
+    funksiya `disposition` yoki `disposition_source` bo'yicha O'ZI
+    tanlamaydi: u `build_analysis` bergan to'plamni oladi. §16.2(B) ga
+    ko'ra `disposition_source == "down_at_horizon"` trial'lari maxrajga
+    `VR = false` sifatida KIRADI (xizmat qaytmadi -- kuzatilgan
+    NO'L-HODISA, §4 ning oynasi MAVJUD EMAS, demak to'liq aniqlangan),
+    `"probe_gap"` esa KIRMAYDI (instrumentatsiya yo'qoldi -- kuzatilmagan).
+    Bu farqni `reduce.py` beradi va u YAKKA MANBA; bu yerda qayta
+    hisoblanmaydi (§16.6: `reduce.py` ni tuzatish muzlatilgan matnga
+    MOSLASHTIRISH).
     """
     cells: list[dict[str, Any]] = []
     counts: dict[str, tuple[int, int]] = {}
     used: list[dict[str, Any]] = []
 
+    # §16.2(A) -- trend FAQAT arm `A` ustida.
+    arm_rows = [r for r in primary_trials if r.get("arm") == PRIMARY_ARM]
+    n_other = len(primary_trials) - len(arm_rows)
+    if n_other:
+        log.add("primary_scope_other_arms_excluded", "primary",
+                f"{n_other}/{len(primary_trials)} birlamchi trial arm "
+                f"`{PRIMARY_ARM}` dan tashqarida -- §16.2(A) ga ko'ra trend "
+                "testi arm ichida hisoblanadi (pooling `P(VR|P0)-P(VR|P2)` "
+                "ni `0-0=0` ga intiltirib falsifikatsiya mezonini TRIVIAL "
+                "qilardi). Bu trial'lar KM/log-rank, loop-rate va har "
+                "jadvalning `k/n` qatorida QOLADI (§6.2) va §8.2 ning PSI "
+                "atributsiyasi uchun ishlatiladi -- yashirilmaydi")
+    if not arm_rows:
+        log.add("primary_arm_empty", "primary",
+                f"arm `{PRIMARY_ARM}` da birorta birlamchi trial yo'q -- "
+                "§10.1 ning birlamchi testi HISOBLANMAYDI")
+
     for lvl in PRESSURE_LEVELS:
-        rows = [r for r in primary_trials if r.get("pressure_band") == lvl]
+        rows = [r for r in arm_rows if r.get("pressure_band") == lvl]
         measured = [r for r in rows if r.get("vr") is not None]
         undet = len(rows) - len(measured)
         if undet:
@@ -570,7 +658,8 @@ def primary_section(primary_trials: Sequence[dict[str, Any]],
             log.add("level_empty", f"primary.cells.{lvl}",
                     f"{lvl} darajasida o'lchangan trial yo'q -- proporsiya va "
                     "CI hisoblanmaydi")
-            cells.append({"level": lvl, "k": 0, "n": 0, "p_hat": None,
+            cells.append({"level": lvl, "arm": PRIMARY_ARM,
+                          "k": 0, "n": 0, "p_hat": None,
                           "ci_lower": None, "ci_upper": None,
                           "ci_method": "clopper_pearson"})
             continue
@@ -579,7 +668,7 @@ def primary_section(primary_trials: Sequence[dict[str, Any]],
         # NEGA to'g'ridan-to'g'ri: `p_hat != k/n` bo'lgan yacheyka figurada
         # BELGILANADI (tuzatilmaydi), shuning uchun u strukturaviy jihatdan
         # imkonsiz bo'lishi kerak, estimator'ga ishonishga emas.
-        cells.append({"level": lvl, "k": k, "n": n,
+        cells.append({"level": lvl, "arm": PRIMARY_ARM, "k": k, "n": n,
                       "p_hat": k / n,
                       "ci_lower": _f(ci.lower), "ci_upper": _f(ci.upper),
                       "ci_method": "clopper_pearson"})
@@ -643,6 +732,10 @@ def primary_section(primary_trials: Sequence[dict[str, Any]],
     return {
         "endpoint": PRIMARY_ENDPOINT,
         "test": PRIMARY_TEST,
+        # §16.2(A) -- QAMROV OCHIQ. Arm'siz yacheyka pooling deb o'qilardi.
+        "arm": PRIMARY_ARM,
+        "scope": (f"within arm {PRIMARY_ARM} (PREREGISTRATION.md §16.2(A)); "
+                  "not pooled across arms"),
         "statistic": statistic,
         "p_value": p_value,
         "direction": direction,
@@ -807,47 +900,35 @@ def _bootstrap_quantile(values: Sequence[float], q: float, log: WarningLog,
     }
 
 
-def survival_section(survival_trials: Sequence[dict[str, Any]],
-                     log: WarningLog, *, n_boot: int) -> dict[str, Any]:
-    """§10.2 -- KM time-to-VR har arm uchun, log-rank, RMST (`tau = 8 s`).
+_EMPTY_KM = {"times": [], "survival": [], "at_risk": [], "greenwood_var": [],
+             "n_events": [], "n_total": 0, "n_censored": 0, "quantiles": {}}
 
-    §2.3 #3 -- CENSORED TRIAL'LAR KIRADI. Kirish to'plami
-    `reduce.select_survival` bilan tanlanadi (`complete` + `censored`), chunki
-    §6.2 ularni tashlashni ATAYLAB taqiqlaydi: tashlash tez ishdan chiqadigan
-    arm'ni chiroyli ko'rsatadi.
 
-    §2.3 #2 -- `proportional_hazards_checked` HAR DOIM `false`: `stats.py` da
-    Schoenfeld residual testi YO'Q (ataylab -- modul docstring'i qoida 3),
-    demak HR/Cox CHIQARILMAYDI. §10.2: "Schoenfeld residual'lari
-    tekshirilmasa, HR berilmaydi."
+def _km_group(groups: dict[str, list[dict[str, Any]]], where_prefix: str,
+              log: WarningLog, *, n_boot: int, seed_tag: int
+              ) -> tuple[dict[str, dict[str, Any]],
+                         dict[str, tuple[list[float], list[int]]]]:
+    """Guruhlangan trial'lar -> `{label: KM bloki}` va `{label: (times, events)}`.
 
-    GURUHLASH -- OCHIQ QAROR: §2.2 `by_arm` deydi va §10.2 "har arm uchun"
-    deydi, shuning uchun guruhlash `arm` bo'yicha. §11 ning fail-slow
-    bandida esa RMST farqi `P0` va `P2` ORASIDA so'raladi -- unga §2.2 da
-    JOY YO'Q. Bu modul sxemani harfiga ko'ra bajaradi va yetishmayotgan
-    slotni `warnings` da NOMLAYDI; ziddiyat bu yerda hal qilinmaydi.
+    Guruhlash o'qi ERKIN: `by_arm` (§10.2) va `by_pressure_band`
+    (shartnoma §2.10, §11 uchun) AYNAN BIR XIL shaklda chiqadi, shuning
+    uchun bir funksiya. Shakl bir xil bo'lmasa figura ikki xil o'qish yo'li
+    yozishga majbur bo'lardi.
     """
-    groups: dict[str, list[dict[str, Any]]] = {}
-    for r in survival_trials:
-        arm = r.get("arm")
-        groups.setdefault(str(arm), []).append(r)
-
-    by_arm: dict[str, dict[str, Any]] = {}
+    out: dict[str, dict[str, Any]] = {}
     arrays: dict[str, tuple[list[float], list[int]]] = {}
-    for gi, arm in enumerate(sorted(groups)):
-        where = f"survival.km.by_arm.{arm}"
-        times, events, _sk = _surv_arrays(groups[arm], log, where)
+    for gi, label in enumerate(sorted(groups)):
+        where = f"{where_prefix}.{label}"
+        times, events, _sk = _surv_arrays(groups[label], log, where)
         if not times:
             log.add("km_no_data", where,
                     "o'lchangan time-to-VR yo'q -- KM egri chizig'i "
                     "hisoblanmaydi")
-            by_arm[arm] = {"times": [], "survival": [], "at_risk": [],
-                           "greenwood_var": [], "n_events": [],
-                           "n_total": 0, "n_censored": 0, "quantiles": {}}
+            out[label] = dict(_EMPTY_KM)
             continue
-        arrays[arm] = (times, events)
+        arrays[label] = (times, events)
         km = S.kaplan_meier(times, events)
-        by_arm[arm] = {
+        out[label] = {
             "times": _flist(km.times),
             "survival": _flist(km.survival),
             "at_risk": _ilist(km.at_risk),
@@ -856,76 +937,192 @@ def survival_section(survival_trials: Sequence[dict[str, Any]],
             "n_total": int(km.n_total),
             "n_censored": int(km.n_censored),
             "quantiles": _km_quantiles(times, events, log, where,
-                                       n_boot=n_boot, seed_path=[1, gi]),
+                                       n_boot=n_boot,
+                                       seed_path=[seed_tag, gi]),
         }
+    return out, arrays
 
-    # --- log-rank (§10.2) ---
-    logrank: dict[str, Any] = {"chi2": None, "p_value": None,
-                               "observed": {}, "expected": {}}
-    arms = sorted(arrays)
+
+def _logrank_pair(arrays: dict[str, tuple[list[float], list[int]]],
+                  a: str, b: str, where: str, log: WarningLog
+                  ) -> dict[str, Any]:
+    """Ikki guruh orasida log-rank. `stats.logrank` AYNAN ikkitasini oladi."""
+    empty = {"chi2": None, "p_value": None, "observed": {}, "expected": {},
+             "contrast": f"{a}-{b}"}
+    if a not in arrays or b not in arrays:
+        log.add("logrank_not_computable", where,
+                f"log-rank uchun `{a}` va `{b}` ning IKKISI ham kerak; "
+                f"o'lchangan guruhlar: {sorted(arrays)}")
+        return empty
+    lr = _capture(lambda: S.logrank(arrays[a][0], arrays[a][1],
+                                    arrays[b][0], arrays[b][1]), log, where)
+    out = {
+        "chi2": _f(lr.statistic), "p_value": _f(lr.p_value),
+        "observed": {a: _f(lr.observed_a), b: _f(lr.observed_b)},
+        "expected": {a: _f(lr.expected_a), b: _f(lr.expected_b)},
+        "contrast": f"{a}-{b}",
+    }
+    if out["p_value"] is None:
+        log.add("logrank_degenerate", where,
+                "log-rank statistikasi aniqlanmagan (varians nol yoki "
+                "event yo'q)")
+    return out
+
+
+def _rmst_group(arrays: dict[str, tuple[list[float], list[int]]],
+                where_prefix: str, log: WarningLog) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for label in sorted(arrays):
+        t, e = arrays[label]
+        where = f"{where_prefix}.{label}"
+        try:
+            res = _capture(lambda: S.rmst(t, e, TAU_RMST_US), log, where)
+        except ValueError as exc:
+            log.add("rmst_not_computable", where, str(exc))
+            out[label] = {"estimate": None, "se": None}
+            continue
+        out[label] = {"estimate": _f(res.rmst), "se": _f(res.std_err)}
+    return out
+
+
+def _rmst_pair(arrays: dict[str, tuple[list[float], list[int]]],
+               a: str, b: str, where: str, log: WarningLog,
+               code_prefix: str) -> dict[str, Any]:
+    """`a - b` RMST farqi. `contrast` HAR DOIM beriladi (shartnoma §2.8:
+    nomsiz/belgisiz farq TALQIN QILINMAYDI)."""
+    empty = {"contrast": f"{a}-{b}", "tau": TAU_RMST_US, "estimate": None,
+             "se": None, "ci_lower": None, "ci_upper": None}
+    if a not in arrays or b not in arrays:
+        log.add(f"{code_prefix}_not_computable", where,
+                f"RMST farqi uchun `{a}` va `{b}` ning IKKISI ham kerak; "
+                f"o'lchangan guruhlar: {sorted(arrays)}")
+        return empty
+    try:
+        rd = _capture(lambda: S.rmst_difference(arrays[a], arrays[b],
+                                                TAU_RMST_US, ALPHA),
+                      log, where)
+    except ValueError as exc:
+        log.add(f"{code_prefix}_not_computable", where, str(exc))
+        return empty
+    out = {"contrast": f"{a}-{b}", "tau": TAU_RMST_US,
+           "estimate": _f(rd.difference), "se": _f(rd.std_err),
+           "ci_lower": _f(rd.lower), "ci_upper": _f(rd.upper)}
+    if out["se"] in (None, 0.0):
+        log.add(f"{code_prefix}_degenerate", where,
+                "RMST farqining standard error'i nol yoki aniqlanmagan -- "
+                "CI MA'NOSIZ, talqin qilinmaydi")
+    return out
+
+
+def survival_section(survival_trials: Sequence[dict[str, Any]],
+                     log: WarningLog, *, n_boot: int) -> dict[str, Any]:
+    """§10.2 -- KM time-to-VR, log-rank, RMST (`tau = 8 s` = 8_000_000 us).
+
+    §2.3 #3 -- CENSORED TRIAL'LAR KIRADI. Kirish to'plami
+    `reduce.select_survival` bilan tanlanadi (`complete` + `censored`), chunki
+    §6.2 ularni tashlashni ATAYLAB taqiqlaydi: tashlash tez ishdan chiqadigan
+    arm'ni chiroyli ko'rsatadi. §16.2(B): `down_at_horizon` HAM, `probe_gap`
+    HAM bu yerga CENSORED DAVOMIYLIK sifatida kiradi -- §6.2 davomiylikni
+    censor qiladi, binar natijani emas.
+
+    §2.3 #2 -- `proportional_hazards_checked` HAR DOIM `false`: `stats.py` da
+    Schoenfeld residual testi YO'Q (ataylab -- modul docstring'i qoida 3),
+    demak HR/Cox CHIQARILMAYDI. §10.2: "Schoenfeld residual'lari
+    tekshirilmasa, HR berilmaydi."
+
+    IKKI GURUHLASH O'QI -- IKKISI HAM KERAK, ular BOSHQA SAVOLGA javob
+    beradi (§16.5, shartnoma §2.10):
+
+      * `by_arm` (§10.2) -- taqdimot va stratifikatsiya birligi.
+        `A` vs `no_action` log-rank §8.2 ning ATRIBUTSIYA savoliga javob
+        beradi ("restart PSI ni oshirdimi yoki fault'ning o'zi?"), H1 ga
+        EMAS.
+      * `by_pressure_band` (§11) -- `ARM A ICHIDA`. §11 ning fail-slow
+        bandi AYNAN `P0` va `P2` orasidagi time-to-VR RMST farqini
+        (`tau = 8 s`) nomlaydi. §16.5 uni §16.2(A) bilan BIR XIL asos
+        bilan arm `A` ichiga qo'yadi: `no_action` da time-to-VR uchala
+        darajada ta'rifan mavjud emas, demak u yerda kontrast BO'SH, va
+        pool qilish §16.2(A) dagi aynan o'sha susaytirish bo'lardi.
+
+    KM egri chiziqlari pressure bo'yicha ham BERILADI, chunki
+    `pressure_difference` HOSILA qiymat: egri chiziqlar berilmasa uni
+    TEKSHIRIB BO'LMAYDI (shartnoma §2.10).
+    """
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for r in survival_trials:
+        groups.setdefault(str(r.get("arm")), []).append(r)
+
+    by_arm, arm_arrays = _km_group(groups, "survival.km.by_arm", log,
+                                   n_boot=n_boot, seed_tag=1)
+
+    # --- log-rank, arm bo'yicha (§10.2 / §8.2 atributsiyasi) ---
+    arms = sorted(arm_arrays)
     if len(arms) == 2:
-        a, b = arms
-        lr = _capture(lambda: S.logrank(arrays[a][0], arrays[a][1],
-                                        arrays[b][0], arrays[b][1]),
-                      log, "survival.logrank")
-        logrank = {
-            "chi2": _f(lr.statistic), "p_value": _f(lr.p_value),
-            "observed": {a: _f(lr.observed_a), b: _f(lr.observed_b)},
-            "expected": {a: _f(lr.expected_a), b: _f(lr.expected_b)},
-        }
-        if logrank["p_value"] is None:
-            log.add("logrank_degenerate", "survival.logrank",
-                    "log-rank statistikasi aniqlanmagan (varians nol yoki "
-                    "event yo'q)")
+        logrank = _logrank_pair(arm_arrays, arms[0], arms[1],
+                                "survival.logrank", log)
     else:
+        logrank = {"chi2": None, "p_value": None, "observed": {},
+                   "expected": {}, "contrast": None}
         log.add("logrank_not_computable", "survival.logrank",
                 f"log-rank AYNAN ikki guruh talab qiladi, topilgani: {arms}")
 
-    # --- RMST (§10.2 effect measure, §11 tau = 8 s) ---
-    rmst_by_arm: dict[str, dict[str, Any]] = {}
-    for arm in arms:
-        t, e = arrays[arm]
-        try:
-            res = _capture(lambda: S.rmst(t, e, TAU_RMST_US),
-                           log, f"survival.rmst.by_arm.{arm}")
-        except ValueError as exc:
-            log.add("rmst_not_computable", f"survival.rmst.by_arm.{arm}",
-                    str(exc))
-            rmst_by_arm[arm] = {"estimate": None, "se": None}
-            continue
-        rmst_by_arm[arm] = {"estimate": _f(res.rmst), "se": _f(res.std_err)}
-
-    diff: dict[str, Any] = {"estimate": None, "se": None, "ci_lower": None,
-                            "ci_upper": None, "contrast": None}
+    rmst_by_arm = _rmst_group(arm_arrays, "survival.rmst.by_arm", log)
     if len(arms) == 2:
-        a, b = arms
-        try:
-            rd = _capture(lambda: S.rmst_difference(arrays[a], arrays[b],
-                                                    TAU_RMST_US, ALPHA),
-                          log, "survival.rmst.difference")
-        except ValueError as exc:
-            log.add("rmst_difference_not_computable", "survival.rmst.difference",
-                    str(exc))
-        else:
-            diff = {"estimate": _f(rd.difference), "se": _f(rd.std_err),
-                    "ci_lower": _f(rd.lower), "ci_upper": _f(rd.upper),
-                    "contrast": f"{a} - {b}"}
-            if diff["se"] in (None, 0.0):
-                log.add("rmst_difference_degenerate",
-                        "survival.rmst.difference",
-                        "RMST farqining standard error'i nol yoki aniqlanmagan "
-                        "-- CI MA'NOSIZ, talqin qilinmaydi")
+        diff = _rmst_pair(arm_arrays, arms[0], arms[1],
+                          "survival.rmst.difference", log, "rmst_difference")
     else:
+        diff = {"contrast": None, "tau": TAU_RMST_US, "estimate": None,
+                "se": None, "ci_lower": None, "ci_upper": None}
         log.add("rmst_difference_not_computable", "survival.rmst.difference",
                 f"RMST farqi AYNAN ikki guruh talab qiladi, topilgani: {arms}")
 
-    # §11 ning pressure kontrasti uchun §2.2 da slot YO'Q -- hal qilinmaydi.
-    log.add("schema_gap_rmst_pressure_contrast", "survival.rmst",
-            "PREREGISTRATION.md §11 fail-slow bandi `P0` va `P2` orasidagi "
-            "time-to-VR RMST farqini (tau = 8 s) talab qiladi, lekin "
-            "04-driver-va-analiz-shartnomasi.md §2.2 sxemasida u uchun slot "
-            "yo'q (`rmst.by_arm` arm bo'yicha). Bu yerda HISOBLANMAYDI va "
-            "TAXMIN QILINMAYDI -- shartnoma amendment savoli")
+    # --- pressure o'qi, ARM `A` ICHIDA (§16.5, shartnoma §2.10) ---
+    arm_a = [r for r in survival_trials if r.get("arm") == PRIMARY_ARM]
+    if not arm_a:
+        log.add("pressure_contrast_arm_empty", "survival.rmst",
+                f"arm `{PRIMARY_ARM}` da survival trial yo'q -- §11 ning "
+                "fail-slow mezoni uchun pressure kontrasti HISOBLANMAYDI")
+    pgroups: dict[str, list[dict[str, Any]]] = {}
+    for r in arm_a:
+        band = r.get("pressure_band")
+        if band in PRESSURE_LEVELS:
+            pgroups.setdefault(str(band), []).append(r)
+    km_by_band, band_arrays = _km_group(
+        pgroups, "survival.km.by_pressure_band", log, n_boot=n_boot,
+        seed_tag=3)
+    rmst_by_band = _rmst_group(band_arrays,
+                               "survival.rmst.by_pressure_band", log)
+    lo, hi = PRESSURE_LEVELS[0], PRESSURE_LEVELS[-1]
+    logrank_by_band = _logrank_pair(band_arrays, lo, hi,
+                                    "survival.logrank.by_pressure_band", log)
+    pressure_difference = _rmst_pair(
+        band_arrays, lo, hi, "survival.rmst.pressure_difference", log,
+        "rmst_pressure_difference")
+
+    # §11 ning 20% chegarasi: mezon "95% CI 20% OSHISHNI chiqarib tashlasa"
+    # deydi, lekin 20% NIMAGA NISBATAN ekanini (`RMST(P0)` gami, boshqa
+    # miqdorgami) §11 AYTMAYDI. Transport beriladi, HUKM berilmaydi --
+    # chegarani bu yerda tanlash muzlatilgan mezonni qayta yozish bo'lardi.
+    if pressure_difference["estimate"] is not None:
+        log.add("fail_slow_threshold_reference_unspecified",
+                "survival.rmst.pressure_difference",
+                "§11 ning fail-slow mezoni '95% CI 20% oshishni chiqarib "
+                "tashlasa' deydi, lekin 20% QAYSI miqdorga nisbatan ekani "
+                "§11 da yozilmagan (masalan `RMST(P0)` ning 20% imi). "
+                "Kontrast (estimate/se/CI) BERILADI, lekin HUKM "
+                "(`fail_slow_supported`) HISOBLANMAYDI -- chegarani bu "
+                "yerda tanlash muzlatilgan mezonni qayta yozish bo'lardi. "
+                "PREREGISTRATION/shartnoma uchun ochiq savol")
+    else:
+        # Shartnoma §3.1 degradatsiya qoidasi: figura "§11 fail-slow
+        # criterion not evaluable" deb yozadi va ARM kontrastini uning
+        # O'RNIGA KO'RSATMAYDI.
+        log.add("fail_slow_not_evaluable",
+                "survival.rmst.pressure_difference",
+                "§11 ning fail-slow mezoni BAHOLANMAYDI: `P0`-`P2` "
+                f"pressure kontrasti arm `{PRIMARY_ARM}` ichida "
+                "hisoblanmadi. Shartnoma §3.1 ga ko'ra figura buni AYTADI "
+                "va arm kontrastini uning O'RNIGA KO'RSATMAYDI")
 
     n_censored = sum(1 for r in survival_trials
                      if r.get("time_to_vr_us") is not None
@@ -941,11 +1138,17 @@ def survival_section(survival_trials: Sequence[dict[str, Any]],
                 f"{n_undetermined}/{len(survival_trials)} survival trial: "
                 "`vr` aniqlanmagan (None) -- ALOHIDA kategoriya, "
                 "'recovered emas' ga QO'SHILMAYDI")
+    band_scope = (f"within arm {PRIMARY_ARM} "
+                  "(PREREGISTRATION.md §16.5); not pooled across arms")
     return {
-        "km": {"by_arm": by_arm},
-        "logrank": logrank,
+        "km": {"by_arm": by_arm, "by_pressure_band": km_by_band,
+               "by_pressure_band_scope": band_scope},
+        "logrank": dict(logrank, by_pressure_band=logrank_by_band),
         "rmst": {"tau": TAU_RMST_US, "by_arm": rmst_by_arm,
-                 "difference": diff},
+                 "difference": diff,
+                 "by_pressure_band": rmst_by_band,
+                 "pressure_difference": pressure_difference,
+                 "by_pressure_band_scope": band_scope},
         # §2.3 #2 -- tekshirilmagan, demak HR/Cox CHIQMAYDI.
         "proportional_hazards_checked": False,
         "censoring": {"n_censored": n_censored,
@@ -1611,28 +1814,101 @@ def multiplicity_section(primary: dict[str, Any],
 # --- §12 eksklyuziya -------------------------------------------------------
 
 
+def _detailed_reasons(rows: Sequence[dict[str, Any]]) -> dict[str, int]:
+    """`disposition:disposition_source` bo'yicha sanoq.
+
+    NEGA `disposition` YETARLI EMAS (§16.2(B)): §12 ning `censored` yorlig'i
+    IKKI epistemologik jihatdan boshqa holatni birlashtiradi --
+    `down_at_horizon` (xizmat qaytmadi: KUZATILGAN no'l-hodisa) va
+    `probe_gap` (instrumentatsiya yo'qoldi: KUZATILMAGAN). §16.2(B) ularni
+    binar maxrajda boshqacha ishlaydi, demak eksklyuziya hisoboti ham
+    ularni AJRATISHI kerak -- aks holda daraja takrorlanuvchi bo'lmaydi.
+    """
+    out: dict[str, int] = {}
+    for r in rows:
+        d = str(r.get("disposition"))
+        src = r.get("disposition_source")
+        key = f"{d}:{src}" if src else d
+        out[key] = out.get(key, 0) + 1
+    return out
+
+
 def exclusions_section(trials: Sequence[dict[str, Any]],
-                       primary_trials: Sequence[dict[str, Any]]
+                       primary_trials: Sequence[dict[str, Any]],
+                       survival_trials: Sequence[dict[str, Any]]
                        ) -> dict[str, Any]:
-    """§12 -- eksklyuziya darajasi NATIJA sifatida, sababga ko'ra ajratilgan.
+    """§12 + §16.4 -- IKKI eksklyuziya darajasi, har biri TO'PLAMINI NOMLAB.
 
     §12: "`contaminated` va `aborted_guard` trial'lar birlamchi analizdan
     chiqariladi, LEKIN ularning ulushi natija sifatida beriladi. Yuqori
     eksklyuziya darajasi O'ZI natija -- yashirilmaydi."
+
+    §16.4 ning MAJBURIY HISOBOT QOIDASI: "Har qanday ... `analysis.json` da
+    berilgan eksklyuziya darajasi QAYSI to'plam ustida hisoblanganini
+    NOMLASHI SHART -- binar `P(VR)` maxraji, yoki survival/`k/n` analiz
+    to'plami. Nomlanmagan eksklyuziya darajasi TAKRORLANUVCHI EMAS va
+    natija sifatida berilmaydi." Ikki to'plam ikki darajani beradi, demak
+    bitta `rate` maydoni O'ZI yetarli emas.
+
+    TO'PLAMLAR BU YERDA QAYTA HISOBLANMAYDI: ular `reduce.select_primary`
+    va `reduce.select_survival` ning qarori va u YAKKA MANBA (§16.6). Bu
+    funksiya faqat SANAYDI va NOMLAYDI.
     """
     total = len(trials)
-    excluded = [r for r in trials
-                if r.get("disposition") not in PRIMARY_DISPOSITIONS]
+    # NEGA `id()` va `trial_id` EMAS: selektorlar AYNAN shu dict
+    # obyektlarini qaytaradi (oddiy list comprehension), demak `id()`
+    # to'plam a'zoligini XATOSIZ beradi. `trial_id` bo'yicha solishtirish
+    # takrorlangan yoki yo'q `trial_id` da jimgina xato berardi -- va
+    # eksklyuziya darajasi NATIJA (§12), demak u taxminga tayanmaydi.
+    primary_ids = {id(r) for r in primary_trials}
+    survival_ids = {id(r) for r in survival_trials}
+    ex_primary = [r for r in trials if id(r) not in primary_ids]
+    ex_survival = [r for r in trials if id(r) not in survival_ids]
+
+    def block(name: str, desc: str, included: Sequence[dict[str, Any]],
+              excluded: Sequence[dict[str, Any]]) -> dict[str, Any]:
+        return {
+            "set": name,
+            "description": desc,
+            "rate": (len(excluded) / total) if total else None,
+            "n_total": total,
+            "n_included": len(included),
+            "n_excluded": len(excluded),
+            "by_reason": _detailed_reasons(excluded),
+        }
+
+    # Eski (shartnoma §2.2) shakl: `by_reason` faqat `disposition` bo'yicha.
     by_reason: dict[str, int] = {}
-    for r in excluded:
+    for r in ex_primary:
         reason = r.get("exclusion_reason") or str(r.get("disposition"))
         by_reason[reason] = by_reason.get(reason, 0) + 1
+
     return {
-        "rate": (len(excluded) / total) if total else None,
+        # Shartnoma §2.2 `rate` kalitini talab qiladi; §16.4 esa nomlanmagan
+        # darajani taqiqlaydi -- shuning uchun `rate_set` uni NOMLAYDI.
+        "rate": (len(ex_primary) / total) if total else None,
+        "rate_set": "binary_p_vr_denominator",
         "by_reason": by_reason,
         "n_total": total,
-        "n_excluded": len(excluded),
+        "n_excluded": len(ex_primary),
         "n_primary": len(primary_trials),
+        "by_set": {
+            "binary_p_vr_denominator": block(
+                "binary_p_vr_denominator",
+                "denominator of the binary P(VR) endpoint (§10.1); "
+                "membership decided by reduce.select_primary, which per "
+                "§16.2(B) admits disposition_source == 'down_at_horizon' "
+                "as an observed VR = false and excludes 'probe_gap' as "
+                "unobserved",
+                primary_trials, ex_primary),
+            "survival_analysis_set": block(
+                "survival_analysis_set",
+                "analysis set for survival / loop-rate / recovered k-of-n "
+                "tables (§6.2); membership decided by "
+                "reduce.select_survival; censored durations are included, "
+                "never dropped",
+                survival_trials, ex_survival),
+        },
     }
 
 
@@ -1718,7 +1994,7 @@ def build_analysis(trials: Sequence[dict[str, Any]],
                                       None if t_trial_us is None
                                       else int(t_trial_us))
     multiplicity = multiplicity_section(primary, log)
-    exclusions = exclusions_section(trials, primary_trials)
+    exclusions = exclusions_section(trials, primary_trials, survival_trials)
     probe_cost = probe_cost_section(trials, log, prober_stops)
 
     obj: dict[str, Any] = {
