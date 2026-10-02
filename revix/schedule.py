@@ -737,17 +737,47 @@ def explain_disposition(facts: TrialFacts) -> DispositionVerdict:
 # §12: `contaminated` va `aborted_guard` birlamchi analizdan CHIQARILADI,
 # lekin ularning ulushi natija sifatida beriladi. `censored` esa §6.2
 # bo'yicha analizga KIRADI -- tashlanmaydi, ishlanadi.
-PRIMARY_ANALYSIS_DISPOSITIONS = ("complete", "censored")
+#
+# NEGA NOM O'ZGARDI (§16.4): bu konstantaning QIYMATI to'g'ri, lekin nomi
+# chalg'ituvchi edi. §16.4 jadvali: *"to'g'ri, lekin nomi `ANALYSIS_SET`
+# bo'lishi kerak edi; `PRIMARY` so'zi uni §10.1 ning birlamchi testi bilan
+# chalkashtiradi."* U javob beradigan savol -- **analiz to'plami butun
+# holda**: §6.2 ning Kaplan-Meier / log-rank, loop-rate va har jadvaldagi
+# `recovered within T_trial: k/n` qatoriga kiradigan trial'lar.
+#
+# U javob BERMAYDIGAN savol -- §10.1 ning binar `P(VR)` MAXRAJI. O'sha
+# maxraj §16.2(B) bo'yicha `disposition` bilan EMAS, `(disposition,
+# disposition_source)` JUFTI bilan aniqlanadi (`censored` + `down_at_horizon`
+# kiradi, `censored` + `probe_gap` kirmaydi) va u `revix/reduce.py` ning
+# `enters_primary_denominator()` funksiyasida yashaydi. Bu modul
+# `disposition_source` ni KO'RMAYDI, demak u savolga javob bera OLMAYDI.
+ANALYSIS_SET_DISPOSITIONS = ("complete", "censored")
+
+# DEPRECATED alias -- eski nom buzilmasligi uchun saqlanadi (§16.4 nomni
+# o'zgartirishni TALAB qilmaydi, faqat chalkashlikni nomlaydi). Yangi kod
+# `ANALYSIS_SET_DISPOSITIONS` ni ishlatadi.
+PRIMARY_ANALYSIS_DISPOSITIONS = ANALYSIS_SET_DISPOSITIONS
+
 EXCLUDED_DISPOSITIONS = tuple(
-    d for d in DISPOSITIONS if d not in PRIMARY_ANALYSIS_DISPOSITIONS
+    d for d in DISPOSITIONS if d not in ANALYSIS_SET_DISPOSITIONS
 )
 
 
-def enters_primary_analysis(disposition: str) -> bool:
-    """Trial birlamchi analizga kiradimi (§6.2, §12)."""
+def enters_analysis_set(disposition: str) -> bool:
+    """Trial ANALIZ TO'PLAMIGA kiradimi (§6.2, §12, §16.4).
+
+    Bu -- survival / loop-rate / `k/n` to'plami, §10.1 ning binar `P(VR)`
+    MAXRAJI EMAS. Maxraj uchun: `revix.reduce.enters_primary_denominator()`,
+    u `(disposition, disposition_source)` juftini talab qiladi (§16.2(B)).
+    """
     if disposition not in DISPOSITIONS:
         raise ScheduleError(f"yopiq enumda yo'q disposition: {disposition!r}")
-    return disposition in PRIMARY_ANALYSIS_DISPOSITIONS
+    return disposition in ANALYSIS_SET_DISPOSITIONS
+
+
+def enters_primary_analysis(disposition: str) -> bool:
+    """DEPRECATED alias -> `enters_analysis_set()` (§16.4: nom chalg'ituvchi)."""
+    return enters_analysis_set(disposition)
 
 
 # ===========================================================================

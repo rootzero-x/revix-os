@@ -13,6 +13,7 @@ import itertools
 import pytest
 
 from revix.schedule import (
+    ANALYSIS_SET_DISPOSITIONS,
     DISPOSITION_RULES,
     EXCLUDED_DISPOSITIONS,
     FACT_FIELDS,
@@ -32,6 +33,7 @@ from revix.schedule import (
     WashoutObservation,
     WashoutPolicy,
     assign_disposition,
+    enters_analysis_set,
     enters_primary_analysis,
     estimate_campaign,
     explain_disposition,
@@ -703,3 +705,41 @@ def test_kampaniya_bahosi_default_jadval_bilan():
 def test_manfiy_qoshimcha_vaqt_rad_etiladi():
     with pytest.raises(ScheduleError):
         estimate_campaign(p1_schedule(seed=1), per_trial_overhead_s=-1.0)
+
+
+# ===========================================================================
+# 9. §16.4 -- konstanta QAYSI savolga javob beradi (nom aniqligi)
+# ===========================================================================
+
+
+def test_analiz_toplami_yangi_nom_bilan_va_eski_nom_alias():
+    """§16.4: qiymat TO'G'RI, nom chalg'ituvchi edi -- `ANALYSIS_SET` kerak.
+
+    §16.4 jadvali: *"to'g'ri, lekin nomi `ANALYSIS_SET` bo'lishi kerak edi;
+    `PRIMARY` so'zi uni §10.1 ning birlamchi testi bilan chalkashtiradi."*
+    Eski nom buzilmasligi uchun alias sifatida saqlanadi.
+    """
+    assert ANALYSIS_SET_DISPOSITIONS == ("complete", "censored")
+    assert PRIMARY_ANALYSIS_DISPOSITIONS is ANALYSIS_SET_DISPOSITIONS
+    assert enters_analysis_set("censored") is True
+    assert enters_primary_analysis("censored") is enters_analysis_set("censored")
+    assert enters_analysis_set("contaminated") is False
+    with pytest.raises(ScheduleError):
+        enters_analysis_set("failed")      # yopiq enum yopiq qoladi
+
+
+def test_analiz_toplami_binar_pvr_maxraji_SAVOLIGA_javob_bermaydi():
+    """§16.4 + §16.2(B): bu konstanta BINAR `P(VR)` MAXRAJI emas.
+
+    Maxraj `(disposition, disposition_source)` jufti bilan aniqlanadi va
+    `revix.reduce.enters_primary_denominator()` da yashaydi. `schedule.py`
+    `disposition_source` ni KO'RMAYDI, demak u bu savolga javob bera olmaydi --
+    shu sababli ikki funksiya bir xil emas va bir xil bo'lmasligi SHART.
+    """
+    from revix.reduce import enters_primary_denominator
+
+    # Analiz to'plami: `censored` ning IKKI ma'nosi ham kiradi (§6.2).
+    assert enters_analysis_set("censored") is True
+    # Binar maxraj: faqat `down_at_horizon` kiradi (§16.2(B)).
+    assert enters_primary_denominator("censored", "down_at_horizon") is True
+    assert enters_primary_denominator("censored", "probe_gap") is False
