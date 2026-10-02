@@ -22,7 +22,7 @@ versiyaning `sha256` i saqlanadi.
 | | |
 |---|---|
 | **v1.1 sha256** | `4a13baed81129416077d446d3e94e5b35bbd8f03d806b77bfbaafab2fc2392cf` |
-| **v1.1 git tag** | **yo'q** — `driver-contract` uchun hali birorta tag qo'yilmagan; v1.1 ni integratsiya qilgan merge commit `b6dbad2`. Bu `PREREGISTRATION.md` §15.6(1) dagi holat bilan bir xil |
+| **v1.1 git tag** | **`v0.1.1-driver-contract`** — v1.2 integratsiyasidan keyin qo'yildi (v1.1 ni integratsiya qilgan merge `b6dbad2`). Uchala versiya ham taglangan: `v0.1.0-driver-contract`, `v0.1.1-driver-contract`, `v0.1.2-driver-contract` |
 | **Sabab** | **uchta mustaqil defekt, barchasi implementatsiya tomonidan topilgan:** (1) §3 ikkita majburiy figura talab qiladi (`downtime_ecdf`, `probe_cost`), lekin §2.2 ularga **ma'lumot bermaydi** — ya'ni shartnomaga mos `analysis.json` §3 ni bajara olmaydi (`agent/figures`, `92eca55`); (2) **`PREREGISTRATION.md` §11 ning fail-slow falsifikatsiya mezoni `analysis.json` dan HISOBLANMAYDI** — u `P0`–`P2` **pressure** kontrastini nomlaydi, §2.2 esa faqat arm kontrastini beradi (`agent/analyze`, `2518e26`); (3) **`boot_id` bu host'da yetarli emasligi O'LCHANDI** — guest PID 1 restart bo'lganda `boot_id` o'zgarmaydi, demak §14.6 invarianti 5 soxta "o'tdi" beradi (`agent/envcheck`, `fe914d6`; shu amendment paytida **mustaqil takrorlandi** — §1.4) |
 | **O'zgardi** | §1.1, §1.2 — **`guest_generation`** majburiy maydon; **yangi §1.4** (marker, o'lchov, identifikator va abort qoidasi); §1.3 — yangi majburiyatlar 13–16 va ikki tuzatilgan havola; §2.1 — kirish flaglari jadvali, yangi ixtiyoriy **`--events`** va **`--episodes`**, `probe_cost` provenance zanjiri; §2.2 — `time_unit`, `t_trial_us`, `t_trial_formula`, provenans kalitlari, `downtime` ning ichki shakli + ixtiyoriy `ecdf`, yangi `probe_cost`, `survival.censoring.n_undetermined`, **`survival.rmst.pressure_difference` va `*.by_pressure_band`**, `contrast` / `ci_level` / `basis` / `uncorrected` / `exclusions.n_*`; §2.3 — yangi majburiyatlar 10–19; **yangi §2.4–§2.10**; §3.1 — figura **degradatsiya** qoidalari; §4.2-3 va §4.6 — `stream` CHEKLOVI yopildi; §4.3 — `overhead_us` qatori; **yangi §4.7** (reducer kirishi bitta target/unit); §5.1 — bo'lim havolasi (v1.4 da qatorlar siljidi); §5.4 — horizon toleransi `P` deb raqamlandi; **yangi §7** (o'lchangan tuzoqlar); **yangi §8** (kod-vs-kod ochiq nomuvofiqliklari) |
 | **O'zgarMADI** | hech bir ta'rif, chegara, metrika, statistik test yoki **falsifikatsiya mezoni**. **§11 ning fail-slow mezoni va uning 20% chegarasi tegilmadi** — faqat uni hisoblash uchun transport qo'shildi (§2.10); `τ = 8 s` o'zgarmadi; `survival.rmst.by_arm` **saqlandi**. **§4.1–§4.6 ning maydon nomlari jadvali o'zgarmadi**; **§5.2 ning `T_trial` formulasi va 40.1 s o'zgarmadi**; **§6 (`matplotlib`) o'zgarmadi**; §1.1 ning mavjud maydonlari, §1.3 ning 1–12 majburiyatlari, §2.2 ning `primary.cells` / `falsification_rule` / `fr_b` / `sensitivity` grid'i va §3 ning figura ro'yxati o'z holida. **`SCHEMA_VERSION` SILJIMAYDI** — qo'shilgani faqat **payload va chiqish maydonlari**, yangi record turi ham, yangi enum qiymati ham yo'q (§2.2: `schema_version: 1`). §8 dagi ikki nomuvofiqlik **HAL QILINMADI**, faqat qayd etildi. `PREREGISTRATION.md` va `INSTALLATION.md` **tahrirlanmadi**; `revix/*.py` **tahrirlanmadi** |
@@ -46,6 +46,41 @@ tanlash" xavfi yo'q. `CONTRIBUTING.md` §3 bajarildi: defektlarni
 `agent/figures`, `agent/analyze` va `agent/envcheck` **xabar qildi**, hujjat
 jimgina "to'g'rilanmadi", va §8 dagi ikki **kod-vs-kod** ziddiyati
 **hal qilinmasdan** ochiq savol sifatida qayd etildi.
+
+#### v1.2 revizyasi (2026-10-02) — FAKTIK tuzatish, TALAB o'zgarmadi
+
+**Versiya OSHIRILMADI va oshirilmasligi kerak.** Bu revizya shartnomaning
+birorta **talabini** o'zgartirmaydi: na maydon nomi, na kalit, na majburiyat,
+na degradatsiya qoidasi. U faqat **boshqa fayllar haqidagi bayonotni**
+haqiqatga moslashtiradi — v1.2 yozilayotgan paytda ikki narsa yo'q edi,
+yozib bo'lingach paydo bo'ldi.
+
+| nima | v1.2 asl matnida | hozir |
+|---|---|---|
+| `analyze.py --events` / `--episodes` (§2.1) | *"hali yo'q — shartnomaning talabi"* | **bor** (`agent/analyze`, commit `5641a75`); to'liq flag ro'yxati va `revix analyze` uzatishi §2.1 da |
+| budjet konstantasining regressiya qulfi (§2.7) | *"bunday test hozir YO'Q"* | **bor**: `test_probe_cost_budjet_konstantasi_proberdagi_bilan_bir_xil` (`tests/unit/test_analyze.py:1186`) |
+| `probe_cost` bo'shlig'ining dalili (§2.7) | `test_zanjir_figura` **ishdan chiqadi** | **o'tadi**, to'ldirilgan `probe_cost` figurasi bilan — zanjir ulandi |
+| `driver-contract` git tag'i (yuqoridagi jadval) | *"hali birorta tag qo'yilmagan"* | **uchalasi ham taglangan** (`v0.1.{0,1,2}-driver-contract`) |
+
+**Hujjat `sha256` i o'zgaradi, versiya esa o'zgarmaydi** — shuning uchun bu
+yerda ochiq qayd etiladi, aks holda provenans zanjirida hisobga olinmagan
+o'zgarish qolardi:
+
+| | |
+|---|---|
+| v1.2 (merge qilingan asl matn, taglangan) | `fa6e1725ea6f0d818c2d029ad2bcbb8ffcef9e6e17da48ca1a1db080642d14f4` |
+| v1.2 (shu revizyadan keyin) | commit xabarida beriladi |
+
+> **NEGA versiya oshirilmaydi:** `CONTRIBUTING.md` §1.1 ning amendment
+> protsedurasi **ta'rif, metrika yoki talab** o'zgarganda versiya oshirishni
+> talab qiladi. Bu yerda o'zgargan narsa — hujjatning **boshqa modullar
+> holati haqidagi kuzatuvi**. Versiyani oshirish *"shartnoma o'zgardi"*
+> degan **yolg'on signal** berardi va `agent/driver` /
+> `agent/analyze` / `agent/figures` ni mavjud bo'lmagan farqni izlashga
+> majburlardi. Lekin o'zgarishni **yozmaslik** ham mumkin emas: hujjat
+> yolg'on bayonotni olib yurardi, va *"ishga tushirilmagan test o'tdi deb
+> yozilmaydi"* qoidasining teskari tomoni ham shu — **o'tgan test
+> yo'q deb yozilmaydi**.
 
 ### v1 → v1.1 (2026-10-02)
 
@@ -103,7 +138,7 @@ schedule (to'liq, schedule.to_json() dan)
 rc=0 va 268 qator **default** qaytaradi.
 
 **v1.1 da qo'shildi:** `run_mode` va `t_trial_us` ham majburiy —
-`run_mode` ni `validate.check_run_meta()` o'qiydi (`revix/validate.py:709`),
+`run_mode` ni `validate.check_run_meta()` o'qiydi (`revix/validate.py:716`),
 `t_trial_us` esa §5 dagi hisoblangan horizon. Ikkisi ham §4.3 jadvalida.
 
 **v1.2 da qo'shildi — `guest_generation` (majburiy):**
@@ -249,10 +284,10 @@ mavjud:
 #### Abort qoidasi (normativ)
 
 **Maydon nomi:** `guest_generation` (`validate.GUEST_MARKER_FIELD`,
-`revix/validate.py:163`). **Identifikator kaliti:**
+`revix/validate.py:166`). **Identifikator kaliti:**
 `pid1_starttime_ticks`; qabul qilinadigan aliaslar —
 `starttime_ticks`, `pid1_starttime`, `starttime`
-(`validate.GUEST_STARTTIME_KEYS`, `revix/validate.py:166`), yoki
+(`validate.GUEST_STARTTIME_KEYS`, `revix/validate.py:169`), yoki
 `guest_generation` ning o'zi **yalang'och skalyar** bo'lsa, o'sha qiymat.
 
 > **NORMATIV: `uptime_s` va `pid1_etimes_s` identifikatorga KIRMAYDI.** Ular
@@ -275,12 +310,12 @@ Identifikator butun run davomida **o'zgarmas** bo'lishi SHART:
 
 | # | shart | natija |
 |---|---|---|
-| 1 | `guest_generation` identifikatori o'zgardi | `guest_restarted`, **`error`** (`revix/validate.py:1388`) — run **darhol abort**, joriy trial `harness_error` |
+| 1 | `guest_generation` identifikatori o'zgardi | `guest_restarted`, **`error`** (`revix/validate.py:1395`) — run **darhol abort**, joriy trial `harness_error` |
 | 2 | identifikator **o'qilmaydi** (kutilgan kalitlardan birortasi yo'q) | `guest_generation_unreadable`, `error` — restart aniqlanmaydi, demak run ishonchsiz |
 | 3 | `boot_id` o'zgardi | mavjud `check_boot_id` (§14.6-5) — klassik reboot |
 
 > **Implementatsiya holati:** `agent/validate` invariantni **yetkazdi**
-> (`check_guest_generation`, `revix/validate.py:1322`; `validate_run` ro'yxatida
+> (`check_guest_generation`, `revix/validate.py:1329`; `validate_run` ro'yxatida
 > ro'yxatdan o'tgan) va `agent/driver` shu shaklda emit qiladi. Bu bo'lim
 > ularni **formallashtiradi**, yo'naltirmaydi.
 >
@@ -335,12 +370,15 @@ oladi, pre-registration §10 dagi analizni bajaradi.
 > **ixtiyoriy**: ular bo'lmasa `analyze.py` tegishli bo'limni **chiqaradi**
 > va sababni `warnings` ga yozadi — hech narsa taxmin qilinmaydi.
 >
-> **IMPLEMENTATSIYA HOLATI (2026-10-02):** `revix/analyze.py` da hozir
-> faqat `--trials`, `--run-meta`, `--out`, `--sweep`, `--json` bor
-> (`revix/analyze.py:1505`–`:1511`). `--events` va `--episodes`
-> **hali yo'q** — ular shu shartnomaning **talabi**, bajarilgan fakt emas.
+> **IMPLEMENTATSIYA HOLATI (2026-10-02, v1.2 revizyasi):** ikkala flag ham
+> **yetkazildi** (`agent/analyze`, commit `5641a75`). `revix/analyze.py`
+> ning to'liq ro'yxati: `--trials` (`:1794`), `--run-meta` (`:1796`),
+> `--out` (`:1797`), `--sweep` (`:1798`), **`--episodes`** (`:1800`),
+> **`--events`** (`:1803`), `--json` (`:1806`). `revix analyze` ikkisini
+> ham uzatadi (`revix/cli.py:2262`–`:2265`; flaglar `:2365` va `:2370` da
+> e'lon qilingan).
 
-#### v1.2 — `probe_cost` provenance zanjiri: BIR BO'G'IN TUZALDI, BIRI QOLDI
+#### v1.2 — `probe_cost` provenance zanjiri (revizya: zanjir ULANDI)
 
 Zanjir to'rt bo'g'inda tekshirildi:
 
@@ -349,14 +387,12 @@ Zanjir to'rt bo'g'inda tekshirildi:
 | prober raqamni **hisoblaydi** | ✅ bor | `Prober.cost_report()` `core_percent`, `core_fraction`, `budget_percent`, `cpu_us_per_probe`, `budget_exceeded` beradi (`revix/prober.py:757`, `:775`, `:778`); budjet konstantasi `PROBE_COST_BUDGET_PERCENT = 1.0` (`revix/prober.py:114`) |
 | prober raqamni **yozadi** | ✅ bor | `prober_stop` payload'ida `"cost"` kaliti ostida (`revix/prober.py:712`, `:722`); CLI flag'i `--report-cost` (`revix/prober.py:840`) |
 | granularlik **per-trial** | ✅ **v1.1 TUZATDI** | `cost_report()` prober jarayonining butun hayoti bo'yicha kumulyativ (`revix/prober.py:764`-`:768`), va §4.5(a) **har trial uchun alohida prober jarayonini** normativ qilgan — demak `prober_stop` endi **run'da bir marta emas, har trial'da** ishlaydi va `core_percent` ni o'z envelope'idagi `trial_id` bilan olib yuradi. §8.2 talab qilgan per-trial o'lchov **manbada mavjud** |
-| `reduce.py` uni `trial_metrics` ga **chiqaradi** | ❌ **YO'Q** | `reduce.py` da `prober_stop` record turi **umuman yo'q** (`RT_*` ro'yxati: `revix/reduce.py:96-108`), va butun faylda `cost` so'zi **bitta marta ham** uchramaydi |
+| `reduce.py` uni `trial_metrics` ga **chiqaradi** | ❌ **YO'Q — va ATAYLAB shunday qoladi** | `reduce.py` da `prober_stop` record turi **umuman yo'q** (`RT_*` ro'yxati: `revix/reduce.py:96-108`), va butun faylda `cost` so'zi **bitta marta ham** uchramaydi (revizyada qayta tekshirildi) |
+| **transport** — `analyze.py` uni bevosita o'qiydi | ✅ **BOR** (revizya) | `--events` (`revix/analyze.py:1803`) → `prober_stop.cost.core_percent`, envelope'dagi `trial_id` bo'yicha `trials.jsonl` dagi `arm` ga bog'lanadi |
 
-**Qolgan uzilish — faqat TRANSPORT.** O'lchov mavjud, uni reducer olib
-o'tmaydi.
-
-**Hal (normativ, v1.2):** `analyze.py` uni **to'g'ridan-to'g'ri** o'qiydi —
-yangi ixtiyoriy `--events PATH` flag'i orqali, `prober_stop.cost` dan,
-`trial_id` bo'yicha `trial_metrics.arm` ga bog'lab.
+**Yechim reducer'ni O'ZGARTIRMAYDI, uni CHETLAB O'TADI.** O'lchov manbada
+per-trial mavjud; `analyze.py` uni `--events` orqali to'g'ridan-to'g'ri
+oladi.
 
 > **NEGA `reduce.py` tuzatilmaydi:** §4.1 ning "KOD USTUN" printsipi uni
 > tahrirlamaslikni talab qiladi, **va** probe narxi **o'lchov emas**,
@@ -626,17 +662,45 @@ qarorining natijasi.
 `null` esa *"o'lchanmadi"*. Ularni aralashtirish `CONTRIBUTING.md` §4 ning
 ochiq taqig'i.
 
-**Holat (v1.2):** zanjirning **o'lchov yarmi tuzalgan** — §4.5(a) ning
-per-trial prober qarori tufayli `prober_stop` har trial'da ishlaydi va
-`core_percent` ni `trial_id` bilan beradi (§2.1 jadvali). Qolgani
-**transport**: `analyze.py` uni `--events` orqali o'qiydi. `--events`
-berilmasa bo'lim **chiqariladi** va `warnings` da sabab turadi; §3 ning
-`probe_cost` figurasi shunda *"probe cost not available — reason: …"* deb
-yozadi va bo'sh o'q chizmaydi.
+**Holat (v1.2 revizyasi): ZANJIR TO'LIQ ULANDI.**
+
+| bo'g'in | holat |
+|---|---|
+| o'lchov **per-trial** | ✅ §4.5(a) ning per-trial prober qarori tufayli `prober_stop` har trial'da ishlaydi va `core_percent` ni envelope'idagi `trial_id` bilan beradi |
+| **transport** | ✅ `analyze.py` uni `--events` orqali bevosita o'qiydi (`revix/analyze.py:1803`), `prober_stop.cost.core_percent` dan, `trial_id` bo'yicha `trials.jsonl` dagi `arm` ga bog'lab |
+
+`analyze.py` holatlarni **ajratib** nomlaydi — jim qolmaydi va taxmin
+qilmaydi (§2.3-6):
+
+| kod | holat |
+|---|---|
+| `probe_cost_absent` | `--events` **berilmadi** (`revix/analyze.py:1410`) |
+| `probe_cost_events_empty` | flag berilgan, lekin faylda `prober_stop` **yo'q** (`:1341`) |
+| `probe_cost_no_trial_id` | `prober_stop` da `trial_id` yo'q (`:1368`) |
+| `probe_cost_duplicate_trial_id` | bitta `trial_id` takrorlandi — **§4.5(a) ning bitta-prober qoidasiga** havola qiladi (`:1375`) |
+| `probe_cost_orphan` | narx bor, lekin mos trial yo'q (`:1438`) |
+| `probe_cost_partial` | trial'larning bir qismida narx yo'q (`:1433`) |
+
+> **NEGA `absent` va `events_empty` ajratilgan:** birinchisi *"so'ralmadi"*,
+> ikkinchisi *"so'raldi, lekin manba bo'sh"* — ikkinchisi **nosozlik
+> belgisi**, birinchisi esa oddiy tanlov. Ularni bir kodga qo'shish
+> yo'qolgan o'lchovni konfiguratsiya qarori kabi ko'rsatardi.
+
+**Bo'shliq yopildi va buni dalil tasdiqlaydi.** v1.2 ning asl matni
+`tests/integration/test_chain.py::test_zanjir_figura` ning **ishdan
+chiqishini** `probe_cost` bo'shligi uchun dalil deb keltirgan edi.
+`agent/validate` sintetik fixture'ga per-trial `prober_start`/`prober_stop`
+(narx bilan) qo'shgandan keyin **o'sha test o'tadi**, va u **to'ldirilgan
+`probe_cost` figurasini** ham qamrab oladi.
+
+> **TASDIQLANGAN (o'zim ishga tushirdim, 2026-10-02):**
+> `python3 -m pytest tests/integration/test_chain.py::test_zanjir_figura
+> tests/unit/test_analyze.py::test_probe_cost_budjet_konstantasi_proberdagi_bilan_bir_xil -v`
+> → **`2 passed`** (pytest 9.1.1, Python 3.14.7).
 
 **Budjet konstantasining ATAYLAB TAKRORLANISHI.** `analyze.py` da
 `PROBE_COST_BUDGET_PERCENT = 1.0` **mustaqil** ta'riflangan
-(`revix/analyze.py:1114`), `prober.py` dan import qilinmaydi
+(`revix/analyze.py:1303`), `prober.py` dan import qilinmaydi
 (`revix/prober.py:114`).
 
 > **NEGA takrorlanadi:** §2 ning 1-qoidasi `analyze.py` ni **qat'iy offline**
@@ -646,9 +710,19 @@ yozadi va bo'sh o'q chizmaydi.
 > **TALAB (regressiya qulfi, `CONTRIBUTING.md` §4):** ikki qiymat tengligini
 > qotiradigan test **bo'lishi SHART** — aks holda bittasi o'zgarsa
 > `budget_exceeded` va `probe_cost.budget_percent` jimgina ikki xil
-> chegaradan gapirardi. **Holat: bunday test hozir YO'Q** (`tests/` da
-> `PROBE_COST_BUDGET_PERCENT` ga birorta havola topilmadi) — bu
-> `agent/analyze` uchun ochiq talab.
+> chegaradan gapirardi. Izoh **yetarli emas**: izoh buzilganda hech narsa
+> ishdan chiqmaydi.
+>
+> **HOLAT (v1.2 revizyasi): QULF BOR.**
+> `test_probe_cost_budjet_konstantasi_proberdagi_bilan_bir_xil`
+> (`tests/unit/test_analyze.py:1186`). U `prober.py` ni **matn sifatida**
+> o'qiydi va literal'ni regex bilan topadi — **import qilmaydi**, demak
+> `analyze.py` ning offline kafolati (§2 qoida 1) buzilmaydi — so'ng
+> `analyze.PROBE_COST_BUDGET_PERCENT` ga tengligini **va** ikkisining
+> `1.0` ekanini tasdiqlaydi.
+>
+> **TASDIQLANGAN:** bu test o'zim ishga tushirgan `pytest` da **o'tdi**
+> (yuqoridagi `2 passed`).
 
 ### 2.8 §2.2 — MAJBURIY MINIMUM, yopiq ro'yxat emas (v1.2)
 
@@ -721,7 +795,7 @@ ishlatilgan"* degan savolning yozma javobi.
 
 `stats.py` trend yo'nalishi uchun `"flat"` qaytaradi, §2.2 ning yopiq enumi
 esa `decreasing|increasing|none`. **Qaror: §2.2 normativ**, `analyze.py`
-`flat → none` map qiladi (`revix/analyze.py:531`, `:536`), **`stats.py`
+`flat → none` map qiladi (`revix/analyze.py:601`, `:606`), **`stats.py`
 tahrirlanmaydi** — §4.1 ning "KOD USTUN" printsipi bilan bir xil usul:
 chiqish sxemasi shartnomada muzlatilgan, ichki nom modulning ishi.
 
@@ -764,7 +838,7 @@ belgilaydi, va v1.1 §2.2 faqat `survival.rmst.by_arm` va **bitta**
 **O'lchangan oqibat:** `agent/analyze` (commit `2518e26`) hozir arm
 kontrastini (`"A - no_action"`) chiqaradi va
 `schema_gap_rmst_pressure_contrast` ogohlantirishini beradi
-(`revix/analyze.py:853`) — ya'ni **§11 ning bandi BAHOLANMAYDI**.
+(`revix/analyze.py:923`) — ya'ni **§11 ning bandi BAHOLANMAYDI**.
 
 > **NEGA bu kosmetik bo'shliq emas:** §11 — **muzlatilgan falsifikatsiya
 > qoidasi**, loyihaning ilmiy qiymatining asosi (`README.md` "Ilmiy
@@ -896,7 +970,7 @@ Normativ natijalar:
 |---|---|---|
 | 1 | `trial_id` va `block_index` **envelope orqali** beriladi (`Emitter.record(..., trial_id=…, block_index=…)`), payload'da EMAS | `reduce.split_trials()` tekis record'dan o'qiydi (`revix/reduce.py:422`), demak natija bir xil; lekin payload'ga qo'yilsa `ValueError` |
 | 2 | `schedule.Trial.as_dict()` **payload sifatida berilmaydi** | u `trial_id` va `block_index` ni o'z ichiga oladi (`revix/schedule.py:179`) → envelope bilan to'qnashadi → `ValueError`. Driver `levels_dict` dan maydonlarni ALOHIDA oladi |
-| 3 | Har record uchun `stream = record_type` (ya'ni `Emitter` default'i) | `seq` oqim bo'yicha monotonik; bitta emitter ikki `record_type` ni bitta oqimga yozsa **soxta `seq` bo'shligi** chiqadi (§14.6-3 buziladi). **v1.2:** bu endi majburlanadi — `validate._stream_key()` kalitni `(emitter, stream)` dan oladi va `check_envelope` `stream_not_record_type` xatosini beradi (`revix/validate.py:476`) |
+| 3 | Har record uchun `stream = record_type` (ya'ni `Emitter` default'i) | `seq` oqim bo'yicha monotonik; bitta emitter ikki `record_type` ni bitta oqimga yozsa **soxta `seq` bo'shligi** chiqadi (§14.6-3 buziladi). **v1.2:** bu endi majburlanadi — `validate._stream_key()` kalitni `(emitter, stream)` dan oladi va `check_envelope` `stream_not_record_type` xatosini beradi (`revix/validate.py:483`) |
 | 4 | `mono_us` envelope'dan keladi va **o'sha record'ning kuzatuv vaqti** bo'lishi kerak; kuzatuv vaqti boshqa bo'lsa `Emitter.record(..., mono=…)` bilan beriladi | `reduce.py` oyna a'zoligini `mono_us` bilan hisoblaydi (`revix/reduce.py:770`, `:882`) |
 
 ### 4.3 Normativ jadval
@@ -908,9 +982,9 @@ record'dagi AYNAN nom) → **consumer** (uni o'qiydigan kod, fayl:qator).
 
 | manba | record maydoni | consumer |
 |---|---|---|
-| `git status --porcelain` bo'sh emasligi | `git_dirty` | `validate.check_run_meta` (`validate.py:710`) |
-| run rejimi (`pilot` \| `confirmatory`) | `run_mode` | `validate.check_run_meta` (`validate.py:709`; `mode` ga fallback qiladi) |
-| `sha256sum PREREGISTRATION.md` | `preregistration_sha256` | `validate.check_run_meta` (`validate.py:728`), `analyze.py` |
+| `git status --porcelain` bo'sh emasligi | `git_dirty` | `validate.check_run_meta` (`validate.py:717`) |
+| run rejimi (`pilot` \| `confirmatory`) | `run_mode` | `validate.check_run_meta` (`validate.py:716`; `mode` ga fallback qiladi) |
+| `sha256sum PREREGISTRATION.md` | `preregistration_sha256` | `validate.check_run_meta` (`validate.py:735`), `analyze.py` |
 | `Schedule.seed` | `rng_seed` | reproducibility (`RAW_CONTRACT`; runtime'da o'qilmaydi) |
 | §5 formulasi | `t_trial_us` | `analyze.py`, `figures.py` (§2.3-9) |
 | §1.1 ro'yxati | o'sha nomlar bilan | reproducibility |
@@ -942,9 +1016,9 @@ record'dagi AYNAN nom) → **consumer** (uni o'qiydigan kod, fayl:qator).
 
 | manba | record maydoni | consumer |
 |---|---|---|
-| harness qarori, `schema.DISPOSITIONS` enum'idan | `disposition` | `reduce.derive_disposition` (`reduce.py:1418`), `validate.check_dispositions` (`validate.py:429`) |
+| harness qarori, `schema.DISPOSITIONS` enum'idan | `disposition` | `reduce.derive_disposition` (`reduce.py:1418`), `validate.check_dispositions` (`validate.py:436`) |
 | harness | `reason` | odam o'qishi uchun (`RAW_CONTRACT`) |
-| **v1.2:** trial atrofidagi o'lchangan qo'shimcha (unit yaratish/yo'q qilish, D-Bus round-trip, flush) | **`overhead_us`** — qabul qilinadigan aliaslar `trial_overhead_us`, `overhead_s`, `trial_overhead_s` | `validate.TRIAL_OVERHEAD_FIELDS` (`revix/validate.py:152`); §1.3-9 va §9.4 v1.3: *"o'lchanadi, taxmin qilinmaydi"*. Birlik **nomda**: `_us` mikrosekund, `_s` sekund |
+| **v1.2:** trial atrofidagi o'lchangan qo'shimcha (unit yaratish/yo'q qilish, D-Bus round-trip, flush) | **`overhead_us`** — qabul qilinadigan aliaslar `trial_overhead_us`, `overhead_s`, `trial_overhead_s` | `validate.TRIAL_OVERHEAD_FIELDS` (`revix/validate.py:155`); §1.3-9 va §9.4 v1.3: *"o'lchanadi, taxmin qilinmaydi"*. Birlik **nomda**: `_us` mikrosekund, `_s` sekund |
 | `trial_begin.mono_us + T_trial` (§5) | envelope `mono_us` | `reduce.Trial.end_us` (`reduce.py:406`) — **horizon aynan shu nuqta**, right censoring shu yerda bo'ladi (§6.2) |
 
 #### `probe_sample` — prober yozadi, driver YOZMAYDI
@@ -973,12 +1047,12 @@ property nomlarini** chiqaradi. Driver ularni **o'chirmaydi** —
 | manba (`units.STATE_PROPS`) | record maydoni | consumer |
 |---|---|---|
 | `ActiveState` | `ActiveState` **va** `active_state` | `reduce.actor_success_signal` (`reduce.py:886`) |
-| `NRestarts` | `NRestarts` **va** `n_restarts` | `reduce.evaluate_vr` 4-band (`reduce.py:770`), `reduce.reduce_trial` loop_rate (`reduce.py:1523`), `validate._invocation_changed` (`validate.py:667`, `:671`) |
-| `InvocationID` | `InvocationID` **va** `invocation_id` | `reduce.reduce_trial` (`reduce.py:1520`), `validate._invocation_changed` (`validate.py:660`) |
+| `NRestarts` | `NRestarts` **va** `n_restarts` | `reduce.evaluate_vr` 4-band (`reduce.py:770`), `reduce.reduce_trial` loop_rate (`reduce.py:1523`), `validate._invocation_changed` (`validate.py:674`, `:678`) |
+| `InvocationID` | `InvocationID` **va** `invocation_id` | `reduce.reduce_trial` (`reduce.py:1520`), `validate._invocation_changed` (`validate.py:667`) |
 | `ActiveEnterTimestampMonotonic` | o'sha nom **va** `active_enter_ts_mono_us` | `reduce.compute_d_sd` (`reduce.py:1342`) |
 | `ActiveExitTimestampMonotonic` | o'sha nom **va** `active_exit_ts_mono_us` | `reduce.compute_d_sd` (`reduce.py:1341`) |
 | `Result` | `Result` **va** `result` | **hech kim** (§4.6); `RAW_CONTRACT` talab qiladi |
-| `recv_mono_us` (`units.py:1098`) | `recv_mono_us` **saqlanadi**, va envelope `mono_us := recv_mono_us` | `reduce` oyna filtrlari (`reduce.py:770`, `:882`, `:1341`), `validate` (`validate.py:659`) |
+| `recv_mono_us` (`units.py:1098`) | `recv_mono_us` **saqlanadi**, va envelope `mono_us := recv_mono_us` | `reduce` oyna filtrlari (`reduce.py:770`, `:882`, `:1341`), `validate` (`validate.py:666`) |
 | arm C engine (P1 da YO'Q) | `engine_state` | `reduce.actor_success_signal` (`reduce.py:889`) |
 | qolgan `STATE_PROPS` (`SubState`, `ExecMain*`, `*TimestampMonotonic`) | xom nomi bilan | `analyze.py` kovariatalari, diagnostika |
 
@@ -1018,7 +1092,7 @@ property nomlarini** chiqaradi. Driver ularni **o'chirmaydi** —
 
 | manba | record maydoni | consumer |
 |---|---|---|
-| aktor | `action_id` | `reduce.split_trials` (`reduce.py:471`), `validate.check_actions` (`validate.py:624`) |
+| aktor | `action_id` | `reduce.split_trials` (`reduce.py:471`), `validate.check_actions` (`validate.py:631`) |
 | aktor | `action_class` | `reduce.split_trials` (`reduce.py:472`), `evaluate_fr_b` (`reduce.py:1548`) |
 | sozlangan kutish (masalan `RestartSec`) | `policy_delay_us` | `reduce.split_trials` (`reduce.py:473`) — §6.3: `L_dec` dan **ALOHIDA** |
 | aktor | `deferred` (bool) | `reduce.split_trials` (`reduce.py:474`; `defer` va `action_class=="defer"` ham qabul qilinadi) |
@@ -1044,7 +1118,7 @@ property nomlarini** chiqaradi. Driver ularni **o'chirmaydi** —
 | 2a | `probe_sample`: `progress` vs `progress_counter` | **HAQIQIY va eng xavfli** | `reduce.probe_from_record` `rec.get("progress")` ni o'qiydi (`reduce.py:298`); `prober.PROBE_FIELDS` da ustun `progress_counter` (`prober.py:153`) va `PREREGISTRATION.md` §14.4 aynan `progress_counter` ni majburiy qilgan. `progress=None` bo'lsa §4.5 throughput bandi o'lchanmaydi → `vr=None` → birlamchi endpoint yo'qoladi. **Hal:** §4.5 adapteri |
 | 2b | `probe_sample`: `pid_seen` vs `sut_pid_seen` | **HAQIQIY EMAS (zararsiz)** | `pid_seen` faqat `RAW_CONTRACT` (`reduce.py:1904`) va `PROBE_CSV_FIELDS` (`reduce.py:270`) ichida bor; `reduce.py` uni **runtime'da hech qayerda o'qimaydi**. Map **ixtiro qilinmaydi**; ustun `sut_pid_seen` bo'lib qoladi va `RAW_CONTRACT`/`PROBE_CSV_FIELDS` dagi `pid_seen` — eskirgan hujjat qatori (§4.6) |
 | 2c | `probe_sample`: `invocation_id_seen` | **NOMUVOFIQLIK YO'Q** | ikki tomon ham `invocation_id_seen` deydi (`prober.py:155`, `reduce.py:299`) |
-| 3 | `unit_state`: snake_case vs xom systemd nomlari | **HAQIQIY — lekin faqat 5 maydonda** | runtime'da o'qiladi: `active_state` (`reduce.py:886`), `n_restarts` (`reduce.py:770`, `:1523`, `validate.py:667`), `invocation_id` (`reduce.py:1520`, `validate.py:660`), `active_enter_ts_mono_us` / `active_exit_ts_mono_us` (`reduce.py:1341-1342`). `UnitWatcher` esa `ActiveState`, `NRestarts`, `InvocationID`, `ActiveEnterTimestampMonotonic`, `ActiveExitTimestampMonotonic` beradi (`units.py:1113`, `STATE_PROPS` = `units.py:122`). **`result`** gumon ro'yxatida bor, lekin **runtime'da o'qilmaydi** — u `RAW_CONTRACT` dagi hujjat qatori (§4.6). **Hal:** §4.3 — xom nom + snake_case, ikkisi ham |
+| 3 | `unit_state`: snake_case vs xom systemd nomlari | **HAQIQIY — lekin faqat 5 maydonda** | runtime'da o'qiladi: `active_state` (`reduce.py:886`), `n_restarts` (`reduce.py:770`, `:1523`, `validate.py:674`), `invocation_id` (`reduce.py:1520`, `validate.py:667`), `active_enter_ts_mono_us` / `active_exit_ts_mono_us` (`reduce.py:1341-1342`). `UnitWatcher` esa `ActiveState`, `NRestarts`, `InvocationID`, `ActiveEnterTimestampMonotonic`, `ActiveExitTimestampMonotonic` beradi (`units.py:1113`, `STATE_PROPS` = `units.py:122`). **`result`** gumon ro'yxatida bor, lekin **runtime'da o'qilmaydi** — u `RAW_CONTRACT` dagi hujjat qatori (§4.6). **Hal:** §4.3 — xom nom + snake_case, ikkisi ham |
 
 ### 4.5 `probe_sample` normalizatsiya adapteri
 
@@ -1122,7 +1196,7 @@ ikki tomonga drift qilgan:
 `agent/validate` buni **tuzatdi**: `_stream_key()` endi oqim kalitini
 `(emitter, stream)` dan oladi va o'z docstring'ida §4.2-3 ga havola qilib
 `stream == record_type` ni `check_envelope` da `stream_not_record_type`
-sifatida **majburlaydi** (`revix/validate.py:476`). Ya'ni §4.2 qoida 3 endi
+sifatida **majburlaydi** (`revix/validate.py:483`). Ya'ni §4.2 qoida 3 endi
 hujjat emas, **tekshiriladigan invariant**.
 
 ### 4.7 Reducer kirishi BITTA target va BITTA unit bo'lishi SHART (v1.2)
@@ -1162,7 +1236,7 @@ Filtrlanmasa:
 > qatlamda, regenerable.
 
 **Validator qoplashi:** `agent/validate` `probe_targets_mixed` ni **`error`**
-sifatida beradi (`revix/validate.py:1871`) va `unit_state` uchun mos
+sifatida beradi (`revix/validate.py:1897`) va `unit_state` uchun mos
 tekshiruvni qo'shmoqda. Ya'ni filtrlanmagan kirish **jim o'tmaydi**.
 
 ---
@@ -1266,8 +1340,8 @@ uchun tanlagansiz"* hujumining ikkinchi shakli.
 > qilish esa to'g'ri ishlagan run'ni rad etardi.
 >
 > `agent/validate` buni shunday amalga oshirgan:
-> `T_TRIAL_TOLERANCE_US = P_US` (`revix/validate.py:172`), tekshiruv
-> `check_trial_horizon` (`revix/validate.py:1758`), `error` kodi
+> `T_TRIAL_TOLERANCE_US = P_US` (`revix/validate.py:179`), tekshiruv
+> `check_trial_horizon` (`revix/validate.py:1769`), `error` kodi
 > `trial_horizon_mismatch`; `aborted_guard` va `harness_error` uchun
 > **qisqa** trial kutilgan holat.
 
@@ -1475,7 +1549,7 @@ qayd etildi, tuzatilmadi.
 | manba | xatti-harakat | dalil |
 |---|---|---|
 | `reduce.probe_gaps()` | **faqat ketma-ket ikki probe orasini** ko'radi (`zip(probes, probes[1:])`), demak trial **boshidagi** va **oxiridagi** uzilishni **o'tkazib yuboradi** | `revix/reduce.py:1455`, `:1459` |
-| `validate.check_probe_coverage()` | ularni **rad etadi** — `leading` va `trailing` uzilishlar aniq nomlanadi | `revix/validate.py:1912`, `:1916` |
+| `validate.check_probe_coverage()` | ularni **rad etadi** — `leading` va `trailing` uzilishlar aniq nomlanadi | `revix/validate.py:2030`, `:2034` |
 
 Ya'ni **bitta run** reducer uchun `complete`, gate uchun esa **rad etilgan**
 bo'lishi mumkin.
