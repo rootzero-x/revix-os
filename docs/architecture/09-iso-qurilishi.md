@@ -72,30 +72,79 @@ tashlaydi**:
 | host-wide `/proc/pressure` javobi | host = ish stansiyasi; uni pressure ostiga qo'yish mumkin emas | guest'ning host'i = guest'ning o'zi |
 | `scaling_governor=performance` | root (`07` §1.3 #12: bu muhitda `cpufreq` umuman yo'q) | **ochilMAYDI** — §4.3 ga qarang, bu CHEKLOV |
 
-Bunga **o'lchov yaxlitligi** sababi qo'shiladi, u shu mashinada
-**o'lchangan**:
+### 1.1 Ikkinchi, mustaqil motivatsiya: **bu host o'zini qayta ishga tushiradi**
 
-**FAKT** (`07-wsl-muhit-tekshiruvlari.md` §4.4): oxirgi `wsl.exe` klienti
-chiqqandan ≈10–15 s keyin distro to'xtaydi; PID 1 **qayta ishga tushadi**
-(`etimes` 1 s → 7 s, user manager PID 241 → 238), barcha transient unit'lar
-**o'ladi** (`revixselftestec07-persist.service` → `LoadState=not-found`), va
-**`boot_id` O'ZGARMAYDI** (`f7038da5-…` ikki o'lchovda ham bir xil). Bo'sh
-cgroup kataloglari qoladi.
+Bu "qulaylik" emas. Bu **feasibility gate**, va u ikki xil nosozlik
+rejimida, bir-biridan mustaqil ravishda **o'lchangan**.
 
-**TALQIN:** 120 trial'lik kampaniya (`00` §5: ~75 s/trial → ~2.5 soat) WSL'da
-to'g'ridan-to'g'ri o'tkazilsa, trial o'rtasida butun unit daraxti yo'qolishi
-mumkin, va `run_meta.boot_id` buni **ko'rsatmaydi**. Shuning uchun
-`04-driver-va-analiz-shartnomasi.md` §1.4 `guest_generation.pid1_starttime_ticks`
-markerini majburiy qildi va marker o'zgarsa run **darhol abort** bo'ladi
-(`04` §1.1 v1.2). QEMU guest ichida PID 1 ni WSL'ning idle siyosati qayta ishga
-tushirmaydi — ya'ni image **abort sabablaridan birini butunlay olib tashlaydi**.
-Bu **GIPOTEZA** (guest ichida o'lchanmadi), lekin mexanizmi aniq.
+**Rejim A — init-only restart (`boot_id` O'ZGARMAYDI).**
+**FAKT**, `PREREGISTRATION.md` §16.11 (49 s oraliq bilan ikki o'qish; uchta
+agent mustaqil ravishda shu rejimni ko'rdi):
 
-Shuningdek `07` §7.2 (**FAKT**): repo `/mnt/c` da, u `9p`/drvfs, **98% to'la,
-10 G bo'sh**; append latency ext4 dan ~100× sekin. Guest'ning o'z ext4 root'i
-bu muammoni ham olib tashlaydi.
+| o'lchov | 1-o'qish | 2-o'qish |
+|---|---|---|
+| `boot_id` | `ca4e5bab-…` | **AYNAN BIR XIL** |
+| `/proc/uptime` | `1975.34` s | `2024.34` s (+49.0 s, normal) |
+| `/proc/1/stat` 22-maydon | `191289` tick | **`201467`** tick (+101.78 s) |
+| PID 1 yoshi | `62.46` s | **`9.68` s — ORQAGA KETDI** |
 
-**Xulosa:** reproducible guest image — `docs/research/04-novelty-statement.md`
+**FAKT**, `07-wsl-muhit-tekshiruvlari.md` §4.4 (alohida o'lchov): oxirgi
+`wsl.exe` klienti chiqqandan ≈10–15 s keyin distro to'xtaydi; PID 1 qayta
+ishga tushadi (`etimes` 1 s → 7 s, user manager PID 241 → 238), barcha
+transient unit'lar **o'ladi** (`revixselftestec07-persist.service` →
+`LoadState=not-found`), `boot_id` esa **o'zgarmaydi**. Bo'sh cgroup
+kataloglari qoladi.
+
+**Rejim B — to'liq VM restart (`boot_id` O'ZGARADI).**
+**FAKT, koordinator o'lchagan** (men bu o'lchovni bajarmadim va qayta
+tekshirmadim — provenance aniq bo'lishi uchun shunday yozildi): uptime
+`2024` s dan `544` s ga tushdi, va **o'sha paytda `boot_id` o'zgardi**.
+Bu `PREREGISTRATION.md` §16.11 ning *"O'LCHANMADI: to'liq WSL VM
+restart'ida `boot_id` o'zgaradimi"* bandini **yopadi**.
+
+**TALQIN:** ikkala rejim ham `--collect` va transient unit'larni **trial
+o'rtasida o'ldiradi**. 120 trial'lik kampaniya (`00` §5: ~75 s/trial →
+**~2.5 soat**) WSL'da to'g'ridan-to'g'ri o'tkazilsa, uning **o'z host'i
+tomonidan buzilishi haqiqiy ehtimol** — va buzilgan kampaniya qayta
+takrorlanmaydi, chunki P1 ma'lumotlari confirmatory analizga qo'shilmaydi
+(`PREREGISTRATION.md` §13). QEMU guest **bizning nazoratimizda** va o'zini
+qayta ishga tushirmaydi.
+
+Shuning uchun image **imkoniyat** emas, **risk kamaytirish**: u
+privilegiyali tier'lardan (§1 jadvali) **mustaqil** ravishda asoslanadi.
+
+#### Ikki detektor, ikkita ko'r nuqta — IKKISI HAM yoziladi
+
+| Detektor | Nimani ushlaydi | Ko'r nuqtasi | Holati |
+|---|---|---|---|
+| `boot_id` | **Rejim B** (to'liq VM restart) | Rejim A'da **o'zgarmaydi** → init restart'ni ko'rmaydi | `PREREGISTRATION.md` §14.6(5) — **muzlatilgan** |
+| `pid1_starttime_ticks` (`/proc/1/stat` 22-maydon) | **Rejim A** (init-only restart) | VM restart'da ham o'zgaradi, lekin yangi boot'ni eski boot'dan ajratmaydi | `PREREGISTRATION.md` §16.11 ning "majburiy qo'shimcha shart"i; `04-driver-va-analiz-shartnomasi.md` §1.4 `guest_generation` |
+
+`PREREGISTRATION.md` §16.11 xulosasini aynan takrorlaymiz: *"§14.6(5)
+invarianti **zarur, lekin YETARLI EMAS**"*, va qo'shimcha marker uni
+*"**almashtirmaydi**, uni **to'ldiradi**"*.
+
+**Shundan image uchun kelib chiqadigan talab:** guest ichida ishlaydigan
+harness **ikkala** markerni ham `run_meta` da va **har** `env_snapshot` da
+yozishi shart (`04` §1.1 v1.2 allaqachon shunday talab qiladi). Image bu
+talabni **yengillashtirmaydi** — guest restart qilmaydi degan **GIPOTEZA**
+markerlarni olib tashlash uchun asos emas. Teskarisi: markerlar aynan shu
+gipotezani **o'lchaydigan** vosita (§8 G8).
+
+> Bu `revix/` kodiga o'zgartirish **emas** va men `revix/` ga tegmadim —
+> bu `09` ning image'dan kutadigan xatti-harakati, va u shartnomada
+> allaqachon mavjud.
+
+### 1.2 Uchinchi sabab: fayl tizimi
+
+`07` §7.2 (**FAKT**): repo `/mnt/c` da, u `9p`/drvfs, **98% to'la,
+10 G bo'sh**; append latency ext4 dan ~100× sekin. 10 Hz prober va
+psi_sampler aynan shu yo'lga yozadi. Guest'ning o'z ext4 root'i bu
+muammoni ham olib tashlaydi.
+
+### 1.3 Xulosa
+
+Reproducible guest image — `docs/research/04-novelty-statement.md`
 **C4** ("Portativ, privilegiyasiz o'lchov dizayni") ning amaliy davomi:
 benchmark'ni **ko'chirma** qiladi va **privilegiyali tier'larni erishiladigan**
 qiladi. Bu haqiqiy tadqiqot deliverable'i. Lekin u **engine emas**.
@@ -503,15 +552,22 @@ kalibratsiyasi **noldan** qayta bajariladi (§2.2 oxiri).
 
 ### 6.3 NEGA kampaniya WSL'da emas, guest ichida
 
-§1 da keltirilgan o'lchangan sabab: `07` §4.4 — WSL distro ≈10–15 s idle'dan
-keyin PID 1 ni qayta ishga tushiradi, transient unit'lar o'ladi,
-**`boot_id` o'zgarmaydi**. `04` §1.4 shu sababli
-`guest_generation.pid1_starttime_ticks` ni majburiy qildi va marker
-o'zgarsa run abort bo'ladi. QEMU guest'da WSL'ning idle siyosati yo'q.
+To'liq asos §1.1 da. Qisqasi: host **ikki xil** usulda o'zini qayta ishga
+tushiradi — init-only (`boot_id` o'zgarmaydi, `PREREGISTRATION.md` §16.11) va
+to'liq VM restart (`boot_id` o'zgaradi, koordinator o'lchagan) — va ikkisi ham
+transient hamda `--collect` unit'larini **trial o'rtasida** o'ldiradi. QEMU
+guest bizning nazoratimizda.
 
-**GIPOTEZA:** guest ichida `pid1_starttime_ticks` butun 2.5 soatlik kampaniya
-davomida o'zgarmaydi. **O'lchovi:** kampaniya davomida har `env_snapshot` dagi
-markerni yig'ib, unikal qiymat sonini sanash — 1 bo'lishi kerak.
+**Kampaniya davomida IKKALA marker ham yoziladi** (`04` §1.1 / §1.4 allaqachon
+shunday talab qiladi): `boot_id` Rejim B ni, `pid1_starttime_ticks` Rejim A ni
+ushlaydi; har biri alohida **ko'r nuqtaga** ega (§1.1 jadvali).
+
+**GIPOTEZA (§8 G8):** guest ichida **ikkala** marker ham butun ~2.5 soatlik
+kampaniya davomida o'zgarmaydi. **O'lchovi:** har `env_snapshot` dagi
+`boot_id` va `guest_generation.pid1_starttime_ticks` ni yig'ib, **har
+ikkisi** uchun unikal qiymat sonini sanash — ikkisi ham 1 bo'lishi kerak.
+Agar `pid1_starttime_ticks` o'zgarsa-yu `boot_id` o'zgarmasa — bu Rejim A
+guest'da ham mavjud degani va image bu muammoni **hal qilmagan** bo'ladi.
 
 ---
 
@@ -521,7 +577,7 @@ markerni yig'ib, unikal qiymat sonini sanash — 1 bo'lishi kerak.
 |---|---|
 | **Installer** (`d-i`, Calamares, `live-installer`) | Loyiha spetsifikatsiyasi: recovery engine ishlamaguncha installer murakkabligi ustuvor qilinmaydi. Qamrov (§0) bo'yicha engine **yo'q**, demak installer **bugun** foydasiz murakkablik. Live boot + alohida virtio disk tadqiqot uchun yetarli |
 | **GUI** | `feature/gui` boshqa branch va boshqa fayl egaligi. Bundan tashqari GUI guest'da fon yuk kiritadi → `PREREGISTRATION.md` §8 confound nazorati buziladi. Image **headless** (`-nographic`, serial console) |
-| **Branding** | `feature/branding` boshqa branch. Va §0 bo'yicha: brending "distributiv" taassurotini kuchaytiradi, bu esa aynan oldini olmoqchi bo'lgan overclaiming |
+| **Branding integratsiyasi** (boot screen, logo, terminal theme) | Dizayn `docs/branding/` da **allaqachon mavjud** (`boot-screen.md`, `boot-screen.svg`, `00-design-system.md`, `tokens.css`, `terminal-theme.md`); u shu hujjatda **takrorlanmaydi** — bootloader matni uchun `docs/branding/boot-screen.md` o'qiladi. Image'ga **ulanmaydi**, chunki: (a) `feature/branding` boshqa branch va boshqa fayl egaligi; (b) §0 bo'yicha brending "distributiv" taassurotini kuchaytiradi, bu esa aynan oldini olmoqchi bo'lgan overclaiming; (c) image **headless** — `40-make-iso.sh` dagi bootloader konfiguratsiyasi serial console uchun, grafik splash uchun emas |
 | **`revix-harness.slice` ni yoqish** | system slice'ga ko'chirish o'lchov topologiyasini o'zgartiradi → `PREREGISTRATION.md` §15 muhit fingerprint'iga ta'sir qiladi. Shablon o'rnatiladi, yoqilmaydi (§5.3) |
 | **Pressure oynasini >12 s ga uzaytirish** | Bu `PREREGISTRATION.md` §0 ning qamrov chegarasi va `07` §9 OQ-1. Image **imkoniyatni** beradi; **qaror frozen hujjat egasiniki** |
 | **Arm C** | `PREREGISTRATION.md` §13: muzlatilmagan, o'z pre-registration'ini talab qiladi |
@@ -541,7 +597,7 @@ Quyidagilarning **hech biri** o'lchanmadi.
 | G5 | `io` delegatsiyasi guest'da ishlaydi → fault class 6 ochiladi | `doctor` #4 `io_delegation` PASS **va** `revixlab.slice/io.max` ga yozish rc=0 |
 | G6 | Kompozitsiya takrorlanadi | ikki marta qurib `manifest.txt` ni `diff` → bo'sh |
 | G7 | ISO bit-identik | ❌ **da'vo qilinmaydi** (§3.2 N1–N6). `diffoscope` farqni **ko'rsatishi kutiladi** |
-| G8 | Guest'da PID 1 qayta ishga tushmaydi | kampaniya davomida `guest_generation.pid1_starttime_ticks` unikal qiymat soni = 1 |
+| G8 | Guest'da na PID 1, na VM qayta ishga tushmaydi | kampaniya davomida **ikkala** marker: `boot_id` **va** `guest_generation.pid1_starttime_ticks` — har biri uchun unikal qiymat soni = 1 (§1.1, §6.3) |
 | G9 | Guard guest'da ishlaydi | `scripts/guard-test.sh` guest ichida o'tadi (`00` §6 qadam 3) |
 | G10 | KVM akseleratsiyasi mavjud | `doctor` #16 `kvm_access` **host'da** PASS → keyin guest'da `accel=kvm` |
 
@@ -573,6 +629,9 @@ packaging/
   systemd/revix-swapfile.service
   systemd/revix-harness.slice     o'rnatiladi, YOQILMAYDI
 ```
+
+`iso/README.md` — qisqa yo'l ko'rsatkich (qarorlar shu hujjatda, u yerda
+takrorlanmaydi).
 
 Har bir skript: `set -euo pipefail`, fail-closed, izohlar o'zbekcha,
 identifikatorlar inglizcha.
@@ -614,7 +673,8 @@ checksum taqqoslanmadi. Hech qanday natija yo'q.**
 ## 11. Aloqador hujjatlar
 
 - `README.md` — *"Loyiha nima EMAS"*
-- `PREREGISTRATION.md` §0 (qamrov), §7 (`total=` asosiy), §8.5 (DVFS), §13 (muzlatilmagan), §14.4 (majburiy maydonlar), §15 (muhit fingerprint)
+- `PREREGISTRATION.md` §0 (qamrov), §7 (`total=` asosiy), §8.5 (DVFS), §13 (muzlatilmagan), §14.4 (majburiy maydonlar), §14.6(5) (`boot_id` invarianti), §15 (muhit fingerprint), **§16.11** (`boot_id` kafolati buzilgan — PID 1 restart)
+- `docs/branding/boot-screen.md` — boot screen dizayni (bu hujjatda **takrorlanmaydi**; §7 ga qarang)
 - `INSTALLATION.md` §2 (versiya chegaralari), §3 (`pip` yo'q), §4 (root kerak = guest'ga tegishli)
 - `docs/architecture/00-pilot-topologiya.md` §2, §4, §5, §6
 - `docs/architecture/02-guard-kalibratsiyasi.md` §7 (guest talab qiladigan bloklar)

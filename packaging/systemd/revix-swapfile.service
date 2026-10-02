@@ -1,0 +1,69 @@
+# REVIX: swapfile (doctor #11 swap_headroom).
+#
+# BU UNIT ISHGA TUSHIRILMADI, sabab: guard kalibratsiyasi davom etmoqda.
+#
+# ==========================================================================
+# NEGA bu unit mavjud -- va NEGA u 0-FAIL mezoni uchun SHART EMAS
+# ==========================================================================
+# `revix/cli.py:check_swap_headroom()` kodi o'qildi:
+#       if total == 0: return Check(..., WARN, "swap yo'q (SwapTotal=0)", ...)
+# Ya'ni swap yo'qligi **WARN**, FAIL EMAS. Demak
+# 09-iso-qurilishi.md §4 ning "0 FAIL" qabul mezoni swap'ga BOG'LIQ EMAS,
+# va bu unit ishlamasa ham mezon buzilmaydi. Bu ochiq yozildi, chunki
+# teskarisi (uni "majburiy" deb ko'rsatish) soxta talab bo'lardi.
+#
+# Shunga qaramay swap qo'shiladi, chunki o'sha tekshiruvning `consequence`
+# matni sababni aytadi:
+#       "swap allaqachon band bo'lsa host xotira siqilishida -> reclaim
+#        sekinlashadi, timing o'lchovi DVFS/IO bilan aralashadi va guard
+#        `host_mem_available` da trip qilishi mumkin. Swap butunlay yo'q
+#        bo'lsa reclaim yo'li qisqa: kernel OOM killer'ga tezroq yetiladi."
+# Guest'da kernel global OOM killer -- qolgan yagona o'ldiruvchi
+# (00-pilot-topologiya.md §3.2), chunki `systemd-oomd` ataylab
+# o'rnatilmagan (09 §4.4). Reclaim yo'lini uzaytirish guard'ning qoldiq
+# riskini kamaytiradi.
+#
+# NEGA EKSPERIMENT SLICE'i baribir swap'siz qoladi:
+#   00-pilot-topologiya.md §2 siyosati O'ZGARMAYDI: `MemorySwapMax=0`.
+#   Host swap'i va slice swap siyosati IKKI ALOHIDA narsa -- bu unit
+#   faqat birinchisiga tegadi. 07 §8 jadvali ham shunday o'qiydi:
+#   "swap 4 GiB (aniq) -> MemorySwapMax=0 siyosati o'zgarmaydi".
+#
+# NEGA 4 GiB:
+#   07 §8 o'lchangan host konfiguratsiyasi bilan mos (SwapTotal=4.0 GiB,
+#   ishlatilgan 0 kiB). Guest'ni o'lchangan muhitga yaqin tutish muhit
+#   fingerprint'idagi (PREREGISTRATION.md §15) farqlar sonini kamaytiradi.
+#
+# NEGA `/var/swapfile`, alohida partition EMAS:
+#   image live ISO -- partition jadvali bizda yo'q. Swapfile tmpfs'da
+#   bo'lmasligi uchun ConditionPathIsReadWrite tekshiriladi; live rootfs
+#   overlay RAM'da bo'lsa swapfile FOYDASIZ (RAM'ni RAM'ga swap qilish),
+#   shuning uchun unit o'sha holatda O'ZINI O'CHIRADI -- pastga qarang.
+#
+# GIPOTEZA (09 §8): bu unit guest'da ishlaydi va doctor #11 PASS beradi.
+#   O'LCHOVI: revix doctor --json | jq '.checks[]|select(.key=="swap_headroom")'
+#   BU O'LCHOV BAJARILMADI.
+
+[Unit]
+Description=REVIX: swapfile for reclaim headroom (doctor #11 swap_headroom)
+Documentation=file:///opt/revix/docs/architecture/09-iso-qurilishi.md
+DefaultDependencies=no
+After=local-fs.target
+Before=basic.target
+# FAIL-CLOSED: yozuv mumkin bo'lmasa unit UMUMAN ishga tushmaydi (soxta
+# "muvaffaqiyat" bo'lmaydi). ConditionPathIsReadWrite yolg'on bo'lsa
+# systemd unit'ni `skipped` deb belgilaydi va bu `systemctl status` da
+# ko'rinadi.
+ConditionPathIsReadWrite=/var
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# NEGA fallocate EMAS, dd: fallocate bilan yaratilgan sparse fayl ba'zi
+# fayl tizimlarida `swapon` tomonidan rad etiladi ("has holes").
+ExecStartPre=/bin/sh -c 'test -f /var/swapfile || { dd if=/dev/zero of=/var/swapfile bs=1M count=4096 status=none && chmod 0600 /var/swapfile && mkswap /var/swapfile >/dev/null; }'
+ExecStart=/sbin/swapon /var/swapfile
+ExecStop=/sbin/swapoff /var/swapfile
+
+[Install]
+WantedBy=basic.target
