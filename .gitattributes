@@ -1,0 +1,20 @@
+# REVIX: barcha matn fayllari repozitoriyda LF bilan saqlanadi VA LF bilan
+# checkout qilinadi.
+#
+# NEGA: Git for Windows ning system config'ida `core.autocrlf=true`. Shu sababli
+# bu repo'ning birinchi Windows clone'i sut.c (897 qator), Makefile (24) va
+# scripts/guard-test.sh (160) ga CR qo'shdi. Oqibatlari:
+#   1. CRLF bilan `make` va `bash` WSL ichida buziladi;
+#   2. matn fayllarining sha256'i o'zgaradi -- `run_meta.preregistration_sha256`
+#      esa muzlatilgan hujjatning hash'i bo'lishi SHART (04-shartnoma §1.1),
+#      va amendment protsedurasi eski hash'ni saqlashga tayanadi.
+# Ya'ni bu qulaylik emas, PROVENANCE masalasi: noto'g'ri qator oxiri run'ni
+# tekshirilishi mumkin bo'lmagan hujjat versiyasiga bog'lab qo'yadi.
+#
+# `-c core.autocrlf=false` ni clone buyrug'iga berish YETARLI EMAS -- u
+# boshlang'ich checkout'ga ta'sir qilmadi (empirik, 2026-10-02).
+* text=auto eol=lf
+
+# Xom dataset arxivlari qo'lda commit qilinadi (.gitignore `*.zst` ni
+# chiqarib tashlaydi) -- ular hech qachon matn sifatida ishlanmaydi.
+*.zst binary
