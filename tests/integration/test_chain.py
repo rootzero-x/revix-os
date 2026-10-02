@@ -391,3 +391,47 @@ def test_fail_closed_bosh_katalog_otmaydi(tmp_path):
     assert rep.ok is False
     assert "run_dir_file_missing" in error_codes(rep)
     assert "validator_internal_error" not in error_codes(rep)
+
+
+# --- 4. xom oqimda bystander: reducerga BITTA unit/target beriladi ---------
+
+
+def _add_bystander(d):
+    """Xom oqimga bystander unit_state va probe qatorlari qo'shadi."""
+    def f(recs):
+        seqs = [r["seq"] for r in recs if r["emitter"] == "driver:1"
+                and r["record_type"] == "unit_state"]
+        n = max(seqs)
+        extra = []
+        for r in [r for r in recs if r["record_type"] == "unit_state"]:
+            n += 1
+            q = dict(r, unit=S.BYSTANDER, seq=n, n_restarts=7, NRestarts=7)
+            extra.append(q)
+        return recs + extra
+    edit_events(d, f)
+
+    def g(lines):
+        head, rows = lines[0], lines[1:]
+        cols = head.split(",")
+        ti, si, qi = cols.index("target"), cols.index("trial_id"), cols.index("seq")
+        extra = []
+        for ln in rows[:3]:
+            c = ln.split(",")
+            c[ti] = "bystander"
+            extra.append(",".join(c))
+        return lines + extra
+    edit_probe_csv(d, g)
+
+
+def test_xom_oqimda_bystander_filtrsiz_rad_etiladi(run_dir):
+    _add_bystander(run_dir)
+    rep = V.validate_run_dir(run_dir)
+    assert {"unit_state_units_mixed", "probe_targets_mixed"} <= error_codes(rep)
+
+
+def test_xom_oqimda_bystander_sut_filtri_bilan_otadi(run_dir):
+    _add_bystander(run_dir)
+    rep = V.validate_run_dir(run_dir, sut_unit=S.SUT, sut_target="sut")
+    assert rep.findings == [], [str(f) for f in rep.findings]
+    assert V.main(["--run-dir", run_dir, "--sut-unit", S.SUT,
+                   "--sut-target", "sut"]) == 0

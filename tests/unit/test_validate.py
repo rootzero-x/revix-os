@@ -1825,3 +1825,130 @@ def test_only_hech_bir_yacheykaga_mos_kelmasa_xato():
     assert "run_only_invalid" in codes(V.validate_run(b.run()), V.SEVERITY_ERROR)
     meta_of(b)["only"] = "A"             # ro'yxat emas
     assert "run_only_invalid" in codes(V.validate_run(b.run()), V.SEVERITY_ERROR)
+
+
+# --- 20. reducerga beriladigan ko'rinish: BITTA unit / BITTA target -----------
+
+
+def _add_bystander_units(b):
+    """Xom oqimga bystander unit_state qo'shadi (xom oqimda QONUNIY)."""
+    for k, (nrs, inv) in enumerate([(0, "by-inv-1"), (3, "by-inv-2")]):
+        b.add(R.RT_UNIT_STATE, T0 + 500_000 + k * 700_000, unit="revix-bystander.service",
+              active_state="active", result="success", n_restarts=nrs,
+              invocation_id=inv, active_enter_ts_mono_us=T0, active_exit_ts_mono_us=0,
+              recv_mono_us=T0 + 500_000 + k * 700_000,
+              ActiveEnterTimestampMonotonic=T0, ActiveExitTimestampMonotonic=0)
+    for r in recs(b, R.RT_UNIT_STATE):
+        r.setdefault("unit", "revix-sut.service")
+        r["recv_mono_us"] = r["mono_us"]
+
+
+def test_unit_state_bir_nechta_unit_reducerga_berilsa_xato():
+    """Bystander NRestarts/InvocationID SUT'nikiga aralashadi (§4 band 3-4)."""
+    b = clean()
+    _add_bystander_units(b)
+    f = find(V.validate_run(b.run()), "unit_state_units_mixed")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.detail["units"] == ["revix-bystander.service", "revix-sut.service"]
+
+
+def test_xom_oqimda_ikki_unit_sut_unit_filtri_bilan_otadi():
+    """Xom `events.jsonl` ikkala unit'ni saqlashi qonuniy; filtrlangan
+    ko'rinish yagona unit. Xom oqimdagi seq filtr tufayli teshilmaydi."""
+    b = clean()
+    _add_bystander_units(b)
+    rep = V.validate_run(b.run(), sut_unit="revix-sut.service")
+    assert rep.findings == [], [str(f) for f in rep.findings]
+
+
+def test_sut_unit_filtri_boshqa_unit_nomi_bilan_sut_unit_state_yoq():
+    b = clean()
+    _add_bystander_units(b)
+    rep = V.validate_run(b.run(), sut_unit="boshqa.service")
+    assert find(rep, "sut_unit_state_missing").trial_id == TID
+
+
+def test_unit_maydoni_yoq_unit_state_filtrda_tashlanadi_va_xato_beradi():
+    b = clean()
+    rep = V.validate_run(b.run(), sut_unit="revix-sut.service")
+    assert "sut_unit_state_missing" in codes(rep, V.SEVERITY_ERROR)
+
+
+def test_bystander_nrestarts_filtrsiz_vr_tekshiruvini_buzadi():
+    """Nega bu xato: aralashgan ko'rinishda bystander NRestarts SUT'ning
+    `action_without_invocation_change` tekshiruvini yashiradi."""
+    b = clean()
+    for p in b.probes:
+        p["invocation_id_seen"] = "inv1" if p["outcome"] == "ok" else None
+    for r in recs(b, R.RT_UNIT_STATE):
+        r["invocation_id"], r["n_restarts"] = "inv1", 0
+    _add_bystander_units(b)
+    mixed = V.validate_run(b.run())
+    assert "action_without_invocation_change" not in codes(mixed)   # yashirilgan
+    view = V.validate_run(b.run(), sut_unit="revix-sut.service")
+    assert "action_without_invocation_change" in codes(view, V.SEVERITY_ERROR)
+
+
+def test_probe_target_filtri_bilan_xom_oqimdagi_bystander_otadi():
+    b = clean()
+    for p in b.probes:
+        p["target"] = "sut"
+    extra = []
+    for p in b.probes[:5]:
+        q = dict(p)
+        q["target"] = "bystander"
+        extra.append(q)
+    b.probes += extra
+    assert "probe_targets_mixed" in codes(V.validate_run(b.run()),
+                                          V.SEVERITY_ERROR)
+    rep = V.validate_run(b.run(), sut_target="sut")
+    assert "probe_targets_mixed" not in codes(rep)
+
+
+def test_cli_sut_unit_va_sut_target_bayroqlari(tmp_path, capsys):
+    b = clean()
+    _add_bystander_units(b)
+    p = _write(tmp_path, b)
+    assert V.main(["--jsonl", p]) == 1
+    capsys.readouterr()
+    assert V.main(["--jsonl", p, "--sut-unit", "revix-sut.service"]) == 0
+
+
+# --- 21. disposition cross-check va ogohlantirish matni -----------------------
+
+
+def test_driver_va_reducer_disposition_farq_qilsa_ogohlantirish():
+    """Raw `complete`, lekin horizon down holatda tugagan -> reducer
+    `censored`. Driver avtoritet (§12): xato emas, ko'rinadigan ogohlantirish."""
+    b = clean()
+    for k in range(N_PROBES - 3, N_PROBES):
+        b.probes[k]["outcome"] = "conn_refused"
+        b.probes[k]["progress"] = None
+        b.probes[k]["invocation_id_seen"] = None
+    f = find(V.validate_run(b.run()), "disposition_cross_check")
+    assert f.severity == V.SEVERITY_WARNING
+    assert f.detail["driver"] == "complete" and f.detail["reducer"] == "censored"
+
+
+def test_disposition_mos_kelsa_cross_check_jim():
+    assert "disposition_cross_check" not in codes(V.validate_run(clean().run()))
+
+
+def test_overhead_ogohlantirishi_buzilgan_majburiyatni_nomlaydi():
+    b = clean()
+    del recs(b, R.RT_TRIAL_END)[0]["overhead_us"]
+    f = find(V.validate_run(b.run()), "trial_overhead_missing")
+    assert f.severity == V.SEVERITY_WARNING
+    assert "§1.3 majburiyat 9" in f.message
+    assert "o'lchanadi va yoziladi" in f.message
+
+
+def test_t_trial_tolerantligi_bitta_probe_davri():
+    """§6.1 ochiq e'lon qilgan +-P: bitta davrgacha farq xato emas."""
+    assert V.T_TRIAL_TOLERANCE_US == R.P_US
+    b = clean()
+    recs(b, R.RT_TRIAL_END)[0]["mono_us"] = T0 + T_TRIAL_US + P
+    assert "trial_horizon_mismatch" not in codes(V.validate_run(b.run()))
+    recs(b, R.RT_TRIAL_END)[0]["mono_us"] = T0 + T_TRIAL_US + P + 1
+    assert "trial_horizon_mismatch" in codes(V.validate_run(b.run()),
+                                             V.SEVERITY_ERROR)
