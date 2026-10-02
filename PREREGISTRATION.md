@@ -2,10 +2,11 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.3` |
+| **Versiya** | `preregistration/v1.4` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4) |
+| **Muhit** | Bu pre-registration **§15.1 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
@@ -17,6 +18,73 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.3 → v1.4 (2026-10-02)
+
+| | |
+|---|---|
+| **v1.3 sha256** | `c9d7148138b0c9e15e8d53d4fe7914aaafd7c01e3c7dca06fdacf65ba5cc835a` |
+| **v1.3 git tag** | **yo'q** — qarang §15.6(1) |
+| **Sabab** | **o'lchov muhiti o'zgardi.** Pre-registration o'zi qaysi muhitga tegishli ekanini qayd etishi shart |
+| **O'zgardi** | **§15 qo'shildi** (yangi bo'lim): muhit fingerprint'i, `systemd-oomd` yo'qligi, va §8.5 ni bu mashinada bajarib bo'lmasligi. Mavjud bo'limlar raqamlari va matni O'ZGARMADI |
+| **O'zgarMADI** | **hech bir operatsion ta'rif, metrika, chegara, statistik test yoki falsifikatsiya mezoni** — to'liq ro'yxat pastda |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan, demak eski ta'riflar ostida qayta hisoblanishi kerak bo'lgan hech narsa yo'q |
+
+**Nima o'zgardi (muhitda, hujjatda emas):** `docs/architecture/02-guard-kalibratsiyasi.md`
+dagi har bir chegara bitta aniq mashinada o'lchangan — o'sha hujjat sarlavhasi:
+*"Kali 2026.3, kernel 7.1.5, systemd 261, 15Gi RAM, 12 CPU"*, `systemd-oomd`
+qurollangan. Loyiha endi boshqa muhitda ishlaydi: kernel
+`6.6.87.2-microsoft-standard-WSL2`, systemd `257`, `MemTotal = 10183888 kB`
+(9.71 GiB), `systemd-oomd` **binari ham, uniti ham yo'q**, `cpufreq` va
+`thermal_zone*` sysfs interfeyslari **yo'q**. To'liq o'lchangan fingerprint va
+har bir qiymat ortidagi buyruq — **§15.1**.
+
+Pre-registration `run_meta.preregistration_sha256` orqali har bir run'ga
+bog'lanadi. Agar u o'zi qaysi muhitga tegishli ekanini aytmasa, *"qaysi
+ta'riflar ostida o'lchangan"* savoliga javob chala bo'ladi — chegaralar
+muhitdan o'lchangan, demak muhit ta'rifning bir qismi.
+
+**O'zgarMAGAN qiymatlar — to'liq ro'yxat.** Hammasi muzlatilgan holida qoladi:
+
+| qiymat | bo'lim |
+|---|---|
+| `θ = 0.8` | §4 |
+| `W_stab = 60 s`, `W_stab_pilot = 8 s` | §4 |
+| sensitivity sweep `W_stab ∈ {8,10,30,60,120}` × `θ ∈ {0.5,0.8,0.95}` | §4 |
+| invalidator'lar yopiq enum'i | §4 |
+| `T_conn = 50 ms`, `T_rt = 50 ms`, `P = 100 ms` | §2 |
+| `k_f = 3` (⇒ `D_f = 300 ms`) | §3 |
+| `ε = 32 MiB`, quiescence chegarasi `0.05`, `T_q = 5 s`, `T_w = 15 s`, `T_w_max = 120 s` | §8.4 |
+| `hold_cap_s = 12 s`, `guard_sustain_s = 15 s` (ikki xavfsizlik invarianti) | §9.4 |
+| arm'lar `A` va `no_action`; `P0`/`P1`/`P2`; **20 blok / 120 trial** | §9.3 |
+| birlamchi test: **Cochran–Armitage** trend testi | §10.1 |
+| Newcombe/Wilson risk difference CI, Clopper–Pearson yacheyka CI | §10.1 |
+| Kaplan–Meier + log-rank; **RMST**, `τ = 8 s`; Cox/HR ishlatilmaydi | §10.2, §11 |
+| Holm–Bonferroni multiplicity | §10.4 |
+| **falsifikatsiya qoidasi** (trend p > 0.05 **va** 95% CI yuqori chegarasi < 0.15) | §11 |
+| halol power bayonoti va davom etish mezonlari | §11 |
+| disposition yopiq enum'i | §12 |
+| data schema, envelope, majburiy maydonlar, validator invariantlari | §14 |
+
+**Agar bu qiymatlardan birortasini o'zgartirish kerak bo'lsa — bu BOSHQA va
+ancha og'ir amendment turi**, va u alohida yoziladi, o'z sababi va o'z
+asoslanishi bilan. v1.4 bunday o'zgarish **qilmaydi**.
+
+**Nega bu amendment qonuniy:** hech qanday ma'lumot yig'ilmagan, hech qanday
+natija ko'rilmagan, va o'zgarish hech bir endpoint, chegara yoki testga
+tegmaydi. Qo'shilgan narsa — **muhit fakti va undan kelib chiqadigan cheklov**,
+ya'ni ilgari yozilmagan, lekin natijani o'qish uchun zarur kontekst.
+
+**Eng muhim bir fakt, chalkashtirilmasligi uchun ochiq yozilgan:**
+`systemd-oomd` yo'qolgani §9.4 ning `hold_cap_s = 12 s` cheklovini
+**bo'shashtirMAYDI.** Cheklovning *sababi* qisman muhitdan shartnomaga
+siljidi; cheklovning *qiymati* o'zgarmadi. Batafsil: **§15.3**.
+
+**Eng noqulay bir fakt, yashirilmagani uchun ochiq yozilgan:** §8.5 ning
+chastota/termal tekshiruvi bu mashinada **bajarilishi mumkin emas**, chunki
+ikkala sysfs interfeysi ham mavjud emas. Bu timing taqqoslashlari validligiga
+haqiqiy tahdid va maqolaning Limitations bo'limiga **yumshatilmasdan** kiradi.
+Batafsil: **§15.4**.
 
 ### v1.2 → v1.3 (2026-09-29)
 
@@ -795,3 +863,261 @@ trial_id  block_index  seq  mono_us  real_us  emitter
 - **`guard_event` da `trial_id` yo'q** — bu TO'G'RI, guard mustaqil jarayon
   (§8.2). Atributsiya monotonic vaqt bo'yicha, demak faqat bitta boot ichida
   haqiqiy — `boot_id` invariantining ahamiyati aynan shu.
+
+---
+
+## 15. Muhit fingerprint va undan kelib chiqadigan cheklovlar (muzlatilgan)
+
+> Bu bo'lim **v1.4 amendment** bilan qo'shildi. U **hech bir ta'rifni, metrikani,
+> chegarani, statistik testni yoki falsifikatsiya mezonini o'zgartirmaydi.** U faqat
+> ikki narsani qiladi: (1) pre-registration endi qaysi muhitga tegishli ekanini qayd
+> etadi, (2) o'sha muhitdan kelib chiqadigan cheklovlarni ochiq yozadi.
+>
+> **Nega yangi bo'lim, mavjudlarini tahrirlash emas:** mavjud bo'limlarni qayta
+> raqamlash `revix/schema.py`, `revix/reduce.py`, `revix/prober.py` va hujjatlardagi
+> havolalarni buzardi — v1.2 ham aynan shu sababdan §14 ni **oxiriga** qo'shgan.
+
+### 15.1 FAKT — o'lchangan muhit (2026-10-02)
+
+Quyidagi har bir qiymat **shu sanada, shu mashinada, ko'rsatilgan buyruq bilan
+o'lchangan.** Hech biri taxmin yoki ko'chirma emas.
+
+| o'lchov | buyruq | qiymat |
+|---|---|---|
+| kernel | `uname -srm` | `Linux 6.6.87.2-microsoft-standard-WSL2 x86_64` |
+| distro | `/etc/os-release` | `NAME="Kali GNU/Linux"`, `VERSION_ID="2025.3"`, `PRETTY_NAME="Kali GNU/Linux Rolling"` |
+| systemd | `systemctl --version \| head -1` | `systemd 257 (257.7-1)` |
+| CPU soni | `nproc` | `12` |
+| CPU modeli | `/proc/cpuinfo` `model name` | `AMD Ryzen 5 5600H with Radeon Graphics` |
+| RAM | `/proc/meminfo` `MemTotal` | `10183888 kB` = **9.71 GiB** |
+| swap | `/proc/meminfo` `SwapTotal` | `4194304 kB` = **4.00 GiB** (`/proc/swaps`: `/dev/sdc`, partition) |
+| cgroup | `stat -fc %T /sys/fs/cgroup` | `cgroup2fs` |
+| root controller'lar | `/sys/fs/cgroup/cgroup.controllers` | `cpuset cpu io memory hugetlb pids rdma` |
+| delegatsiya | `.../user-1000.slice/user@1000.service/cgroup.controllers` | **`cpu memory pids`** |
+| `user@1000.service` | `systemctl is-active user@1000.service` | `active` |
+| host PSI | `/proc/pressure/{memory,io,cpu}` | uchalasi ham o'qiladi |
+| per-cgroup PSI | `.../user@1000.service/{memory,io}.pressure` | ikkalasi ham o'qiladi |
+| `systemd-oomd` unit | `systemctl show systemd-oomd -p LoadState -p ActiveState` | **`LoadState=not-found`**, `ActiveState=inactive` |
+| `systemd-oomd` binar | `/usr/lib/`, `/lib/`, `/usr/libexec/systemd/systemd-oomd` | **uchalasi ham YO'Q** |
+| `oomctl` | `command -v oomctl` | yo'q (exit 1) |
+| oomd drop-in | `ls /usr/lib/systemd/system/user@.service.d/` | faqat `10-login-barrier.conf`; **`10-oomd-user-service-defaults.conf` YO'Q** |
+| `oomd.conf` | `systemd-analyze cat-config systemd/oomd.conf` | `# Main configuration file systemd/oomd.conf not found` |
+| ManagedOOM | `systemctl show user@1000.service -p ManagedOOM*` | `ManagedOOMMemoryPressure=auto`, `ManagedOOMMemoryPressureLimit=0`, `ManagedOOMSwap=auto` |
+| `cpufreq` sysfs | `ls /sys/devices/system/cpu/cpu0/cpufreq` | **`No such file or directory`** |
+| `scaling_cur_freq` | `find /sys/devices/system/cpu -maxdepth 3 -name scaling_cur_freq` | **count = 0** |
+| `thermal_zone*` | `ls /sys/class/thermal/` | faqat `cooling_device0`…`cooling_device11`; `thermal_zone*/temp` **count = 0** |
+| `/dev/kvm` | `ls -l /dev/kvm` | `crw-rw---- 1 root kvm 10, 232` (mavjud) |
+| global OOM | `grep ^oom_kill /proc/vmstat` | `oom_kill 0` |
+| `systemd-run` | `command -v systemd-run` | `/usr/bin/systemd-run` |
+
+**O'lchanMAGANlar (ochiq yoziladi):** guard chegaralarining shu mashinadagi
+qiymatlari, pressure dosing bandlari, va transient unit'da `RestartSteps=`
+qabul qilinishi — **bu o'lchovlar bu yerda bajarilmadi.** Sabab: pressure
+eksperimenti `00-pilot-topologiya.md` §6 ning 3-qadami o'tmaguncha taqiqlangan,
+va amendment uchun pressure ishga tushirilmadi.
+
+#### Kalibratsiya hujjati boshqa mashinani e'lon qiladi
+
+`docs/architecture/02-guard-kalibratsiyasi.md` sarlavhasi o'z o'lchov muhitini
+shunday yozadi: *"Kali 2026.3, kernel 7.1.5, systemd 261, 15Gi RAM, 12 CPU"*,
+`systemd-oomd` qurollangan (`ManagedOOMMemoryPressure=kill`, limit `50%`,
+`DefaultMemoryPressureDurationSec=20s` — `01-muhit-tekshiruvlari.md` §7).
+**Yuqoridagi fingerprint u emas.** Mos keladigan yagona qiymat — CPU soni (12).
+
+#### Qamrov cheklovi (ochiq majburiyat)
+
+Bu muhitda olingan har qanday natija **shu fingerprint uchun haqiqiy** va undan
+tashqariga avtomatik ko'chirilMAYDI. Bog'lanish mexanizmi allaqachon mavjud:
+`run_meta` da `uname` va `systemd_version` majburiy maydonlar
+(`04-driver-va-analiz-shartnomasi.md` §1.1), `preregistration_sha256` bilan
+birga — demak har bir run **qaysi ta'riflar ostida** va **qaysi muhitda**
+o'lchangani ikki tomondan aniqlanadi. `oomd_effective` maydoni shu muhitda
+oomd yo'qligini qayd etadi.
+
+Boshqa mashinada guard chegaralari **qayta o'lchanishi shart.** Bu talab
+yangi emas: `02-guard-kalibratsiyasi.md` §7 (1-masala) `user@ ≈ lab` topilmasi
+**bo'sh desktop** sharti uchun ekanini va band tizimda qayta o'lchanishi
+kerakligini allaqachon aytadi. Boshqa kernel va boshqa xotira budjeti — bundan
+kuchliroq o'zgarish, demak xuddi shu talab ostida.
+
+### 15.2 FAKT — `systemd-oomd` bu mashinada mavjud emas
+
+Unit `not-found`, binar uchala standart yo'lda ham yo'q, `oomctl` yo'q,
+`oomd.conf` yo'q, va `user@.service.d/` da oomd drop-in'i yo'q (15.1).
+`ManagedOOMMemoryPressure=auto` — bu **default** qiymat va oomd'siz
+hech qanday ta'sir qilmaydi.
+
+Demak `00-pilot-topologiya.md` §3.1 da *"1-RAQAMLI XAVF"* deb nomlangan
+xavf — oomd 20 s sustained pressure'dan keyin avlod cgroup'ni o'ldirishi —
+**bu muhitda yo'q.**
+
+### 15.3 TALQIN — sabab o'zgardi, cheklov o'zgarMADI
+
+Bu v1.4 ning eng muhim ajratishi.
+
+§9.4 ning 1-invarianti `hold_s ≤ hold_cap_s = 12 s` **aynan muzlatilgan holida
+qoladi.** `W_stab_pilot = 8 s` (§4) ham. Ikki sabab, ikkisi ham mustaqil
+yetarli:
+
+1. **Ular muzlatilgan qiymatlar.** Pre-registration qulaylik uchun
+   bo'shashtirilmaydi. "Endi xavf yo'q, demak oynani uzaytiraylik" — aynan
+   natijani ko'rishdan oldin ta'rifni tanlash, ya'ni bu hujjatning oldini
+   olish uchun yozilgan narsa.
+2. **12 s — endi shartnomaviy arifmetika.** `injection_offset (3 s) +
+   W_stab_pilot (8 s) = 11 s ≤ 12 s` — aynan shu hisob v1.3 amendment'ining
+   yaratilish sababi edi (§4 va §9.4 orasidagi ziddiyat). 12 s ni o'zgartirish
+   v1.3 ni bekor qilish bo'ladi.
+
+**Shuning uchun:** `hold_cap_s = 12 s` ning **asoslanishi endi qisman
+muhitga, qisman shartnomaga tayanadi.** v1.3 gacha u sof muhit cheklovi edi
+(oomd'ning 20 s sharti ostida vaqt zaxirasi); v1.4 dan keyin oomd zaxirasi
+**bu muhitda ma'nosiz**, lekin shartnomaviy arifmetika **o'z kuchida qoladi va
+yagona hukmron asos bo'lib qoladi.** §9.4 jadvalidagi *"oomd 20 s sustained
+talab qiladi"* izohi — **o'sha muhitdagi** asos, va u matn **o'zgartirilmaydi**;
+bu bo'lim uni to'ldiradi.
+
+#### Guard majburiy va fail-closed bo'lib qoladi
+
+`00-pilot-topologiya.md` §3.1 ning (b) yumshatishi — mustaqil guard process,
+`✅ majburiy`, driver'dan **alohida** process, birinchi start / oxirgi stop —
+**o'z kuchida.** oomd yo'qolgani guard'ni opsional qilmaydi, chunki qolgan
+xavflar o'z joyida:
+
+- **kernel global OOM killer** (`00-pilot-topologiya.md` §3.2) — oomd'ga
+  bog'liq emas; bu mashinada xotira budjeti kalibratsiya mashinasidan
+  **kichikroq** (9.71 GiB vs e'lon qilingan 15 GiB), demak bu xavf
+  **kamaymadi**, balki zaxira torayadi. O'lchangan: `/proc/vmstat oom_kill = 0`
+  — ya'ni hozircha ishlamagan, bu **himoya emas**;
+- **runaway generator** — `02-guard-kalibratsiyasi.md` §1 ning oniy chegaralari
+  (`user_full_avg10_max=85`, `user_some_avg10_max=90`,
+  `user_full_rate2s_max=0.98`) aynan buni tutish uchun;
+- **fail-closed qoidasi** — §8.4(3): kuzatuv o'qilmasa (`None`) u **jim deb
+  hisoblanMAYDI.** Bu qoida muhitga bog'liq emas.
+
+Guard chegaralari **bu mashinada qayta kalibratsiya qilinishi shart**
+(`02-guard-kalibratsiyasi.md` §7, 1-masala), va `00-pilot-topologiya.md` §6
+ning 3-qadami keyingi **har bir** qadamni gate qiladi. v1.4 bu gate'ni
+ochmaydi va bu amendment uchun hech qanday pressure ishga tushirilmadi.
+
+### 15.4 CHEKLOV — §8.5 bu muhitda BAJARILISHI MUMKIN EMAS
+
+§8.5 uchta narsani talab qiladi:
+
+1. har trial chegarasida `scaling_cur_freq` (har CPU uchun) log'lansin;
+2. har trial chegarasida `thermal_zone*/temp` log'lansin; o'rtacha chastota
+   kovariata bo'lsin;
+3. **"agar chastota arm bo'yicha tizimli farq qilsa, timing taqqoslashlari
+   haqiqiy emas — bu tekshiriladi va hisobotda beriladi."**
+
+O'lchangan (15.1): `/sys/devices/system/cpu/cpu0/cpufreq` **mavjud emas**,
+butun `/sys/devices/system/cpu` ostida `scaling_cur_freq` **nol dona**, va
+`/sys/class/thermal/` da `thermal_zone*` **nol dona** (faqat
+`cooling_device0..11`). WSL2 kernel'i bu ikki sysfs interfeysini **umuman
+eksport qilmaydi.**
+
+**Natija: (1) va (2) bajarilmaydi, demak (3) dagi TEKSHIRUV BAJARILMAYDI.**
+
+Operatsion oqibatlari, aniq:
+
+- `run_meta.governor` va `run_meta.scaling_driver`
+  (`04-driver-va-analiz-shartnomasi.md` §1.1) **`None`** bo'ladi, ma'nosi
+  **"o'lchanmadi"**. **Hech qachon `0` emas** — `0` "o'lchandi va nolga teng"
+  degan ma'noni berardi, bu esa yolg'on bo'lardi. Bu §8.4(3) ning
+  None-mantiqi bilan bir xil: o'lchanmagan narsa qulay qiymat bilan
+  to'ldirilmaydi.
+- per-trial `scaling_cur_freq` va `thermal_zone*/temp` yozuvlari ham `None`.
+  §8.5 ko'zda tutgan **"o'rtacha chastota kovariata"** bu muhitda
+  **mavjud emas** — regressiyaga qo'shiladigan hech narsa yo'q.
+- **Yumshatish — faqat §8.5 ning o'zi nomlagani:** blok ichida randomizatsiya
+  (§8.4 randomized complete block design). U chastota farqini arm'lar bo'ylab
+  **balanslaydi**, lekin uni **o'lchamaydi**. Balanslash — tizimli siljishning
+  oldini oladigan dizayn himoyasi; o'lchash — uning bo'lmaganini **ko'rsatib
+  beradigan** dalil. Bu yerda ikkinchisi yo'q.
+- **Qo'shimcha og'irlashtiruvchi fakt:** mehmon (WSL2) host (Windows)
+  chastota boshqaruvini **ko'rmaydi.** Demak DVFS **mavjud bo'lishi mumkin va
+  butunlay o'lchanmaydi** — "yo'q" emas, "ko'rinmas". Bu eng yomon
+  kombinatsiya, va shunday yoziladi.
+
+**Bu `D_probe`, `D_eff`, `D_sd`, `time_to_first_up`, time-to-VR va RMST
+(§6, §10.2) validligiga HAQIQIY tahdid.** U maqolaning Limitations bo'limiga
+**aynan shu shaklda** kiradi va **yumshatilmaydi:**
+
+> *Biz DVFS ni nazorat qildik demaymiz. Biz uni **o'lchay olmadik**, va faqat
+> blok ichidagi randomizatsiyaga tayandik. §8.5 ning "tizimli farq bo'lsa
+> timing taqqoslashlari haqiqiy emas" tekshiruvini bu muhitda bajarish
+> imkonsiz, demak timing natijalari shu shart ostida o'qilishi kerak.*
+
+**TALQIN (torlashtirilgan, yumshatish EMAS):** §4(5) dagi throughput bandi
+`θ · R_ref` ni ishlatadi, `R_ref` esa **shu trial'ning o'zining** fault'dan
+oldingi throughput'i — ya'ni nisbat trial ichida normalizatsiya qilingan.
+Demak §10.1 ning **binar** birlamchi endpoint'i (`P(VR)`, Cochran–Armitage)
+sekin chastota drift'iga absolut timing o'lchovlaridan **kamroq ta'sirchan**.
+**Bu timing tahdidini kamaytirMAYDI** va §11 ning fail-slow shakli (RMST,
+`τ = 8 s`) yuqoridagi cheklov ostida qoladi. Trial ichidagi tez chastota
+o'zgarishi `R_ref` ni ham buzadi, va buni ham **o'lchab bo'lmaydi**.
+
+> **Nega bu yerda yozilgan:** `CONTRIBUTING.md` va `README.md` manfiy natija va
+> noqulay faktni yashirishni taqiqlaydi. §8.5 — aynan shu qoidaning sinovi.
+> Agar bu cheklov amendment'ga yozilmasa, u maqolaga ham yetib bormaydi.
+
+### 15.5 CHEKLOV — `W_stab = 60 s` hali ham erishib bo'lmaydi, lekin sabab siljidi
+
+§4 ning ochiq cheklovi **o'zgarmaydi:**
+
+> *P1 o'lchaydigan narsa — "pressure davom etayotganda tasdiqlangan recovery",
+> 60 s sustained recovery EMAS. Bu maqolada shunday yoziladi, yumshatilmaydi.*
+
+**O'zgargan narsa — sabab.** v1.3 gacha asosiy to'siq privilegiya **va** oomd
+edi (`00-pilot-topologiya.md` §3.1(a): *"ILMIY CHEKLOV yaratadi"*). Endi oomd
+to'sig'i bu muhitda yo'q, lekin cheklov **o'z joyida**, chunki qolgan sabablar
+yetarli:
+
+| # | sabab | holat |
+|---|---|---|
+| 1 | `W_stab_pilot = 8 s` **muzlatilgan** (§4) | v1.4 uni o'zgartirmaydi |
+| 2 | `hold_cap_s = 12 s`, `guard_sustain_s = 15 s` **muzlatilgan** (§9.4) | 15.3 ga qarang |
+| 3 | `io` controller delegated emas — o'lchangan: `cpu memory pids` (15.1) | §0 da allaqachon qamrovdan tashqarida |
+| 4 | `drop_caches` root talab qiladi (§8.3) | qilinmaydi |
+| 5 | guard o'zini oomd'dan himoya qila olmaydi (`oom_score_adj` pasaytirish privilegiya talab qiladi) — `02-guard-kalibratsiyasi.md` §7, 3-masala | bu muhitda oomd yo'q, lekin privilegiya cheklovi o'zgarmadi |
+
+Demak: **cheklov endi asosan muzlatilgan shartnomadan va privilegiyasiz
+muhitdan kelib chiqadi, oomd'dan emas.** Bu farq maqolada ham shunday
+yoziladi — "oomd bizni cheklaydi" deb yozish bu muhitda **noto'g'ri** bo'lardi.
+
+`/dev/kvm` mavjud (o'lchangan, 15.1), demak `02-guard-kalibratsiyasi.md` §7
+(4- va 6-masalalar) ko'rsatgan "VM kerak" yo'li texnik jihatdan **ochiq**.
+Lekin sustained pressure >12 s **§0 bo'yicha P1 qamrovidan tashqarida** va
+**o'z pre-registration'ini talab qiladi.** v1.4 bu yo'lni ochmaydi va §13 ga
+tegmaydi.
+
+### 15.6 Ochiq masalalar — v1.4 ularni HAL QILMAYDI, faqat qayd etadi
+
+1. **`v0.1.1-preregistration` tag mavjud emas.** `git tag --list` faqat
+   `v0.1.0-preregistration` ni beradi. v1.1 → v1.2 yozuvi
+   `v0.1.1-preregistration` ga havola qiladi, lekin u **push qilinmagan.**
+   v1.2, v1.3 va v1.4 ham tag'siz. Tag'lash integratsiyadan keyin bajariladi;
+   bu amendment hech qanday tag yaratmaydi.
+2. **§14.4 ning `run_meta` qatori "§7 tirik unit shartini ko'ring" deydi, lekin
+   §7 — *Pressure o'lchovi* va unda tirik unit haqida hech qanday shart yo'q.**
+   Haqiqiy talab `docs/architecture/01-muhit-tekshiruvlari.md` §4 da:
+   *"Har unit'ning property'lari u TIRIK paytida dump qilinishi shart"*; shu
+   havolani `04-driver-va-analiz-shartnomasi.md` §1.1 **to'g'ri** ishlatadi.
+   Bu yerda **jimgina qayta ko'rsatilMADI**, chunki havola muzlatilgan hujjat
+   ichida va v1.2 aynan shunday noto'g'ri havolani tuzatish uchun yaratilgan —
+   demak u o'z amendment'ini talab qiladi. **Talabning o'zi to'liq kuchda:
+   `units_show` unit tirik paytida olinadi.**
+3. **systemd 257 ≥ 254**, demak `RestartSteps=` mavjud. Lekin
+   `01-muhit-tekshiruvlari.md` §4 dagi transient-unit qabul qilinishi
+   **eski mashinada** o'lchangan; bu mashinada **qayta tasdiqlanishi kerak**.
+   P1 ni bloklamaydi, chunki Baseline B §9.3 bo'yicha P1 da **yo'q**.
+4. **Guard va pressure dosing kalibratsiyasi bu mashinada bajarilmagan.**
+   `00-pilot-topologiya.md` §6: 3-qadam (guard testi) keyingi har bir qadamni
+   gate qiladi, 4-qadam (pressure dosing) undan keyin. Bu amendment uchun
+   **hech qanday pressure eksperimenti ishga tushirilmadi.**
+
+### 15.7 NATIJA — yo'q
+
+**Hech qanday eksperiment ishga tushirilmadi. Hech qanday natija yo'q.**
+Shuning uchun v1.4 ostida eski ta'riflar bilan qayta hisoblanishi kerak
+bo'lgan hech qanday ma'lumot yo'q. Bu bo'lim faqat **o'lchangan muhitni** va
+**undan kelib chiqadigan cheklovlarni** qayd etadi.
