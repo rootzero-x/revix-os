@@ -185,17 +185,30 @@ import numpy as np
 
 from . import stats as S
 from .reduce import (
+    DISPOSITION_SOURCES,
     DRT_EPISODE,
+    DRT_SUMMARY,
     DRT_SWEEP,
     DRT_TRIAL,
-    PRIMARY_DISPOSITIONS,
+    SET_BINARY_DENOMINATOR,
+    SET_SURVIVAL,
     THETA_SWEEP,
     W_STAB_SWEEP_S,
     disposition_counts,
+    enters_primary_denominator,
+    primary_denominator_verdict,
     select_primary,
     select_survival,
     sweep_is_complete,
 )
+
+# NEGA `reduce.PRIMARY_DISPOSITIONS` IMPORT QILINMAYDI: §16.4 uni "to'g'ri
+# savol, NOTO'G'RI javob" deb hukm qildi -- binar maxraj `complete` VA
+# `censored:down_at_horizon` ni o'z ichiga oladi. `reduce.py` uni faqat
+# import muvofiqligi uchun deprecated shim sifatida saqlab turadi; bu modul
+# qoidani `reduce.enters_primary_denominator()` /
+# `primary_denominator_verdict()` orqali SO'RAYDI, demak qoida BITTA joyda
+# (`reduce.PRIMARY_DENOMINATOR_SOURCES`) qoladi va fail-closed bo'ladi.
 from .schema import DISPOSITIONS, SCHEMA_VERSION, mono_us
 
 # --- muzlatilgan parametrlar ------------------------------------------------
@@ -509,6 +522,30 @@ def load_events(path: str) -> list[dict[str, Any]]:
     """
     recs = _read_jsonl(path)
     return [r for r in recs if r.get("record_type") == RT_PROBER_STOP]
+
+
+def load_reduction_summary(path: str) -> dict[str, Any]:
+    """`reduce.write_output` ning `reduction_summary.jsonl` ini o'qiydi.
+
+    NEGA KERAK: `reduce_run` §16.4 ning ikki eksklyuziya darajasini
+    (`exclusion_rate_binary_pvr_denominator`,
+    `exclusion_rate_survival_analysis_set`), `summary["exclusions"][<set>]`
+    obyektlarini (har biri O'Z `analysis_set` nomi bilan),
+    `disposition_source_counts` ni va
+    `vr_undetermined_in_binary_denominator` ni O'ZI hisoblaydi. Ikki
+    mustaqil sanoq yo'li ikki xil raqam berishi mumkin, va eksklyuziya
+    darajasi NATIJA (§12) -- demak reducer'ning raqami AVTORITET.
+
+    Fayl bitta `reduction_summary` record'ini o'z ichiga oladi; bir
+    nechtasi bo'lsa OXIRGISI olinadi (`JsonlWriter` append-only).
+    """
+    recs = _read_jsonl(path)
+    rows = [r for r in recs if r.get("record_type") == DRT_SUMMARY]
+    if not rows:
+        raise AnalysisError(
+            f"{path}: birorta '{DRT_SUMMARY}' record topilmadi "
+            f"({len(recs)} record o'qildi)")
+    return rows[-1]
 
 
 def load_run_meta(path: str) -> dict[str, Any]:
@@ -1699,7 +1736,19 @@ def sensitivity_section(sweep_cells: Sequence[dict[str, Any]] | None,
         if tid not in by_id:
             orphan += 1
             continue
-        if c.get("disposition") not in PRIMARY_DISPOSITIONS:
+        # §16.2(B): to'plam `(disposition, disposition_source)` JUFTI bilan
+        # aniqlanadi. Sweep yacheykasi `disposition_source` ni O'ZI
+        # yozmaydi, shuning uchun u SHU trial'ning record'idan olinadi --
+        # sweep bir xil xom trace'ning qayta hisobi, demak manba bir xil.
+        # NEGA `reduce.enters_primary_denominator`: qoida BITTA joyda
+        # (`reduce.PRIMARY_DENOMINATOR_SOURCES`) yashaydi va fail-closed --
+        # yangi `disposition_source` qiymati (§17: `window_past_pressure`,
+        # `window_past_horizon`) avtomatik ravishda maxrajga TUSHMAYDI.
+        # Deprecated `PRIMARY_DISPOSITIONS` konstantasi §16.4 da "to'g'ri
+        # savol, NOTO'G'RI javob" deb hukm qilingan va BU MODULDA
+        # ishlatilmaydi.
+        if not enters_primary_denominator(c.get("disposition"),
+                                          by_id[tid].get("disposition_source")):
             continue
         key = (round(float(c["w_stab_s"]), 6), round(float(c["theta"]), 6))
         buckets.setdefault(key, []).append(c)
@@ -1814,6 +1863,18 @@ def multiplicity_section(primary: dict[str, Any],
 # --- §12 eksklyuziya -------------------------------------------------------
 
 
+# §17.4(2) -- oyna hold'dan yoki horizon'dan chiqib ketgan trial'lar.
+# `disposition` ikkalasida ham `censored`, va IKKALASI binar maxrajdan
+# chiqariladi (natija KUZATILMAGAN, `false` emas), lekin §6.2 bo'yicha
+# KM/log-rank ga censored davomiylik sifatida KIRADI.
+#
+# NEGA ALOHIDA RO'YXAT: §17.4(4) ularning darajasini `(arm x pressure)`
+# yacheykasi bo'yicha ALOHIDA berishni talab qiladi, chunki "`P2`
+# yacheykasida to'plangan yuqori daraja -- O'ZI NATIJA: u 'dizayn
+# qiziqtirgan yacheykani o'lchay olmadi' degan ma'noni beradi".
+WINDOW_FIT_SOURCES = ("window_past_pressure", "window_past_horizon")
+
+
 def _detailed_reasons(rows: Sequence[dict[str, Any]]) -> dict[str, int]:
     """`disposition:disposition_source` bo'yicha sanoq.
 
@@ -1833,9 +1894,110 @@ def _detailed_reasons(rows: Sequence[dict[str, Any]]) -> dict[str, int]:
     return out
 
 
+def _window_fit_by_cell(trials: Sequence[dict[str, Any]],
+                        log: WarningLog) -> dict[str, Any]:
+    """§17.4(4) -- `window_past_*` darajasi `(arm x pressure)` yacheykasi
+    bo'yicha, §16.4 ning nomlash qoidasi bilan.
+
+    §17.4(4): "`P2` yacheykasida to'plangan yuqori daraja -- O'ZI NATIJA:
+    u 'dizayn qiziqtirgan yacheykani o'lchay olmadi' degan ma'noni
+    beradi", va §12 ning "yuqori eksklyuziya darajasi yashirilmaydi"
+    qoidasi ostida yashirilmaydi. Agregat daraja bu xabarni YO'Q QILADI:
+    uchala darajada tekis tarqalgan 10% va faqat `P2` da to'plangan 30%
+    bir xil agregat berishi mumkin, lekin ikkinchisi dizayn nuqsoni.
+    """
+    cells: dict[str, dict[str, Any]] = {}
+    worst: tuple[float, str] | None = None
+    for r in trials:
+        arm = str(r.get("arm"))
+        band = str(r.get("pressure_band"))
+        key = f"{arm}:{band}"
+        cell = cells.setdefault(key, {
+            "arm": arm, "pressure_band": band, "n_total": 0,
+            "n_window_past": 0, "rate": None,
+            "by_source": {s: 0 for s in WINDOW_FIT_SOURCES},
+        })
+        cell["n_total"] += 1
+        src = r.get("disposition_source")
+        if src in WINDOW_FIT_SOURCES:
+            cell["n_window_past"] += 1
+            cell["by_source"][src] += 1
+    for key, cell in cells.items():
+        n = cell["n_total"]
+        cell["rate"] = (cell["n_window_past"] / n) if n else None
+        if cell["rate"]:
+            if worst is None or cell["rate"] > worst[0]:
+                worst = (cell["rate"], key)
+    # TRANZITSIYA holati -- jim qolmaydi: §17 ning ikki qiymati hali
+    # `reduce.DISPOSITION_SOURCES` ga qo'shilmagan bo'lsa,
+    # `reduce.primary_denominator_verdict` ularni
+    # `unknown_source(...)` deb nomlaydi. Natija BIR XIL (fail-closed,
+    # maxrajdan chiqadi), lekin sabab satri boshqacha bo'ladi -- va
+    # hisobot satrlari o'zgarsa buni bilish kerak.
+    not_in_reducer = [s for s in WINDOW_FIT_SOURCES
+                      if s not in DISPOSITION_SOURCES]
+    if not_in_reducer and any(
+            r.get("disposition_source") in not_in_reducer for r in trials):
+        log.add("window_fit_source_not_in_reducer_enum",
+                "exclusions.window_fit_by_cell",
+                f"{not_in_reducer} hali `reduce.DISPOSITION_SOURCES` da "
+                "yo'q, demak `reduce.primary_denominator_verdict` ularni "
+                "`unknown_source(...)` deb nomlaydi. NATIJA BIR XIL "
+                "(§17.4(3): maxrajdan fail-closed chiqadi, KM/log-rank ga "
+                "kiradi), lekin sabab SATRI reducer §17 ni qo'shgandan "
+                "keyin o'zgaradi")
+    if worst is not None:
+        log.add("window_fit_exclusions_present", "exclusions.window_fit_by_cell",
+                "§17 ning oyna-sig'ish eksklyuziyasi mavjud: eng yuqori "
+                f"daraja `{worst[1]}` yacheykasida ({worst[0]:.3f}). "
+                "§17.4(4): `P2` da to'plangan yuqori daraja O'ZI NATIJA -- "
+                "u dizayn qiziqtirgan yacheykani o'lchay olmaganini "
+                "bildiradi, va yashirilmaydi")
+    return {
+        "analysis_set": "binary_p_vr_denominator_exclusions_window_fit",
+        "description": ("rate of disposition_source in "
+                        f"{list(WINDOW_FIT_SOURCES)} per (arm x pressure) "
+                        "cell (PREREGISTRATION.md §17.4(4)); these are "
+                        "excluded from the binary denominator because the "
+                        "§4 window was not observed, and enter KM/log-rank "
+                        "as censored durations (§6.2)"),
+        "sources": list(WINDOW_FIT_SOURCES),
+        "by_cell": dict(sorted(cells.items())),
+    }
+
+
+def _unknown_sources(trials: Sequence[dict[str, Any]],
+                     log: WarningLog) -> dict[str, int]:
+    """Reducer'ning enum'ida YO'Q `disposition_source` qiymatlari.
+
+    NEGA HISOBOTGA: yangi qiymat (§17 ning ikkitasi kabi) bu modul
+    bilmaganda ham `reduce.primary_denominator_verdict` uni FAIL-CLOSED
+    chiqaradi -- bu to'g'ri, lekin JIM bo'lmasligi kerak. Aks holda
+    "noma'lum sabab bilan chiqarilgan trial'lar" nomsiz bucket'da
+    yo'qolardi, va §16.4 ga ko'ra nomsiz eksklyuziya natija sifatida
+    berilmaydi.
+    """
+    known = set(DISPOSITION_SOURCES) | set(WINDOW_FIT_SOURCES)
+    out: dict[str, int] = {}
+    for r in trials:
+        src = r.get("disposition_source")
+        if src and src not in known:
+            out[str(src)] = out.get(str(src), 0) + 1
+    if out:
+        log.add("disposition_source_unrecognised", "exclusions",
+                f"`reduce.DISPOSITION_SOURCES` da yo'q manba qiymat(lar)i: "
+                f"{dict(sorted(out.items()))}. `reduce."
+                "primary_denominator_verdict` ularni FAIL-CLOSED chiqaradi "
+                "(to'g'ri), lekin ular NOMLANADI -- nomsiz bucket'ga "
+                "qo'yilmaydi")
+    return dict(sorted(out.items()))
+
+
 def exclusions_section(trials: Sequence[dict[str, Any]],
                        primary_trials: Sequence[dict[str, Any]],
-                       survival_trials: Sequence[dict[str, Any]]
+                       survival_trials: Sequence[dict[str, Any]],
+                       log: WarningLog,
+                       reduction_summary: dict[str, Any] | None = None
                        ) -> dict[str, Any]:
     """§12 + §16.4 -- IKKI eksklyuziya darajasi, har biri TO'PLAMINI NOMLAB.
 
@@ -1865,22 +2027,74 @@ def exclusions_section(trials: Sequence[dict[str, Any]],
     ex_primary = [r for r in trials if id(r) not in primary_ids]
     ex_survival = [r for r in trials if id(r) not in survival_ids]
 
+    # §16.4 -- reducer'ning raqami AVTORITET. `reduce_run` ikki darajani
+    # O'ZI hisoblaydi; ikki mustaqil sanoq yo'li ikki xil raqam berishi
+    # mumkin, va eksklyuziya darajasi NATIJA (§12).
+    summary_rates: dict[str, float | None] = {}
+    summary_blocks: dict[str, Any] = {}
+    if reduction_summary is not None:
+        summary_rates = {
+            "binary_p_vr_denominator":
+                _f(reduction_summary.get(
+                    "exclusion_rate_binary_pvr_denominator")),
+            "survival_analysis_set":
+                _f(reduction_summary.get(
+                    "exclusion_rate_survival_analysis_set")),
+        }
+        raw = reduction_summary.get("exclusions")
+        if isinstance(raw, dict):
+            summary_blocks = {
+                "binary_p_vr_denominator": raw.get(SET_BINARY_DENOMINATOR),
+                "survival_analysis_set": raw.get(SET_SURVIVAL),
+            }
+    else:
+        log.add("reduction_summary_absent", "exclusions",
+                "`--reduction-summary` berilmagan: §16.4 ning ikki "
+                "eksklyuziya darajasi `reduce_run` ning "
+                "`exclusion_rate_binary_pvr_denominator` / "
+                "`exclusion_rate_survival_analysis_set` maydonlarida "
+                "AVTORITET tarzda bor. Bu yerda ular `reduce.select_primary` "
+                "/ `select_survival` qaytargan to'plamlar ustida QAYTA "
+                "SANALDI -- tanlov qoidasi baribir reducer'ning, lekin "
+                "sanoq yo'li IKKITA. Darajalar NATIJA (§12), demak "
+                "reducer'ning raqamini bering")
+
     def block(name: str, desc: str, included: Sequence[dict[str, Any]],
               excluded: Sequence[dict[str, Any]]) -> dict[str, Any]:
+        own = (len(excluded) / total) if total else None
+        auth = summary_rates.get(name)
+        if auth is not None and own is not None and abs(auth - own) > 1e-12:
+            # Jimgina qolmaydi: ikki sanoq yo'li farq qilsa, kirish
+            # fayllari BIR XIL reduksiyadan kelmagan bo'lishi mumkin.
+            log.add("exclusion_rate_mismatch", f"exclusions.by_set.{name}",
+                    f"reducer'ning darajasi {auth}, bu yerda sanalgani "
+                    f"{own} -- MANBADAGISI (reducer) beriladi. Sabab "
+                    "ehtimol kirish fayllari bir xil reduksiyadan emas")
         return {
             "set": name,
             "description": desc,
-            "rate": (len(excluded) / total) if total else None,
+            # Reducer'ning raqami bo'lsa U beriladi; bo'lmasa o'z sanog'i.
+            "rate": auth if auth is not None else own,
+            "rate_source": ("reduction_summary" if auth is not None
+                            else "recounted_in_analyze"),
+            "rate_recounted_here": own,
             "n_total": total,
             "n_included": len(included),
             "n_excluded": len(excluded),
             "by_reason": _detailed_reasons(excluded),
+            "reducer_block": summary_blocks.get(name),
         }
 
     # Eski (shartnoma §2.2) shakl: `by_reason` faqat `disposition` bo'yicha.
     by_reason: dict[str, int] = {}
     for r in ex_primary:
-        reason = r.get("exclusion_reason") or str(r.get("disposition"))
+        # §16.2(B) -- sabab `reduce.primary_denominator_verdict` dan
+        # keladi, bu yerda qayta hisoblanmaydi. `exclusion_reason`
+        # field'i eski reduksiyada `disposition` bo'lishi mumkin.
+        _inc, named = primary_denominator_verdict(
+            r.get("disposition"), r.get("disposition_source"))
+        reason = (str(named).split(":", 1)[0] if named
+                  else str(r.get("disposition")))
         by_reason[reason] = by_reason.get(reason, 0) + 1
 
     return {
@@ -1909,6 +2123,15 @@ def exclusions_section(trials: Sequence[dict[str, Any]],
                 "never dropped",
                 survival_trials, ex_survival),
         },
+        # §17.4(4) -- `(arm x pressure)` yacheykasi bo'yicha, agregat
+        # DARAJA EMAS: `P2` da to'plangan yuqori daraja O'ZI natija.
+        "window_fit_by_cell": _window_fit_by_cell(trials, log),
+        # §16.2(B) / §17: noma'lum manba NOMLANADI, nomsiz bucket'ga
+        # qo'yilmaydi.
+        "unrecognised_disposition_sources": _unknown_sources(trials, log),
+        # Reducer'ning `disposition:source` sanog'i (bor bo'lsa).
+        "disposition_source_counts": (
+            (reduction_summary or {}).get("disposition_source_counts")),
     }
 
 
@@ -1947,6 +2170,7 @@ def build_analysis(trials: Sequence[dict[str, Any]],
                    *,
                    episodes: Sequence[dict[str, Any]] | None = None,
                    prober_stops: Sequence[dict[str, Any]] | None = None,
+                   reduction_summary: dict[str, Any] | None = None,
                    n_boot: int = N_BOOT,
                    generated_mono_us: int | None = None) -> dict[str, Any]:
     """`analysis.json` obyektini quradi -- §2.2 sxemasi AYNAN shu tartibda.
@@ -1994,7 +2218,30 @@ def build_analysis(trials: Sequence[dict[str, Any]],
                                       None if t_trial_us is None
                                       else int(t_trial_us))
     multiplicity = multiplicity_section(primary, log)
-    exclusions = exclusions_section(trials, primary_trials, survival_trials)
+    exclusions = exclusions_section(trials, primary_trials, survival_trials,
+                                    log, reduction_summary)
+
+    # §16.8 / §17 -- BIRINCHI TRIALDAN OLDINGI BLOKER: binar maxrajda
+    # `vr is None` bo'lgan trial bo'lmasligi kerak. Maxrajga kirish
+    # "natija KUZATILDI" degani; `vr=None` esa "o'lchanmadi". Ikkisi bir
+    # vaqtda to'g'ri bo'lishi mumkin emas.
+    vr_undet_denom = None
+    if reduction_summary is not None:
+        vr_undet_denom = reduction_summary.get(
+            "vr_undetermined_in_binary_denominator")
+    own_undet = sum(1 for r in primary_trials if r.get("vr") is None)
+    if vr_undet_denom is None:
+        vr_undet_denom = own_undet
+    if vr_undet_denom:
+        log.add("vr_undetermined_in_binary_denominator", "n_trials",
+                f"{vr_undet_denom} trial binar `P(VR)` maxrajida, LEKIN "
+                "`vr` aniqlanmagan (None). Maxrajga kirish 'natija "
+                "KUZATILDI' degani, `vr=None` esa 'o'lchanmadi' -- ikkisi "
+                "bir vaqtda to'g'ri BO'LA OLMAYDI. §16.8/§17 bu holatni "
+                "BIRINCHI TRIALDAN OLDIN hal qilinishi shart bo'lgan "
+                "BLOKER deb belgilaydi. Bu trial'lar yacheyka "
+                "denominatoriga KIRMAYDI (taxmin qilinmaydi), lekin "
+                "nomuvofiqlik O'ZI qayd etiladi")
     probe_cost = probe_cost_section(trials, log, prober_stops)
 
     obj: dict[str, Any] = {
@@ -2013,7 +2260,12 @@ def build_analysis(trials: Sequence[dict[str, Any]],
         "t_trial_us": (int(t_trial_us) if t_trial_us is not None else None),
         "t_trial_formula": run_meta.get("t_trial_formula"),
         "n_trials": {"total": len(trials),
-                     "by_disposition": disposition_counts(trials)},
+                     "by_disposition": disposition_counts(trials),
+                     # §16.8/§17 bloker -- qiymat chiqishda KO'RINADI,
+                     # faqat `warnings` da emas.
+                     "vr_undetermined_in_binary_denominator":
+                         int(vr_undet_denom) if vr_undet_denom is not None
+                         else None},
         "primary": primary,
         "survival": survival,
         "false_recovery": false_recovery,
@@ -2079,20 +2331,27 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--events", default=None,
                     help="xom events.jsonl (ixtiyoriy): §8.2 prober narxi "
                          "`prober_stop.cost` dan olinadi")
+    ap.add_argument("--reduction-summary", default=None,
+                    help="reduce.py ning reduction_summary.jsonl "
+                         "(ixtiyoriy): §16.4 ning ikki eksklyuziya "
+                         "darajasi AVTORITET tarzda shu yerda")
     ap.add_argument("--json", action="store_true",
                     help="analysis.json ni stdout'ga ham yozadi")
     args = ap.parse_args(argv)
 
     try:
         _assert_not_input(args.out, [args.trials, args.run_meta, args.sweep,
-                                     args.episodes, args.events])
+                                     args.episodes, args.events,
+                                     args.reduction_summary])
         trials = load_trials(args.trials)
         meta = load_run_meta(args.run_meta)
         sweep = load_sweep(args.sweep) if args.sweep else None
         episodes = load_episodes(args.episodes) if args.episodes else None
         stops = load_events(args.events) if args.events else None
+        rsum = (load_reduction_summary(args.reduction_summary)
+                if args.reduction_summary else None)
         obj = build_analysis(trials, meta, sweep, episodes=episodes,
-                             prober_stops=stops)
+                             prober_stops=stops, reduction_summary=rsum)
         write_analysis(obj, args.out)
     except AnalysisError as exc:
         sys.stderr.write(f"analiz xatosi: {exc}\n")

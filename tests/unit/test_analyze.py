@@ -215,9 +215,10 @@ def full_sweep(trial_id, *, truncated_from_s=None):
 
 
 def build(trials, *, sweep=None, meta=None, n_boot=N_BOOT_TEST,
-          episodes=None, prober_stops=None):
+          episodes=None, prober_stops=None, reduction_summary=None):
     return A.build_analysis(trials, meta or run_meta(), sweep,
                             episodes=episodes, prober_stops=prober_stops,
+                            reduction_summary=reduction_summary,
                             n_boot=n_boot, generated_mono_us=123456)
 
 
@@ -1156,13 +1157,20 @@ def test_16_2B_down_at_horizon_vr_false_olchangan_muvaffaqiyatsizlik(monkeypatch
 def test_16_4_ikki_eksklyuziya_darajasi_har_biri_toplamini_nomlaydi():
     """§16.4 -- nomlanmagan eksklyuziya darajasi TAKROLANUVCHI EMAS.
 
-    QO'LDA HISOB. 10 trial: 6 `complete`, 2 `censored:probe_gap`,
-    1 `censored:down_at_horizon`, 1 `contaminated`.
-      binar maxraj (`reduce.select_primary`, hozirgi holatda `complete`):
-        kiritilgan 6, chiqarilgan 4 => rate = 4/10 = 0.4
-      survival to'plami (`complete` + `censored`):
+    QO'LDA HISOB. 10 trial: 6 `complete:derived`, 2 `censored:probe_gap`,
+    1 `censored:down_at_horizon`, 1 `contaminated:derived`.
+      binar maxraj (§16.2(B), `reduce.PRIMARY_DENOMINATOR_SOURCES`):
+        kiradigan juftlar `complete:{trial_end,derived}` va
+        `censored:down_at_horizon` => kiritilgan 6 + 1 = 7,
+        chiqarilgan 3 => rate = 3/10 = 0.3
+      survival to'plami (§6.2, `complete` + `censored`):
         kiritilgan 9, chiqarilgan 1 (`contaminated`) => rate = 1/10 = 0.1
     Ikki to'plam -> IKKI daraja. Bitta `rate` maydoni o'zi yetarli emas.
+
+    E'TIBOR: `down_at_horizon` maxrajga KIRADI (§16.2(B): kuzatilgan
+    no'l-hodisa), `probe_gap` esa KIRMAYDI (kuzatilmagan). Bu farq
+    `reduce.primary_denominator_verdict` da yashaydi, bu yerda qayta
+    hisoblanmaydi.
     """
     trials = ([trial(f"SYNTH-c{i}") for i in range(6)]
               + [trial(f"SYNTH-g{i}", disposition="censored", vr=None,
@@ -1175,20 +1183,234 @@ def test_16_4_ikki_eksklyuziya_darajasi_har_biri_toplamini_nomlaydi():
     ex = build(trials)["exclusions"]
     binary = ex["by_set"]["binary_p_vr_denominator"]
     surv = ex["by_set"]["survival_analysis_set"]
-    assert binary["rate"] == pytest.approx(0.4)
-    assert binary["n_included"] == 6 and binary["n_excluded"] == 4
+    assert binary["rate"] == pytest.approx(0.3)
+    assert binary["n_included"] == 7 and binary["n_excluded"] == 3
     assert surv["rate"] == pytest.approx(0.1)
     assert surv["n_included"] == 9 and surv["n_excluded"] == 1
     # Har blok O'Z to'plamini NOMLAYDI.
     assert binary["set"] == "binary_p_vr_denominator"
     assert surv["set"] == "survival_analysis_set"
-    # Ikki `censored` turi AJRATILADI (§16.2(B)).
+    # `probe_gap` chiqarilgan, `down_at_horizon` esa KIRGAN (§16.2(B)).
     assert binary["by_reason"]["censored:probe_gap"] == 2
-    assert binary["by_reason"]["censored:down_at_horizon"] == 1
+    assert "censored:down_at_horizon" not in binary["by_reason"]
     assert surv["by_reason"] == {"contaminated:derived": 1}
+    # `--reduction-summary` berilmagan => o'z sanog'i, va bu AYTILADI.
+    assert binary["rate_source"] == "recounted_in_analyze"
     # `rate` kaliti saqlanadi, lekin NOMLANGAN.
     assert ex["rate"] == pytest.approx(binary["rate"])
     assert ex["rate_set"] == "binary_p_vr_denominator"
+
+
+def test_16_4_qoida_reduce_dagi_yakka_mapping_dan_soraladi():
+    """Migratsiya qulfi: `PRIMARY_DISPOSITIONS` ENDI ISHLATILMAYDI.
+
+    §16.4 uni "to'g'ri savol, NOTO'G'RI javob" deb hukm qildi va
+    `reduce.py` uni faqat deprecated import-shim sifatida saqlaydi. Qoida
+    `reduce.PRIMARY_DENOMINATOR_SOURCES` + `enters_primary_denominator()`
+    da yashaydi, demak bu modul uni QAYTA DERIVE QILMAYDI.
+    """
+    src = pathlib.Path(A.__file__).read_text(encoding="utf-8")
+    body = src.split('"""', 2)[2]          # modul docstring'idan keyin
+    # FAQAT KOD qatorlari: izohlarda nom tushuntirish uchun qoladi.
+    code = "\n".join(ln.split("#", 1)[0] for ln in body.splitlines())
+    assert "PRIMARY_DISPOSITIONS" not in code
+    assert "enters_primary_denominator(" in code
+    # Qoida AYNAN uchta juftni qabul qiladi (§16.2(B) + §12).
+    import revix.reduce as R
+    for disp, srcname in (("complete", "trial_end"), ("complete", "derived"),
+                          ("censored", "down_at_horizon")):
+        assert R.enters_primary_denominator(disp, srcname) is True
+    for disp, srcname in (("censored", "probe_gap"),
+                          ("censored", "trial_end"),
+                          ("contaminated", "derived"),
+                          ("aborted_guard", "guard_event"),
+                          ("washout_timeout", "trial_end"),
+                          ("harness_error", "trial_end")):
+        assert R.enters_primary_denominator(disp, srcname) is False
+
+
+def test_16_4_reduction_summary_berilsa_reducerning_darajasi_olinadi():
+    """§16.4 -- eksklyuziya darajasi NATIJA, demak reducer'ning raqami
+    AVTORITET va ikki sanoq yo'li bo'lmasligi kerak."""
+    trials = [trial(f"SYNTH-{i}") for i in range(4)]
+    rsum = {
+        "record_type": "reduction_summary",
+        "exclusion_rate_binary_pvr_denominator": 0.25,
+        "exclusion_rate_survival_analysis_set": 0.125,
+        "exclusions": {
+            "binary_pvr_denominator": {"analysis_set": "binary_pvr_denominator",
+                                       "n_total": 4, "n_included": 3,
+                                       "n_excluded": 1,
+                                       "exclusion_rate": 0.25,
+                                       "reasons": {"censored:probe_gap": 1}},
+            "survival_analysis_set": {"analysis_set": "survival_analysis_set",
+                                      "n_total": 4, "n_included": 4,
+                                      "n_excluded": 0,
+                                      "exclusion_rate": 0.125,
+                                      "reasons": {}},
+        },
+        "disposition_source_counts": {"complete:derived": 4},
+        "vr_undetermined_in_binary_denominator": 0,
+    }
+    obj = build(trials, reduction_summary=rsum)
+    ex = obj["exclusions"]
+    b = ex["by_set"]["binary_p_vr_denominator"]
+    assert b["rate"] == pytest.approx(0.25)        # reducer'ning raqami
+    assert b["rate_source"] == "reduction_summary"
+    assert b["rate_recounted_here"] == pytest.approx(0.0)   # o'z sanog'i
+    assert b["reducer_block"]["analysis_set"] == "binary_pvr_denominator"
+    assert ex["disposition_source_counts"] == {"complete:derived": 4}
+    # Ikki yo'l farq qildi => JIMGINA QOLMAYDI.
+    assert "exclusion_rate_mismatch" in warn_codes(obj)
+    assert "reduction_summary_absent" not in warn_codes(obj)
+
+
+def test_16_4_reduction_summary_berilmasa_oz_sanogi_va_warning():
+    obj = build([trial("SYNTH-1")])
+    assert "reduction_summary_absent" in warn_codes(obj)
+    b = obj["exclusions"]["by_set"]["binary_p_vr_denominator"]
+    assert b["rate_source"] == "recounted_in_analyze"
+
+
+def test_reduction_summary_record_topilmasa_rad_etiladi(tmp_path):
+    p = tmp_path / "reduction_summary.jsonl"
+    p.write_text(json.dumps({"record_type": "trial_metrics"}) + "\n",
+                 encoding="utf-8")
+    with pytest.raises(A.AnalysisError, match="reduction_summary"):
+        A.load_reduction_summary(str(p))
+
+
+# --- 11d-bis. §17: ikki yangi `disposition_source` -----------------------
+
+
+def test_17_window_past_manbalari_maxrajdan_chiqadi_va_KM_ga_kiradi():
+    """§17.4(2-3) -- `window_past_*`: natija KUZATILMAGAN, `false` EMAS.
+
+    QO'LDA HISOB. 4 trial, hammasi arm `A`/`P2`: 2 `complete`,
+    1 `censored:window_past_pressure`, 1 `censored:window_past_horizon`.
+      binar maxraj: faqat 2 `complete` => yacheyka k/n = 2/2
+      survival to'plami: uchala `censored` ham KIRADI => n_total = 4
+    """
+    trials = [
+        trial("SYNTH-c1", pressure_band="P2", vr=True),
+        trial("SYNTH-c2", pressure_band="P2", vr=True),
+        trial("SYNTH-wp", pressure_band="P2", disposition="censored",
+              disposition_source="window_past_pressure", vr=None,
+              time_to_vr_censored=True),
+        trial("SYNTH-wh", pressure_band="P2", disposition="censored",
+              disposition_source="window_past_horizon", vr=None,
+              time_to_vr_censored=True),
+    ]
+    obj = build(trials)
+    p2 = [c for c in obj["primary"]["cells"] if c["level"] == "P2"][0]
+    assert (p2["k"], p2["n"]) == (2, 2)     # oyna chiqib ketgani KIRMAYDI
+    # §6.2 -- KM/log-rank ga censored davomiylik sifatida KIRADI.
+    assert obj["survival"]["km"]["by_arm"]["A"]["n_total"] == 4
+    assert obj["survival"]["km"]["by_arm"]["A"]["n_censored"] == 2
+    # Sabablar NOMLANADI, nomsiz bucket'ga qo'yilmaydi.
+    b = obj["exclusions"]["by_set"]["binary_p_vr_denominator"]
+    assert b["by_reason"]["censored:window_past_pressure"] == 1
+    assert b["by_reason"]["censored:window_past_horizon"] == 1
+
+
+def test_17_4_window_past_darajasi_arm_x_pressure_yacheykasi_boyicha():
+    """§17.4(4) -- agregat daraja xabarni YO'Q QILADI.
+
+    QO'LDA HISOB. Arm `A`: `P0` da 4 trial, 0 ta oyna-chiqishi;
+    `P2` da 4 trial, 3 tasi oyna-chiqishi (2 `window_past_pressure`,
+    1 `window_past_horizon`).
+      `A:P0` rate = 0/4 = 0.0
+      `A:P2` rate = 3/4 = 0.75   <-- AYNAN shu "dizayn qiziqtirgan
+                                     yacheykani o'lchay olmadi" degani
+      agregat = 3/8 = 0.375      <-- bu xabarni yo'q qilardi
+    """
+    trials = [trial(f"SYNTH-p0-{i}", pressure_band="P0") for i in range(4)]
+    trials += [trial("SYNTH-p2-0", pressure_band="P2")]
+    for i, s in enumerate(("window_past_pressure", "window_past_pressure",
+                           "window_past_horizon")):
+        trials.append(trial(f"SYNTH-p2-w{i}", pressure_band="P2",
+                            disposition="censored", disposition_source=s,
+                            vr=None, time_to_vr_censored=True))
+    obj = build(trials)
+    wf = obj["exclusions"]["window_fit_by_cell"]
+    assert wf["by_cell"]["A:P0"]["rate"] == pytest.approx(0.0)
+    assert wf["by_cell"]["A:P2"]["rate"] == pytest.approx(0.75)
+    assert wf["by_cell"]["A:P2"]["n_window_past"] == 3
+    assert wf["by_cell"]["A:P2"]["by_source"] == {
+        "window_past_pressure": 2, "window_past_horizon": 1}
+    # §16.4 -- blok O'Z nomini olib yuradi.
+    assert wf["analysis_set"].startswith("binary_p_vr_denominator")
+    assert "window_fit_exclusions_present" in warn_codes(obj)
+    # Agregat (3/8 = 0.375) bu xabarni YO'Q QILARDI -- shuning uchun
+    # yacheyka bo'yicha ham beriladi.
+    assert wf["by_cell"]["A:P2"]["rate"] > 0.375
+
+
+def test_17_reducer_enumida_yoq_manba_tranzitsiya_sifatida_qayd_etiladi():
+    """`reduce.DISPOSITION_SOURCES` hali §17 ni qo'shmagan bo'lsa -- AYTILADI.
+
+    Natija bir xil (fail-closed), lekin eksklyuziya sabab SATRI reducer
+    §17 ni qo'shgandan keyin o'zgaradi, va hisobot satrlari o'zgarishi
+    jim qolmasligi kerak.
+    """
+    import revix.reduce as R
+    pending = [s for s in A.WINDOW_FIT_SOURCES
+               if s not in R.DISPOSITION_SOURCES]
+    obj = build([trial("SYNTH-1"),
+                 trial("SYNTH-w", disposition="censored", vr=None,
+                       disposition_source="window_past_horizon",
+                       time_to_vr_censored=True)])
+    if pending:
+        assert "window_fit_source_not_in_reducer_enum" in warn_codes(obj)
+    else:
+        assert "window_fit_source_not_in_reducer_enum" not in warn_codes(obj)
+    # Qaysi holatda ham maxrajdan CHIQADI (§17.4(3)).
+    assert obj["exclusions"]["by_set"][
+        "binary_p_vr_denominator"]["n_included"] == 1
+    # ...va `WINDOW_FIT_SOURCES` "notanish" deb sanalMAYDI: u RULED qiymat.
+    assert obj["exclusions"]["unrecognised_disposition_sources"] == {}
+
+
+def test_17_notanish_disposition_source_NOMLANADI_jimgina_bucketlanmaydi():
+    """Noma'lum manba fail-closed chiqariladi, LEKIN jim qolmaydi."""
+    trials = [trial("SYNTH-1"),
+              trial("SYNTH-?", disposition="censored", vr=None,
+                    disposition_source="some_future_source",
+                    time_to_vr_censored=True)]
+    obj = build(trials)
+    ex = obj["exclusions"]
+    assert ex["unrecognised_disposition_sources"] == {"some_future_source": 1}
+    assert "disposition_source_unrecognised" in warn_codes(obj)
+    # Fail-closed: maxrajga KIRMAYDI.
+    assert ex["by_set"]["binary_p_vr_denominator"]["n_included"] == 1
+
+
+# --- 11d-ter. §16.8/§17: maxrajda `vr=None` BLOKER -----------------------
+
+
+def test_16_8_maxrajda_vr_none_bolsa_baland_ogohlantirish(monkeypatch):
+    """Maxrajga kirish 'natija KUZATILDI' degani; `vr=None` 'o'lchanmadi'.
+
+    Ikkisi bir vaqtda to'g'ri bo'la olmaydi, va §16.8/§17 buni birinchi
+    trialdan OLDIN hal qilinishi shart bo'lgan BLOKER deb belgilaydi.
+    """
+    trials = [trial("SYNTH-1", vr=True), trial("SYNTH-2", vr=None)]
+    monkeypatch.setattr(A, "select_primary", lambda rows: list(rows))
+    obj = build(trials)
+    assert obj["n_trials"]["vr_undetermined_in_binary_denominator"] == 1
+    assert "vr_undetermined_in_binary_denominator" in warn_codes(obj)
+    # `None` baribir yacheyka denominatoriga KIRMAYDI (taxmin qilinmaydi).
+    c0 = obj["primary"]["cells"][0]
+    assert (c0["k"], c0["n"]) == (1, 1)
+
+
+def test_16_8_reducerning_qiymati_olinadi_va_nol_bolsa_ogohlantirish_yoq():
+    trials = [trial("SYNTH-1")]
+    rsum = {"record_type": "reduction_summary",
+            "vr_undetermined_in_binary_denominator": 0}
+    obj = build(trials, reduction_summary=rsum)
+    assert obj["n_trials"]["vr_undetermined_in_binary_denominator"] == 0
+    assert "vr_undetermined_in_binary_denominator" not in warn_codes(obj)
 
 
 def test_16_4_disposition_source_yoq_bolsa_warning_beriladi():
@@ -1604,7 +1826,7 @@ def test_chiqish_kirish_fayli_ustiga_yozilmaydi(tmp_path):
 def test_main_analysis_json_yozadi_va_hamma_bayroqni_qabul_qiladi(tmp_path,
                                                                   capsys):
     """CLI shartnomasi: `--trials`, `--run-meta`, `--out`, `--sweep`,
-    `--episodes`, `--events`, `--json`."""
+    `--episodes`, `--events`, `--reduction-summary`, `--json`."""
     trials = cells_to_trials({"P0": (5, 6), "P1": (4, 6), "P2": (2, 6)})
     tp = tmp_path / "trials.jsonl"
     tp.write_text("".join(json.dumps(r) + "\n" for r in trials),
@@ -1623,11 +1845,25 @@ def test_main_analysis_json_yozadi_va_hamma_bayroqni_qabul_qiladi(tmp_path,
     ev = tmp_path / "events.jsonl"
     ev.write_text("".join(json.dumps(prober_stop(r["trial_id"], 0.5)) + "\n"
                           for r in trials), encoding="utf-8")
+    rs = tmp_path / "reduction_summary.jsonl"
+    rs.write_text(json.dumps({
+        "record_type": "reduction_summary",
+        "exclusion_rate_binary_pvr_denominator": 0.0,
+        "exclusion_rate_survival_analysis_set": 0.0,
+        "exclusions": {
+            "binary_pvr_denominator": {"analysis_set": "binary_pvr_denominator",
+                                       "exclusion_rate": 0.0, "reasons": {}},
+            "survival_analysis_set": {"analysis_set": "survival_analysis_set",
+                                      "exclusion_rate": 0.0, "reasons": {}}},
+        "disposition_source_counts": {"complete:derived": 18},
+        "vr_undetermined_in_binary_denominator": 0,
+    }) + "\n", encoding="utf-8")
     out = tmp_path / "analysis.json"
 
     rc = A.main(["--trials", str(tp), "--run-meta", str(mp),
                  "--out", str(out), "--sweep", str(sp),
-                 "--episodes", str(ep), "--events", str(ev), "--json"])
+                 "--episodes", str(ep), "--events", str(ev),
+                 "--reduction-summary", str(rs), "--json"])
     assert rc == 0
     assert out.exists()
     obj = json.loads(out.read_text(encoding="utf-8"))
@@ -1642,6 +1878,12 @@ def test_main_analysis_json_yozadi_va_hamma_bayroqni_qabul_qiladi(tmp_path,
     # §8.2: `--events` berilgan => `probe_cost` MAVJUD va arm bo'yicha.
     assert obj["probe_cost"]["budget_percent"] == 1.0
     assert obj["probe_cost"]["by_arm"]["A"]["core_percent"] == [0.5] * 18
+    # §16.4: `--reduction-summary` berilgan => reducer'ning darajasi.
+    b = obj["exclusions"]["by_set"]["binary_p_vr_denominator"]
+    assert b["rate_source"] == "reduction_summary"
+    assert obj["exclusions"]["disposition_source_counts"] == {
+        "complete:derived": 18}
+    assert obj["n_trials"]["vr_undetermined_in_binary_denominator"] == 0
     # `--json` stdout'ga ham AYNAN shu obyektni beradi.
     assert json.loads(capsys.readouterr().out) == obj
 
