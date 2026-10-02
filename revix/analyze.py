@@ -86,9 +86,13 @@ amendment savoli, bu yerda O'ZBOSHIMCHALIK bilan hal qilinmaydi):
     sabab bilan qaytaradi (`r_ref_unavailable`, `window_truncated`) va
     `None` HECH QACHON `False` emas. Bu §2.3 #6 ning eng muhim holati.
   * `probe_cost` -- §8.2 prober CPU narxini HAR TRIAL uchun, yadro
-    foizida, va arm'lar bo'yicha BIR XIL ushlashni talab qiladi. Manba
-    zanjiri hozir UZILGAN (pastdagi PROBE_COST CHEKLOVI), shuning uchun
-    bo'lim CHIQARILMAYDI va sabab `warnings` da beriladi.
+    foizida, va arm'lar bo'yicha BIR XIL ushlashni talab qiladi. Kalitlar
+    `agent/contract` tomonidan ratifikatsiya qilingan (`driver-contract`
+    v1.2 ga yozilmoqda): `budget_percent` va `by_arm.<arm>.core_percent`
+    (PER-TRIAL ro'yxat, o'lchanmagan joyda `None`). `--events` berilmasa
+    bo'lim UMUMAN chiqmaydi -- `figures.py` yo'qligini aniqlay oladi.
+  * `false_recovery.fr_a.basis.source` -- qaysi denominator ishlatilgani
+    (`--episodes` bormi yoki yo'qmi) HISOBOTDA ko'rinishi kerak.
   * `false_recovery.fr_a.basis` -- FR-A qaysi trial to'plamidan olingani
     auditga ochiq bo'lishi uchun (pastdagi "FR-A CHEKLOVI" ga qarang).
   * `multiplicity.uncorrected` -- §10.4 "exploratory deb belgilanadi"
@@ -103,30 +107,38 @@ amendment savoli, bu yerda O'ZBOSHIMCHALIK bilan hal qilinmaydi):
     §2.2 ularni `{}` deb qoldirgan, demak ichki tuzilish bu modulning
     qarori va yuqorida ta'riflangan.
 
-FR-A CHEKLOVI (CHEKLOV, natija emas): §5 FR-A ni HAR ACTION va HAR EPIZOD
-uchun talab qiladi, lekin per-action/per-epizod FR-A `reduce.py` ning
-`episodes.jsonl` ida yashaydi -- §2.1 esa kirish sifatida faqat
-`trial_metrics` ni beradi. Shuning uchun bu modul faqat AYNAN YECHILADIGAN
-quyi to'plamdan hisoblaydi: `n_episodes == 1` bo'lgan trial'da trial
-darajasidagi FR-A epizod darajasidagi FR-A ga AYNAN TENG (`_kleene_any`
-bitta element ustida -- `reduce.build_episodes`), va `n_actions == 1` ham
-bo'lsa action darajasiga ham teng. Yechilmagan trial'lar `warnings` da
-SANAB BERILADI va denominatorga kirmaydi. Taxmin qilinmaydi.
+IXTIYORIY KIRISHLAR -- NEGA IXTIYORIY va nima o'zgaradi:
 
-PROBE_COST CHEKLOVI (FAKT, tekshirilgan): §8.2 prober narxini har trial
-uchun talab qiladi, `revix/prober.py` esa uni `cost_report()` da
-(`core_percent`, `budget_percent = 1.0`) hisoblaydi va `prober_stop`
-record'iga yozadi. LEKIN zanjir IKKI joyda uzilgan:
-  (a) `revix/reduce.py` `prober_stop` ni UMUMAN o'qimaydi (unda shunday
-      record turi ham, `cost` so'zi ham yo'q) va `trial_metrics` ga narx
-      field'i CHIQARMAYDI;
-  (b) `prober.cost_report()` o'z docstring'ida "har RUN'da o'lchanadi"
-      deydi va `prober_stop` run oxirida BIR MARTA chiqadi -- demak
-      per-trial ro'yxat manbada ham mavjud emas.
-Shuning uchun `probe_cost` bo'limi TO'QILMAYDI. `_probe_cost_section()`
-`trial_metrics` da `probe_cost` field'ini IZLAYDI va topilsa bo'limni
-chiqaradi; topilmasa bo'lim yo'q va sabab `warnings` da. Field nomi hali
-MUZLATILMAGAN -- bu `agent/contract` va `agent/driver` uchun ochiq savol.
+  * `--episodes` (`reduce.py` ning `episodes.jsonl`). §5 FR-A ni HAR
+    ACTION va HAR EPIZOD uchun ta'riflaydi, va per-action FR-A AYNAN shu
+    faylda yashaydi (`EpisodeResult.actions[].fr_a`); §2.1 esa kirish
+    sifatida faqat `trial_metrics` ni sanagan. BERILSA -- §5 ning
+    haqiqiy ta'riflari hisoblanadi. BERILMASA -- faqat AYNAN YECHILADIGAN
+    quyi to'plam: `n_episodes == 1` bo'lgan trial'da trial darajasidagi
+    FR-A epizod darajasidagi FR-A ga AYNAN TENG (`_kleene_any` bitta
+    element ustida), va `n_actions == 1` ham bo'lsa action darajasiga ham
+    teng. Denominator u holda §2.2 so'ragandan TORROQ bo'ladi, lekin u
+    O'LCHANGAN -- taxmin emas. Qaysi yo'l ishlatilgani HAR IKKI HOLATDA
+    `false_recovery.fr_a.basis.source` da yoziladi.
+
+  * `--events` (xom `events.jsonl`). §8.2 prober CPU narxini HAR TRIAL
+    uchun, yadro foizida, va ARM'LAR BO'YICHA BIR XIL talab qiladi.
+    `revix/prober.py` uni `cost_report()` da hisoblaydi
+    (`core_percent`, `budget_percent = 1.0`) va `prober_stop` record'iga
+    yozadi; `driver-contract/v1.1` §4.5(a) ga ko'ra driver HAR TRIAL
+    uchun bitta prober jarayoni ishga tushiradi (`Prober.trial_id`
+    jarayon boshida fiksa qilinadi, boshqaruv kanali yo'q), demak
+    `prober_stop` har TRIAL uchun bir marta chiqadi va per-trial o'lchov
+    manbada MAVJUD. LEKIN `revix/reduce.py` bu record turini UMUMAN
+    o'qimaydi (unda `prober_stop` turi ham, `cost` so'zi ham yo'q) va
+    narxni `trial_metrics` ga chiqarmaydi -- va `reduce.py`
+    TAHRIRLANMAYDI. Shuning uchun transport shu yerda: `--events` xom
+    fayldan `prober_stop` ni oladi, narxni `trial_id` bo'yicha yig'adi va
+    arm'ga `trials.jsonl` orqali bog'laydi. Modul hali ham QAT'IY
+    OFFLINE: fayl kiradi, hisoblanadi, fayl chiqadi. BERILMASA --
+    `probe_cost` bo'limi UMUMAN chiqmaydi va sabab `warnings` da; narx
+    TO'QILMAYDI, chunki o'lchanmagan narxni nol yoki budjet qiymati deb
+    berish §8.2 ni tekshirilgandek ko'rsatardi.
 
 VALIDATSIYA CHEKLOVI (CHEKLOV): bu modul xom run'ni O'ZI validatsiya
 qilmaydi -- `revix/validate.py` xom record'larni talab qiladi, bu modul esa
@@ -149,6 +161,7 @@ import numpy as np
 
 from . import stats as S
 from .reduce import (
+    DRT_EPISODE,
     DRT_SWEEP,
     DRT_TRIAL,
     PRIMARY_DISPOSITIONS,
@@ -193,6 +206,11 @@ FALSIFICATION_RULE = "trend p>0.05 AND newcombe_upper<0.15"
 
 # §2.2 -- shartnoma AYNAN shu satrni talab qiladi.
 FR_B_REASON_P1 = "no calibration matrix (P1)"
+
+# Xom record turi (`revix/prober.py` yozadi). `reduce.py` da bu tur YO'Q,
+# shuning uchun nomi shu yerda mahalliy ta'riflanadi -- `reduce.RAW_CONTRACT`
+# faqat hujjat va uni hech narsa validatsiya qilmaydi.
+RT_PROBER_STOP = "prober_stop"
 
 MULTIPLICITY_METHOD = "holm_bonferroni"          # §10.4
 PRIMARY_ENDPOINT = "P(VR) trend across pressure levels"   # §2.2
@@ -398,6 +416,58 @@ def load_sweep(path: str) -> list[dict[str, Any]]:
             f"{path}: birorta '{DRT_SWEEP}' record topilmadi "
             f"({len(recs)} record o'qildi)")
     return cells
+
+
+def load_episodes(path: str) -> list[dict[str, Any]]:
+    """`reduce.write_output` ning `episodes.jsonl` ini o'qiydi.
+
+    §5 FR-A ni HAR ACTION va HAR EPIZOD uchun ta'riflaydi, va per-action
+    FR-A AYNAN shu faylda yashaydi (`EpisodeResult.actions[].fr_a`).
+    Shartnoma §2.1 uni kirish sifatida sanamagan -- `--episodes` ixtiyoriy
+    va u berilmasa `trial_metrics` dan AYNAN YECHILADIGAN quyi to'plam
+    ishlatiladi (`false_recovery_section` docstring'i).
+    """
+    recs = _read_jsonl(path)
+    eps = [r for r in recs if r.get("record_type") == DRT_EPISODE]
+    if not eps:
+        raise AnalysisError(
+            f"{path}: birorta '{DRT_EPISODE}' record topilmadi "
+            f"({len(recs)} record o'qildi)")
+    return eps
+
+
+def load_events(path: str) -> list[dict[str, Any]]:
+    """Run'ning `events.jsonl` idan FAQAT `prober_stop` record'larini oladi.
+
+    NEGA XOM EVENT FAYLI O'QILADI: §8.2 prober CPU narxini HAR TRIAL uchun
+    talab qiladi va `prober.py` uni `prober_stop` ga yozadi
+    (`cost_report()` -> `cost.core_percent`, `cost.budget_percent`), lekin
+    `reduce.py` `prober_stop` ni UMUMAN o'qimaydi va narxni
+    `trial_metrics` ga chiqarmaydi -- va `reduce.py` TAHRIRLANMAYDI.
+    Shuning uchun transport shu yerda: fayldan o'qiladi, hisoblanadi,
+    faylga yoziladi -- modul hali ham QAT'IY OFFLINE (qoida 1).
+
+    `driver-contract/v1.1` §4.5(a): driver HAR TRIAL uchun bitta prober
+    jarayoni ishga tushiradi (`Prober.trial_id` jarayon boshida fiksa
+    qilinadi va boshqaruv kanali yo'q), demak `prober_stop` har TRIAL
+    uchun bir marta chiqadi va envelope'ida shu trial'ning `trial_id` si
+    bo'ladi. Per-trial o'lchov manbada MAVJUD.
+
+    FAYL BERILGAN, LEKIN `prober_stop` YO'Q bo'lsa -- BO'SH ro'yxat
+    qaytariladi, `AnalysisError` EMAS.
+
+    NEGA XATO EMAS: §2.3 #6 "hisoblab bo'lmagan narsa `warnings` ga, va
+    taxmin qilinmaydi" deydi -- hisoblab bo'lmaslik XATO emas. Narx manbasi
+    bo'sh bo'lsa `probe_cost` bo'limi chiqmaydi va sabab `warnings` ga
+    tushadi (`probe_cost_events_empty`), xuddi `--sweep` berilmaganda
+    `sensitivity.grid` bo'sh qolgani kabi.
+    NEGA JIMGINA HAM EMAS: `None` (bayroq berilmagan) va `[]` (bayroq
+    berilgan, lekin fayl bo'sh) `probe_cost_section` da AJRATILADI -- bu
+    ikkinchisi "noto'g'ri faylni ko'rsatdingiz" ning signali va O'Z
+    `warnings` kodiga ega.
+    """
+    recs = _read_jsonl(path)
+    return [r for r in recs if r.get("record_type") == RT_PROBER_STOP]
 
 
 def load_run_meta(path: str) -> dict[str, Any]:
@@ -895,8 +965,95 @@ def _fr_a_rate(rows: Sequence[dict[str, Any]]) -> float | None:
     return sum(1 for r in usable if r["fr_a"] is True) / len(usable)
 
 
+def _fr_a_from_episodes(primary_trials: Sequence[dict[str, Any]],
+                        episodes: Sequence[dict[str, Any]],
+                        log: WarningLog) -> dict[str, Any]:
+    """§5 -- HAQIQIY per-action va per-epizod FR-A `episodes.jsonl` dan.
+
+    §5: "Har action uchun va har epizod uchun hisoblanadi (epizod
+    darajasida = >=1 FR-A action)." `reduce.build_episodes` aynan shuni
+    yozadi: `EpisodeResult.fr_a` = epizod darajasi,
+    `EpisodeResult.actions[].fr_a` = action darajasi.
+
+    Epizodlar `trial_id` bo'yicha BIRLAMCHI trial to'plamiga qisqartiriladi
+    (§12: faqat `complete` birlamchi analizga kiradi). Boshqa disposition'ga
+    tegishli epizodlar jimgina kirmaydi -- ular sanalib `warnings` ga
+    beriladi.
+
+    `None` (aniqlanmagan) na numeratorga, na denominatorga kirmaydi.
+    """
+    primary_ids = {r.get("trial_id") for r in primary_trials}
+    mine = [e for e in episodes if e.get("trial_id") in primary_ids]
+    foreign = len(episodes) - len(mine)
+    if foreign:
+        log.add("fr_a_episodes_outside_primary", "false_recovery.fr_a",
+                f"{foreign}/{len(episodes)} epizod birlamchi bo'lmagan "
+                "trial'ga tegishli -- FR-A birlamchi to'plamdan hisoblanadi "
+                "(§12), demak ular kirmaydi")
+
+    ep_vals = [e.get("fr_a") for e in mine]
+    ac_vals: list[Any] = []
+    n_no_actions = 0
+    for e in mine:
+        acts = e.get("actions")
+        if not isinstance(acts, list):
+            n_no_actions += 1
+            continue
+        if not acts:
+            # `no_action` arm: epizodda action YO'Q (reduce.py anchor'ni
+            # onset'ga qo'yadi). Bu "FR-A = 0" EMAS -- action bo'lmasa
+            # per-action FR-A ta'riflanmagan, demak u sanalmaydi.
+            n_no_actions += 1
+            continue
+        for a in acts:
+            if isinstance(a, dict):
+                ac_vals.append(a.get("fr_a"))
+    if n_no_actions:
+        log.add("fr_a_episode_without_action", "false_recovery.fr_a.per_action",
+                f"{n_no_actions}/{len(mine)} epizodda action yo'q (masalan "
+                "`no_action` arm) -- per-action FR-A u yerda TA'RIFLANMAGAN "
+                "va denominatorga kirmaydi; nol deb olinmaydi")
+
+    def rate(vals: Sequence[Any], where: str, label: str) -> float | None:
+        usable = [v for v in vals if v is not None]
+        n_undet = len(vals) - len(usable)
+        if n_undet:
+            log.add("fr_a_undetermined", where,
+                    f"{n_undet}/{len(vals)} {label}: FR-A aniqlanmagan "
+                    "(None) -- VR yoki aktor da'vosi o'lchanmagan; "
+                    "denominatorga kirmaydi")
+        if not usable:
+            log.add("fr_a_not_computable", where,
+                    f"o'lchangan {label} yo'q -- FR-A HISOBLANMAYDI")
+            return None
+        return sum(1 for v in usable if v is True) / len(usable)
+
+    per_episode = rate(ep_vals, "false_recovery.fr_a.per_episode", "epizod")
+    per_action = rate(ac_vals, "false_recovery.fr_a.per_action", "action")
+    return {
+        "per_action": _f(per_action),
+        "per_episode": _f(per_episode),
+        # §2.2 `n_undetermined` -- EPIZOD darajasida aniqlanmaganlar soni
+        # (FR-A ning birlamchi birligi §5 ga ko'ra epizod).
+        "n_undetermined": sum(1 for v in ep_vals if v is None),
+        "basis": {
+            "source": "episodes.jsonl (--episodes)",
+            "trial_set": "primary (disposition == complete)",
+            "n_trials": len(primary_trials),
+            "n_episodes": len(mine),
+            "n_actions": len(ac_vals),
+            "n_resolvable_per_episode": sum(1 for v in ep_vals
+                                            if v is not None),
+            "n_resolvable_per_action": sum(1 for v in ac_vals
+                                           if v is not None),
+        },
+    }
+
+
 def false_recovery_section(primary_trials: Sequence[dict[str, Any]],
-                           log: WarningLog) -> dict[str, Any]:
+                           log: WarningLog,
+                           episodes: Sequence[dict[str, Any]] | None = None
+                           ) -> dict[str, Any]:
     """§5 -- FR-A (BIRLAMCHI, oracle-free) va FR-B (P1 da BERILMAYDI).
 
     `fr_b.computed = false`, `reason = "no calibration matrix (P1)"` --
@@ -904,9 +1061,32 @@ def false_recovery_section(primary_trials: Sequence[dict[str, Any]],
     kalibratsiya eksperimentidan keladi, u esa P1 da hali yo'q. Nol qaytarish
     "false recovery yo'q" degan O'LCHANMAGAN da'vo bo'lardi.
 
-    `per_action` / `per_episode` uchun modul docstring'idagi FR-A CHEKLOVI'ga
-    qarang: faqat AYNAN YECHILADIGAN quyi to'plam ishlatiladi.
+    IKKI YO'L, va qaysi biri ishlatilgani `fr_a.basis.source` da YOZILADI:
+
+      1. `episodes` BERILGAN (`--episodes`): §5 ning HAQIQIY ta'riflari --
+         per-action FR-A `EpisodeResult.actions[].fr_a` dan, per-epizod
+         FR-A `EpisodeResult.fr_a` dan. Bu §2.2 talab qilgan narsa.
+      2. `episodes` BERILMAGAN: faqat AYNAN YECHILADIGAN quyi to'plam
+         (modul docstring'idagi FR-A CHEKLOVI). Denominator §2.2 so'ragandan
+         TORROQ, lekin u o'lchangan -- taxmin emas.
+
+    NEGA IKKINCHI YO'L SAQLANADI: `--episodes` siz ishga tushirilgan run
+    ham himoya qilinadigan narsa chiqarishi kerak, hech narsa emas. Va
+    `basis` IKKI HOLATDA HAM beriladi -- qaysi denominator ishlatilgani
+    reviewer birinchi so'raydigan narsa.
     """
+    if episodes is not None:
+        return {
+            "fr_a": _fr_a_from_episodes(primary_trials, episodes, log),
+            "fr_b": {"computed": False, "reason": FR_B_REASON_P1},
+        }
+    log.add("fr_a_episodes_absent", "false_recovery.fr_a",
+            "`--episodes` berilmagan: §5 ning per-action/per-epizod FR-A si "
+            "`episodes.jsonl` da (`EpisodeResult.actions[].fr_a`). "
+            "`trial_metrics` dan faqat AYNAN YECHILADIGAN quyi to'plam "
+            "hisoblanadi (`n_episodes == 1`, per-action uchun yana "
+            "`n_actions == 1`) -- denominator §2.2 so'ragandan TORROQ, va "
+            "u `fr_a.basis` da yozilgan")
     n_total = len(primary_trials)
     n_undetermined = sum(1 for r in primary_trials if r.get("fr_a") is None)
     if n_undetermined:
@@ -950,6 +1130,8 @@ def false_recovery_section(primary_trials: Sequence[dict[str, Any]],
             "per_episode": _f(per_episode),
             "n_undetermined": n_undetermined,
             "basis": {
+                "source": "trials.jsonl exactly-resolvable subset "
+                          "(no --episodes)",
                 "trial_set": "primary (disposition == complete)",
                 "n_trials": n_total,
                 "n_resolvable_per_action": sum(
@@ -1106,53 +1288,158 @@ def downtime_section(primary_trials: Sequence[dict[str, Any]],
 
 # --- §8.2 probe narxi ------------------------------------------------------
 
-# §8.2 -- prober narxi budjeti: bir yadroning 1% i
-# (`prober.PROBE_COST_BUDGET_PERCENT`). Bu yerda PROBER'dan import
-# qilinMAYDI: qoida 1 bo'yicha `analyze.py` o'lchov modullarini import
-# qilmaydi. Qiymat MUZLATILGAN va ikki joyda bir xil bo'lishi kerak -- bu
-# `agent/contract` uchun ochiq savol.
+# §8.2 -- prober narxi budjeti: bir yadroning 1% i. Bu qiymat
+# `prober.PROBE_COST_BUDGET_PERCENT` da ham bor va IKKI JOYDA BIR XIL
+# bo'lishi SHART.
+#
+# NEGA TAKRORLANADI, import qilinmaydi: qoida 1 bo'yicha `analyze.py`
+# o'lchov modullarini (`prober`, `cgroup`, `psi_sampler`, `units`) import
+# QILMAYDI -- offline analizning `/proc` o'qiydigan moduldan bog'liqligi
+# bo'lmasligi kerak.
+# NEGA IZOH YETARLI EMAS: ikki joyda muzlatilgan qiymat bir joyda
+# o'zgarsa, chiqishdagi budjet jimgina noto'g'ri bo'lardi. Shuning uchun
+# `tests/unit/test_analyze.py` da regressiya QULFI bor: u `prober.py` ni
+# MATN sifatida o'qib qiymatni taqqoslaydi (import qilmaydi).
 PROBE_COST_BUDGET_PERCENT = 1.0
 
 
 def probe_cost_section(trials: Sequence[dict[str, Any]],
-                       log: WarningLog) -> dict[str, Any] | None:
-    """§8.2 -- prober narxi, yadro foizida, arm bo'yicha.
+                       log: WarningLog,
+                       prober_stops: Sequence[dict[str, Any]] | None = None
+                       ) -> dict[str, Any] | None:
+    """§8.2 -- prober narxi, yadro foizida, arm bo'yicha, PER TRIAL.
 
     §8.2 prober narxini HAR TRIAL uchun o'lchashni va ARM'LAR BO'YICHA BIR
-    XIL ushlashni talab qiladi (aks holda "C tezroq" degan natija prober
-    narxining farqi bo'lib chiqishi mumkin).
+    XIL ushlashni talab qiladi: aks holda "C tezroq" degan natija prober
+    narxining farqi bo'lib chiqishi mumkin, va bu H2 ni o'ldiradigan
+    e'tiroz.
 
-    ZANJIR TEKSHIRILDI va UZILGAN (modul docstring'idagi PROBE_COST
-    CHEKLOVI): `reduce.py` `prober_stop` ni o'qimaydi va `trial_metrics` ga
-    narx chiqarmaydi. Shuning uchun bu funksiya `trial_metrics` da
-    `probe_cost` field'ini IZLAYDI; topilmasa `None` qaytaradi va sabab
-    `warnings` ga tushadi. NARX TO'QILMAYDI -- o'lchanmagan narxni nol yoki
-    budjet qiymati deb berish §8.2 ni tekshirilgandek ko'rsatardi.
+    IKKI MANBA, shu tartibda:
+      1. `prober_stops` (`--events`) -- ASOSIY. `driver-contract/v1.1`
+         §4.5(a): driver HAR TRIAL uchun bitta prober jarayoni ishga
+         tushiradi, demak `prober_stop` har trial uchun bir marta chiqadi
+         va envelope'ida shu trial'ning `trial_id` si bor; payload'ining
+         `cost` qismi `prober.cost_report()` (`core_percent`,
+         `budget_percent`). Arm'ga bog'lanish `trials.jsonl` orqali.
+      2. `trial_metrics["probe_cost"]` -- agar `reduce.py` kelajakda narxni
+         o'zi chiqarsa. Hozir CHIQARMAYDI (`prober_stop` turi u yerda yo'q).
+
+    Ikkisi ham bo'lmasa `None` qaytariladi va sabab `warnings` ga tushadi.
+    NARX TO'QILMAYDI -- o'lchanmagan narxni nol yoki budjet qiymati deb
+    berish §8.2 ni tekshirilgandek ko'rsatardi.
     """
-    have = [r for r in trials if isinstance(r.get("probe_cost"), dict)]
-    if not have:
+    # trial_id -> core_percent. `prober_stop` ASOSIY manba.
+    cost_by_tid: dict[Any, float | None] = {}
+    source: str | None = None
+    budget: float = PROBE_COST_BUDGET_PERCENT
+
+    if prober_stops is not None and len(prober_stops) == 0:
+        # Bayroq BERILGAN, lekin faylda `prober_stop` YO'Q -- bu `None`
+        # (bayroq berilmagan) dan BOSHQA holat va o'z kodiga ega: ehtimol
+        # noto'g'ri fayl ko'rsatilgan, yoki driver `--report-cost` siz
+        # ishlagan.
+        log.add("probe_cost_events_empty", "probe_cost",
+                f"`--events` berilgan, lekin faylda birorta "
+                f"`{RT_PROBER_STOP}` record topilmadi. §8.2 narxi "
+                "HISOBLANMAYDI va bo'lim chiqarilmaydi -- narx TO'QILMAYDI. "
+                "Tekshiring: fayl yo'li to'g'rimi, va driver prober'ni "
+                "`--report-cost` bilan ishga tushirdimi")
+
+    if prober_stops:
+        source = f"events.jsonl {RT_PROBER_STOP}.cost (--events)"
+        dup = 0
+        no_tid = 0
+        budgets: set[float] = set()
+        for rec in prober_stops:
+            tid = rec.get("trial_id")
+            if tid is None:
+                no_tid += 1
+                continue
+            cost = rec.get("cost")
+            if not isinstance(cost, dict):
+                cost = {}
+            if tid in cost_by_tid:
+                dup += 1
+            cost_by_tid[tid] = _f(cost.get("core_percent"))
+            b = _f(cost.get("budget_percent"))
+            if b is not None:
+                budgets.add(b)
+        if no_tid:
+            log.add("probe_cost_no_trial_id", "probe_cost",
+                    f"{no_tid} `{RT_PROBER_STOP}` record'ida `trial_id` yo'q "
+                    "-- trial'ga va arm'ga bog'lanmaydi, hisobga olinmaydi "
+                    "(`driver-contract/v1.1` §4.5(a): driver har trial uchun "
+                    "bitta prober ishga tushiradi, demak `trial_id` BO'LISHI "
+                    "SHART)")
+        if dup:
+            log.add("probe_cost_duplicate_trial_id", "probe_cost",
+                    f"{dup} `{RT_PROBER_STOP}` record'i allaqachon "
+                    "ko'rilgan `trial_id` ni takrorladi -- OXIRGISI "
+                    "olinadi; §4.5(a) har trial uchun BITTA prober "
+                    "jarayonini talab qiladi")
+        # Manbadagi budjet muzlatilgan qiymatdan farq qilsa -- jimgina
+        # qolmaydi: bu §8.2 ning chegarasi o'zgargani demakdir.
+        for b in sorted(budgets):
+            if abs(b - PROBE_COST_BUDGET_PERCENT) > 1e-9:
+                log.add("probe_cost_budget_mismatch", "probe_cost.budget_percent",
+                        f"manbadagi `budget_percent` = {b}, bu modulda "
+                        f"muzlatilgani = {PROBE_COST_BUDGET_PERCENT} -- "
+                        "MANBADAGISI beriladi, chunki o'lchov shunga "
+                        "nisbatan qilingan")
+        if len(budgets) == 1:
+            budget = budgets.pop()
+        elif len(budgets) > 1:
+            log.add("probe_cost_budget_inconsistent",
+                    "probe_cost.budget_percent",
+                    f"manbada bir nechta `budget_percent` qiymati: "
+                    f"{sorted(budgets)} -- bu modulda muzlatilgani "
+                    "beriladi")
+
+    # Ikkinchi manba: `reduce.py` kelajakda narxni chiqarsa.
+    inline = 0
+    for r in trials:
+        pc = r.get("probe_cost")
+        if isinstance(pc, dict) and r.get("trial_id") not in cost_by_tid:
+            cost_by_tid[r.get("trial_id")] = _f(pc.get("core_percent"))
+            inline += 1
+    if inline:
+        source = (f"{source} + trial_metrics.probe_cost" if source
+                  else "trial_metrics.probe_cost")
+
+    if not cost_by_tid:
         log.add("probe_cost_absent", "probe_cost",
-                "`trial_metrics` da `probe_cost` field'i yo'q: `prober.py` "
-                "narxni `cost_report()` da hisoblaydi va `prober_stop` ga "
-                "yozadi, lekin `reduce.py` `prober_stop` ni O'QIMAYDI va "
-                "narxni `trial_metrics` ga CHIQARMAYDI. Qo'shimcha: "
-                "`prober_stop` run oxirida BIR MARTA chiqadi, demak §8.2 "
-                "talab qilgan PER-TRIAL ro'yxat manbada ham yo'q. Bo'lim "
-                "CHIQARILMAYDI -- narx TO'QILMAYDI")
+                "§8.2 narxi uchun manba yo'q. `prober.py` narxni "
+                f"`cost_report()` da hisoblaydi va `{RT_PROBER_STOP}` ga "
+                "yozadi (`driver-contract/v1.1` §4.5(a): har TRIAL uchun "
+                "bitta prober jarayoni, demak per-trial o'lchov manbada "
+                "MAVJUD), lekin `reduce.py` bu record turini O'QIMAYDI va "
+                "narxni `trial_metrics` ga CHIQARMAYDI. `--events` bilan "
+                "xom `events.jsonl` ni bering. Bo'lim CHIQARILMAYDI -- narx "
+                "TO'QILMAYDI")
         return None
+
     by_arm: dict[str, dict[str, Any]] = {}
+    n_missing = 0
     for r in trials:
         arm = str(r.get("arm"))
-        pc = r.get("probe_cost")
-        val = _f(pc.get("core_percent")) if isinstance(pc, dict) else None
+        tid = r.get("trial_id")
+        if tid in cost_by_tid:
+            val = cost_by_tid[tid]
+        else:
+            val = None
+            n_missing += 1
         by_arm.setdefault(arm, {"core_percent": []})["core_percent"].append(val)
-    n_missing = sum(1 for r in trials
-                    if not isinstance(r.get("probe_cost"), dict))
     if n_missing:
         log.add("probe_cost_partial", "probe_cost",
-                f"{n_missing}/{len(trials)} trial uchun `probe_cost` yo'q -- "
-                "ro'yxatda `null` bo'lib qoladi, taxmin qilinmaydi")
-    return {"budget_percent": PROBE_COST_BUDGET_PERCENT, "by_arm": by_arm}
+                f"{n_missing}/{len(trials)} trial uchun narx o'lchovi yo'q "
+                "-- ro'yxatda `null` bo'lib qoladi, taxmin qilinmaydi")
+    n_orphan = len(set(cost_by_tid) - {r.get("trial_id") for r in trials})
+    if n_orphan:
+        log.add("probe_cost_orphan", "probe_cost",
+                f"{n_orphan} narx o'lchovining `trial_id` si trials "
+                "kirishida topilmadi -- arm'ga bog'lanmaydi, jadvalga "
+                "kirmaydi")
+    return {"budget_percent": budget, "by_arm": by_arm, "source": source}
 
 
 # --- §4 sensitivity sweep --------------------------------------------------
@@ -1382,6 +1669,8 @@ def build_analysis(trials: Sequence[dict[str, Any]],
                    run_meta: dict[str, Any],
                    sweep_cells: Sequence[dict[str, Any]] | None = None,
                    *,
+                   episodes: Sequence[dict[str, Any]] | None = None,
+                   prober_stops: Sequence[dict[str, Any]] | None = None,
                    n_boot: int = N_BOOT,
                    generated_mono_us: int | None = None) -> dict[str, Any]:
     """`analysis.json` obyektini quradi -- §2.2 sxemasi AYNAN shu tartibda.
@@ -1423,14 +1712,14 @@ def build_analysis(trials: Sequence[dict[str, Any]],
 
     primary = primary_section(primary_trials, log)
     survival = survival_section(survival_trials, log, n_boot=n_boot)
-    false_recovery = false_recovery_section(primary_trials, log)
+    false_recovery = false_recovery_section(primary_trials, log, episodes)
     downtime = downtime_section(primary_trials, log, n_boot=n_boot)
     sensitivity = sensitivity_section(sweep_cells, trials, log,
                                       None if t_trial_us is None
                                       else int(t_trial_us))
     multiplicity = multiplicity_section(primary, log)
     exclusions = exclusions_section(trials, primary_trials)
-    probe_cost = probe_cost_section(trials, log)
+    probe_cost = probe_cost_section(trials, log, prober_stops)
 
     obj: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
@@ -1508,16 +1797,26 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", required=True, help="analysis.json")
     ap.add_argument("--sweep", default=None,
                     help="reduce.py ning sweep.jsonl (ixtiyoriy, §4 grid'i)")
+    ap.add_argument("--episodes", default=None,
+                    help="reduce.py ning episodes.jsonl (ixtiyoriy): §5 ning "
+                         "per-action/per-epizod FR-A si shu faylda")
+    ap.add_argument("--events", default=None,
+                    help="xom events.jsonl (ixtiyoriy): §8.2 prober narxi "
+                         "`prober_stop.cost` dan olinadi")
     ap.add_argument("--json", action="store_true",
                     help="analysis.json ni stdout'ga ham yozadi")
     args = ap.parse_args(argv)
 
     try:
-        _assert_not_input(args.out, [args.trials, args.run_meta, args.sweep])
+        _assert_not_input(args.out, [args.trials, args.run_meta, args.sweep,
+                                     args.episodes, args.events])
         trials = load_trials(args.trials)
         meta = load_run_meta(args.run_meta)
         sweep = load_sweep(args.sweep) if args.sweep else None
-        obj = build_analysis(trials, meta, sweep)
+        episodes = load_episodes(args.episodes) if args.episodes else None
+        stops = load_events(args.events) if args.events else None
+        obj = build_analysis(trials, meta, sweep, episodes=episodes,
+                             prober_stops=stops)
         write_analysis(obj, args.out)
     except AnalysisError as exc:
         sys.stderr.write(f"analiz xatosi: {exc}\n")
