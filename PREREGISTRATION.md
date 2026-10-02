@@ -2,14 +2,15 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.8` |
+| **Versiya** | `preregistration/v1.9` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8, v1.9) |
 | **Muhit** | Bu pre-registration **§15.1 va §16.11 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
-| **⚠️ Ochiq qaror 1** | **§17.5 — hal qilinmagan dizayn nuqsoni** (stabilizatsiya oynasi pressure hold'ga sig'maydi). |
-| **⚠️ Ochiq qaror 2** | **§18.6 — §11 ning fail-slow limbi ishlamaydi** (chegara kvantlash polida). |
-| | Ikkala qaror ham **birinchi pilot trial'idan OLDIN** va **birgalikda** qabul qilinishi shart (§18.6 ning bog'liqlik izohi). |
+| **⚠️ Ochiq qaror 1** | **§17.5 — dizayn nuqsoni** (stabilizatsiya oynasi pressure hold'ga sig'maydi). **O'LCHOV BILAN TASDIQLANDI zarur** — §21.5: `p90(t_start)` pressure ostida `5.40 s`, budjet `0.8 s`, `0/6`. |
+| **⚠️ Ochiq qaror 2** | **§18.6 — §11 ning fail-slow limbi ishlamaydi**. **O'LCHOV BILAN TASDIQLANDI zarur** — §21.3: `thr = 0.0967 s = 0.97 × P`; va §21.2 bo'yicha **OQ-12 ning javobidan qat'i nazar**. |
+| | Ikkala qaror ham **birinchi pilot trial'idan OLDIN** va **birgalikda** qabul qilinishi shart (tuguni `τ = W_stab_pilot = 8 s`; §18.6, §19.3). |
+| **⛔ Gate** | **§21.7 — generator §9.4 ning ikki invariantini majburlamaguncha hech qanday pilot trial o'tkazilmaydi** (o'lchangan: 5 s so'rov → 16.3 s epizod). |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
@@ -21,6 +22,182 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.8 → v1.9 (2026-10-03)
+
+| | |
+|---|---|
+| **v1.8 sha256** | `30b5036ab8cb538d17fbe73ab429f5817e7661b78ecb0e46ac649995ff7a9b07` |
+| **v1.8 git tag** | **hali yo'q** (integratsiyadan keyin) |
+| **Sabab** | `experiment/guard-recal` ikki hal qiluvchi raqamni o'lchadi va **OQ-12** ni ko'tardi; §16.11 ning GIPOTEZA'si **FAKT** bo'ldi; va `InvocationID` ning kod bo'ylab qamrovi aniqlandi |
+| **O'zgardi** | **§21 qo'shildi** (yangi bo'lim). Mavjud bo'limlar raqamlari va matni O'ZGARMADI |
+| **O'zgarMADI** | **hech bir operatsion ta'rif, metrika, chegara, statistik test yoki falsifikatsiya mezoni.** §4 ning matni va uning 3–4 bandlari, §9.4 ning ikki invarianti, §9.3 ning `P2` bandi — **o'zgarmadi**. **F1–F4 va O1–O4 tanlovlari QILINMADI** |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday P1 trial'i o'tkazilmagan; `guard-recal` ning o'lchovlari **guard va generator kalibratsiyasi** (`08` §14.3: *"Pilot ishga tushirilishi mumkinmi? ❌ HOZIR MUMKIN EMAS"*) |
+
+**Bu bo'lim qaysi savollarga javob beradi:**
+
+| savol | javob | qayerda |
+|---|---|---|
+| **OQ-12** — §11 ning `RMST(P0)` i `D_probe` mi yoki `W_stab` ni o'z ichiga olgan to'liq time-to-VR mi? | **`D_probe`** — OQ-12 **rad etiladi**, §18.3 o'z kuchida | §21.1 |
+| §18.6 ning qarori kerakmi? | **HA** — va **OQ-12 ning javobidan qat'i nazar** | §21.2 |
+| §18.8 (bog'lanmagan endpoint) javobni o'zgartiradimi? | **YO'Q** | §21.4 |
+| §17.5 ning qarori kerakmi? | **HA** | §21.5 |
+| Band 4 aldanishi mumkinmi? | **O'LCHANDI — ha, soxta VR ko'rsatildi** | §21.6 |
+| Bo'sh `InvocationID` ni qanday o'qish kerak? | **ANIQLANMAGAN** (na "o'zgarmadi", na "mos kelmadi") | §21.6.1 |
+
+---
+
+**1. OQ-12 RAD ETILADI (§21.1).** `08` §16.2 ning CHEKLOV'i: *agar
+time-to-VR `W_stab` ni o'z ichiga olsa, `RMST(P0) ≈ 8.5 s`,
+`thr ≈ 1.7 s ≥ 5P`, demak §18.6 ning qarori kerak emas.*
+
+Uchta mustaqil asos bilan rad etiladi:
+
+- **(a) matn:** §6.1 `D_probe` ni oynaning **birinchi** probe'ida
+  tugatadi; §6.3 verification latency'ni *"ta'rifan `W_stab`ga teng"*
+  deb metrikadan **ataylab chiqaradi** — ya'ni §18.3 allaqachon hal
+  qilgan;
+- **(b) arifmetika:** `RMST(τ) = E[min(T, τ)] ≤ τ` **har doim**. Oyna
+  kiritilsa `T ≥ 8 s` har bir trial uchun, demak
+  `RMST(P0) = 8.000 s` **AYNAN** (8.5 s **emas** — `8.5` bu `E[T]`,
+  chegaralanmagan o'rtacha, ya'ni §10.2 `RMST` ni tanlab **qochgan**
+  kattalik). Natijada `Δ = 8 − 8 = 0` **ayni, dispersiyasi nol**,
+  `CI = [0,0]`, `0 < 1.6` **har doim** ⇒ *"fail-slow
+  qo'llab-quvvatlanmaydi"* **har qanday ma'lumot uchun avtomatik**.
+  **Ya'ni bu o'qish qarorni keraksiz qilmaydi — limbni SHARTSIZ
+  INKOR qiladigan qilib qo'yadi, bu esa hozirgi holatdan qat'iy
+  yomonroq;**
+- **(c) §19.3:** `R = 8 s > τ/1.20 = 6.67 s`, ya'ni §19.3 ning
+  **yuqori degeneratsiyasi**ning chegaraviy holati.
+
+**2. TUZATISH — mening §18.6 qabul qoidam BIR TOMONLAMA edi (§21.2).**
+§18.6 *"`thr ≥ ~5P` ⇒ F1 yetarli"* deb faqat **pastki** chegarani
+tekshirgan. §19.3 yuqori chegarani (`thr ≤ τ − R`) chiqardi, lekin
+men uni **qabul qoidasiga qaytarib qo'ymadim**. **OQ-12 aynan shu
+bo'shliqdan o'tdi** — `R` ni oshirib mening **yozilgan qoidamni
+bajaradi** va shu bilan yuqori degeneratsiyaga tushadi. **Qoidam
+noto'g'ri edi, OQ-12 emas.** Tuzatilgan ikki tomonlama qoida:
+
+```
+5P <= thr <= 1/2 (tau - R)        <=>        2.5 s <= R <= 5.7 s
+```
+
+| o'qish | `R` | `≥ 5P` | `≤ ½(τ−R)` | natija |
+|---|---|---|---|---|
+| `t_up` anchor (o'lchangan) | **0.483 s** | ❌ | ✓ | **qaror KERAK** |
+| oyna-ichida (OQ-12) | **8.000 s** | ✓ | ❌ | **qaror KERAK** |
+
+→ **§18.6 ning qarori OQ-12 ning javobidan QAT'I NAZAR zarur.**
+
+**3. O'lchangan chegara (§21.3).** `D_probe` proxy, `P0`, n=12,
+`boot_id` va `pid1_starttime` ikki chekkada ham o'zgarmagan:
+`mean = 0.4833 s` ⇒ `thr = 0.0967 s = 0.97 × P` ⇒ **5P dan past**.
+Bu §18.4 ning `80–220 ms` derivatsiyasini **o'lchov bilan**
+tasdiqlaydi. Va `guard-recal` ning proxy'i o'zi da'vo qilganidan
+**tighter**: §18.3 bo'yicha oyna **davomiyligini** chiqarish
+to'g'ri, demak u o'sha sababdan pastki chegara **emas**; 12
+epizodda qayta buzilish bo'lmagani uchun **proxy = `D_probe`
+aynan**. Pressure ostidagi toza `t_start` (p50 2.83 s) bilan
+`Δ̂ ≈ 3 s ≈ 31 × thr` ⇒ limb *"fail-slow qo'llab-quvvatlanadi"* ni
+**avtomatik** beradi va 3 s kechikishni 0.2 s dan **ajrata
+olmaydi**. §19.3 ning **pastki degeneratsiyasi** o'lchov bilan
+tasdiqlandi.
+
+**4. §18.8 javobni o'zgartirMAYDI (§21.4).** `D_probe` 0.483 s,
+`D_eff` ≈ `P·(3–4 probe)` + integral ≈ 0.3–0.4 s+, `D_sd` §6.1
+bo'yicha *"ortiqcha kredit"* ⇒ undan **kichik**. **Uchalasi ham
+`P0` da sub-sekundli**, demak `thr ≈ 0.1 s` hammasida. `D_eff` ning
+past kvantlash poli CI ni **toraytiradi**, lekin to'siq
+`Δ̂ ≈ 31 × thr` bo'lgani uchun u *"qo'llab-quvvatlash"* ni **yanada
+aniqroq** qiladi. §18.8 **o'z sabablari bilan ochiq qoladi.**
+
+**5. §17.5 ning qarori ham ZARUR (§21.5).** Toza o'lchov:
+`p90(t_start)` `P0` da **0.0497 s** (`30/30` budjet ichida,
+`16×` zaxira), pressure ostida **5.4042 s** — §17.2 ning `0.8 s`
+budjetidan **6.8× katta**, va **ikki mustaqil o'lchovda** budjet
+ichida **bitta ham** urinish yo'q (`0/6`, `0/8`). **Va bir yo'l
+yopiladi:** kechikish SUT ning **ichida emas** (uning `uptime_us`
+0.06–0.96 s, `t_start` 1.67–7.20 s) — `execve`, dinamik yuklash va
+reclaim ostidagi page fault'lar, `main()` dan **oldin**. Demak
+**SUT ni tezlashtirish nuqsonni tuzatmaydi**, va bu O1–O4 dan
+qochish yo'lini **olib tashlaydi**.
+
+**6. §16.11 ning GIPOTEZA'si endi FAKT (§21.6): band 4 ALDANDI.**
+`08` §8: `-virgin` unit'ida `NRestarts` ikki chekkada ham **0** —
+"o'zgarmadi" — holbuki oyna ichida PID 1 qayta ishga tushdi, unit
+yo'q qilindi va jarayoni o'ldirildi ⇒ **§4 ning 4-bandi
+qanoatlanadi va bo'lmagan recovery VR deb hisoblanadi: SOXTA VR.**
+
+**QAROR — bandlar yamalmaydi, marker PRESHART qilinadi:**
+(1) §4 ning 3–4 bandlari **shartli haqiqiy** — faqat PID 1 oyna
+ichida qayta ishga tushmagan bo'lsa (matn o'zgarmaydi; bu
+bandlarning **amal qilish sharti**); ularni mustahkamlash
+**befoyda**, chunki `systemctl show` o'lgan unit uchun default'larni
+`rc=0` bilan qaytaradi. (2) §16.11 ning marker'i — trial
+**presharti**: `pid1_starttime` trial ichida o'zgarsa, §20.2
+bo'yicha **`vr = None`**. (3) **KM/log-rank'dan ham tashqarida** —
+`no_episode` dan keyin ikkinchi shunday kategoriya, sababi boshqa:
+§1 bo'yicha monotonic taqqoslanuvchanlik yo'qoladi, demak
+davomiylik **kuzatuv sifatida ham** yaroqsiz.
+
+**7. Bo'sh `InvocationID` — ANIQLANMAGAN (§21.6.1).** Orkestrator
+tasdiqladi (main `0a83824`): uchala iste'molchi ham bo'sh id ni
+**jimgina tashlaydi** (`reduce.py:1006`, `reduce.py:2071`,
+`validate.py:671` → `check_actions:657`), demak **"o'zgarmadi" va
+"yo'q" hozir ayni bir kuzatuv**. Va `guard-recal` o'lchadi: yo'q
+qilingan unit yangi id **olmaydi, BO'SH bo'ladi** — eng xavfli
+variant. **Ikkinchi ko'rinishi:** restart qilgan action
+**ta'sirsiz action** kabi ko'rinadi ⇒ soxta
+`action_without_invocation_change`, ya'ni §14.6(6) **buzilgan** deb
+xabar beriladi, holbuki u **baholanmagan**.
+
+**Bu RULING, deduksiya emas** — §8.4(3) washout quiescence haqida
+yozilgan, §4 ning bandlari haqida emas. Shuning uchun u faqat o'sha
+analogiyaga tayanmaydi: (i) **§4 ning o'z talabi** — oyna davomida
+unit tirik bo'lishi kerak, bo'sh id esa *"o'qilgan paytda tirik
+emas"* degani (`01-muhit-tekshiruvlari.md` §4 dead-unit tuzog'i),
+ya'ni probe'lar o'tgan-u unit tirik emas — **ichki ziddiyat**;
+(ii) **§20.2** ning muzlatilgan printsipi.
+
+**Shakl:** `reduce.py` bo'sh/`None` id ni to'plamdan **tashlamaydi**,
+balki `vr = None`, `vr_reason = "invocation_id_unreadable"` qiladi;
+`validate.py` `action_without_invocation_change` **bermaydi**, balki
+alohida topilma beradi va §14.6(6) ni o'sha action uchun
+**baholanmagan** deb belgilaydi — ***buzilgan* va *baholanmagan* bir
+xil xabar bilan berilmaydi**. Daraja
+**instrumentatsiya yo'qolishi** sinfida. Bu marker preshart'iga
+**ikkinchi himoya chizig'i**, ortiqcha emas.
+
+**8. CHEKLOV — §9.4 ning invariantlari majburlanmaydi: GATE, amendment
+EMAS (§21.7).** `08` §5: 5 s so'rov → **16.3 s** epizod. §9.4 ning
+invariantlari **haqiqiy trial'ning preshartlari**, demak ularni
+buzgan epizod trial **emas** — invariantlar **to'g'ri qoladi**,
+bajarilmaydigan narsa **asbob**. Qoida: **generator ikki
+invariantni majburlamaguncha hech qanday pilot trial
+o'tkazilmaydi.** Noqulay oqibati: bugun trial o'tkazilsa
+`aborted_guard` **qoida** bo'lardi va §12 ning eksklyuziya darajasi
+— **hisobotga kiradigan NATIJA** — asbob nuqsonidan belgilanardi;
+va `08` §17 ga ko'ra guard **birinchi trip'dan keyin boshqa
+o'ldirmaydi**, demak qolgan 119 trial himoyasiz va
+`aborted_guard` **kam** hisoblanadi — **jimgina**, ya'ni ko'p
+hisoblashdan yomonroq. `ramp_above_threshold_s = 0.000 s`
+**nol dozada** o'lchangan (`08` §3.4), demak §9.4 ning
+*"kalibratsiyadan olinadi, taxmin qilinmaydi"* talabini
+**qanoatlantirmaydi** — pilotga ko'chirilmaydi.
+
+**9. FAKT — `P2` erishiladigan, lekin USHLAB TURILMAGAN (§21.8).**
+`0.604–0.785` har bir toza run'da ko'rindi, lekin faqat `0.999` ga
+to'yinish yo'lidagi **0.6–0.9 s traversi** sifatida. v1.5 §16.10
+ning CHEKLOV'i **aniqlashtiriladi**: endi *erishiladigan* deb
+ko'rsatildi, *ushlab turilgani* **ko'rsatilmadi**. §9.3 ning bandi
+**rad etilmadi va isbotlanmadi**.
+
+**10. FAKT — §15.3 ning guard asosi mustaqil tasdiqlandi (§21.9).**
+`user/lab` `p50 = 0.9963`, **642 toza juftlashtirilgan namuna**
+(`02` §1 ning `0.996` iga qarshi), va `user@ some == user@ full`
+**har bir qatorda** — `02` §1 ning mexanizmi **xulosa emas,
+bevosita o'lchov** bilan tasdiqlandi. Demak davomiylik kriteriyasi
+**to'g'ri qoladi**.
 
 ### v1.7 → v1.8 (2026-10-03)
 
@@ -3176,3 +3353,429 @@ Bu bo'limdagi hech bir qaror kuzatilgan natijadan keyin qabul
 qilinmagan; barcha asoslar §4, §6.1, §6.2, §9.2, §9.3, §8.4 va §12
 ning muzlatilgan matnidan. `no_episode` ning taqsimoti
 **o'lchanmagan** va 20.6 da shunday belgilangan.
+
+---
+
+## 21. `guard-recal` ning o'lchovlari: OQ-12, va band 4 ning FAKT bo'lishi (muzlatilgan)
+
+> Bu bo'lim **v1.9 amendment** bilan qo'shildi. U **hech bir operatsion
+> ta'rifni, metrikani, chegarani, statistik testni yoki falsifikatsiya
+> mezonini o'zgartirmaydi.** U: (1) **OQ-12 ni rad etadi** va §18.3 ni
+> tasdiqlaydi, (2) **o'z qabul qoidamdagi nuqsonni tuzatadi**,
+> (3) §17.5 va §18.6 qarorlarining **ikkisi ham zarur** ekanini
+> o'lchov bilan belgilaydi, (4) §16.11 ning GIPOTEZA'sini **FAKT**
+> sifatida qayd etadi va undan kelib chiqadigan qoidani beradi.
+
+**Manba:** `docs/architecture/08-guard-rekalibratsiya.md` (1662 qator),
+`experiment/guard-recal` tomonidan o'lchangan. **Bu agent guest ichida
+hech narsa o'lchamadi** (WSL ishi guard o'lchovi uchun to'xtatilgan);
+quyidagi raqamlar **o'sha hujjatdan o'qilgan** va mustaqil
+tasdiqlanmagan. Hujjatning o'z kontaminatsiya yozuvi (§1.3) hisobga
+olinadi: pressure ostidagi `t_start` ning **toza** o'lchovi ishlatiladi.
+
+### 21.1 QAROR — OQ-12 RAD ETILADI; §18.3 o'z kuchida
+
+OQ-12 (`08` §12, §16.2 CHEKLOV): *agar §11 ning `RMST(P0)` i
+`W_stab_pilot = 8 s` ni o'z ichiga olgan to'liq time-to-VR bo'lsa,
+`RMST(P0) ≈ 8.5 s`, `thr ≈ 1.7 s ≥ 5P`, demak §18.6 ning qarori
+kerak emas.*
+
+**Rad etiladi, uchta mustaqil asos bilan.**
+
+#### (a) Matn — §18.3 allaqachon hal qilgan
+
+§6.1 `D_probe` ni *"failure'dan oldingi oxirgi o'tgan probe → VR
+shartini qanoatlantiruvchi oynaning **birinchi probe'i**"* deb
+ta'riflaydi — oyna **boshida** tugaydi. §6.3 esa
+*"'Verification latency' achievement metrikasi sifatida BERILMAYDI —
+muvaffaqiyatli VR uchun u ta'rifan `W_stab`ga teng"*. Ya'ni oyna
+uzunligi metrikadan **ataylab chiqarilgan**.
+
+#### (b) Arifmetika — `RMST(τ)` `τ` BILAN CHEGARALANGAN
+
+Bu OQ-12 ning aniq xatosi:
+
+```
+RMST(τ) = ∫₀^τ S(t) dt = E[ min(T, τ) ]        ⇒   RMST(τ) ≤ τ  HAR DOIM
+```
+
+Agar `time-to-VR` oynani o'z ichiga olsa, `T = t_up + 8 ≥ 8 s` **har bir
+trial uchun**, demak `min(T, 8) = 8` **har bir trial uchun**, demak:
+
+```
+RMST(P0) = 8.000 s  AYNAN     (8.5 s EMAS)
+RMST(P2) = 8.000 s  AYNAN
+Δ = 8 − 8 = 0       AYNIQSA, dispersiyasi NOL, har qanday ma'lumot uchun
+```
+
+`≈8.5 s` raqami — `E[T]`, ya'ni **chegaralanmagan o'rtacha**, va u
+aynan §10.2 `RMST` ni tanlab **qochgan** kattalik (censoring ostida
+beqaror). `RMST` emas.
+
+**Natija teskari:** `thr = 0.20 × 8 = 1.6 s`, lekin `CI = [0, 0]`,
+demak `CI_upper = 0 < 1.6` **har doim** ⇒ *"fail-slow
+qo'llab-quvvatlanmaydi"* **har qanday ma'lumot uchun avtomatik** e'lon
+qilinadi.
+
+> **Ya'ni oyna-ichidagi o'qish qarorni keraksiz qilmaydi — u limbni
+> SHARTSIZ INKOR qiladigan qilib qo'yadi.** Bu hozirgi holatdan
+> **qat'iy yomonroq.**
+
+#### (c) §19.3 ning chegarasi buni allaqachon aytgan
+
+§19.3: `thr ≤ τ − R` ⟺ `R ≤ τ/1.20 = 6.67 s`. Oyna-ichidagi o'qishda
+`R = 8 s > 6.67 s`, demak u §19.3 ning **yuqori degeneratsiyasi**ning
+chegaraviy holati: `thr > τ − R = 0`.
+
+#### Natija
+
+> **§18.3 o'z kuchida: `time-to-VR` hodisa vaqti `t_up` da.**
+> `guard-recal` ning proxy'i — **to'g'ri kattalik**.
+
+### 21.2 TUZATISH — mening §18.6 qabul qoidam BIR TOMONLAMA edi
+
+§18.6 da shunday yozganman: *"`thr ≥ ~5 × P` bo'lsa §18.4 ning
+cheklovi amalda bezarar va F1 yetarli"*. **Bu faqat pastki chegarani
+tekshiradi.** §19.3 keyinchalik yuqori chegarani (`thr ≤ τ − R`)
+chiqardi, lekin **men uni qabul qoidasiga qaytarib qo'ymadim.**
+
+**OQ-12 aynan shu bo'shliqdan o'tdi:** u `R` ni oshirib
+*"`thr ≥ 5P`"* ni qanoatlantiradi — ya'ni **mening yozilgan qoidamni
+bajaradi** — va shu bilan birga yuqori degeneratsiyaga tushadi.
+Qoidam noto'g'ri edi, OQ-12 emas.
+
+**Tuzatilgan, IKKI TOMONLAMA qabul qoidasi** (barchasi muzlatilgan
+qiymatlardan):
+
+```
+5P ≤ thr ≤ ½(τ − R)        ⟺        2.5 s ≤ R ≤ 5.7 s
+```
+
+| o'qish | `R` | pastki test (`≥ 5P`) | yuqori test (`≤ ½(τ−R)`) | natija |
+|---|---|---|---|---|
+| `t_up` anchor (§18.3, o'lchangan) | **0.483 s** | ❌ yiqiladi | ✓ o'tadi | **qaror KERAK** |
+| oyna-ichida (OQ-12) | **8.000 s** | ✓ o'tadi | ❌ yiqiladi | **qaror KERAK** |
+
+> **Ikkala o'qish ham tuzatilgan qoidadan yiqiladi, demak §18.6 ning
+> qarori OQ-12 ning javobidan QAT'I NAZAR zarur.** Javob (21.1)
+> baribir muhim — u qaysi degeneratsiyada turganimizni aytadi — lekin
+> *"qaror kerakmi"* savoli unga **bog'liq emas**.
+
+### 21.3 FAKT — o'lchangan chegara, va limb nima qiladi
+
+`08` §16.1–16.2, `revix/prober.py` 10 Hz, arm `A`, 12 epizod,
+`boot_id` va `pid1_starttime` ikki chekkada ham **o'zgarmagan**
+(ya'ni o'lchov §16.11 ning marker shartini qanoatlantiradi):
+
+```
+D_probe proxy (P0):  n=12  min 0.400  p50 0.500  p90 0.500  p99 0.500  mean 0.4833 s
+thr = 0.20 × mean  =  0.0967 s  =  0.97 × P        ⇒  5P DAN PAST
+```
+
+Bu §18.4 ning `80–220 ms` derivatsiyasini **o'lchov bilan** tasdiqlaydi.
+
+**`guard-recal` ning proxy'i o'zi da'vo qilganidan TIGHTER.** Hujjat
+uni *"`D_probe` ning pastki chegarasi"* deb ataydi, chunki `W_stab`
+tasdiqlash sharti kiritilmagan. **§18.3 bo'yicha oyna
+DAVOMIYLIGINI chiqarish to'g'ri**, demak bu sababdan pastki chegara
+**emas**. U pastki chegara faqat boshqa, ancha kuchsiz sababdan:
+§4 ning 1-bandi `t_up` ni **kvalifikatsiya qiladigan** oynaning
+birinchi probe'i deb talab qiladi, demak birinchi o'tgan probe'dan
+keyin qayta buzilish bo'lsa haqiqiy `t_up` keyinroq bo'ladi.
+O'lchangan 12 epizodda **har bir buzilish faqat `conn_refused` /
+`a_conn`** edi va `b_response` / `c_progress` **nol marta** buzildi,
+ya'ni qayta buzilish yo'q ⇒ **o'sha epizodlarda proxy = `D_probe`
+aynan.**
+
+#### Limb nima qiladi — o'lchangan raqamlar bilan
+
+Pressure ostidagi **toza** `t_start` (`08` §15.3; n kichik — hujjat
+§15.3 da `n = 7`, orkestrator jadvalida `n = 6`, **farq hal
+qilinmadi**): `p50 = 2.83 s`, `p90 = 5.40 s`, `p99 = 7.20 s`.
+
+```
+D_probe(P2) ≈ RestartSec(0.1) + t_start + job overhead + kvantlash ≈ t_start + 0.2…0.3 s
+            ⇒ p50 ≈ 3.1 s      ⇒  RMST(P2) ≈ 3…4 s   (τ = 8 s bilan chegaralangan)
+Δ̂ ≈ RMST(P2) − RMST(P0) ≈ 3 s      vs      thr = 0.0967 s
+                                   ⇒  Δ̂ ≈ 31 × thr
+```
+
+> **Demak limb *"fail-slow qo'llab-quvvatlanadi"* ni avtomatik beradi
+> va 3 s kechikishni 0.2 s kechikishdan AJRATA OLMAYDI.** §19.3 ning
+> **pastki degeneratsiyasi** o'lchov bilan tasdiqlandi: inkor shoxi
+> erishib bo'lmaydigan, qo'llab-quvvatlash shoxi deyarli avtomatik.
+> §11 ning fail-slow limbi — falsifikatsiya mezoni bo'lishi kerak
+> edi — **hech narsani falsifikatsiya qilmaydi.**
+
+**CHEKLOV — bu baho `P2` dan YUQORI dozada olingan.** `08` §3.7 ga
+ko'ra nazoratsiz ramp **0.999 ga to'yinadi**, ya'ni `P2` ning
+0.60–0.80 bandidan ancha yuqori. Demak `Δ̂ ≈ 3 s` — `P2` effektining
+**yuqori** bahosi. Lekin hatto `10×` kichik bo'lsa ham (`0.3 s`) u
+`thr` dan `3×` katta bo'lib qoladi, demak **xulosa bardoshli.**
+
+### 21.4 QAROR — §18.8 (bog'lanmagan endpoint) javobni O'ZGARTIRMAYDI
+
+Koordinator aniq so'radi: `D_eff` ning kvantlash poli pastroq, bu
+javobni o'zgartiradimi? **Yo'q.**
+
+| endpoint | `P0` dagi kattaligi | `thr = 0.20 × R` |
+|---|---|---|
+| `D_probe` | o'lchangan **0.483 s** | 0.097 s |
+| `D_eff` | `P · n_failing` (o'lchangan 3–4 probe ⇒ **0.3–0.4 s**) + throughput integrali | ≈ 0.08–0.10 s |
+| `D_sd` | §6.1: *"**ortiqcha kredit**"* ⇒ `D_probe` dan **kichik** | **< 0.097 s** |
+
+**Uchala nomzod ham `P0` da sub-sekundli `R` beradi, demak
+`thr ≈ 0.1 s` — hammasida.** `D_eff` ning afzalligi — **CI ni
+toraytirishi**, lekin to'siq `Δ̂ ≈ 31 × thr` bo'lgani uchun torroq CI
+*"qo'llab-quvvatlash"* ni **yanada aniqroq** qiladi, inkorni
+erishiladigan qilmaydi. `D_sd` esa **yomonroq**.
+
+> §18.8 **o'z sabablari bilan ochiq qoladi** (endpoint hali ham
+> bog'lanmagan), lekin u §18.6 ning qarorini **keraksiz qilmaydi**.
+
+### 21.5 QAROR — §17.5 ning qarori ham ZARUR
+
+`08` §15.1 va §15.3 (toza o'lchov):
+
+| band | n | p50 | **p90** | p99 | `≤ 0.8 s` (§17.2 shifti) |
+|---|---|---|---|---|---|
+| `P0` | 30 | 0.0394 | **0.0497** | 0.0643 | **30/30** — `16×` zaxira |
+| pressure, toza | 6–7 | 2.8308 | **5.4042** | 7.1958 | **0/6** |
+| pressure, kontaminatsiyalangan | 8 | 3.6492 | **4.8133** | 9.8586 | **0/8** |
+
+`p90(t_start) = 5.40 s` — §17.2 ning `0.8 s` budjetidan **6.8×
+katta**, va **ikki mustaqil o'lchovda** budjet ichida **bitta ham**
+urinish yo'q.
+
+> **§17.5 ning dizayn nuqsoni amalda bezarar EMAS. Qaror zarur.**
+
+**Va bir yo'l yopiladi:** kechikish SUT ning **ichida emas** — uning
+o'z `uptime_us` i `0.06–0.96 s`, `t_start` esa `1.67–7.20 s`, demak
+vaqt `execve`, dinamik yuklash va reclaim throttling ostidagi
+birinchi page fault'larga ketadi, `main()` ishga tushishidan **oldin**.
+Ya'ni **SUT ni tezlashtirish nuqsonni tuzatmaydi**, va bu O1–O4 dan
+qochish yo'lini **olib tashlaydi**. Bu §9.2 ning (i) va (iv)
+mexanizmlarini **to'g'ridan-to'g'ri qo'llab-quvvatlaydi**.
+
+### 21.6 FAKT — §16.11 ning GIPOTEZA'si endi FAKT: band 4 aldandi
+
+§16.11 da shunday yozilgan edi: *"**GIPOTEZA (o'lchanMAGAN…)**:
+systemd qayta ishga tushsa … `NRestarts` nolga qaytishi mumkin …
+soxta VR."* `08` §8 buni **o'lchadi**:
+
+| | oldin | keyin |
+|---|---|---|
+| `…-restarted` `NRestarts` | **2** | **0** |
+| `…-virgin` `NRestarts` | **0** | **0** |
+| `InvocationID` (ikkisi) | qo'yilgan | **BO'SH** |
+| `LoadState` | loaded | `not-found`, `systemctl show` rc **0** |
+| `pid1_starttime_ticks` | 282684 | **293478** |
+| PID 1 yoshi | 9.75 s | **1.85 s — orqaga** |
+| `boot_id` | — | **o'zgarmagan** |
+
+`-virgin` unit'i namoyish: **`NRestarts` ikki chekkada ham `0` —
+"o'zgarmadi" — holbuki oyna ichida PID 1 qayta ishga tushdi, unit
+yo'q qilindi va jarayoni o'ldirildi. §4 ning 4-bandi qanoatlanadi va
+bo'lmagan recovery VR deb hisoblanadi — SOXTA VR.**
+
+#### QAROR — bandlarni yamamaymiz; marker PRESHART qilinadi
+
+1. **§4 ning 3- va 4-bandlari — SHARTLI HAQIQIY:** ular faqat
+   **PID 1 oyna ichida qayta ishga tushmagan** bo'lsa haqiqiy. Bu
+   §4 ning matnini o'zgartirmaydi — u bandlarning **amal qilish
+   shartini** qayd etadi. Bandlarni mustahkamlashga urinish
+   **befoyda**: ular unit'ning o'z bookkeeping'ini o'qiydi, va
+   `systemctl show` o'lgan unit uchun **default'larni `rc=0` bilan**
+   qaytaradi (`08` §8; `01-muhit-tekshiruvlari.md` §4 ning dead-unit
+   tuzog'i). O'lchov substrati yo'q qilinganda uni o'qib bo'lmaydi.
+2. **§16.11 ning PID 1 marker'i — trial PRESHARTI**, invalidator emas:
+   agar `pid1_starttime` trial ichida o'zgargan bo'lsa, §4 ning
+   predikati **aniqlanmagan** ⇒ §20.2 bo'yicha **`vr = None`**,
+   binar maxrajdan tashqarida, sabab nomlanadi.
+3. **Va KM/log-rank'dan ham tashqarida** — `no_episode` dan keyin
+   **ikkinchi** shunday kategoriya. Sabab boshqa: §1 bo'yicha
+   monotonic qiymatlar **faqat bitta boot ichida** taqqoslanadi, va
+   PID 1 restart'i bilan vaqt bazasining o'zi **haqiqiyligini
+   yo'qotadi**, demak davomiylik **kuzatuv sifatida ham** yaroqsiz.
+4. **Bo'sh `InvocationID` — ANIQLANMAGAN kuzatuv**, na
+   *"o'zgarmadi"*, na *"o'qilmadi, o'tkazib yuboraman"*, na
+   *"mos kelmadi"*. U 3-bandni **aniqlanmagan** qiladi ⇒ §20.2
+   bo'yicha **`vr = None`**. Batafsil asos va qamrov — 21.6.1.
+
+> **Nega "mos kelmadi" ham EMAS:** `08` §8 band 3 ni *"konservativ,
+> agar implementatsiya bo'sh qiymatni «mos kelmadi» deb qabul
+> qilsa"* deb bergan. **Men uni "mos kelmadi" deb qabul
+> qilmayman** — bu kuzatilmagan narsaga `VR = false` yozish
+> bo'lardi, ya'ni §16.2(B) olib tashlagan aynan o'sha xato,
+> faqat teskari yo'nalishda. §20.2 ning **aniqlanganlik**
+> printsipi **ikkala** noto'g'ri javobdan ham qochadi.
+
+#### 21.6.1 Bo'sh `InvocationID` — qamrov, asos va shakl
+
+**FAKT (orkestrator tasdiqlagan, main `0a83824` da; bu agent kodni
+o'zgartirmaydi va o'qimadi — qator raqamlari xabardan):** uchala
+iste'molchi ham bo'sh `InvocationID` ni **jimgina tashlaydi**:
+
+| joy | kod | ta'siri |
+|---|---|---|
+| `revix/reduce.py:1006` | `{p.invocation_id for p in win if p.invocation_id is not None}` | VR oynasining invocation to'plami |
+| `revix/reduce.py:2071` | `{p.invocation_id for p in trial.probes if p.invocation_id}` | bo'sh satrni **ham** tashlaydi |
+| `revix/validate.py:671` | `_invocation_changed(...)`, `if p.invocation_id` filtri; `check_actions` (:657) ga boradi | §14.6(6) ning *"action → invocation o'zgarishi"* tekshiruvi |
+
+> **Demak hozir "o'zgarmadi" va "yo'q" — har bir iste'molchi uchun
+> AYNI BIR kuzatuv**, va §4 ning 3-bandi 4-bandning ko'r nuqtasini
+> yopishi faqat implementatsiya qaysi birini ko'rayotganiga qarab
+> hal bo'ladi. `guard-recal` o'lchadi: PID 1 restart'idan keyin
+> yo'q qilingan unit'ning `InvocationID` i **yangi qiymat olmaydi,
+> BO'SH bo'ladi** (`08` §8) — ya'ni amalda **eng xavfli** variant.
+
+**IKKINCHI KO'RINISHI, VR dan tashqarida.** Bo'sh id bilan qayta
+ishga tushgan unit **invocation o'zgarishini ko'rsatmaydi**, demak
+xizmatni haqiqatan restart qilgan action **ta'sirsiz action** kabi
+ko'rinadi. `validate.py` da bu **soxta
+`action_without_invocation_change`** sifatida chiqadi — ya'ni
+§14.6(6) invarianti **buzilgan deb** xabar beriladi, holbuki u
+**baholanmagan**.
+
+**ASOS — bu RULING, deduksiya emas.** §8.4(3) ning
+*"Kuzatuv o'qilmasa (`None`) u jim deb hisoblanMAYDI"* qoidasi
+**washout quiescence tekshiruvi** haqida yozilgan, §4 ning bandlari
+haqida emas, demak uni bu yerga yoyish — **qaror**. Shuning uchun
+u faqat o'sha analogiyaga **tayanmaydi**; ikki mustaqil asos:
+
+1. **§4 ning o'z talabi.** Oyna davomida unit **tirik** bo'lishi va
+   contract'dan o'tishi kerak (1–2 bandlar). Bo'sh `InvocationID`
+   *"o'qilgan paytda unit tirik emas edi"* degani —
+   `01-muhit-tekshiruvlari.md` §4 ning dead-unit tuzog'i
+   (`systemctl show` o'lgan unit uchun default'larni `rc=0` bilan
+   beradi). Probe'lar o'tgan, lekin unit tirik emas deb o'qilgan —
+   bu **ichki ziddiyat**, demak kuzatuv **aniqlanmagan**, iхtiyoriy
+   tomonga hal qilinadigan emas.
+2. **§20.2 ning printsipi**, u allaqachon muzlatilgan: predikat
+   aniqlanmasa `vr = None`.
+
+**SHAKL (so'ralgan aniqlik):**
+
+- **`reduce.py`** — bo'sh yoki `None` `InvocationID` o'lchanayotgan
+  trial oynasi **ichida** uchrasa: uni invocation to'plamidan
+  **tashlamaydi**, balki `vr = None` qiladi,
+  `vr_reason = "invocation_id_unreadable"` bilan. §20.2 bo'yicha
+  binar maxrajdan tashqarida, sabab nomlanadi.
+- **`validate.py`** — xuddi shu holatda
+  `action_without_invocation_change` **BERMAYDI**; o'rniga alohida
+  topilma (`invocation_id_unreadable`) beradi va §14.6(6) ni
+  o'sha action uchun **baholanmagan** deb belgilaydi.
+  *Buzilgan* va *baholanmagan* bir xil xabar bilan berilmaydi.
+- **Daraja** `(arm × pressure)` bo'yicha alohida beriladi,
+  **instrumentatsiya yo'qolishi** sinfida (`probe_gap` bilan birga,
+  §20.4), `no_episode` bilan **birlashtirilmaydi**.
+
+**Munosabat 21.6(2) bilan:** bo'sh `InvocationID` ning o'lchangan
+sababi — PID 1 restart'i, va uni **birinchi navbatda** marker
+preshart'i tutadi. Bu qoida — **ikkinchi himoya chizig'i**:
+marker biror sababdan o'tkazib yuborsa ham, soxta VR
+yaratilmaydi. Ikkalasi **to'ldiruvchi**, ortiqcha emas — xuddi
+§19.1 ning `boot_id` / marker juftligi kabi.
+
+**CHEKLOV (`08` §8 dan ko'chirilgan):** bu **bitta** o'lchov, bitta
+restart hodisasi; restart provokatsiya qilinmagan va sababi
+nomlanib tasdiqlanmagan.
+
+### 21.7 CHEKLOV — §9.4 ning invariantlari hozir majburlanmaydi: bu GATE, amendment emas
+
+`08` §5 va §11: `--max-seconds 5` + `RuntimeMaxSec=7s` so'ralgan
+epizod 0.35 chegarasidan yuqorida **16.3 s** turdi; faqat guard'ning
+`cgroup.kill` i to'xtatdi. Demak §9.4 ning ikki invarianti —
+`hold_s ≤ 12 s` va `hold_s + ramp_above_threshold_s ≤ 15 s` —
+**bu asbob bilan bajarilmaydi**.
+
+**Bu amendment talab qilMAYDI.** §9.4 ning invariantlari **haqiqiy
+trial'ning preshartlari**: ularni buzgan epizod — trial **emas**,
+balki protokol buzilishi. Demak invariantlar **to'g'ri qoladi**, va
+bajarilmaydigan narsa — **asbob**. Qoida:
+
+> **Generator §9.4 ning ikki invariantini majburlamaguncha hech
+> qanday pilot trial o'tkazilmaydi.** Bu `00-pilot-topologiya.md` §6
+> ning qadam tartibining davomi, yangi shart emas.
+
+**Noqulay oqibati, ochiq yoziladi:** agar trial'lar bugun
+o'tkazilsa, `aborted_guard` **qoida** bo'lib qolardi, va §12 ning
+eksklyuziya darajasi — **hisobotga kiradigan NATIJA** — hodisadan
+emas, **asbob nuqsonidan** belgilanardi. Va `08` §17 ga ko'ra guard
+**birinchi trip'dan keyin boshqa o'ldirmaydi**, demak qolgan 119
+trial **himoyasiz** — ya'ni `aborted_guard` birinchi trial'dan keyin
+**kam hisoblanadi**, bu esa ko'p hisoblashdan **yomonroq**, chunki
+**jimgina**.
+
+**`ramp_above_threshold_s`:** `08` §11 uni `0.000 s` deb o'lchagan,
+lekin **doza nol bo'lgan** konfiguratsiyada (`08` §3.4). Hujjatning
+o'zi aytadi: bu raqam **pilotga ko'chirilmaydi**. **Tasdiqlanadi** —
+§9.4 *"`ramp_above_threshold_s` kalibratsiyadan olinadi, taxmin
+qilinmaydi"* deydi, va nol dozadagi qiymat kalibratsiya **emas**.
+
+### 21.8 FAKT — `P2` fizik jihatdan erishiladigan, lekin USHLAB TURILMAGAN
+
+`08` §3.6: `0.60–0.80` bandi **har bir toza pressured run'da**
+ko'rindi (masalan `0.604–0.785`), lekin faqat nazoratsiz ramp
+`0.999` ga to'yinish yo'lida o'tayotgandagi **0.6–0.9 s traversi**
+sifatida.
+
+Bu v1.5 §16.10 ning CHEKLOV'ini **aniqlashtiradi** (u *"`P2` hali
+erishiladigan deb ko'rsatilMAGAN"* degan edi): endi **erishiladigan
+deb ko'rsatildi**, lekin **ushlab turilgani ko'rsatilMADI**. §9.3
+ning bandi **rad etilmadi va isbotlanmadi**.
+
+Oqibati §10.1 uchun: `P2` hold qilinmasa, §9.4 ning *"analiz
+ERISHILGAN pressure'dan foydalanadi"* qarori uzluksiz analizni
+himoya qiladi, lekin **kategorik** uchinchi strata
+**o'rnatilmagan** bo'lib qoladi — va 21.3 ning `Δ̂` bahosi aynan
+shuning uchun `P2` dan yuqori dozada olingan.
+
+### 21.9 FAKT — §15.3 ning guard asosi mustaqil tasdiqlandi
+
+`08` §4.2: `user/lab` nisbati `p50 = 0.9963`, **642 toza
+juftlashtirilgan namuna** bo'yicha, `02` §1 ning `0.996` iga
+qarshi. Va `user@ some == user@ full` **har bir qatorda** — ya'ni
+`02` §1 ning mexanizmi (PSI `full` faqat non-idle task'larni
+hisoblaydi) **xulosa emas, bevosita o'lchov** bilan tasdiqlandi.
+
+Demak oniy chegarali guard har bir `P2` trial'ini o'ldirardi va
+**davomiylik kriteriyasi to'g'ri qoladi** — bu §15.3 ning guard'ni
+majburiy saqlagan asosini **mustaqil ravishda** qo'llab-quvvatlaydi.
+
+### 21.10 NIMA O'ZGARMAYDI
+
+§18.2 ning referens qarori va §18.3 ning `t_up` anchor'i —
+**o'zgarmadi**, 21.1 ularni **tasdiqlaydi**. §16.2(B), §17.4,
+§20.2 — o'zgarmadi; 21.6 ularning **qo'llanishi**. §4 ning matni,
+uning **3- va 4-bandlari**, §9.4 ning **ikki invarianti**, §9.3 ning
+`P2` bandi, §11 ning ikkala limbi, `τ = 8 s`, `20%`,
+`W_stab_pilot = 8 s`, `W_stab = 60 s`, `θ = 0.8`,
+`injection_offset = 3 s`, `hold_cap_s = 12 s`,
+`guard_sustain_s = 15 s`, `T_conn`/`T_rt` = 50 ms, `P` = 100 ms,
+`k_f` = 3, `ε` = 32 MiB, quiescence 0.05, `T_q` = 5 s,
+`T_w` = 15 s, `T_w_max` = 120 s, arm'lar `A`/`no_action`,
+20 blok / 120 trial, §10.1, §10.2, §10.4, §12 ning **yopiq enum'i**,
+§14, §15, §16, §17, §18, §19, §20 — **hammasi muzlatilgan holida.**
+§13 ga tegilmadi.
+
+**F1–F4 va O1–O4 tanlovlari QILINMADI.** 21.2 faqat *"qaror
+kerakmi"* savoliga javob beradi — **ha, ikkalasi ham** — va
+*"qaysi variant"* savolini **loyiha egasiga** qoldiradi.
+
+Qo'shilgan narsa: OQ-12 ning rad etilishi, **o'z qabul qoidamning
+tuzatilishi** (bir tomonlama → ikki tomonlama), ikki qarorning
+zaruriyati o'lchov bilan, band 4 uchun **preshart qoidasi**, bir
+gate (21.7) va uch FAKT (21.6, 21.8, 21.9).
+
+### 21.11 NATIJA — yo'q
+
+**Hech qanday eksperiment ishga tushirilmadi. Hech qanday natija yo'q.**
+`guard-recal` ning o'lchovlari **guard va generator kalibratsiyasi**,
+P1 trial'lari **emas** — `08` §14.3 ning o'z verdikti:
+*"Pilot (120 trial) ishga tushirilishi mumkinmi? ❌ **HOZIR MUMKIN
+EMAS**"*. Hech bir VR, `P(VR)`, downtime taqsimoti yoki
+falsifikatsiya natijasi hisoblanmadi. 21.1(b) va 21.2 ning butun
+arifmetikasi **muzlatilgan qiymatlardan**; 21.3 va 21.5 ning
+raqamlari **boshqa agentning o'lchovidan** va shu sifatida
+belgilangan.

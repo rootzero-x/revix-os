@@ -13,7 +13,7 @@
 
 | Daraja | Nima | Pre-registration | Holat |
 |---|---|---|---|
-| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.8` ⚠️ | **bloklangan** — `PREREGISTRATION.md` §17.5 va §18.6 ochiq qarorlari (§19.3 bo'yicha **birgalikda**) |
+| **P1 — pilot** | H1 ni bitta toza yacheykada sinash: `clean_crash × ekzogen pressure` | `preregistration/v1.9` ⛔ | **bloklangan** — (a) §17.5 va §18.6 ochiq qarorlari, ikkalasi **o'lchov bilan zarur deb tasdiqlandi** (§21.2, §21.5) va **birgalikda** hal qilinadi; (b) §21.7 gate: generator §9.4 invariantlarini majburlamaydi |
 | **CAL — kalibratsiya** | har `(fault × action)` uchun `P̂(VR)` → `Repairs()` matritsasi | kerak | P1 dan keyin |
 | **P2 — confirmatory** | to'liq fault taksonomiyasi × arm A/B/C × pressure × pulse duration | kerak, P1 effect size'idan `n` hisoblanadi | CAL dan keyin |
 
