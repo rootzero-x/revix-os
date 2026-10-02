@@ -196,9 +196,11 @@ from .reduce import (
     W_STAB_SWEEP_S,
     disposition_counts,
     enters_primary_denominator,
-    primary_denominator_verdict,
+    enters_survival_set,
+    primary_exclusion_reason,
     select_primary,
     select_survival,
+    survival_exclusion_reason,
     sweep_is_complete,
 )
 
@@ -1747,9 +1749,14 @@ def sensitivity_section(sweep_cells: Sequence[dict[str, Any]] | None,
         # Deprecated `PRIMARY_DISPOSITIONS` konstantasi §16.4 da "to'g'ri
         # savol, NOTO'G'RI javob" deb hukm qilingan va BU MODULDA
         # ishlatilmaydi.
-        if not enters_primary_denominator(c.get("disposition"),
-                                          by_id[tid].get("disposition_source")):
-            continue
+        #
+        # FILTR BU YERDA EMAS, DENOMINATORDA (pastda). NEGA: §2.3 #7 ning
+        # `note` i AYNAN `vr=None` / `window_truncated` yacheykalaridan
+        # kelib chiqadi. Agar ular bucket'ga kirmasa, note'ni keltirib
+        # chiqaradigan dalil YO'QOLADI -- ya'ni §20.2 ni bucket'da
+        # qo'llash majburiyat 7 ni JIMGINA buzardi. Shuning uchun
+        # bucket DIAGNOSTIKA uchun hammasini ko'radi, denominator esa
+        # §20.2 ni qo'llaydi.
         key = (round(float(c["w_stab_s"]), 6), round(float(c["theta"]), 6))
         buckets.setdefault(key, []).append(c)
     if orphan:
@@ -1789,18 +1796,37 @@ def sensitivity_section(sweep_cells: Sequence[dict[str, Any]] | None,
                 notes.append(
                     f"vr undetermined for {n_other_none} further trial(s) for "
                     "reasons other than window truncation (e.g. r_ref "
-                    "unavailable); also excluded from the denominator")
+                    "unavailable); also excluded from the denominator "
+                    "(PREREGISTRATION.md §20.2)")
             p_vr: dict[str, Any] = {}
             for lvl in PRESSURE_LEVELS:
                 rows = [c for c in cells
                         if by_id[c["trial_id"]].get("pressure_band") == lvl]
-                measured = [c for c in rows if c.get("vr") is not None]
+                # §20.2 -- DENOMINATOR a'zoligi IKKI ZARUR SHARTNING
+                # KONYUNKSIYASI: `(disposition, disposition_source)` jufti
+                # VA `vr` ning ANIQLANGANLIGI. `vr` berilmasa `reduce`
+                # YARIM javob qaytaradi (`_UNSET` sentineli), shuning uchun
+                # u BERILADI. Sweep yacheykasi `vr`/`vr_reason` ni O'ZI
+                # ko'taradi (`reduce.sweep_trial` yozadi), `disposition_source`
+                # esa shu trial'ning record'idan olinadi -- sweep bir xil xom
+                # trace'ning qayta hisobi, demak manba bir xil.
+                #
+                # NEGA SHU FUNKSIYA: busiz `vr=None` yacheyka sensitivity
+                # grid'ida O'LCHANGAN natija deb sanalardi, birlamchi
+                # jadval esa uni chiqarardi -- BITTA faylda BITTA miqdor
+                # IKKI xil hisoblanardi. Qoida `reduce.py` da, BITTA joyda.
+                measured = [
+                    c for c in rows
+                    if enters_primary_denominator(
+                        c.get("disposition"),
+                        by_id[c["trial_id"]].get("disposition_source"),
+                        vr=c.get("vr"), vr_reason=c.get("vr_reason"))]
                 k = sum(1 for c in measured if c["vr"] is True)
                 n = len(measured)
                 p_vr[lvl] = {"k": k, "n": n,
                              "p_hat": (k / n) if n else None,
-                             "n_undetermined": len(rows) - n}
-            used_all.extend(cells)
+                             "n_excluded": len(rows) - n}
+                used_all.extend(measured)
             grid.append({"w_stab": w_s, "theta": th, "p_vr_by_level": p_vr,
                          "note": " | ".join(notes) if notes else None})
 
@@ -1875,23 +1901,39 @@ def multiplicity_section(primary: dict[str, Any],
 WINDOW_FIT_SOURCES = ("window_past_pressure", "window_past_horizon")
 
 
-def _detailed_reasons(rows: Sequence[dict[str, Any]]) -> dict[str, int]:
-    """`disposition:disposition_source` bo'yicha sanoq.
+def _detailed_reasons(rows: Sequence[dict[str, Any]], which: str
+                      ) -> dict[str, int]:
+    """Nomlangan eksklyuziya sabablari bo'yicha sanoq -- `reduce.py` DAN.
 
     NEGA `disposition` YETARLI EMAS (§16.2(B)): §12 ning `censored` yorlig'i
     IKKI epistemologik jihatdan boshqa holatni birlashtiradi --
     `down_at_horizon` (xizmat qaytmadi: KUZATILGAN no'l-hodisa) va
-    `probe_gap` (instrumentatsiya yo'qoldi: KUZATILMAGAN). §16.2(B) ularni
-    binar maxrajda boshqacha ishlaydi, demak eksklyuziya hisoboti ham
-    ularni AJRATISHI kerak -- aks holda daraja takrorlanuvchi bo'lmaydi.
+    `probe_gap` (instrumentatsiya yo'qoldi: KUZATILMAGAN).
+
+    NEGA SABAB `reduce.py` DAN OLINADI, bu yerda qurilmaydi (§20.2):
+    sabablar oilasi endi IKKITA -- `disposition:source` VA
+    `vr_undetermined:<vr_reason>`. `no_episode` trial'ining JUFTI
+    (`complete`/`derived`) ruxsat etilgan, demak uni `disposition:source`
+    bo'yicha bucket qilish uni "chiqarilmagan" deb ko'rsatardi yoki
+    chiqarilish sababini YOLG'ON nomlardi. Sabab tartibi ham §20.2 da
+    muzlatilgan (juft ustun), demak uni qayta ixtiro qilish mumkin emas.
     """
     out: dict[str, int] = {}
     for r in rows:
-        d = str(r.get("disposition"))
-        src = r.get("disposition_source")
-        key = f"{d}:{src}" if src else d
-        out[key] = out.get(key, 0) + 1
-    return out
+        if which == SET_BINARY_DENOMINATOR:
+            reason = primary_exclusion_reason(
+                r.get("disposition"), r.get("disposition_source"),
+                vr=r.get("vr"), vr_reason=r.get("vr_reason"))
+        else:
+            reason = survival_exclusion_reason(
+                r.get("disposition"), r.get("disposition_source"),
+                r.get("vr_reason"))
+        if reason is None:
+            # Predikat uni KIRITADI, lekin chaqiruvchi chiqarilgan deb
+            # bergan -- selektor bilan predikat o'rtasida nomuvofiqlik.
+            reason = f"{r.get('disposition')}:{r.get('disposition_source')}"
+        out[str(reason)] = out.get(str(reason), 0) + 1
+    return dict(sorted(out.items()))
 
 
 def _window_fit_by_cell(trials: Sequence[dict[str, Any]],
@@ -2081,20 +2123,24 @@ def exclusions_section(trials: Sequence[dict[str, Any]],
             "n_total": total,
             "n_included": len(included),
             "n_excluded": len(excluded),
-            "by_reason": _detailed_reasons(excluded),
+            "by_reason": _detailed_reasons(
+                excluded,
+                SET_BINARY_DENOMINATOR if name == "binary_p_vr_denominator"
+                else SET_SURVIVAL),
             "reducer_block": summary_blocks.get(name),
         }
 
-    # Eski (shartnoma §2.2) shakl: `by_reason` faqat `disposition` bo'yicha.
+    # Eski (shartnoma §2.2) shakl: `by_reason` KOARS, `disposition` bo'yicha.
+    #
+    # NEGA SABAB SATRIDAN OLINMAYDI (§20.2): nomlangan sabablar oilasi
+    # endi ikkita, va `vr_undetermined:no_episode` ni ":" bo'yicha kesish
+    # `vr_undetermined` ni berardi -- bu `disposition` EMAS, demak u
+    # soxta disposition kaliti yaratardi va §12 ning yopiq enum'iga
+    # o'xshab ketardi. Koars xarita record'ning O'Z `disposition` idan
+    # olinadi; to'liq nomlangan sabab `by_set[...].by_reason` da.
     by_reason: dict[str, int] = {}
     for r in ex_primary:
-        # §16.2(B) -- sabab `reduce.primary_denominator_verdict` dan
-        # keladi, bu yerda qayta hisoblanmaydi. `exclusion_reason`
-        # field'i eski reduksiyada `disposition` bo'lishi mumkin.
-        _inc, named = primary_denominator_verdict(
-            r.get("disposition"), r.get("disposition_source"))
-        reason = (str(named).split(":", 1)[0] if named
-                  else str(r.get("disposition")))
+        reason = str(r.get("disposition"))
         by_reason[reason] = by_reason.get(reason, 0) + 1
 
     return {
@@ -2132,7 +2178,91 @@ def exclusions_section(trials: Sequence[dict[str, Any]],
         # Reducer'ning `disposition:source` sanog'i (bor bo'lsa).
         "disposition_source_counts": (
             (reduction_summary or {}).get("disposition_source_counts")),
+        # §20.3 / §20.4(4) -- IKKI NUQSON SINFI, HECH QACHON POOL
+        # QILINMAYDI. Ularning `must_not_pool_with` maydoni MASHINA
+        # O'QIYDIGAN taqiq, shuning uchun u BUZILMAGAN holda ko'chiriladi.
+        "defect_classes": _defect_classes(reduction_summary, log),
     }
+
+
+# §20.3 / §20.4(4) -- ikki nuqson sinfi. Nomlar `reduce.py` ning
+# konstantalaridan keladi, bu yerda matn sifatida takrorlanmaydi.
+_DEFECT_FIELDS = (
+    ("injector_effectiveness", "no_episode_rate_injector_effectiveness"),
+    ("instrumentation_loss", "instrumentation_loss_rate"),
+)
+
+
+def _defect_classes(reduction_summary: dict[str, Any] | None,
+                    log: WarningLog) -> dict[str, Any]:
+    """§20.3 + §20.4(4) -- injektor samaradorligi va instrumentatsiya
+    yo'qolishi: IKKI AJRALGAN sinf, BIRLASHTIRILMAYDI.
+
+    §20.3: `no_episode` NATIJA emas, INJEKSIYA ISHLAMAGANINI bildiradi --
+    trial nuqsoni, va nolga teng bo'lmagan daraja PILOTNI GATE QILADI,
+    chunki §9.2 ning to'rtala mexanizmi ham injeksiyaning ishlashini
+    nazarda tutadi.
+    §20.4(4): instrumentatsiya yo'qolishi (`probe_gap` + 5-band
+    o'lchanmagan) BOSHQA sinf -- u yerda savol TUG'ILDI, javob
+    KUZATILMADI, va u KM/log-rank ga KIRADI.
+
+    NEGA BIRLASHTIRILMAYDI: ikki sinf ikki xil tuzatishni talab qiladi --
+    biri injektorni, ikkinchisi prober'ni. Bitta "eksklyuziya darajasi"
+    ga qo'shilsa, qaysi biri buzilganini o'qiy olmaslik -- va §20.3
+    taqiqni MASHINA O'QIYDIGAN qilib `must_not_pool_with` maydoniga
+    yozgan, izohga emas. Shu sababli bu funksiya ikki obyektni ALOHIDA
+    beradi va yig'indi HISOBLAMAYDI.
+    """
+    if reduction_summary is None:
+        log.add("defect_classes_absent", "exclusions.defect_classes",
+                "`--reduction-summary` berilmagan: §20.3 ning injektor "
+                "samaradorligi va §20.4(4) ning instrumentatsiya "
+                "yo'qolishi darajalari `reduce_run` da hisoblanadi "
+                "(`injector_effectiveness`, `instrumentation_loss`). "
+                "Bu yerda QAYTA HISOBLANMAYDI -- ularning `(arm x "
+                "pressure)` taqsimoti va `must_not_pool_with` taqiqi "
+                "reducer'ning obyektida; taxmin qilinmaydi")
+        return {"available": False,
+                "reason": "no --reduction-summary supplied"}
+
+    out: dict[str, Any] = {"available": True, "must_not_pool": True}
+    for key, rate_field in _DEFECT_FIELDS:
+        block = reduction_summary.get(key)
+        out[key] = block if isinstance(block, dict) else None
+        out[f"{key}_rate"] = _f(reduction_summary.get(rate_field))
+        if out[key] is None:
+            log.add("defect_class_missing", f"exclusions.defect_classes.{key}",
+                    f"`reduction_summary` da `{key}` obyekti yo'q -- §20.3/"
+                    "§20.4(4) ning yacheyka taqsimoti BERILMAYDI")
+        elif not out[key].get("must_not_pool_with"):
+            # Taqiq MASHINA O'QIYDIGAN bo'lishi kerak; yo'qolsa jim
+            # qolmaydi, chunki pooling aynan shunda sodir bo'ladi.
+            log.add("defect_class_pool_guard_missing",
+                    f"exclusions.defect_classes.{key}",
+                    f"`{key}` obyektida `must_not_pool_with` maydoni yo'q "
+                    "-- §20.3 birlashtirish taqiqini MASHINA O'QIYDIGAN "
+                    "shaklda talab qiladi")
+
+    gated = reduction_summary.get("pilot_gated_by_injector_effectiveness")
+    out["pilot_gated_by_injector_effectiveness"] = (
+        bool(gated) if gated is not None else None)
+    if gated:
+        inj = out.get("injector_effectiveness") or {}
+        log.add("pilot_gated_by_injector_effectiveness",
+                "exclusions.defect_classes.injector_effectiveness",
+                "PILOT GATE QILINGAN: `no_episode` darajasi nolga teng "
+                f"emas (n_no_episode={inj.get('n_no_episode')}, "
+                f"rate={inj.get('no_episode_rate')}). §20.3: `no_episode` "
+                "NATIJA emas, INJEKSIYA ISHLAMAGANINI bildiradi, va §9.2 "
+                "ning to'rtala mexanizmi ham injeksiyaning ishlashini "
+                "nazarda tutadi -- demak bu daraja nolga tushmaguncha "
+                "birlamchi endpoint TALQIN QILINMAYDI")
+    elif gated is None:
+        log.add("pilot_gate_not_evaluated",
+                "exclusions.defect_classes",
+                "`pilot_gated_by_injector_effectiveness` kirishda yo'q -- "
+                "§20.3 ning gate'i BAHOLANMAYDI, taxmin qilinmaydi")
+    return out
 
 
 # --- taqiqlangan statistika qulfi (§2.3 #1, #2) ----------------------------
