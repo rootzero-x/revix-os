@@ -61,7 +61,7 @@ def run_meta(**over):
 
 
 def trial(trial_id, *, arm="A", pressure_band="P0", disposition="complete",
-          disposition_source="derived",
+          disposition_source="derived", vr_reason=None,
           vr=True, fr_a=False, n_episodes=1, n_actions=1,
           time_to_vr_us=2 * SEC, time_to_vr_censored=False,
           d_sd_us=1 * SEC, d_sd_censored=False,
@@ -73,6 +73,14 @@ def trial(trial_id, *, arm="A", pressure_band="P0", disposition="complete",
     Bu yerda sanab o'tilgan field nomlari `analyze.py` ISTE'MOL QILADIGAN
     to'plam: ular `reduce.py` ning chiqishi bilan bitta joyda taqqoslanadi.
     """
+    # §20.2/§20.3 -- `vr_reason` SABABNI nomlaydi va u IKKI to'plam
+    # a'zoligiga ta'sir qiladi. Default'lar survival to'plamida QOLADIGAN
+    # sabablar: `no_episode` (§20.3 ning yagona chekinishi) ATAYLAB
+    # default EMAS -- u maxsus holat va OSHKORA berilishi kerak.
+    if vr_reason is None:
+        vr_reason = ("verified" if vr is True
+                     else "invalidated" if vr is False
+                     else "window_truncated")
     rec = {
         # envelope (`schema.Emitter.envelope`)
         "schema_version": 1,
@@ -96,6 +104,7 @@ def trial(trial_id, *, arm="A", pressure_band="P0", disposition="complete",
         # jufti bilan aniqlanadi -- ikki `censored` turi epistemologik
         # jihatdan boshqa.
         "disposition_source": disposition_source,
+        "vr_reason": vr_reason,
         "disposition_conflict": False,
         "has_trial_begin": True,
         "has_trial_end": True,
@@ -184,6 +193,8 @@ def prober_stop(trial_id, core_percent, *, budget_percent=1.0,
 
 def sweep_cell(trial_id, w_stab_s, theta, *, vr=True, vr_reason="verified",
                disposition="complete"):
+    # `reduce.sweep_trial` yacheykaga `vr` va `vr_reason` ni O'ZI yozadi,
+    # shuning uchun §20.2 shu yerda ham qo'llanadi.
     return {
         "schema_version": 1, "record_type": "sweep_cell", "stream": "sweep_cell",
         "run_id": "SYNTH-run", "session_id": "SYNTH-sess",
@@ -610,13 +621,13 @@ def test_majburiyat_7_w_stab_horizondan_katta_yacheyka_note_bilan_belgilanadi():
         for w in (8.0, 10.0):
             assert grid[(w, th)]["note"] is None
             assert grid[(w, th)]["p_vr_by_level"]["P0"] == {
-                "k": 1, "n": 1, "p_hat": 1.0, "n_undetermined": 0}
+                "k": 1, "n": 1, "p_hat": 1.0, "n_excluded": 0}
         for w in (30.0, 60.0, 120.0):
             note = grid[(w, th)]["note"]
             assert note is not None and "window_truncated" in note, (w, th)
             cell = grid[(w, th)]["p_vr_by_level"]["P0"]
             assert cell == {"k": 0, "n": 0, "p_hat": None,
-                            "n_undetermined": 1}
+                            "n_excluded": 1}
         # 60 va 120 `T_trial = 40.1 s` dan ham katta => STRUKTURAVIY note ham.
         for w in (60.0, 120.0):
             assert "W_stab > T_trial" in grid[(w, th)]["note"]
@@ -756,14 +767,17 @@ def _fr_a_fixture():
     """Sintetik FR-A holati -- per-epizod va per-action AYNAN FARQLANADI.
 
     QO'LDA HISOB.
-      T1 (`complete`), IKKI epizod:
+      T1 (`complete`, `vr=True`), IKKI epizod:
           e0: fr_a = True,  action FR-A = [True, False]
           e1: fr_a = False, action FR-A = [False]
-      T2 (`complete`), bitta epizod:
+      T2 (`complete`, `vr=False`), bitta epizod:
           e0: fr_a = None,  action FR-A = [None]
       T3 (`contaminated`, birlamchi analizdan tashqarida), bitta epizod:
           e0: fr_a = True,  action FR-A = [True]
 
+      Birlamchi to'plam (§16.2(B) juft VA §20.2 aniqlanganlik): T1 va T2
+      (ikkisining ham `vr` i ANIQLANGAN); T3 `contaminated` sababli
+      chiqadi.
       per_episode: birlamchi epizodlar = [True, False, None]
                    o'lchangani 2 ta, True 1 ta  => 1/2 = 0.5
                    n_undetermined = 1
@@ -771,15 +785,21 @@ def _fr_a_fixture():
                    o'lchangani 3 ta, True 1 ta  => 1/3
       T3 ning epizodi KIRMAYDI (§12) => `fr_a_episodes_outside_primary`.
 
-    E'TIBOR: T1 da `n_episodes = 2`, demak `--episodes` siz ishlaydigan
+    E'TIBOR 1: T1 da `n_episodes = 2`, demak `--episodes` siz ishlaydigan
     "aynan yechiladigan quyi to'plam" yo'li T1 ni UMUMAN ko'rmaydi. Shuning
     uchun bu fixture ikki yo'lni ajratib ko'rsatadi.
+
+    E'TIBOR 2 (§20.2): T2 ning `vr` i ATAYLAB `False`, `None` EMAS. FR-A
+    ning aniqlanmaganligi (`fr_a=None`) VR ning aniqlanmaganligidan
+    FARQLI: §20.2 `vr=None` trial'ni BIRLAMCHI TO'PLAMDAN CHIQARADI,
+    demak `vr=None` berilsa bu fixture FR-A ni emas, to'plam a'zoligini
+    sinagan bo'lardi. `contaminated` T3 ham shu sababdan `vr=True`.
     """
     trials = [
-        trial("SYNTH-T1", n_episodes=2, n_actions=3, fr_a=True),
-        trial("SYNTH-T2", n_episodes=1, n_actions=1, fr_a=None, vr=None),
+        trial("SYNTH-T1", n_episodes=2, n_actions=3, fr_a=True, vr=True),
+        trial("SYNTH-T2", n_episodes=1, n_actions=1, fr_a=None, vr=False),
         trial("SYNTH-T3", disposition="contaminated", n_episodes=1,
-              n_actions=1, fr_a=True, vr=None),
+              n_actions=1, fr_a=True, vr=True),
     ]
     eps = [
         episode("SYNTH-T1", 0, True, [True, False]),
@@ -1272,12 +1292,210 @@ def test_16_4_reduction_summary_berilmasa_oz_sanogi_va_warning():
     assert b["rate_source"] == "recounted_in_analyze"
 
 
+def _defect_summary(*, no_episode_rate=0.0, gated=False, n_no_episode=0,
+                    drop_guard=False):
+    inj = {"metric": "injector_effectiveness",
+           "n_total": 10, "n_no_episode": n_no_episode,
+           "no_episode_rate": no_episode_rate,
+           "injection_effective_rate": 1.0 - no_episode_rate,
+           "gates_pilot": gated,
+           "excluded_from": ["binary_pvr_denominator",
+                             "survival_analysis_set"],
+           "by_cell": {"A:P2": {"cell": "A:P2", "n_no_episode": n_no_episode,
+                                "no_episode_rate": no_episode_rate}}}
+    if not drop_guard:
+        inj["must_not_pool_with"] = ["instrumentation_loss"]
+    return {
+        "record_type": "reduction_summary",
+        "injector_effectiveness": inj,
+        "instrumentation_loss": {
+            "metric": "instrumentation_loss",
+            "n_total": 10, "n_probe_gap": 1, "n_band5_unmeasured": 1,
+            "n_instrumentation_loss": 2,
+            "instrumentation_loss_rate": 0.2,
+            "must_not_pool_with": ["injector_effectiveness"],
+            "excluded_from": ["binary_pvr_denominator"],
+            "by_cell": {}},
+        "no_episode_rate_injector_effectiveness": no_episode_rate,
+        "instrumentation_loss_rate": 0.2,
+        "pilot_gated_by_injector_effectiveness": gated,
+    }
+
+
+def test_20_3_ikki_nuqson_sinfi_ALOHIDA_beriladi_pool_qilinmaydi():
+    """§20.3 / §20.4(4) -- IKKI sinf, HECH QACHON birlashtirilmaydi.
+
+    Ikki sinf ikki xil tuzatishni talab qiladi (biri injektorni,
+    ikkinchisi prober'ni), demak bitta "eksklyuziya darajasi" ga
+    qo'shilsa qaysi biri buzilganini o'qib bo'lmaydi. Taqiq MASHINA
+    O'QIYDIGAN (`must_not_pool_with`), izohda emas.
+    """
+    obj = build([trial("SYNTH-1")],
+                reduction_summary=_defect_summary(no_episode_rate=0.1,
+                                                  n_no_episode=1))
+    dc = obj["exclusions"]["defect_classes"]
+    assert dc["available"] is True and dc["must_not_pool"] is True
+    assert dc["injector_effectiveness_rate"] == pytest.approx(0.1)
+    assert dc["instrumentation_loss_rate"] == pytest.approx(0.2)
+    # Taqiq BUZILMAGAN holda ko'chiriladi.
+    assert dc["injector_effectiveness"]["must_not_pool_with"] == [
+        "instrumentation_loss"]
+    assert dc["instrumentation_loss"]["must_not_pool_with"] == [
+        "injector_effectiveness"]
+    # Yig'indi HISOBLANMAYDI: 0.1 + 0.2 = 0.3 kabi maydon YO'Q.
+    assert not any("0.3" in str(v) for v in dc.values()
+                   if isinstance(v, (int, float)))
+    assert "pooled" not in json.dumps(dc).lower()
+    # §20.4(3): sinflar har xil to'plamlardan chiqadi.
+    assert dc["instrumentation_loss"]["excluded_from"] == [
+        "binary_pvr_denominator"]           # survival'ga KIRADI
+    assert "survival_analysis_set" in dc["injector_effectiveness"][
+        "excluded_from"]
+
+
+def test_20_3_nolga_teng_bolmagan_injektor_darajasi_pilotni_GATE_qiladi():
+    """§20.3 -- `no_episode` NATIJA emas, injeksiya ishlamaganini bildiradi."""
+    obj = build([trial("SYNTH-1")],
+                reduction_summary=_defect_summary(no_episode_rate=0.1,
+                                                  n_no_episode=1, gated=True))
+    dc = obj["exclusions"]["defect_classes"]
+    assert dc["pilot_gated_by_injector_effectiveness"] is True
+    assert "pilot_gated_by_injector_effectiveness" in warn_codes(obj)
+
+
+def test_20_3_gate_nol_bolsa_ogohlantirish_yoq():
+    obj = build([trial("SYNTH-1")], reduction_summary=_defect_summary())
+    dc = obj["exclusions"]["defect_classes"]
+    assert dc["pilot_gated_by_injector_effectiveness"] is False
+    assert "pilot_gated_by_injector_effectiveness" not in warn_codes(obj)
+
+
+def test_20_3_must_not_pool_with_yoqolsa_jimgina_qolmaydi():
+    """Taqiq MASHINA O'QIYDIGAN bo'lishi kerak; yo'qolsa pooling shunda
+    sodir bo'ladi, demak u jim qolmaydi."""
+    obj = build([trial("SYNTH-1")],
+                reduction_summary=_defect_summary(drop_guard=True))
+    assert "defect_class_pool_guard_missing" in warn_codes(obj)
+
+
+def test_20_3_summary_berilmasa_nuqson_sinflari_taxmin_qilinmaydi():
+    obj = build([trial("SYNTH-1")])
+    dc = obj["exclusions"]["defect_classes"]
+    assert dc["available"] is False
+    assert "defect_classes_absent" in warn_codes(obj)
+    # Daraja TO'QILMAYDI.
+    assert "injector_effectiveness_rate" not in dc
+
+
 def test_reduction_summary_record_topilmasa_rad_etiladi(tmp_path):
     p = tmp_path / "reduction_summary.jsonl"
     p.write_text(json.dumps({"record_type": "trial_metrics"}) + "\n",
                  encoding="utf-8")
     with pytest.raises(A.AnalysisError, match="reduction_summary"):
         A.load_reduction_summary(str(p))
+
+
+# --- 11c-bis. §20: aniqlanganlik, sabab oilalari, survival chekinishi ----
+
+
+def test_20_2_sweep_filtri_HAM_vr_aniqlanganligini_talab_qiladi():
+    """§20.2 -- BITTA faylda BITTA miqdor IKKI xil hisoblanmasligi kerak.
+
+    Sweep yacheykasi `vr` ni O'ZI ko'taradi, demak §20.2 u yerda ham
+    qo'llanadi: `vr=None` yacheyka denominatorga KIRMAYDI, xuddi birlamchi
+    jadvalda bo'lgani kabi.
+
+    QO'LDA HISOB. Bitta trial, to'liq grid. `W_stab >= 30` yacheykalari
+    `vr=None` (`window_truncated`):
+      `W_stab in {8, 10}`      -> n = 1 (o'lchangan)
+      `W_stab in {30,60,120}`  -> n = 0, `n_excluded` = 1
+    """
+    obj = build([trial("SYNTH-1")],
+                sweep=full_sweep("SYNTH-1", truncated_from_s=30))
+    grid = {(c["w_stab"], c["theta"]): c for c in obj["sensitivity"]["grid"]}
+    assert grid[(8.0, 0.8)]["p_vr_by_level"]["P0"]["n"] == 1
+    cut = grid[(120.0, 0.8)]["p_vr_by_level"]["P0"]
+    assert cut["n"] == 0 and cut["n_excluded"] == 1
+    assert cut["p_hat"] is None            # taxmin qilinmaydi
+
+
+def test_20_2_sweep_notesi_filtrdan_KEYIN_HAM_saqlanadi():
+    """§2.3 #7 ning `note` i §20.2 filtridan KEYIN HAM chiqishi SHART.
+
+    Agar §20.2 filtri yacheykalarni BUCKET'dan olib tashlasa, note'ni
+    keltirib chiqaradigan dalil (`vr=None` + `window_truncated`)
+    yo'qolardi -- ya'ni majburiyat 7 JIMGINA buzilardi. Shuning uchun
+    bucket diagnostikani KO'RADI, denominator esa §20.2 ni qo'llaydi.
+    """
+    obj = build([trial("SYNTH-1")],
+                sweep=full_sweep("SYNTH-1", truncated_from_s=30))
+    grid = {(c["w_stab"], c["theta"]): c for c in obj["sensitivity"]["grid"]}
+    note = grid[(30.0, 0.8)]["note"]
+    assert note is not None and "window_truncated for 1/1" in note
+
+
+def test_20_2_sabab_oilasi_vr_undetermined_togri_bucketlanadi():
+    """§20.2 -- yangi sabab oilasi `vr_undetermined:<reason>`.
+
+    `no_episode` trial'ining JUFTI (`complete`/`derived`) RUXSAT ETILGAN,
+    demak uni `disposition:source` bo'yicha bucket qilish chiqarilish
+    sababini YOLG'ON nomlardi. Sabab `reduce.primary_exclusion_reason`
+    dan olinadi, bu yerda qurilmaydi.
+    """
+    trials = [trial("SYNTH-ok", vr=True),
+              trial("SYNTH-ne", vr=None, vr_reason="no_episode"),
+              trial("SYNTH-rr", vr=None, vr_reason="r_ref_unavailable")]
+    obj = build(trials)
+    b = obj["exclusions"]["by_set"]["binary_p_vr_denominator"]
+    assert b["by_reason"] == {"vr_undetermined:no_episode": 1,
+                              "vr_undetermined:r_ref_unavailable": 1}
+    # Juft RUXSAT ETILGAN edi, demak soxta `complete:derived` sababi YO'Q.
+    assert "complete:derived" not in b["by_reason"]
+    # Koars (shartnoma §2.2) xarita `disposition` bo'yicha qoladi --
+    # `vr_undetermined` SOXTA disposition kaliti YARATILMAYDI.
+    assert obj["exclusions"]["by_reason"] == {"complete": 2}
+
+
+def test_20_3_no_episode_IKKALA_toplamdan_ham_chiqadi():
+    """§20.3 -- v1.5 dan beri birinchi survival to'plamidan chiqadigan sinf.
+
+    `no_episode` da hodisa KUTILAYOTGAN emas edi, demak censored kuzatuv
+    ("hodisa `t` gacha sodir bo'lmadi") YOLG'ON da'vo bo'lardi.
+    `r_ref_unavailable` esa survival'da QOLADI (§20.4(3)): u yerda xizmat
+    ishdan chiqqan, hodisa kutilayotgan edi, faqat `D_probe` ning OXIRI
+    aniqlanmaydi -- haqiqiy right censoring.
+
+    QO'LDA HISOB. 3 trial: 1 `complete/vr=True`, 1 `no_episode`,
+    1 `r_ref_unavailable`.
+      survival to'plami: `no_episode` CHIQADI => KM `n_total` = 2
+    """
+    trials = [
+        trial("SYNTH-ok", vr=True, time_to_vr_us=1 * SEC),
+        trial("SYNTH-ne", vr=None, vr_reason="no_episode",
+              time_to_vr_us=2 * SEC, time_to_vr_censored=True),
+        trial("SYNTH-rr", vr=None, vr_reason="r_ref_unavailable",
+              time_to_vr_us=3 * SEC, time_to_vr_censored=True),
+    ]
+    obj = build(trials)
+    km = obj["survival"]["km"]["by_arm"]["A"]
+    assert km["n_total"] == 2                  # `no_episode` KIRMADI
+    assert km["n_censored"] == 1               # `r_ref_unavailable` KIRDI
+    s = obj["exclusions"]["by_set"]["survival_analysis_set"]
+    assert s["by_reason"] == {"vr_undetermined:no_episode": 1}
+    assert s["n_excluded"] == 1
+    # `k/n` ham survival to'plamidan: 1 recovered / 2 trial.
+    assert obj["survival"]["censoring"]["recovered_within_horizon"] == "1/2"
+
+
+def test_20_3_survival_toplami_predikatdan_olinadi_dispositiondan_emas():
+    """Agar `k/n` yoki KM `disposition` dan hisoblanganida, ular endi
+    `select_survival` bilan KELISHMAY qolardi -- bu qulf shuni ushlaydi."""
+    import revix.reduce as R
+    # `complete` disposition, LEKIN `no_episode` => survival'dan chiqadi.
+    assert R.enters_survival_set("complete", "no_episode") is False
+    assert R.enters_survival_set("complete", "verified") is True
+    assert R.enters_survival_set("censored", "r_ref_unavailable") is True
+    assert R.enters_survival_set("contaminated", "verified") is False
 
 
 # --- 11d-bis. §17: ikki yangi `disposition_source` -----------------------
