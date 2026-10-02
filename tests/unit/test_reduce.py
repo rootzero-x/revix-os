@@ -1584,24 +1584,30 @@ def test_yangi_juftlar_maxrajdan_chiqariladi_toplam_AYNAN_ozgarmadi():
     assert R.select_survival(recs) == recs
 
 
-def test_vr_undetermined_QOLDIGI_sabab_boyicha_ochiq_beriladi():
-    """§17 `no_episode` ni HAL QILMAYDI -- shuning uchun u sabab bilan beriladi.
+def test_vr_undetermined_sabab_boyicha_ochiq_beriladi():
+    """`vr=None` sabablari BUTUN run bo'yicha sanab beriladi -- yashirilmaydi.
 
-    `build_pure_brownout`: throughput 30% ga tushadi, LEKIN har probe
-    contract'dan o'tadi, demak failure onset YO'Q, demak epizod yo'q, demak
-    VR savoli ham yo'q (`vr=None`, `no_episode`). Bu §4 ning 5-bandiga va
-    "epizod yo'q" holatiga tegishli; §16 ham, §17 ham unga javob BERMAGAN,
-    shuning uchun u jimgina `false` deb YOZILMAYDI va sabab bilan sanaladi.
+    v1.6 da bu test `no_episode` trial'ining MAXRAJDA ekanini qayd etardi,
+    chunki §16 ham, §17 ham unga javob bermagan edi. **§20.3 unga javob
+    berdi:** epizod bo'lmasa §4 ning predikati instansiyalanmaydi, demak
+    trial maxrajdan CHIQADI (`included_in_primary is False`). Shuning uchun
+    bu test endi maxrajga kirishni emas, SABABNING OCHIQ BERILISHINI
+    qulflaydi -- ma'lumot yo'qolmaganini.
     """
     out = R.reduce_run(build_pure_brownout().run())
     p = out.trials[0]
     assert p["window_containment"] == R.WINDOW_NO_T_UP
     assert p["vr"] is None
     assert p["vr_reason"] == "no_episode"
-    assert p["included_in_primary"] is True
-    by_reason = out.summary["vr_undetermined_in_binary_denominator_by_reason"]
+    # §20.3: maxrajdan CHIQADI (v1.6 da `True` edi).
+    assert p["included_in_primary"] is False
+    # §20.2 invarianti: maxrajda `vr=None` qolmaydi.
+    assert out.summary["vr_undetermined_in_binary_denominator"] == 0
+    assert out.summary["vr_undetermined_in_binary_denominator_by_reason"] == {}
+    # ... lekin sabab BUTUN run hisobotida ko'rinadi -- yashirilmaydi (§12).
+    by_reason = out.summary["vr_undetermined_counts_by_reason"]
     assert by_reason == {"no_episode": 1}
-    # §17 ga tegishli sabab (`window_truncated`) maxrajda QOLMAYDI.
+    # §17 ga tegishli sabab (`window_truncated`) bu fixture'da yo'q.
     assert "window_truncated" not in by_reason
 
 
@@ -1635,3 +1641,542 @@ def test_oyna_hukmi_trial_sonini_OZGARTIRMAYDI():
     assert len(R.select_primary(out.trials)) == 2
     assert len(R.select_survival(out.trials)) == 4
     assert out.summary["vr_undetermined_in_binary_denominator"] == 0
+
+
+# --- 17. §20 hukmi: maxrajga kirish ANIQLANGANLIK bilan belgilanadi ---------
+#
+# §20.2: "Binar `P(VR)` maxraji -- §4 ning predikati ANIQLANGAN qiymat
+# (`true` yoki `false`) olgan trial'lar to'plami. `vr = None` -- sababi nima
+# bo'lishidan qat'i nazar -- maxrajdan TASHQARIDA, va sabab nomlanib
+# beriladi."
+#
+# §16.2(B) va §17.4 shundan KELIB CHIQADI: §4 VR ni EPIZOD uchun
+# ta'riflaydi, demak epizod bo'lmasa predikat INSTANSIYALANMAYDI.
+
+
+def build_r_ref_unavailable(trial_id="t0", *, arm="A", band="P0"):
+    """Epizod BOR, lekin `R_ref` o'lchanmagan -> `vr=None`, 5-band baholanmadi.
+
+    `progress` yozilmagan, demak throughput hisoblanmaydi. §20.4: savol
+    TUG'ILDI (xizmat ishdan chiqdi), javob KUZATILMADI.
+    """
+    b = Builder(trial_id)
+    b.add(R.RT_TRIAL_BEGIN, T0, arm=arm, pressure_band=band,
+          fault_class="clean_crash")
+    b.unit_state(T0, n_restarts=0, invocation="inv1", enter=T0, exit_=0)
+    b.oom(T0, 0)
+    for k in range(0, 5):
+        b.probe(k, progress=None, invocation="inv1")
+    for k in range(5, 8):
+        b.probe(k, outcome="conn_refused", progress=None, invocation=None)
+    b.add(R.RT_ACTION, T0 + 8 * P, action_id="a0", action_class="restart")
+    for k in range(8, 200):
+        b.probe(k, progress=None, invocation="inv2")
+    b.unit_state(T0 + 10 * P, n_restarts=1, invocation="inv2",
+                 enter=T0 + 8 * P, exit_=T0 + 5 * P)
+    b.oom(T0 + 10 * P, 0)
+    b.add(R.RT_TRIAL_END, T0 + 200 * P, disposition="complete")
+    return b
+
+
+def test_no_episode_IKKALA_toplamdan_ham_chiqariladi():
+    """§20.3: `no_episode` -- v1.5 dan beri IKKALA to'plamdan chiqqan BIRINCHI.
+
+    `build_pure_brownout`: throughput 30% ga tushadi, LEKIN har probe
+    contract'dan O'TADI => onset yo'q => epizod yo'q => §4 ning predikati
+    INSTANSIYALANMAYDI (`t_up` ta'rifi `E` ga bog'liq, `E` esa yo'q).
+
+    NEGA SURVIVAL'DAN HAM: §6.2 ning qoidasi "RECOVERY BO'LMAGAN
+    trial'larni tashlash" haqida, ya'ni recovery KUTILAYOTGAN trial'lar
+    haqida. Bu yerda xizmat ishdan chiqmagan, demak hodisa kutilayotgan
+    EMAS edi; censored kuzatuv "hodisa `t` gacha sodir bo'lmadi" degan
+    DA'VO va u hodisaning kutilayotgan bo'lishini talab qiladi -- demak
+    censored kuzatuv chiqarish YOLG'ON da'vo bo'lardi. §6.2 bu holatga
+    YETIB BORMAYDI (§20.3).
+    """
+    out = R.reduce_run(build_pure_brownout().run())
+    p = out.trials[0]
+    assert p["vr"] is None
+    assert p["vr_reason"] == R.VR_REASON_NO_EPISODE
+    assert p["n_episodes"] == 0
+    # `vr_reason == "no_episode"` <=> epizod yo'q (ikki ifoda bir xil fakt).
+    assert (p["vr_reason"] == R.VR_REASON_NO_EPISODE) is (p["n_episodes"] == 0)
+
+    # IKKALA to'plamdan ham tashqarida:
+    assert p["included_in_primary"] is False
+    assert p["included_in_survival"] is False
+    assert R.select_primary(out.trials) == []
+    assert R.select_survival(out.trials) == []
+
+    # Ikki sabab HAM nomlangan, va ikkisi ham `disposition` ni EMAS,
+    # predikatning aniqlanmaganligini ko'rsatadi (§20.3).
+    assert p["exclusion_reason"] == "vr_undetermined:no_episode"
+    assert p["survival_exclusion_reason"] == "vr_undetermined:no_episode"
+    # `disposition` o'zi hali ham `complete` -- §20.8 ochiq bo'shliq, va
+    # aynan shu sababli sabab `disposition` dan OLINMAYDI.
+    assert p["disposition"] == "complete"
+
+    # Trial TASHLANMADI (4-qoida): record chiqishda bor.
+    assert out.summary["n_trials_in"] == out.summary["n_trials_out"] == 1
+
+
+def test_r_ref_unavailable_maxrajdan_chiqadi_LEKIN_survivalga_KIRADI():
+    """§20.4: savol TUG'ILDI, 5-band baholanmadi -> maxrajdan tashqari, KM ga IN.
+
+    §20.4(3): `no_episode` dan FARQLI, bu yerda hodisa KUTILAYOTGAN edi
+    (xizmat ishdan chiqdi). `D_probe` ning OXIRI aniqlanmaydi, demak trial
+    horizon'da CENSORED sifatida kiradi -- §6.2 ning qoidasi aynan shu
+    holatga YETIB BORADI.
+    """
+    out = R.reduce_run(build_r_ref_unavailable().run())
+    p = out.trials[0]
+    assert p["r_ref"] is None
+    assert p["vr"] is None
+    assert p["vr_reason"] == R.VR_REASON_R_REF_UNAVAILABLE
+    assert p["n_episodes"] == 1                  # epizod BOR -- savol tug'ildi
+    assert "5" in p["unverified_clauses"]        # 5-band baholanmadi
+
+    # Binar maxrajdan CHIQADI, sabab NOMLANGAN (§20.2).
+    assert p["included_in_primary"] is False
+    assert p["exclusion_reason"] == "vr_undetermined:r_ref_unavailable"
+    assert R.select_primary(out.trials) == []
+
+    # ... LEKIN KM/log-rank ga KIRADI, censored davomiylik sifatida (§20.4(3)).
+    assert p["included_in_survival"] is True
+    assert p["survival_exclusion_reason"] is None
+    assert R.select_survival(out.trials) == [p]
+    assert p["time_to_vr_censored"] is True
+    assert p["d_probe_censored"] is True
+
+
+def test_no_episode_va_r_ref_unavailable_FARQLI_ishlanadi():
+    """§20.3 va §20.4 IKKI BOSHQA da'vo -- bir xil ishlanmasligi SHART.
+
+    Ikkisi ham `vr=None` va ikkisi ham binar maxrajdan tashqarida, LEKIN
+    survival to'plamida ular AJRALADI. Bu test aynan o'sha farqni qulflaydi,
+    ya'ni kimdir ikkisini bitta qoidaga yig'sa test yiqiladi.
+    """
+    recs, probes = [], []
+    for tid, b in (("t0", build_pure_brownout()),
+                   ("t1", build_r_ref_unavailable("t1"))):
+        for r in b.records:
+            r = dict(r)
+            r["trial_id"] = tid
+            recs.append(r)
+        for r in b.probes:
+            r = dict(r)
+            r["trial_id"] = tid
+            probes.append(r)
+    out = R.reduce_run(R.RawRun(records=recs, probes=probes, sources=[]))
+    ne = next(r for r in out.trials
+              if r["vr_reason"] == R.VR_REASON_NO_EPISODE)
+    rr = next(r for r in out.trials
+              if r["vr_reason"] == R.VR_REASON_R_REF_UNAVAILABLE)
+
+    # Bir xil: ikkisi ham `vr=None`, ikkisi ham maxrajdan tashqarida.
+    assert ne["vr"] is rr["vr"] is None
+    assert ne["included_in_primary"] is rr["included_in_primary"] is False
+    # FARQLI: survival to'plami ularni ajratadi (§20.3 vs §20.4(3)).
+    assert ne["included_in_survival"] is False
+    assert rr["included_in_survival"] is True
+    assert R.select_survival(out.trials) == [rr]
+    # Ikki survival sababi ham nomlangan va BIR XIL EMAS.
+    assert ne["survival_exclusion_reason"] == "vr_undetermined:no_episode"
+    assert rr["survival_exclusion_reason"] is None
+
+
+def test_enters_survival_set_qoidasi_yagona_joyda():
+    """§20.3: survival a'zoligi `enters_survival_set()` da, YAGONA joyda."""
+    assert R.SURVIVAL_EXCLUDED_VR_REASONS == frozenset({"no_episode"})
+    # `no_episode` -- YAGONA chekinish; qolgan `vr=None` sabablari KIRADI.
+    assert R.enters_survival_set("complete", "no_episode") is False
+    assert R.enters_survival_set("censored", "no_episode") is False
+    for reason in ("verified", "invalidated", "no_up_probe",
+                   R.VR_REASON_R_REF_UNAVAILABLE,
+                   R.VR_REASON_THROUGHPUT_UNMEASURABLE,
+                   R.VR_REASON_WINDOW_TRUNCATED, None):
+        assert R.enters_survival_set("complete", reason) is True
+        assert R.enters_survival_set("censored", reason) is True
+    # §12: to'plamdan tashqaridagi disposition'lar kirmaydi (o'zgarmadi).
+    for disp in ("contaminated", "aborted_guard", "washout_timeout",
+                 "harness_error"):
+        assert R.enters_survival_set(disp, "verified") is False
+
+
+def test_KONYUNKSIYA_probe_gap_vr_true_bolsa_HAM_chiqariladi():
+    """§20.2 + §4: ANIQLANGANLIK juftning O'RNINI BOSMAYDI.
+
+    `probe_gap` trial'ining `vr` i `True` bo'lishi MUMKIN -- uzilish oynadan
+    tashqarida bo'lsa predikat aniqlanadi. §4 esa u trial'ni shunda ham
+    `censored`, NATIJA emas deb hukm qiladi: "Instrumentatsiya yo'qolishi
+    hech qachon jimgina natijaga aylanmaydi."
+
+    Demak faqat aniqlanganlikka tayanish §4 ni BUZARDI, va faqat juftga
+    tayanish §20.2 ni buzardi -- ikkisi ham ZARUR.
+    """
+    drop = tuple(range(130, 141))
+    out = R.reduce_run(build_restart_trial(FULL_STEP, drop=drop).run())
+    p = out.trials[0]
+    assert p["vr"] is True                       # predikat ANIQLANGAN
+    assert p["disposition_source"] == "probe_gap"
+    assert p["included_in_primary"] is False     # ... lekin §4 chiqaradi
+    assert p["exclusion_reason"] == "censored:probe_gap"
+    # Juft sababi USTUN -- `vr` aniqlangan, demak `vr_undetermined` emas.
+    assert "vr_undetermined" not in p["exclusion_reason"]
+    # Predikat darajasida ikki shartni ALOHIDA tekshirish:
+    assert R.enters_primary_denominator("censored", "probe_gap",
+                                        vr=True) is False      # juft yo'q
+    assert R.enters_primary_denominator("complete", "derived",
+                                        vr=None,
+                                        vr_reason="no_episode") is False
+    assert R.enters_primary_denominator("complete", "derived",
+                                        vr=True) is True       # ikkisi ham bor
+    assert R.enters_primary_denominator("complete", "derived",
+                                        vr=False) is True      # `false` ANIQLANGAN
+
+
+def test_vr_None_HAR_QANDAY_sabab_bilan_maxrajdan_chiqariladi():
+    """§20.2: "sababi nima bo'lishidan qat'i nazar" -- fixture'lar bo'ylab.
+
+    Har `vr=None` sababi uchun: maxrajdan tashqarida VA sabab NOMLANGAN.
+    """
+    builders = {
+        R.VR_REASON_NO_EPISODE: build_pure_brownout(),
+        R.VR_REASON_R_REF_UNAVAILABLE: build_r_ref_unavailable(),
+        R.VR_REASON_WINDOW_TRUNCATED: build_late_recovery(),
+    }
+    seen = set()
+    for want_reason, b in builders.items():
+        out = R.reduce_run(b.run())
+        p = out.trials[0]
+        assert p["vr"] is None, want_reason
+        assert p["vr_reason"] == want_reason
+        assert p["included_in_primary"] is False, want_reason
+        assert p["exclusion_reason"] is not None, want_reason
+        # Sabab NOMLANGAN: yo juft sababi, yo `vr_undetermined:<reason>`.
+        assert (want_reason in p["exclusion_reason"]
+                or p["exclusion_reason"].startswith("censored:")), want_reason
+        # §20.2 invarianti: maxrajda `vr=None` QOLMAYDI.
+        assert out.summary["vr_undetermined_in_binary_denominator"] == 0
+        assert out.summary["vr_undetermined_in_binary_denominator_by_reason"] == {}
+        # Sabab BUTUN run bo'yicha hisobotda ko'rinadi (ma'lumot yo'qolmaydi).
+        assert out.summary["vr_undetermined_counts_by_reason"] == {want_reason: 1}
+        seen.add(want_reason)
+    assert seen == set(builders)
+
+
+def _two_orders(builder):
+    """Bir xil trial ustida ESKI (oynasiz) va YANGI (oynali) yorliq + a'zolik."""
+    trial = R.split_trials(builder.run())[0]
+    prm = R.Params()
+    gaps = R.probe_gaps(trial, prm)
+    down = bool(trial.probes) and not trial.probes[-1].passed
+    p = R.reduce_run(builder.run()).trials[0]
+    old = R.derive_disposition(trial, gaps, down)[:2]
+    window = R.classify_window_containment(
+        p["t_up_us"], prm, hold_end_us=trial.hold_end_us,
+        horizon_end_us=trial.horizon_end_us)
+    new = R.derive_disposition(trial, gaps, down, window)[:2]
+    kw = {"vr": p["vr"], "vr_reason": p["vr_reason"]}
+    return p, old, new, (R.enters_primary_denominator(*old, **kw),
+                         R.enters_primary_denominator(*new, **kw))
+
+
+def test_20_2_tartibga_chidamlilik_FAQAT_vr_None_shoxida_amal_qiladi():
+    """§20.2 maxrajni tartibga chidamli qiladi -- LEKIN FAQAT `vr=None` bo'lsa.
+
+    §20.2 ning oqibati odatda shunday ta'riflanadi: "kesilgan oyna `vr` ni
+    aniqlanmagan qoldiradi, demak trial qaysi yorliq olishidan qat'i nazar
+    chiqariladi". Bu **ikki shoxdan faqat bittasida** to'g'ri, va bu test
+    ikkisini ham o'lchaydi:
+
+      (1) oyna horizon'dan chiqdi, oxirgi probe O'TDI
+          -> `vr = None` (`window_truncated`)
+          -> §20.2 ning aniqlanganlik sharti O'ZI chiqaradi
+          -> a'zolik TARTIBGA CHIDAMLI, faqat SABAB farq qiladi;
+
+      (2) oyna horizon'dan chiqdi, oxirgi probe BUZILDI
+          -> oyna ichida monoton invalidator ishlaydi
+          -> `vr = False` -- ANIQLANGAN, demak §20.2 uni CHIQARMAYDI
+          -> trial'ni faqat §17.4 ning JUFT qoidasi chiqaradi
+          -> a'zolik TARTIBGA CHIDAMLI **EMAS**.
+
+    Demak `TARTIB QULFI` testi faqat beriladigan sabab uchun emas, (2)
+    shoxida ENDPOINT A'ZOLIGI uchun ham yuk ko'taradi. U SAQLANADI.
+    """
+    # --- (1) `vr = None`: a'zolik chidamli, sabab esa yo'q ----------------
+    p, old, new, (in_old, in_new) = _two_orders(build_late_recovery())
+    assert p["vr"] is None
+    assert p["vr_reason"] == R.VR_REASON_WINDOW_TRUNCATED
+    assert in_old is in_new is False          # a'zolik CHIDAMLI
+    kw = {"vr": p["vr"], "vr_reason": p["vr_reason"]}
+    r_old = R.primary_exclusion_reason(*old, **kw)
+    r_new = R.primary_exclusion_reason(*new, **kw)
+    assert r_old != r_new                     # ... SABAB esa farq qiladi
+    assert r_old == "vr_undetermined:window_truncated"
+    assert r_new == "censored:window_past_horizon"
+    # Eski yorliqda juft O'ZI ruxsat etardi -- chiqargan narsa §20.2.
+    assert R.enters_primary_denominator(*old) is True
+
+    # --- (2) `vr = False`: a'zolik tartibga CHIDAMLI EMAS -----------------
+    p2, old2, new2, (in_old2, in_new2) = _two_orders(
+        build_late_recovery(last_fails=True))
+    assert p2["vr"] is False                  # ANIQLANGAN -> §20.2 chiqarmaydi
+    assert p2["vr_reason"] == "invalidated"
+    assert old2 == ("censored", "down_at_horizon")
+    assert new2 == ("censored", "window_past_horizon")
+    assert in_old2 is True                    # eski tartib: maxrajga KIRARDI
+    assert in_new2 is False                   # yangi tartib: CHIQADI
+    assert in_old2 is not in_new2             # TARTIB a'zolikni belgilaydi
+    # Haqiqiy reduksiya yangi tartibni ishlatadi, demak trial chiqariladi.
+    assert p2["included_in_primary"] is False
+    assert p2["exclusion_reason"] == "censored:window_past_horizon"
+
+
+# ===========================================================================
+# §20.4(2) -- QAT'IY TAQIQ: VR 1-4 bandlar ustida HISOBLANMAYDI
+# ===========================================================================
+
+
+def test_vr_true_HECH_QACHON_5_bandsiz_chiqmaydi():
+    """§20.4(2) + §4: 5-band baholanmasa `vr = True` CHIQMAYDI.
+
+    §4: "5-band VR ni process-liveness'dan ajratadigan narsa ... Busiz
+    butun hissa 'process tirikmi?' ga qulaydi."
+    §9.2: "liveness-only VR ta'rifi ehtimol null pilot beradi, va bu null --
+    TA'RIF ARTEFAKTI, H1 ga qarshi dalil EMAS."
+
+    AUDIT NATIJASI (manfiy, lekin foydali): `evaluate_vr` ning HECH BIR
+    yo'li 5-bandsiz `True` qaytarmaydi -- `True` ga yetish uchun `r_ref`
+    ham, oyna throughput'i ham, to'liq oyna ham kerak. `False` esa 5-bandsiz
+    chiqishi MUMKIN va bu TO'G'RI: §4 ning VR'i yettita bandning
+    KONYUNKSIYASI, demak bitta konyunkt yolg'on bo'lsa natija yolg'on.
+    Taqiq `True` ga tegishli, `False` ga emas.
+    """
+    builders = (build_restart_trial(FULL_STEP),          # vr=True
+                build_restart_trial(60),                 # vr=False (brownout)
+                build_never_recovers(),                  # vr=False (no_up_probe)
+                build_no_action_never_recovers(),         # vr=False
+                build_r_ref_unavailable(),               # vr=None
+                build_pure_brownout(),                   # vr=None
+                build_late_recovery(),                   # vr=None
+                build_restart_trial(FULL_STEP, hidden_at=140),
+                build_restart_trial(FULL_STEP, drop=tuple(range(130, 141))))
+    n_true = 0
+    for b in builders:
+        payload, eps = reduce_one(b)
+        for ep in eps:
+            if ep.vr is True:
+                n_true += 1
+                # 5-band HAQIQATAN baholangan:
+                assert ep.throughput is not None
+                # `throughput_ratio` faqat `r_ref is not None and r_ref > 0`
+                # bo'lganda hisoblanadi, demak u 5-bandning BAHOLANGANIGA
+                # yetarli guvoh.
+                assert ep.throughput_ratio is not None
+                assert ep.window_complete is True
+                assert "5" not in ep.unverified_clauses
+                assert ep.throughput_status != "not_evaluated"
+        if payload["vr"] is True:
+            assert payload["vr_band5_evaluated"] is True
+    assert n_true >= 1          # test bo'sh emas
+
+
+def test_5_band_olchanmasa_vr_None_va_sabab_NOMLANGAN():
+    """§20.4(1): `r_ref` yo'q -> `vr=None`, `True` ham `False` ham EMAS.
+
+    `False` deb yozish ham xato bo'lardi: u kuzatilmagan narsani kuzatilgan
+    muvaffaqiyatsizlik deb yozish bo'lardi (§20.4 ni `probe_gap` bilan bir
+    sinfga qo'yadi -- savol tug'ildi, javob kuzatilmadi).
+    """
+    payload, eps = reduce_one(build_r_ref_unavailable())
+    assert eps[0].vr is None
+    assert eps[0].vr is not False
+    assert eps[0].vr_reason == R.VR_REASON_R_REF_UNAVAILABLE
+    assert "5" in eps[0].unverified_clauses
+    assert payload["vr_band5_evaluated"] is False
+    assert payload["fr_a"] is None               # `None` -> `False` AYLANMAYDI
+
+
+# ===========================================================================
+# §20.3 / §20.4(4) -- IKKI SINF, HECH QACHON POOL QILINMAYDI
+# ===========================================================================
+
+
+def test_injektor_samaradorligi_yacheyka_boyicha_va_pilotni_GATE_qiladi():
+    """§20.3: `no_episode` darajasi INJEKTOR SAMARADORLIGI deb nomlanadi.
+
+    §9.3 har trial'ga aynan bitta injeksiya beradi va P1 ning yagona
+    fault'i `clean_crash`, u contract'ni buzishi SHART. Demak `no_episode`
+    "injeksiya ISHLAMADI" degan ma'no beradi -- natija emas, TRIAL NUQSONI,
+    va nolga teng bo'lmagan daraja PILOTNI GATE QILADI (§9.2 ning to'rtala
+    mexanizmi injeksiyaning ishlashini nazarda tutadi).
+
+    Fixture: A|P0 -> 1 to'g'ri trial; A|P2 -> 2 `no_episode`.
+    Agregat 2/3, lekin `P2` da 2/2 = 1.0 -- to'planish KO'RINADI.
+    """
+    recs, probes = [], []
+    spec = (("t0", build_restart_trial(FULL_STEP), "A", "P0"),
+            ("t1", build_pure_brownout(), "A", "P2"),
+            ("t2", build_pure_brownout(), "A", "P2"))
+    for tid, b, arm, band in spec:
+        for r in b.records:
+            r = dict(r)
+            r["trial_id"] = tid
+            if r["record_type"] == R.RT_TRIAL_BEGIN:
+                r["arm"], r["pressure_band"] = arm, band
+            recs.append(r)
+        for r in b.probes:
+            r = dict(r)
+            r["trial_id"] = tid
+            probes.append(r)
+    out = R.reduce_run(R.RawRun(records=recs, probes=probes, sources=[]))
+    inj = out.summary["injector_effectiveness"]
+
+    assert inj["metric"] == R.METRIC_INJECTOR_EFFECTIVENESS
+    assert inj["rate_denominator"] == "all_trials_in_cell"
+    assert inj["vr_reasons"] == ["no_episode"]
+    assert inj["n_no_episode"] == 2
+    assert inj["no_episode_rate"] == pytest.approx(2 / 3)
+    assert inj["injection_effective_rate"] == pytest.approx(1 / 3)
+    # §20.3: IKKALA to'plamdan ham chiqadi.
+    assert set(inj["excluded_from"]) == {R.SET_BINARY_DENOMINATOR,
+                                         R.SET_SURVIVAL}
+    # PILOT GATE -- mashina o'qiydigan hukm.
+    assert inj["gates_pilot"] is True
+    assert out.summary["pilot_gated_by_injector_effectiveness"] is True
+    assert out.summary["no_episode_rate_injector_effectiveness"] == pytest.approx(
+        2 / 3)
+
+    # Yacheyka bo'yicha: `P2` da to'planish ko'rinadi, agregat uni yashiradi.
+    p0, p2 = inj["by_cell"]["A|P0"], inj["by_cell"]["A|P2"]
+    assert (p0["n_no_episode"], p0["n_total"]) == (0, 1)
+    assert p0["no_episode_rate"] == pytest.approx(0.0)
+    assert p0["gates_pilot"] is False
+    assert (p2["n_no_episode"], p2["n_total"]) == (2, 2)
+    assert p2["no_episode_rate"] == pytest.approx(1.0)
+    assert p2["gates_pilot"] is True
+    assert p2["metric"] == R.METRIC_INJECTOR_EFFECTIVENESS
+    assert p2["no_episode_rate"] != inj["no_episode_rate"]
+
+    # Nol daraja -> gate YO'Q (flag haqiqatan darajaga bog'liq).
+    clean = R.reduce_run(build_restart_trial(FULL_STEP).run())
+    assert clean.summary["injector_effectiveness"]["no_episode_rate"] == (
+        pytest.approx(0.0))
+    assert clean.summary["pilot_gated_by_injector_effectiveness"] is False
+
+
+def test_ikki_nuqson_sinfi_ALOHIDA_va_POOL_QILINMAYDI():
+    """§20.3 / §20.4(4): injektor samaradorligi va instrumentatsiya yo'qolishi.
+
+    Ular eksperimentning IKKI BOSHQA nuqson sinfi:
+      * `no_episode`                -> injeksiya ishlamadi (trial nuqsoni)
+      * `probe_gap` + 5-band yo'q   -> javob kuzatilmadi (instrumentatsiya)
+    Bitta "eksklyuziya darajasi" ga qo'shib yuborish ma'lumotni YO'QOTADI,
+    shuning uchun taqiq MASHINA O'QIYDIGAN shaklda qulflanadi.
+
+    Fixture: 1 `no_episode` + 1 `probe_gap` + 1 `r_ref_unavailable` + 1 toza.
+    """
+    recs, probes = [], []
+    spec = (("t0", build_restart_trial(FULL_STEP)),
+            ("t1", build_pure_brownout()),
+            ("t2", build_restart_trial(FULL_STEP,
+                                       drop=tuple(range(130, 141)))),
+            ("t3", build_r_ref_unavailable("t3")))
+    for tid, b in spec:
+        for r in b.records:
+            r = dict(r)
+            r["trial_id"] = tid
+            recs.append(r)
+        for r in b.probes:
+            r = dict(r)
+            r["trial_id"] = tid
+            probes.append(r)
+    out = R.reduce_run(R.RawRun(records=recs, probes=probes, sources=[]))
+    inj = out.summary["injector_effectiveness"]
+    il = out.summary["instrumentation_loss"]
+
+    # Ikki sinf ALOHIDA maydonlarda, har biri O'Z nomi bilan.
+    assert inj["metric"] != il["metric"]
+    assert inj["metric"] == R.METRIC_INJECTOR_EFFECTIVENESS
+    assert il["metric"] == R.METRIC_INSTRUMENTATION_LOSS
+
+    # Sanoqlar: 1 `no_episode`; 1 `probe_gap` + 1 `r_ref_unavailable`.
+    assert inj["n_no_episode"] == 1
+    assert il["n_probe_gap"] == 1
+    assert il["n_band5_unmeasured"] == 1
+    assert il["n_instrumentation_loss"] == 2
+    assert inj["no_episode_rate"] == pytest.approx(1 / 4)
+    assert il["instrumentation_loss_rate"] == pytest.approx(2 / 4)
+
+    # POOL QILISH TAQIQI -- izohda emas, maydonda.
+    assert il["metric"] in inj["must_not_pool_with"]
+    assert inj["metric"] in il["must_not_pool_with"]
+    # Sinflar KESISHMAYDI: `no_episode` instrumentatsiya sinfida YO'Q.
+    assert R.VR_REASON_NO_EPISODE not in il["vr_reasons"]
+    assert R.VR_REASON_R_REF_UNAVAILABLE not in inj["vr_reasons"]
+
+    # §20.4(3) farqi hisobotda ham ko'rinadi: instrumentatsiya yo'qolishi
+    # survival'dan CHIQARILMAYDI, injektor nuqsoni esa CHIQARILADI.
+    assert il["excluded_from"] == [R.SET_BINARY_DENOMINATOR]
+    assert R.SET_SURVIVAL in inj["excluded_from"]
+
+    # Maxraj: faqat toza trial (1/4).
+    assert len(R.select_primary(out.trials)) == 1
+    # Survival: toza + `probe_gap` + `r_ref_unavailable` = 3/4. `probe_gap`
+    # trial'i §6.2 bo'yicha censored DAVOMIYLIK sifatida kiradi (manba bu
+    # to'plamga ta'sir qilmaydi), `no_episode` esa YAGONA chiqqan (§20.3).
+    assert len(R.select_survival(out.trials)) == 3
+    assert out.summary["vr_undetermined_in_binary_denominator"] == 0
+    assert out.summary["vr_undetermined_counts_by_reason"] == {
+        "no_episode": 1, "r_ref_unavailable": 1,
+    }
+    # §20.2: `k/n` maxraji endi `vr=None` dan toza.
+    assert out.summary["recovered_k_of_n"] == [1, 1]
+
+
+def test_20_2_dan_keyin_maxrajda_vr_None_QOLMAYDI_invariant():
+    """§20.2 TIRIK INVARIANTI: `vr_undetermined_in_binary_denominator == 0`.
+
+    Barcha fixture'lar aralashmasi ustida. Bu son nolga teng bo'lmasa,
+    §16.2(B) + §17.4 + §20.2 zanjirining biri buzilgan.
+    """
+    recs, probes = [], []
+    spec = (build_restart_trial(FULL_STEP),
+            build_restart_trial(60),
+            build_never_recovers(),
+            build_no_action_never_recovers(),
+            build_pure_brownout(),
+            build_r_ref_unavailable(),
+            build_late_recovery(),
+            build_restart_trial(FULL_STEP, drop=tuple(range(130, 141))))
+    for i, b in enumerate(spec):
+        for r in b.records:
+            r = dict(r)
+            r["trial_id"] = f"t{i}"
+            recs.append(r)
+        for r in b.probes:
+            r = dict(r)
+            r["trial_id"] = f"t{i}"
+            probes.append(r)
+    out = R.reduce_run(R.RawRun(records=recs, probes=probes, sources=[]))
+    assert out.summary["n_trials_in"] == out.summary["n_trials_out"] == 8
+    assert len(out.trials) == 8
+    # Har maxraj a'zosining `vr` i ANIQLANGAN.
+    for r in R.select_primary(out.trials):
+        assert r["vr"] is not None
+        assert isinstance(r["vr"], bool)
+        assert r["exclusion_reason"] is None
+    assert out.summary["vr_undetermined_in_binary_denominator"] == 0
+    assert out.summary["vr_undetermined_in_binary_denominator_by_reason"] == {}
+    # Har chiqarilgan trial'ning sababi NOMLANGAN (§12, §16.4, §20.2).
+    inc = {id(r) for r in R.select_primary(out.trials)}
+    for r in out.trials:
+        if id(r) not in inc:
+            assert r["exclusion_reason"]
+    # `no_episode` -- IKKALA to'plamdan ham chiqqan YAGONA kategoriya.
+    surv = {id(r) for r in R.select_survival(out.trials)}
+    both_out = [r for r in out.trials
+                if id(r) not in inc and id(r) not in surv
+                and r["disposition"] in R.SURVIVAL_DISPOSITIONS]
+    assert [r["vr_reason"] for r in both_out] == [R.VR_REASON_NO_EPISODE]
