@@ -1,0 +1,1772 @@
+"""driver.py testlari -- o'nta majburiyatning REGRESSIYA QULFLARI.
+
+USLUB QARORI: bu yerdagi testlarning deyarli hammasi HAQIQIY systemd TALAB
+QILMAYDI, va bu ataylab. `tests/unit/test_units.py` systemd'ning O'ZINI
+sinaydi (mock yo'q, chunki mock faqat bizning taxminimizni tekshirardi).
+Driver esa systemd'ni sinamaydi -- u SIYOSATNI, ya'ni faza deadline'larini,
+record ketma-ketligini, disposition mantiqini va "aynan bitta trial_end" ni
+sinaydi. Shu siyosatni haqiqiy systemd bilan sinash 120 trial x 52 s = 1.7
+soat talab qilardi va `00-pilot-topologiya.md` §6 bo'yicha pressure hali
+TAQIQLANGAN. Shuning uchun `FakePlatform` -- `test_guard.py` ning `FakePsi`
+si bilan AYNI usul: yon ta'sirlar almashtiriladi, QAROR sinaladi.
+
+XAVFSIZLIK QOIDALARI (buzilmaydi):
+  * Bu modul HECH QANDAY systemd unit'i yaratmaydi. Yagona tirik-bus testi
+    (`test_zzz_...`) faqat O'QIYDI.
+  * Agar kelajakda selftest unit'i kerak bo'lsa, prefiks `revixdrvtest-`
+    va slice `revixdrvtest.slice` -- UMUMIY `revixselftest.slice` EMAS
+    (bu sessiyada ikki agent aynan o'sha slice'da to'qnashdi), va HECH
+    QACHON `revix-*`, `revixlab.slice` yoki `revixmon.slice` emas.
+"""
+
+import json
+import os
+
+import pytest
+
+from revix import driver as D
+from revix import schedule as sch
+from revix import units as U
+
+SELFTEST_GLOB = "revixdrvtest-*"
+SELFTEST_SLICE = "revixdrvtest.slice"
+
+UINT64_MAX = U.UINT64_MAX
+
+
+# ===========================================================================
+# Fake platforma -- barcha yon ta'sirlar, virtual soat
+# ===========================================================================
+
+
+class FakeWatcher:
+    """`units.UnitWatcher` ning o'rni: navbatdan record beradi."""
+
+    def __init__(self, unit, platform):
+        self.unit = unit
+        self.pf = platform
+        self.started = False
+        self.stopped = False
+
+    def start(self, seed=True):
+        self.started = True
+        self.pf.calls.append(("watch", self.unit))
+        # OBUNA = FAQAT KEYINGI record'lar. Haqiqiy `UnitWatcher` obunadan
+        # OLDINGI o'tishlarni ko'rmaydi, demak fake ham ko'rmasligi kerak --
+        # aks holda oldingi fazaning (masalan qo'shimcha vaqt o'lchovining)
+        # record'lari trial'ga tushib, SOXTA invocation o'zgarishi yasardi.
+        self.pf.state_queue[self.unit] = []
+        return self
+
+    def drain(self):
+        out = self.pf.state_queue.get(self.unit, [])
+        self.pf.state_queue[self.unit] = []
+        return out
+
+    def stop(self):
+        self.stopped = True
+
+
+class FakePlatform:
+    """Virtual soat + yolg'on systemd/cgroup/socket.
+
+    `calls` -- TARTIBLANGAN operatsiya jurnali. Majburiyat 1 va 3 aynan
+    TARTIB haqida, demak tartibni tekshirish uchun jurnal kerak.
+    """
+
+    def __init__(
+        self,
+        tmp_path,
+        *,
+        guard_ok=True,
+        guard_active="active",
+        unit_start_us=400_000,
+        unit_stop_us=200_000,
+        dump_us=100_000,
+        guest_generation=None,
+        guest_generation_after=None,
+        preflight_raises=False,
+    ):
+        self.tmp = tmp_path
+        self.t = 1_000_000
+        self.calls = []
+        self.state_queue = {}
+        self.guard_ok = guard_ok
+        self.guard_active = guard_active
+        self.unit_start_us = unit_start_us
+        self.unit_stop_us = unit_stop_us
+        self.dump_us = dump_us
+        self.preflight_raises = preflight_raises
+        self.started = {}
+        self.active = {}
+        self.guard_log_path = None
+        self.psi_total_value = 1_000
+        self.mem_current = 100 * 1024 * 1024
+        self.slice_props = {}
+        self.drop_ins_cleared = 0
+        self.teardowns = 0
+        self.killed = []
+        self.kill_mono_us = []
+        self.sut_arm = None
+        self._inv = 0
+        self._restarts = {}
+        self._gen = guest_generation or {
+            "pid1_starttime_ticks": 111, "uptime_s": 500.0,
+            "pid1_starttime_s": 1.11, "generation": "pid1:111",
+            "comparable": True, "clk_tck": 100,
+            "identity_key": "pid1_starttime_ticks",
+        }
+        self._gen_after = guest_generation_after
+        self._gen_reads = 0
+
+    # --- soat ---
+    def mono_us(self):
+        return self.t
+
+    def real_us(self):
+        return 1_700_000_000_000_000 + self.t
+
+    def boot_id(self):
+        return "boot-fake"
+
+    def sleep(self, seconds):
+        if seconds > 0:
+            self.t += int(seconds * 1e6)
+
+    def guest_generation(self):
+        self._gen_reads += 1
+        if self._gen_after is not None and self._gen_reads > 1:
+            return dict(self._gen_after)
+        return dict(self._gen)
+
+    # --- systemd ---
+    def clear_runtime_drop_ins(self):
+        self.drop_ins_cleared += 1
+        self.calls.append(("clear_drop_ins", None))
+        return []
+
+    def require_clean(self):
+        self.calls.append(("require_clean", None))
+        if self.preflight_raises:
+            raise U.PreflightError({"problems": ["qoldiq unit: revix-sut.service"],
+                                    "clean": False})
+        return {"clean": True, "problems": []}
+
+    def set_slice_properties(self, name, props):
+        self.calls.append(("set_slice", name))
+        self.slice_props[name] = dict(props)
+
+    def start_transient(self, name, props):
+        self.calls.append(("start", name))
+        t0 = self.t
+        self.t += self.unit_start_us
+        self.started[name] = dict(props)
+        if name == D.SUT_UNIT:
+            self.sut_arm = props.get("Restart")
+            self._restarts[name] = 0
+            self._inv += 1
+            self._push_state(name, "active", f"inv{self._inv}", 0)
+        if name == D.BYSTANDER_UNIT:
+            self._push_state(name, "active", "invby", 0)
+        if name == D.GUARD_UNIT:
+            self.guard_log_path = _flag_value(props["ExecStart"], "--log")
+            if self.guard_ok:
+                _append_jsonl(self.guard_log_path,
+                              {"record_type": "guard_start", "mono_us": self.t})
+            self.active[name] = self.guard_active
+        else:
+            self.active[name] = "active"
+        return {"unit": name, "job_path": f"/job/{name}",
+                "mono_us_before_call": t0, "mono_us_after_call": self.t,
+                "job_result": "done", "mono_us_job_removed": self.t}
+
+    def stop(self, name):
+        self.calls.append(("stop", name))
+        self.t += self.unit_stop_us
+        self.active[name] = "inactive"
+        return {"unit": name, "job_result": "done"}
+
+    def reset_failed(self, name):
+        return True
+
+    def active_state(self, name):
+        return self.active.get(name)
+
+    def wait_for_active(self, name, timeout_s):
+        return {"ok": self.active.get(name) == "active",
+                "active_state": self.active.get(name),
+                "elapsed_us": 0, "polls": 1}
+
+    def watcher(self, unit):
+        return FakeWatcher(unit, self)
+
+    def dump_unit_properties(self, name):
+        self.t += self.dump_us
+        return {"unit": name, "dump_valid": True, "load_state": "loaded",
+                "property_count": 287, "properties": {"LoadState": "loaded"}}
+
+    def teardown(self, units=(), **kw):
+        self.teardowns += 1
+        self.calls.append(("teardown", tuple(units)))
+        return {"stopped": list(units), "errors": []}
+
+    # --- cgroup ---
+    def cgroup_path(self, slice_name):
+        return f"/sys/fs/cgroup/fake/{slice_name}"
+
+    def user_cgroup(self):
+        return "/sys/fs/cgroup/fake/user@1000.service"
+
+    def snapshot_cgroup(self, path):
+        return {"memory_current": self.mem_current, "memory_peak": self.mem_current,
+                "memory_swap_current": 0, "memory_events": {"oom_kill": 0},
+                "cpu_stat": {"usage_usec": 1234}}
+
+    def memory_events(self, path):
+        return {"oom_kill": 0, "high": 0, "max": 0}
+
+    def memory_current(self, path):
+        return self.mem_current
+
+    def kill_subtree(self, path):
+        self.killed.append(path)
+        self.kill_mono_us.append(self.t)
+        self.calls.append(("kill", path))
+        return True
+
+    def meminfo(self):
+        return {"MemAvailable": 7_000_000, "MemFree": 3_000_000,
+                "Cached": 1_000_000, "SwapFree": 0, "MemTotal": 10_000_000}
+
+    def vmstat(self):
+        return {"oom_kill": 0}
+
+    def psi_total(self, psi_path, kind="full"):
+        # Deyarli o'zgarmas `total` -> tezlik ~0 -> quiescence.
+        self.psi_total_value += 1
+        return (self.t, self.psi_total_value)
+
+    # --- SUT socket ---
+    def sut_command(self, socket_path, command, timeout_s=0.5):
+        self.calls.append(("fault", command))
+        inv = f"inv{self._inv}"
+        # Fault: SUT chiqadi (clean crash, exit 1).
+        self._push_state(D.SUT_UNIT, "failed", inv, self._restarts[D.SUT_UNIT],
+                         active_exit=self.t + 1_000)
+        self.active[D.SUT_UNIT] = "failed"
+        if self.sut_arm == "on-failure":
+            self._restarts[D.SUT_UNIT] += 1
+            self._inv += 1
+            # systemd yangi invocation record'ida ham `ActiveExit` ni
+            # SAQLAYDI (oxirgi marta `active` dan chiqqan vaqt).
+            self._push_state(D.SUT_UNIT, "active", f"inv{self._inv}",
+                             self._restarts[D.SUT_UNIT],
+                             mono=self.t + 120_000,
+                             active_exit=self.t + 1_000)
+            self.active[D.SUT_UNIT] = "active"
+        return {"command": command, "reply": "OK armed=exit", "errno": None}
+
+    def _push_state(self, unit, state, inv, nrestarts, *, mono=None,
+                    active_exit=None):
+        t = mono or self.t
+        raw = {p: None for p in U.STATE_PROPS}
+        raw.update({
+            "unit": unit, "recv_mono_us": t, "recv_real_us": self.real_us(),
+            "signal_iface": "org.freedesktop.systemd1.Unit",
+            "changed_props": ["ActiveState"], "changed_count": 1,
+            "snapshot_complete": True, "missing_props": None,
+            "ActiveState": state, "SubState": "running" if state == "active" else "failed",
+            "InvocationID": inv, "NRestarts": nrestarts,
+            "Result": "success" if state == "active" else "exit-code",
+            "StateChangeTimestampMonotonic": t,
+            "ActiveEnterTimestampMonotonic": t if state == "active" else 0,
+            "ActiveExitTimestampMonotonic": active_exit or 0,
+            "InactiveExitTimestampMonotonic": t - 1_000 if state == "active" else 0,
+            "InactiveEnterTimestampMonotonic": 0,
+            "ExecMainStartTimestampMonotonic": t - 500 if state == "active" else 0,
+            "ExecMainExitTimestampMonotonic": active_exit or 0,
+            "ExecMainPID": 4711, "ExecMainCode": 1 if state != "active" else 0,
+            "ExecMainStatus": 1 if state != "active" else 0,
+        })
+        self.state_queue.setdefault(unit, []).append(raw)
+
+    # --- muhit faktlari ---
+    def environment_facts(self):
+        return {
+            "git": {"commit": "deadbeef" * 5, "dirty": False, "is_repo": True},
+            "host": {"hostname": "fake", "kernel": "6.6.87", "cpu_count": 12,
+                     "boot_id": "boot-fake"},
+            "oomd": {"active": "inactive", "limit_effective_percent": None},
+            "repo_version": "0.1.0-dev",
+            "modules": {"numpy": "2.0", "dbus": "mavjud"},
+            "systemd_version": {"version": 257},
+            "delegated_controllers": {"controllers": ["cpu", "memory", "pids"]},
+            # Bu mashinada O'LCHANGAN shakl: bo'sh ro'yxatlar.
+            "cpu_governor": {"governors": [], "drivers": [], "cpu_count": 0,
+                             "os_cpu_count": 12},
+            "memory": {"mem_total_kb": 10_000_000, "mem_available_kb": 7_000_000},
+        }
+
+    def close(self):
+        self.calls.append(("close", None))
+
+
+def _flag_value(argv, flag):
+    for i, a in enumerate(argv):
+        if a == flag and i + 1 < len(argv):
+            return argv[i + 1]
+    return None
+
+
+def _append_jsonl(path, record):
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(record) + "\n")
+
+
+def make_driver(tmp_path, *, only=("P0", "A"), blocks=1, platform=None,
+                allow_pressure=False, **pf_kw):
+    run_dir = D.prepare_run_dir(str(tmp_path / "run"))
+    pf = platform or FakePlatform(tmp_path, **pf_kw)
+    cfg = D.DriverConfig(run_dir=run_dir, seed=11, blocks=blocks,
+                         only=tuple(only), allow_pressure=allow_pressure,
+                         sut_binary="/nonexistent/sut")
+    schedule = sch.p1_schedule(11, n_blocks=blocks)
+    drv = D.Driver(cfg, pf, schedule, sch.TrialTimeline())
+    return drv, pf, run_dir
+
+
+def events(run_dir):
+    path = os.path.join(run_dir, D.EVENTS_FILE)
+    if not os.path.exists(path):
+        return []
+    out = []
+    for line in open(path, encoding="utf-8").read().splitlines():
+        if line.strip():
+            out.append(json.loads(line))
+    return out
+
+
+def of_type(recs, rt):
+    return [r for r in recs if r.get("record_type") == rt]
+
+
+# ===========================================================================
+# T_trial -- hisoblanadi, hech qachon hardcode qilinmaydi
+# ===========================================================================
+
+
+def test_t_trial_muzlatilgan_timeline_xususiyatlaridan_hisoblanadi():
+    tl = sch.TrialTimeline()
+    # Formula: t_pressure_off + w_stab_s + P.
+    assert D.t_trial_us(tl) == round((tl.t_pressure_off + tl.w_stab_s) * 1e6) \
+        + D.PROBE_PERIOD_US
+    # Muzlatilgan default'larda aynan 40.1 s.
+    assert D.t_trial_us(tl) == 40_100_000
+    # Invariant: eng erta oyna sig'adi va horizon washout ichiga kirmaydi.
+    assert round(tl.t_verify_end_earliest * 1e6) <= D.t_trial_us(tl)
+    assert D.t_trial_us(tl) <= round(tl.total_s * 1e6)
+
+
+def test_t_trial_invariant_buzilsa_istisno_tashlanadi():
+    # Qisqa hold -> `t_pressure_off + w_stab` `total_s` dan oshadi.
+    tl = sch.TrialTimeline(hold_s=11.0, injection_offset_s=3.0, w_stab_s=8.0,
+                           washout_s=15.0)
+    with pytest.raises(D.DriverError, match="invariantni buzdi"):
+        D.t_trial_us(tl, probe_period_us=20_000_000)
+
+
+def test_probe_davri_muzlatilgan_qiymat_bilan_mos():
+    # §2: P = 100 ms. Boshqa modullar bilan bir xil bo'lishi SHART, aks holda
+    # censoring chegarasi (2xP) va horizon jimgina farq qilardi.
+    from revix import prober
+    from revix import reduce as R
+    assert D.PROBE_PERIOD_US == R.P_US
+    assert D.PROBE_PERIOD_US == int(1e6 / prober.PROBE_HZ)
+
+
+# ===========================================================================
+# Majburiyat 6 -- TrialTimeline invariantlari MAJBURLANADI
+# ===========================================================================
+
+
+def test_timeline_pressure_cap_invarianti_driver_tomonidan_yumshatilmaydi():
+    # hold > cap: `TrialTimeline` O'ZI raise qiladi. Driver uni tutmaydi,
+    # tuzatmaydi va ogohlantirishga aylantirmaydi.
+    with pytest.raises(sch.PressureCapExceeded):
+        sch.TrialTimeline(hold_s=13.0)
+
+
+def test_timeline_guard_sustain_invarianti_majburlanadi():
+    with pytest.raises(sch.PressureCapExceeded):
+        sch.TrialTimeline(hold_s=12.0, ramp_above_threshold_s=5.0)
+
+
+def test_driver_timeline_istisnosini_yutmaydi(tmp_path):
+    run_dir = D.prepare_run_dir(str(tmp_path / "run"))
+    pf = FakePlatform(tmp_path)
+    cfg = D.DriverConfig(run_dir=run_dir, seed=1, blocks=1, only=("P0", "A"))
+    schedule = sch.p1_schedule(1, n_blocks=1)
+    # W_stab hold ichiga sig'maydi -> ScheduleError, va u DRIVER'ga emas,
+    # chaqiruvchiga chiqadi.
+    with pytest.raises(sch.ScheduleError):
+        D.Driver(cfg, pf, schedule, sch.TrialTimeline(w_stab_s=10.0))
+
+
+# ===========================================================================
+# Majburiyat 11 -- mavjud run katalogi XATO
+# ===========================================================================
+
+
+def test_mavjud_run_katalogiga_yozish_xato(tmp_path):
+    path = str(tmp_path / "run")
+    D.prepare_run_dir(path)
+    with pytest.raises(D.RunDirExistsError):
+        D.prepare_run_dir(path)
+
+
+def test_mavjud_run_katalogi_main_dan_ham_rad_etiladi(tmp_path, capsys):
+    path = str(tmp_path / "run")
+    os.makedirs(path)
+    rc = D.main(["--run-dir", path, "--seed", "3", "--blocks", "1",
+                 "--only", "P0,A", "--json"])
+    assert rc == 2
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+    assert out["error_type"] == "RunDirExistsError"
+
+
+# ===========================================================================
+# Majburiyat 10 -- --dry-run HECH NARSA ishga tushirmaydi
+# ===========================================================================
+
+
+def test_dry_run_hech_narsa_ishga_tushirmaydi(tmp_path, capsys):
+    path = str(tmp_path / "run")
+    rc = D.main(["--run-dir", path, "--seed", "7", "--blocks", "2",
+                 "--only", "P0,A", "--dry-run", "--json"])
+    assert rc == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["dry_run"] is True
+    assert report["n_trials_selected"] == 2
+    assert report["per_trial_overhead_source"] == "not_measured_dry_run"
+    # Katalog HAM yaratilmaydi: dry-run faylga tegmaydi.
+    assert not os.path.exists(path)
+
+
+def test_dry_run_jadvalni_va_digestni_chiqaradi(tmp_path):
+    schedule = sch.p1_schedule(5, n_blocks=2)
+    tl = sch.TrialTimeline()
+    rep = D.dry_run_report(schedule, tl, D.select_trials(schedule, ()))
+    assert rep["schedule_digest"] == schedule.digest()
+    assert rep["n_trials_total"] == 12
+    assert len(rep["trials"]) == 12
+    assert rep["t_trial_formula"] == D.T_TRIAL_FORMULA
+
+
+def test_dry_run_pressure_eshigidan_otmaydi(tmp_path, capsys):
+    # --dry-run da pressure tekshiruvi SHART EMAS: hech narsa ishga
+    # tushmaydi, demak jadvalni ko'zdan kechirish har doim mumkin.
+    rc = D.main(["--run-dir", str(tmp_path / "r"), "--seed", "1",
+                 "--blocks", "1", "--dry-run", "--json"])
+    assert rc == 0
+    assert json.loads(capsys.readouterr().out)["n_trials_selected"] == 6
+
+
+# ===========================================================================
+# Majburiyat 2 -- guard ishga tushmasa RUN BOSHLANMAYDI
+# ===========================================================================
+
+
+def test_guard_ishga_tushmasa_run_boshlanmaydi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, guard_ok=False)
+    with pytest.raises(D.GuardStartError):
+        drv.run()
+    recs = events(run_dir)
+    # ENG MUHIM TEKSHIRUV: hech qanday trial BOSHLANMAGAN.
+    assert of_type(recs, "trial_begin") == []
+    assert of_type(recs, "trial_end") == []
+    assert of_type(recs, "fault_inject") == []
+    # Xato JIM qolmaydi.
+    assert of_type(recs, "harness_error")
+
+
+def test_guard_unit_failed_bolsa_run_boshlanmaydi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, guard_active="failed")
+    with pytest.raises(D.GuardStartError):
+        drv.run()
+    assert of_type(events(run_dir), "trial_begin") == []
+
+
+def test_guard_watch_open_failed_hodisasi_fail_closed(tmp_path):
+    log = tmp_path / "guard.jsonl"
+    _append_jsonl(str(log), {"record_type": "guard_start", "mono_us": 1})
+    _append_jsonl(str(log), {"record_type": "guard_event",
+                             "reason": "watch_open_failed", "mono_us": 2})
+    res = D.verify_guard_live(str(log), lambda: "active", timeout_s=0.0,
+                              sleep=lambda s: None)
+    assert res["ok"] is False
+    assert res["reason"] == "guard_fatal_event"
+
+
+def test_guard_start_recordi_bolmasa_active_yetarli_emas(tmp_path):
+    # Unit `active`, lekin guard O'Z oqimiga hech narsa yozmagan: bu
+    # `guard.run()` ning 2-kodli chiqishidagi poyga. Fail-closed.
+    res = D.verify_guard_live(str(tmp_path / "yoq.jsonl"), lambda: "active",
+                              timeout_s=0.0, sleep=lambda s: None)
+    assert res["ok"] is False
+    assert res["reason"] == "guard_start_record_missing"
+
+
+def test_guard_tirik_bolsa_tasdiqlanadi(tmp_path):
+    log = tmp_path / "guard.jsonl"
+    _append_jsonl(str(log), {"record_type": "guard_start", "mono_us": 1})
+    res = D.verify_guard_live(str(log), lambda: "active", timeout_s=1.0,
+                              sleep=lambda s: None)
+    assert res["ok"] is True
+
+
+# ===========================================================================
+# Majburiyat 1 -- guard BIRINCHI start, OXIRGI stop
+# ===========================================================================
+
+
+def test_guard_birinchi_start_oxirgi_stop(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    starts = [n for k, n in pf.calls if k == "start"]
+    stops = [n for k, n in pf.calls if k == "stop"]
+    assert starts[0] == D.GUARD_UNIT, starts
+    assert stops[-1] == D.GUARD_UNIT, stops
+    # psi_sampler guard'dan KEYIN (majburiyat 7 tartibi).
+    assert starts.index(D.PSI_UNIT) > starts.index(D.GUARD_UNIT)
+
+
+def test_guard_driverning_childi_emas_balki_systemd_uniti(tmp_path):
+    """Qotib qolgan driver guard'ni o'chira olmasligi SHART.
+
+    Mexanizm: guard `start_transient` bilan ALOHIDA unit sifatida
+    yaratiladi, `subprocess` bilan emas. Shuning uchun uni systemd ushlab
+    turadi va driver'ning o'limi guard'ni o'ldirmaydi.
+    """
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    assert D.GUARD_UNIT in pf.started
+    props = pf.started[D.GUARD_UNIT]
+    assert props["Slice"] == D.MON_SLICE        # majburiyat 7
+    assert props["ExecStart"][1:3] == ["-m", "revix.guard"]
+    # RuntimeMaxSec bor, lekin kampaniyadan UZUN -- himoyani cheklamaydi.
+    assert props["RuntimeMaxSec"].endswith("s")
+    assert int(props["RuntimeMaxSec"][:-1]) > drv.timeline.total_s
+
+
+# ===========================================================================
+# Majburiyat 3 va 4 -- drop-in tozalash va pre-flight, SHU TARTIBDA
+# ===========================================================================
+
+
+def test_run_boshida_runtime_drop_inlar_tozalanadi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    assert pf.drop_ins_cleared >= 1
+    kinds = [k for k, _ in pf.calls]
+    assert kinds[0] == "clear_drop_ins"
+
+
+def test_drop_in_tozalash_preflightdan_va_slice_diallaridan_oldin(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    order = [k for k, _ in pf.calls]
+    i_clear = order.index("clear_drop_ins")
+    i_pre = order.index("require_clean")
+    i_slice = order.index("set_slice")
+    assert i_clear < i_pre < i_slice, order[:6]
+
+
+def test_preflight_yiqilsa_run_boshlanmaydi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, preflight_raises=True)
+    with pytest.raises(U.PreflightError):
+        drv.run()
+    assert of_type(events(run_dir), "trial_begin") == []
+
+
+def test_slice_diallari_topologiya_bilan_mos(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    lab = pf.slice_props[D.LAB_SLICE]
+    assert lab["MemoryMax"] == "2G"
+    assert lab["CPUQuota"] == "400%"
+    assert lab["TasksMax"] == 256
+    assert lab["MemoryHigh"] == D.DEFAULT_MEMORY_HIGH
+    # Slice nomlarida DASH YO'Q (amendment v1.1 -- validlik xatosi edi).
+    assert "-" not in D.LAB_SLICE.split(".")[0]
+    assert "-" not in D.MON_SLICE.split(".")[0]
+
+
+# ===========================================================================
+# Majburiyat 5 -- AYNAN BITTA trial_end + disposition
+# ===========================================================================
+
+
+def test_har_trial_uchun_aynan_bitta_trial_end(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, blocks=2)
+    drv.run()
+    recs = events(run_dir)
+    begins = of_type(recs, "trial_begin")
+    ends = of_type(recs, "trial_end")
+    assert len(begins) == 2
+    assert len(ends) == 2
+    by_trial = {}
+    for r in ends:
+        by_trial.setdefault(r["trial_id"], []).append(r)
+    assert all(len(v) == 1 for v in by_trial.values()), by_trial
+    assert {r["trial_id"] for r in begins} == set(by_trial)
+    for r in ends:
+        assert r["disposition"] in sch.DISPOSITIONS
+
+
+def test_ikkinchi_trial_end_urinishi_strukturaviy_ravishda_imkonsiz(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    trial = drv.selected[0]
+    timing = D.TrialTiming(begin_mono_us=1_000, horizon_end_mono_us=2_000,
+                           end_mono_us=2_000)
+    drv._emit_trial_end(trial, timing, {}, {}, [], {})
+    with pytest.raises(D.DriverError, match="ikkinchi trial_end"):
+        drv._emit_trial_end(trial, timing, {}, {}, [], {})
+
+
+def test_trial_ichidagi_istisno_harness_error_disposition_beradi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+
+    def boom(*a, **kw):
+        raise RuntimeError("ataylab")
+
+    drv._inject_fault = boom
+    drv.run()
+    recs = events(run_dir)
+    ends = of_type(recs, "trial_end")
+    assert len(ends) == 1
+    assert ends[0]["disposition"] == "harness_error"
+    # Istisno JIM qolmaydi.
+    errs = of_type(recs, "harness_error")
+    assert any("ataylab" in r["error"] for r in errs)
+
+
+def test_istisno_olchov_tsiklini_toxtatmaydi(tmp_path):
+    """Bitta trial yiqilsa, qolganlari davom etadi (dizayn qoidasi 13)."""
+    drv, pf, run_dir = make_driver(tmp_path, blocks=3)
+    calls = {"n": 0}
+    real = drv._inject_fault
+
+    def flaky(trial):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("ikkinchi trial'da xato")
+        return real(trial)
+
+    drv._inject_fault = flaky
+    drv.run()
+    ends = of_type(events(run_dir), "trial_end")
+    assert len(ends) == 3
+    dispositions = [e["disposition"] for e in ends]
+    assert dispositions[1] == "harness_error"
+
+
+def test_disposition_faktlardan_chiqadi_hukmdan_emas(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    trial = drv.selected[0]
+    timing = D.TrialTiming(begin_mono_us=1, horizon_end_mono_us=2, end_mono_us=2)
+    out = drv._emit_trial_end(trial, timing, {"guard_fired": True}, {}, [], {})
+    assert out["disposition"] == "aborted_guard"
+    rec = of_type(events(run_dir), "trial_end")[0]
+    assert rec["reason"] == "guard_fired"
+    assert rec["facts"]["guard_fired"] is True
+    assert "guard_fired" in rec["matched_rules"]
+
+
+# ===========================================================================
+# trial_end.mono_us = trial_begin.mono_us + T_trial (censoring nuqtasi)
+# ===========================================================================
+
+
+def test_trial_end_mono_us_begin_plus_t_trial(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    recs = events(run_dir)
+    b = of_type(recs, "trial_begin")[0]
+    e = of_type(recs, "trial_end")[0]
+    assert e["mono_us"] - b["mono_us"] == drv.t_trial_us == 40_100_000
+    # Record washout'dan KEYIN yozilgan, lekin vaqt TO'QILMAGAN: yozish
+    # vaqti alohida field'da va u horizon'dan KEYIN.
+    assert e["mono_us_record_written"] > e["mono_us"]
+    assert e["t_trial_actual_us"] == drv.t_trial_us
+
+
+def test_horizon_pressure_offdan_keyin_w_stab_qadar_davom_etadi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    timing = e["timing"]
+    tail = timing["horizon_end_mono_us"] - timing["pressure_off_mono_us"]
+    assert tail == round(drv.timeline.w_stab_s * 1e6) + D.PROBE_PERIOD_US
+
+
+# ===========================================================================
+# Majburiyat 9 -- qo'shimcha vaqt O'LCHANADI, taxmin qilinmaydi
+# ===========================================================================
+
+
+def test_qoshimcha_vaqt_olchanadi_taxmin_qilinmaydi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    detail = drv.measure_overhead()
+    assert detail["source"] == "measured_preflight_cycle"
+    # O'lchov HAQIQIY soatdan: fake platformaning har operatsiyasi vaqt
+    # sarflaydi, va o'lchangan qiymat aynan shu sarfga teng.
+    expected_us = (2 * pf.unit_start_us + 2 * pf.dump_us)
+    assert detail["setup_us"] == 2 * pf.unit_start_us
+    assert detail["dump_us"] == 2 * pf.dump_us
+    assert detail["measured_setup_teardown_s"] * 1e6 >= expected_us
+    assert detail["planned_preflight_s"] == drv.timeline.preflight_s
+
+
+def test_qoshimcha_vaqt_sekin_setupda_noldan_katta(tmp_path):
+    # Setup rejalashtirilgan `preflight_s` dan UZUN bo'lsa, qo'shimcha vaqt
+    # `estimate_campaign` ta'rifi bo'yicha noldan katta bo'ladi.
+    drv, pf, run_dir = make_driver(tmp_path, unit_start_us=4_000_000)
+    detail = drv.measure_overhead()
+    assert detail["per_trial_overhead_s"] > 0
+    assert detail["per_trial_overhead_s"] == pytest.approx(
+        detail["measured_setup_teardown_s"] - drv.timeline.preflight_s)
+    assert drv.measured_overhead_s == detail["per_trial_overhead_s"]
+
+
+def test_run_meta_qoshimcha_vaqtni_olchangan_sifatida_yozadi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
+                          encoding="utf-8"))
+    assert meta["per_trial_overhead"]["source"] == "measured_preflight_cycle"
+    assert meta["per_trial_overhead_s"] is not None
+    assert meta["campaign_estimate"]["per_trial_overhead_s"] == \
+        meta["per_trial_overhead_s"]
+
+
+def test_har_trial_ozining_qoshimcha_vaqtini_beradi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    assert e["overhead_us"] >= 0
+    assert "estimate_campaign" in e["overhead_definition"]
+    # Setup vaqti O'LCHANGAN, nol emas.
+    assert e["timing"]["setup_us"] > 0
+    assert e["timing"]["washout_us"] > 0
+
+
+# ===========================================================================
+# Field nomlari -- `reduce.py` ISH VAQTIDA o'qiydigan nomlar
+# ===========================================================================
+
+
+def test_trial_begin_pressure_band_nomini_yozadi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    b = of_type(events(run_dir), "trial_begin")[0]
+    # `reduce.Trial.pressure_band` AYNAN shu nomni o'qiydi.
+    assert b["pressure_band"] == "P0"
+    # `schedule` dagi faktor nomi ham yoziladi -- moslashuv KO'RINADI.
+    assert b["pressure_level"] == "P0"
+    assert b["arm"] == "A"
+    assert b["fault_class"] == "clean_crash"
+    assert b["position_in_block"] is not None
+
+
+def test_trial_id_va_block_index_faqat_envelopeda(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    for r in events(run_dir):
+        # Envelope field'lari bir marta bor; payload ularni bosib o'tolmaydi
+        # (`Emitter.record` istisno tashlaydi), demak bu tekshiruv aynan
+        # shu kafolatning regressiya qulfi.
+        assert "trial_id" in r
+        assert "block_index" in r
+
+
+def test_schedule_trial_as_dict_payload_sifatida_berilmaydi(tmp_path):
+    """`Trial.as_dict()` da `trial_id` VA `block_index` bor -> to'qnashuv."""
+    drv, pf, run_dir = make_driver(tmp_path)
+    trial = drv.selected[0]
+    with pytest.raises(ValueError, match="envelope"):
+        drv._emit("trial_begin", trial.as_dict(), trial=trial)
+
+
+def test_reduce_trial_begindan_arm_va_bandni_oqiydi(tmp_path):
+    from revix import reduce as R
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    run = R.RawRun(records=events(run_dir))
+    trials = R.split_trials(run)
+    assert len(trials) == 1
+    assert trials[0].arm == "A"
+    assert trials[0].pressure_band == "P0"
+    assert trials[0].disposition_raw in sch.DISPOSITIONS
+    assert trials[0].t_trial_us == drv.t_trial_us
+
+
+def test_unit_state_xom_va_snake_case_nomlarni_IKKISINI_HAM_saqlaydi():
+    raw = {p: None for p in U.STATE_PROPS}
+    raw.update({
+        "unit": "revix-sut.service", "recv_mono_us": 777, "recv_real_us": 1,
+        "signal_iface": "iface", "changed_props": ["ActiveState"],
+        "changed_count": 1, "snapshot_complete": True, "missing_props": None,
+        "ActiveState": "active", "Result": "success", "NRestarts": 2,
+        "InvocationID": "abc", "ActiveEnterTimestampMonotonic": 500,
+        "ActiveExitTimestampMonotonic": 400,
+    })
+    p = D.unit_state_payload(raw, "sut")
+    # `reduce.py` o'qiydigan nomlar.
+    assert p["active_state"] == "active"
+    assert p["result"] == "success"
+    assert p["n_restarts"] == 2
+    assert p["invocation_id"] == "abc"
+    assert p["active_enter_ts_mono_us"] == 500
+    assert p["active_exit_ts_mono_us"] == 400
+    # XOM systemd nomlari ham saqlanadi (§1 -- AVTORITET).
+    assert p["systemd"]["ActiveEnterTimestampMonotonic"] == 500
+    assert p["systemd"]["NRestarts"] == 2
+    # Qabul vaqti ALOHIDA (§14.4).
+    assert p["recv_mono_us"] == 777
+
+
+def test_unit_state_bosh_timestampni_None_qiladi():
+    raw = {p: None for p in U.STATE_PROPS}
+    raw.update({"ActiveExitTimestampMonotonic": 0,
+                "ActiveEnterTimestampMonotonic": UINT64_MAX,
+                "InactiveEnterTimestampMonotonic": 12345})
+    p = D.unit_state_payload(raw, "sut")
+    # 0 = qo'yilmagan, UINT64_MAX = cheksiz: IKKISI HAM o'lchov EMAS.
+    assert p["active_exit_ts_mono_us"] is None
+    assert p["active_enter_ts_mono_us"] is None
+    assert p["inactive_enter_ts_mono_us"] == 12345
+    # XOM qiymat O'ZGARTIRILMAYDI.
+    assert p["systemd"]["ActiveExitTimestampMonotonic"] == 0
+
+
+def test_unit_state_envelope_mono_us_recv_mono_us_ga_teng(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    states = of_type(events(run_dir), "unit_state")
+    assert states
+    for r in states:
+        assert r["mono_us"] == r["recv_mono_us"]
+
+
+def test_cgroup_events_oom_kill_FAQAT_sut_scopeda(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    recs = of_type(events(run_dir), "cgroup_events")
+    assert recs
+    with_series = [r for r in recs if "oom_kill" in r]
+    assert [r["scope"] for r in with_series] == [D.SCOPE_SUT]
+    for r in recs:
+        if r["scope"] != D.SCOPE_SUT:
+            # `reduce._oom_series` scope filtrisiz ishlaydi va `oom_kill`
+            # kalitiga ega BARCHA record'ni bitta qatorga qo'shadi; shuning
+            # uchun boshqa scope'larda bu kalit BO'LMASLIGI shart.
+            assert "oom_kill" not in r
+            assert "oom_kill_count" in r
+
+
+def test_cgroup_events_payload_deltani_hisoblaydi():
+    p = D.cgroup_events_payload("sut", {"oom_kill": 1, "high": 5},
+                                {"oom_kill": 3, "high": 9}, series=True)
+    assert p["oom_kill"] == 3
+    assert p["oom_kill_delta"] == 2
+    assert p["memory_events_delta"]["high"] == 4
+    q = D.cgroup_events_payload("lab", {"oom_kill": 1}, {"oom_kill": 1},
+                                series=False)
+    assert "oom_kill" not in q
+    assert q["oom_kill_count"] == 1
+
+
+def test_actor_signal_manbani_IKKI_nomda_yozadi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    sig = of_type(events(run_dir), "actor_signal")
+    assert sig, "arm A da restart kuzatilishi kerak"
+    for r in sig:
+        assert r["success"] is True
+        # §14.4 `actor_signal_source` ni SHART qiladi; `reduce.RAW_CONTRACT`
+        # esa `source` deb nomlaydi -> ikkisi ham, qiymat bir xil.
+        assert r["source"] == r["actor_signal_source"]
+
+
+def test_action_recordi_arm_A_da_yoziladi_no_actionda_YOZILMAYDI(tmp_path):
+    drv_a, pf_a, dir_a = make_driver(tmp_path / "a", only=("P0", "A"))
+    drv_a.run()
+    assert of_type(events(dir_a), "action")
+
+    drv_n, pf_n, dir_n = make_driver(tmp_path / "n", only=("P0", "no_action"))
+    drv_n.run()
+    # §9.3: `no_action` arm'ida (`Restart=no`) hech qanday action yuborilmaydi.
+    # `reduce.build_episodes` bu holatni ochiq qo'llab-quvvatlaydi.
+    assert of_type(events(dir_n), "action") == []
+    assert of_type(events(dir_n), "actor_signal") == []
+
+
+def test_action_policy_delay_l_dec_dan_alohida(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    a = of_type(events(run_dir), "action")[0]
+    # §14.4/§6.3: sozlangan kutish vaqti ALOHIDA field, `L_dec` emas.
+    assert a["policy_delay_us"] == 100_000
+    assert a["action_class"] == "restart"
+    assert a["actor"] == "systemd"
+    assert a["deferred"] is False
+    # t_issue / t_begin / t_exec alohida (shartnoma §1.2).
+    assert "t_issue_mono_us" in a and "t_begin_mono_us" in a \
+        and "t_exec_mono_us" in a
+
+
+def test_baseline_window_oynani_beradi_throughputni_HISOBLAMAYDI(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    b = of_type(events(run_dir), "baseline_window")[0]
+    assert b["mono_us_end"] - b["mono_us_begin"] == \
+        round(drv.timeline.baseline_s * 1e6)
+    # Throughput probe oqimida; driver uni hisoblamaydi -> None (nol EMAS).
+    assert b["throughput"] is None
+    assert "reduce.window_throughput" in b["throughput_source"]
+
+
+def test_fault_inject_ikki_tomonli_bracket_beradi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    f = of_type(events(run_dir), "fault_inject")[0]
+    assert f["mono_us_after_call"] >= f["mono_us_before_call"]
+    assert f["kind"] == "exit"
+    assert f["fault_class"] == "clean_crash"
+    assert f["params"] == {"code": 1}
+    # SUT tomoni: protokol §5 `OK armed=<kind>`.
+    assert f["sut_armed"] == "exit"
+    # SUT'ning O'Z monotonic qiymati stderr'da va u saqlanmaydi -> None,
+    # va SABABI yoziladi (jimgina nol yozilmaydi).
+    assert f["sut_mono_us"] is None
+    assert f["sut_mono_us_source"] == "unavailable_stderr_discarded"
+
+
+def test_fault_ack_bolmasa_trial_harness_error(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    pf.sut_command = lambda *a, **kw: {"command": "x", "reply": "ERR internal",
+                                       "errno": None}
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    assert e["disposition"] == "harness_error"
+
+
+def test_probe_satri_progress_counterdan_progress_qoshadi():
+    row = {"mono_us_send": "100", "outcome": "ok", "progress_counter": "42",
+           "invocation_id_seen": "abc", "trial_id": "b000t000"}
+    out = D.normalise_probe_row(row)
+    # `reduce.probe_from_record` AYNAN `progress` ni o'qiydi.
+    assert out["progress"] == "42"
+    # Xom ustun SAQLANADI (§14.4 `progress_counter` ni muzlatgan).
+    assert out["progress_counter"] == "42"
+    # Qiymat O'ZGARTIRILMAYDI, faqat nom qo'shiladi.
+    assert out["outcome"] == "ok"
+
+
+def test_probe_satri_mavjud_progressni_bosib_otmaydi():
+    row = {"progress": "7", "progress_counter": "42"}
+    assert D.normalise_probe_row(row)["progress"] == "7"
+
+
+def test_probe_satri_bosh_progress_counterni_qoshmaydi():
+    assert D.normalise_probe_row({"progress_counter": ""}).get("progress") \
+        in (None, "")
+
+
+def test_normalise_probe_row_reduce_bilan_ishlaydi():
+    from revix import reduce as R
+    row = D.normalise_probe_row(
+        {"mono_us_send": "100", "outcome": "ok", "progress_counter": "42",
+         "invocation_id_seen": "abc"})
+    p = R.probe_from_record(row)
+    # Moslashtirilmasa bu AYNAN `None` bo'lardi va `R_ref` yo'qolardi.
+    assert p.progress == 42
+    assert p.passed is True
+
+
+# ===========================================================================
+# Envelope -- `stream == record_type` (soxta seq bo'shligi bo'lmasligi uchun)
+# ===========================================================================
+
+
+def test_har_recordda_stream_record_typega_teng(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, blocks=2)
+    drv.run()
+    recs = events(run_dir)
+    assert recs
+    for r in recs:
+        assert r["stream"] == r["record_type"], r
+
+
+def test_seq_har_record_turi_boyicha_boshliqsiz(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, blocks=2)
+    drv.run()
+    streams = {}
+    for r in events(run_dir):
+        streams.setdefault(r["stream"], []).append(r["seq"])
+    for stream, seqs in streams.items():
+        assert sorted(seqs) == list(range(1, len(seqs) + 1)), stream
+
+
+def test_validator_driver_oqimida_xato_topmaydi(tmp_path):
+    from revix import reduce as R
+    from revix import validate as V
+    drv, pf, run_dir = make_driver(tmp_path, blocks=2)
+    drv.run()
+    run = R.RawRun(records=events(run_dir), sources=[D.EVENTS_FILE])
+    rep = V.validate_run(run, run_mode="pilot")
+    # Probe oqimi bu testda YO'Q (prober alohida jarayon), shuning uchun
+    # faqat driver'ga tegishli invariantlar tekshiriladi.
+    codes = {f.code for f in rep.errors}
+    assert not codes, [str(f) for f in rep.errors]
+
+
+# ===========================================================================
+# run_meta -- shartnoma §1.1 majburiy maydonlari
+# ===========================================================================
+
+
+def test_run_meta_majburiy_maydonlar(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
+                          encoding="utf-8"))
+    for key in ("preregistration_sha256", "preregistration_version",
+                "git_commit", "git_dirty", "rng_seed", "schedule_digest",
+                "uname", "systemd_version", "cpu_count",
+                "cgroup_delegated_controllers", "oomd_effective",
+                "governor", "scaling_driver", "python_version",
+                "module_versions", "units_show", "schedule", "run_mode",
+                "started_real_us", "started_mono_us", "t_trial_us",
+                "t_trial_formula"):
+        assert key in meta, key
+    assert meta["t_trial_us"] == 40_100_000
+    assert meta["rng_seed"] == 11
+    assert meta["schedule_digest"] == drv.schedule.digest()
+
+
+def test_run_meta_prereg_hashi_fayl_baytlaridan(tmp_path):
+    info = D.preregistration_info()
+    assert len(info["preregistration_sha256"]) == 64
+    assert info["preregistration_version"].startswith("preregistration/")
+
+
+def test_governor_va_scaling_driver_None_bosh_royxat_emas(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
+                          encoding="utf-8"))
+    # §15.4 NORMATIV: bu mashinada o'lchash IMKONSIZ -> None.
+    # Bo'sh ro'yxat yoki 0 O'LCHOV kabi o'qilardi.
+    assert meta["governor"] is None
+    assert meta["scaling_driver"] is None
+    assert meta["dvfs_measurable"] is False
+    # `doctor` ning xom shakli ham saqlanadi -- ma'lumot yo'qolmaydi.
+    assert meta["cpu_governor_detail"]["os_cpu_count"] == 12
+
+
+def test_none_if_empty_faqat_boshni_None_qiladi():
+    assert D._none_if_empty([]) is None
+    assert D._none_if_empty("") is None
+    assert D._none_if_empty({}) is None
+    assert D._none_if_empty(0) == 0          # O'LCHANGAN NOL saqlanadi
+    assert D._none_if_empty(["powersave"]) == ["powersave"]
+
+
+def test_env_snapshot_olchanmagan_kovariatalarni_None_bilan_YOZADI(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    snaps = of_type(events(run_dir), "env_snapshot")
+    assert len(snaps) == 2          # trial boshida va oxirida
+    for s in snaps:
+        # Kalit MAVJUD va None: tushirib qoldirish BOSHQA da'vo bo'lardi.
+        assert "cpu_freq_khz" in s and s["cpu_freq_khz"] is None
+        assert "thermal_c" in s and s["thermal_c"] is None
+        assert s["dvfs_source"]
+        # §8.2: harness'ning O'Z sarfi (`revixmon.slice`) ham yoziladi.
+        assert D.SCOPE_MON in s["scopes"]
+        assert "cpu_stat" in s["scopes"][D.SCOPE_MON]
+
+
+def test_run_meta_ikki_joyga_yoziladi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    # Fayl (shartnoma §1) VA record (§14.3 + validate.check_run_meta).
+    assert os.path.exists(os.path.join(run_dir, D.RUN_META_FILE))
+    assert len(of_type(events(run_dir), "run_meta")) == 1
+
+
+def test_run_meta_ochiq_parametrlarni_kalibratsiya_talab_qiladi_deb_belgilaydi(
+        tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
+                          encoding="utf-8"))
+    op = meta["open_parameters"]
+    for key in ("memory_high", "watchdog_sec", "timeout_start_sec",
+                "pressure_target_rate", "ramp_above_threshold_s"):
+        assert op[key]["calibration_required"] is True
+        assert op[key]["source"]
+
+
+# ===========================================================================
+# Guest generation -- `boot_id` TUTMAYDIGAN monotonic uzilish
+# ===========================================================================
+
+
+def test_guest_generation_pid1_statdan_parse_qilinadi():
+    # `/proc/1/stat`: 1=pid, 2=comm (QAVS ICHIDA, bo'sh joy bo'lishi mumkin),
+    # 3=state ... 22=starttime. Parse OXIRGI ')' dan keyin bo'linadi.
+    tail = ["S"] + [str(i) for i in range(4, 22)] + ["19153", "extra"]
+    stat = "1 (systemd with space) " + " ".join(tail)
+    g = D.parse_guest_generation(stat, "199.91 1500.0", clk_tck=100)
+    assert g["pid1_starttime_ticks"] == 19153
+    assert g["pid1_starttime_s"] == pytest.approx(191.53)
+    assert g["uptime_s"] == pytest.approx(199.91)
+    assert g["comparable"] is True
+    assert g["identity_key"] == "pid1_starttime_ticks"
+
+
+def test_guest_generation_haqiqiy_proc_1_statni_oqiydi():
+    """Haqiqiy `/proc/1/stat` ustida parse ishlashi SHART."""
+    if not os.path.exists("/proc/1/stat"):
+        pytest.skip("/proc/1/stat yo'q (Linux emas)")
+    g = D.parse_guest_generation(open("/proc/1/stat").read(),
+                                 open("/proc/uptime").read(),
+                                 clk_tck=os.sysconf("SC_CLK_TCK"))
+    assert g["comparable"] is True
+    assert g["pid1_starttime_ticks"] >= 0
+    # PID 1 guest uptime'idan kechikib boshlangan bo'lsa, bu guest
+    # restart'ining IZI (o'lchangan xatti-harakat) -- parse buni ko'rsatadi.
+    assert g["pid1_starttime_s"] <= g["uptime_s"] + 1.0
+
+
+def test_guest_generation_oqilmasa_fail_closed():
+    g = D.parse_guest_generation(None, None)
+    assert g["generation"] is None
+    assert g["comparable"] is False
+    changed, why = D.guest_generation_changed(g, g)
+    # O'qilmagan marker "o'zgarmadi" DEB HISOBLANMAYDI (guard qoidasi 3).
+    assert changed is True
+    assert why == "guest_generation_unreadable"
+
+
+def test_guest_generation_ozgarishi_aniqlanadi():
+    a = {"pid1_starttime_ticks": 100, "comparable": True, "uptime_s": 500.0}
+    b = {"pid1_starttime_ticks": 7, "comparable": True, "uptime_s": 10.0}
+    assert D.guest_generation_changed(a, a) == (False, "unchanged")
+    assert D.guest_generation_changed(a, b)[0] is True
+    assert D.guest_generation_changed(a, b)[1] == "pid1_starttime_changed"
+
+
+def test_uptime_identiklikka_KIRMAYDI():
+    """`uptime_s` har sekundda o'sadi -> identiklikka kirsa HAR trial
+    soxta "o'zgardi" berardi. Shuning uchun u ATAYLAB e'tiborsiz."""
+    a = {"pid1_starttime_ticks": 55, "comparable": True, "uptime_s": 10.0}
+    b = {"pid1_starttime_ticks": 55, "comparable": True, "uptime_s": 9999.0}
+    assert D.guest_generation_changed(a, b) == (False, "unchanged")
+
+
+def test_guest_restart_kampaniyani_toxtatadi(tmp_path):
+    after = {"pid1_starttime_ticks": 9, "uptime_s": 5.0,
+             "pid1_starttime_s": 0.09, "generation": "pid1:9",
+             "comparable": True, "clk_tck": 100}
+    drv, pf, run_dir = make_driver(tmp_path, blocks=3,
+                                   guest_generation_after=after)
+    with pytest.raises(D.GuestRestartError):
+        drv.run()
+    # Restart'dan keyingi ma'lumot oldingisiga QO'SHILMAYDI: run to'xtaydi.
+    assert of_type(events(run_dir), "trial_begin") == []
+    assert of_type(events(run_dir), "harness_error")
+
+
+def test_guest_generation_run_metaga_va_har_env_snapshotga_yoziladi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
+                          encoding="utf-8"))
+    assert meta["guest_generation"]["comparable"] is True
+    assert meta["guest_generation"]["pid1_starttime_ticks"] == 111
+    assert meta["pid1_starttime_ticks"] == 111
+    assert meta["boot_id_note"]
+    snaps = of_type(events(run_dir), "env_snapshot")
+    assert len(snaps) >= 2          # har o'lchangan trial uchun kamida ikki
+    for s in snaps:
+        assert s["guest_generation"]["pid1_starttime_ticks"] == 111
+
+
+# ===========================================================================
+# Pressure eshigi -- struktura bilan majburlanadi
+# ===========================================================================
+
+
+def test_P0_dan_boshqa_daraja_allow_pressuresiz_rad_etiladi(tmp_path, capsys):
+    rc = D.main(["--run-dir", str(tmp_path / "run"), "--seed", "4",
+                 "--blocks", "1", "--only", "P2", "--json"])
+    assert rc == 2
+    out = json.loads(capsys.readouterr().out)
+    assert out["error_type"] == "PressureNotAllowedError"
+    # Katalog HAM yaratilmaydi: rad etish prepare_run_dir'dan OLDIN.
+    assert not os.path.exists(str(tmp_path / "run"))
+
+
+def test_P0_run_generatorni_umuman_ishga_tushirmaydi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    assert D.PRESS_UNIT not in pf.started
+    e = of_type(events(run_dir), "trial_end")[0]
+    assert e["detail"]["pressure"]["started"] is False
+
+
+def test_pressure_generatorini_bevosita_chaqirish_ham_rad_etiladi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    with pytest.raises(D.PressureNotAllowedError):
+        drv._start_pressure(drv.selected[0], "P2", 10.0)
+
+
+# ===========================================================================
+# --only filtri -- FAIL-CLOSED
+# ===========================================================================
+
+
+def test_only_filtri_kesishma_semantikasi():
+    s = sch.p1_schedule(3, n_blocks=2)
+    assert len(D.select_trials(s, ())) == 12
+    assert len(D.select_trials(s, ("P0",))) == 4
+    assert len(D.select_trials(s, ("P0", "A"))) == 2
+
+
+def test_only_notogri_daraja_jim_bosh_run_bermaydi():
+    s = sch.p1_schedule(3, n_blocks=2)
+    with pytest.raises(D.OnlyFilterError, match="jadvalda yo'q"):
+        D.select_trials(s, ("p0",))
+    with pytest.raises(D.OnlyFilterError, match="mos kelmadi"):
+        D.select_trials(s, ("P0", "P1"))
+
+
+def test_only_jadval_digestini_ozgartirmaydi(tmp_path):
+    s = sch.p1_schedule(3, n_blocks=2)
+    before = s.digest()
+    D.select_trials(s, ("P0", "A"))
+    assert s.digest() == before
+
+
+def test_parse_only():
+    assert D.parse_only(None) == ()
+    assert D.parse_only("") == ()
+    assert D.parse_only("P0, A ,") == ("P0", "A")
+
+
+# ===========================================================================
+# Arm konfiguratsiyasi (§9.3)
+# ===========================================================================
+
+
+def test_P1_da_faqat_ikki_arm_baseline_B_YOQ():
+    assert set(D.ARM_PROPERTIES) == {"A", "no_action"}
+    assert D.arm_properties("A")["Restart"] == "on-failure"
+    assert D.arm_properties("A")["RestartSec"] == "100ms"
+    assert D.arm_properties("no_action")["Restart"] == "no"
+    # `StartLimitBurst=0` IKKALA arm'da.
+    assert D.arm_properties("A")["StartLimitBurst"] == 0
+    assert D.arm_properties("no_action")["StartLimitBurst"] == 0
+    with pytest.raises(D.DriverError, match="ATAYLAB yo'q"):
+        D.arm_properties("B")
+
+
+def test_restart_steps_juftligi_kodda_majburlanadi():
+    # O'LCHANGAN TUZOQ: `RestartSteps=` `RestartMaxDelaySec=` siz QABUL
+    # QILINADI va `systemctl show` uni ko'rsatadi, lekin systemd uni
+    # E'TIBORSIZ qoldiradi. Read-back yolg'on gapiradi -> kodda tekshiriladi.
+    with pytest.raises(D.DriverError, match="FAQAT JUFT"):
+        D.check_restart_steps_pairing({"RestartSteps": 4})
+    with pytest.raises(D.DriverError, match="FAQAT JUFT"):
+        D.check_restart_steps_pairing({"RestartMaxDelaySec": "8s"})
+    D.check_restart_steps_pairing({"RestartSteps": 4,
+                                   "RestartMaxDelaySec": "8s"})
+    D.check_restart_steps_pairing({})
+
+
+def test_sut_va_bystander_lab_slicega_generator_ham(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    for unit in (D.SUT_UNIT, D.BYSTANDER_UNIT):
+        assert pf.started[unit]["Slice"] == D.LAB_SLICE
+    assert pf.started[D.PROBER_UNIT]["Slice"] == D.MON_SLICE
+    assert pf.started[D.PSI_UNIT]["Slice"] == D.MON_SLICE
+
+
+def test_sut_dial_lari_topologiya_bilan_mos(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    sut = pf.started[D.SUT_UNIT]
+    assert sut["MemoryMax"] == "256M"
+    assert sut["MemorySwapMax"] == 0
+    assert sut["TasksMax"] == 64
+    assert sut["Type"] == "notify"
+    assert sut["WatchdogSec"]
+    assert isinstance(sut["ExecStart"], list)      # argv shakli SHART
+    by = pf.started[D.BYSTANDER_UNIT]
+    assert by["MemoryMax"] == "128M"
+    # Bystander HECH QACHON qayta ko'tarilmaydi -- u spillover detektori.
+    assert by["Restart"] == "no"
+
+
+def test_prober_har_trial_uchun_alohida_va_report_cost_bilan(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, blocks=2)
+    drv.run()
+    starts = [n for k, n in pf.calls if k == "start"]
+    assert starts.count(D.PROBER_UNIT) == 2       # har trial uchun bittadan
+    argv = pf.started[D.PROBER_UNIT]["ExecStart"]
+    assert "--trial-id" in argv
+    assert argv[argv.index("--trial-id") + 1] == drv.selected[-1].trial_id
+    # §8.2: probe narxi o'lchanadi va `prober_stop` orqali oqimga tushadi.
+    assert "--report-cost" in argv
+    # Ikki target: SUT va bystander (spillover detektori).
+    assert argv.count("--target") == 2
+
+
+def test_prober_SUT_active_bolgandan_KEYIN_ishga_tushadi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    starts = [n for k, n in pf.calls if k == "start"]
+    # Prober SUT'dan OLDIN ishga tushsa, birinchi probe'lari conn_refused
+    # bo'lib, `find_failure_onsets` SOXTA epizod yasardi va `reduce` ning
+    # `vr` i (episodes[0].vr) fault epizodini EMAS, o'sha soxta epizodni
+    # o'qib qolardi.
+    assert starts.index(D.SUT_UNIT) < starts.index(D.PROBER_UNIT)
+    assert starts.index(D.BYSTANDER_UNIT) < starts.index(D.SUT_UNIT)
+
+
+def test_journaldga_hech_qanday_olchov_malumoti_oqmaydi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    for unit in (D.GUARD_UNIT, D.PSI_UNIT, D.PROBER_UNIT, D.SUT_UNIT,
+                 D.BYSTANDER_UNIT):
+        props = pf.started[unit]
+        assert props["StandardOutput"] == "null"
+        assert props["StandardError"] == "null"
+
+
+# ===========================================================================
+# Washout (§8.4)
+# ===========================================================================
+
+
+def test_washout_muzlatilgan_ketma_ketlikni_bajaradi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    w = e["washout"]
+    assert w["kill_ok"] is True
+    assert w["state"] == sch.WASHOUT_COMPLETE
+    assert w["elapsed_s"] >= sch.T_W_S          # qattiq pol
+    assert w["quiet_for_s"] >= sch.T_Q_S        # quiescence davomiyligi
+    # Atomik subtree kill lab slice'ga qo'llanadi.
+    assert any("revixlab.slice" in p for p in pf.killed)
+
+
+def test_washout_memory_baseline_oqilmasa_fail_closed(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    pf.memory_current = lambda path: None
+    w = drv._washout(drv.selected[0])
+    assert w["timed_out"] is True
+    assert w["reason"] == "memory_baseline_unreadable"
+
+
+def test_washout_timeout_disposition_washout_timeout_beradi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv._washout = lambda trial: {"state": sch.WASHOUT_TIMEOUT,
+                                  "timed_out": True, "observations": 3}
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    assert e["disposition"] == "washout_timeout"
+
+
+def test_washout_kill_horizon_TUGAGANDAN_KEYIN(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    # Bizning O'Z `cgroup.kill` imiz o'lchov oynasi ICHIDA bo'lsa, u soxta
+    # downtime (`compute_d_sd`) va soxta `down_at_horizon` berardi.
+    assert pf.kill_mono_us
+    assert min(pf.kill_mono_us) >= e["mono_us"]
+    assert e["washout"]["observations"] > 0
+
+
+# ===========================================================================
+# Disposition faktlari (§12)
+# ===========================================================================
+
+
+def test_no_action_arm_horizon_down_bilan_tugaydi_va_censored(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, only=("P0", "no_action"))
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    # `Restart=no` + clean crash -> horizon down holatda tugadi -> §6.2
+    # bo'yicha `censored` (TASHLANMAYDI, KM/log-rank ga kiradi).
+    assert e["facts"]["horizon_ended_down"] is True
+    assert e["disposition"] == "censored"
+
+
+def test_arm_A_restartdan_keyin_active_va_complete(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, only=("P0", "A"))
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    assert e["facts"]["horizon_ended_down"] is False
+    assert e["disposition"] == "complete"
+
+
+def test_guard_hodisasi_trial_oynasida_aborted_guard_beradi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    orig = pf.sut_command
+
+    def with_trip(socket_path, command, timeout_s=0.5):
+        _append_jsonl(pf.guard_log_path,
+                      {"record_type": "guard_event", "mono_us": pf.t,
+                       "reason": "sustained_pressure", "action": "kill_subtree"})
+        return orig(socket_path, command, timeout_s)
+
+    pf.sut_command = with_trip
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    assert e["disposition"] == "aborted_guard"
+    assert e["detail"]["facts"]["guard_events"]
+
+
+def test_guard_hodisasi_oyna_tashqarisida_hisoblanmaydi(tmp_path):
+    log = tmp_path / "g.jsonl"
+    _append_jsonl(str(log), {"record_type": "guard_event", "mono_us": 50,
+                             "reason": "x"})
+    _append_jsonl(str(log), {"record_type": "guard_event", "mono_us": 500,
+                             "reason": "y"})
+    got = D.guard_events_in_window(str(log), 100, 400)
+    assert got == []
+    got2 = D.guard_events_in_window(str(log), 40, 400)
+    assert [g["reason"] for g in got2] == ["x"]
+
+
+def test_biz_yubormagan_sigkill_contaminated_deb_belgilanadi():
+    assert D.unsolicited_kill_seen(
+        {"exec_main_code": 2, "exec_main_status": 9}) is True
+    # Clean crash (exit 1) kontaminatsiya EMAS -- u bizning fault'imiz.
+    assert D.unsolicited_kill_seen(
+        {"exec_main_code": 1, "exec_main_status": 1}) is False
+    assert D.unsolicited_kill_seen({}) is False
+
+
+def test_prober_horizongacha_tirik_qolmasa_censored(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    orig = pf.active_state
+
+    def dead_prober(name):
+        if name == D.PROBER_UNIT:
+            return "failed"
+        return orig(name)
+
+    pf.active_state = dead_prober
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    # Instrumentatsiya yo'qolishi HECH QACHON `failed` emas -> `censored` (§4).
+    assert e["facts"]["probe_gap_exceeded"] is True
+    assert e["disposition"] == "censored"
+
+
+def test_bystander_oom_kill_contaminated_beradi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    calls = {"n": 0}
+
+    def events_fn(path):
+        calls["n"] += 1
+        if D.BYSTANDER_UNIT in path and calls["n"] > 6:
+            return {"oom_kill": 1}
+        return {"oom_kill": 0}
+
+    pf.memory_events = events_fn
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    assert e["facts"]["bystander_lost_contract"] is True
+    assert e["disposition"] == "contaminated"
+
+
+def test_cheklangan_cgroupdagi_oom_kill_kontaminatsiya_EMAS(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    # Global oom_kill o'sdi, lekin lab'ning O'Z o'sishi bilan BIR XIL ->
+    # ya'ni OOM biz cheklagan cgroup'da bo'ldi -> kutilgan natija.
+    seq = {"n": 0}
+
+    def vm():
+        seq["n"] += 1
+        return {"oom_kill": 0 if seq["n"] <= 1 else 1}
+
+    def ev(path):
+        if path.endswith(D.LAB_SLICE):
+            return {"oom_kill": 0 if seq["n"] <= 1 else 1}
+        return {"oom_kill": 0}
+
+    pf.vmstat = vm
+    pf.memory_events = ev
+    drv.run()
+    e = of_type(events(run_dir), "trial_end")[0]
+    assert e["facts"]["foreign_oom_kill"] is False
+
+
+# ===========================================================================
+# CLI -- MUZLATILGAN interfeys
+# ===========================================================================
+
+
+def test_main_imzosi_va_bayroqlari():
+    p = D.build_parser()
+    opts = {a.dest for a in p._actions}
+    for dest in ("run_dir", "seed", "blocks", "only", "dry_run", "json"):
+        assert dest in opts
+    # `revix run` AYNAN shu argv ni quradi.
+    args = p.parse_args(["--run-dir", "/x", "--seed", "0", "--blocks", "0",
+                         "--only", "P0", "--dry-run", "--json"])
+    assert args.seed == 0 and args.blocks == 0
+    assert args.dry_run is True and args.json is True
+
+
+def test_blocks_defaulti_P1_dizayni():
+    args = D.build_parser().parse_args(["--run-dir", "/x", "--seed", "1"])
+    assert args.blocks == sch.P1_BLOCKS == 20
+
+
+def test_main_json_bayrogi_bilan_xatoni_JSON_qaytaradi(tmp_path, capsys):
+    rc = D.main(["--run-dir", str(tmp_path / "r"), "--seed", "1",
+                 "--blocks", "0", "--json"])
+    assert rc == 2
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False
+    assert out["error_type"] == "ScheduleError"
+
+
+def test_main_dry_run_json_siz_ham_ishlaydi(tmp_path, capsys):
+    rc = D.main(["--run-dir", str(tmp_path / "r"), "--seed", "2",
+                 "--blocks", "1", "--only", "P0,A", "--dry-run"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "HECH NARSA ISHGA TUSHIRILMADI" in out
+    assert "T_trial=40.100 s" in out
+
+
+# ===========================================================================
+# Run katalogi tuzilishi
+# ===========================================================================
+
+
+def test_run_katalogi_fayl_nomlari_qatiy():
+    assert D.RUN_FILES == ("events.jsonl", "probe.csv", "psi.csv",
+                           "guard.jsonl", "pressure.jsonl", "run_meta.json")
+
+
+def test_har_oqim_oz_fayliga_yoziladi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    assert drv.events_path.endswith(D.EVENTS_FILE)
+    assert drv.probe_path.endswith(D.PROBE_FILE)
+    assert drv.psi_path.endswith(D.PSI_FILE)
+    assert drv.guard_path.endswith(D.GUARD_FILE)
+    assert drv.pressure_path.endswith(D.PRESSURE_FILE)
+    # Prober va psi_sampler AYNAN shu yo'llarga yozishi uchun argv'da
+    # ko'rsatiladi.
+    assert drv.probe_path in pf.started[D.PROBER_UNIT]["ExecStart"]
+    assert drv.psi_path in pf.started[D.PSI_UNIT]["ExecStart"]
+    assert drv.guard_path in pf.started[D.GUARD_UNIT]["ExecStart"]
+
+
+def test_trial_hodisalari_ketma_ketligi_shartnoma_1_2_boyicha(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    order = [r["record_type"] for r in events(run_dir)
+             if r["record_type"] not in ("run_meta", "unit_state",
+                                         "harness_error")]
+    assert order[0] == "trial_begin"
+    assert order[-1] == "trial_end"
+    for rt in ("env_snapshot", "baseline_window", "fault_inject",
+               "cgroup_events"):
+        assert rt in order, rt
+    assert order.index("baseline_window") < order.index("fault_inject")
+    assert order.index("fault_inject") < order.index("trial_end")
+
+
+# ===========================================================================
+# PSI sirkulyarlik ta'qiqi (CONTRIBUTING.md §1.5)
+# ===========================================================================
+
+
+def test_driver_VR_va_FR_tariflarini_CHAQIRMAYDI():
+    """PSI failure, VR yoki FR ta'rifiga KIRMAYDI (CONTRIBUTING.md §1.5).
+
+    Tekshiruv AST ustida, MATN ustida emas: bu nomlar docstring'larda izoh
+    sifatida uchraydi, va matn qidiruvi o'sha izohlarga yiqilardi -- ya'ni
+    test o'zining hujjatidan qo'rqib yolg'on signal berardi.
+    """
+    import ast
+    src = open(os.path.join(os.path.dirname(D.__file__), "driver.py"),
+               encoding="utf-8").read()
+    tree = ast.parse(src)
+    called = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Name):
+                called.add(f.id)
+            elif isinstance(f, ast.Attribute):
+                called.add(f.attr)
+    for forbidden in ("evaluate_vr", "fr_a", "evaluate_fr_b",
+                      "window_throughput", "reduce_trial", "build_episodes"):
+        assert forbidden not in called, forbidden
+    # `reduce` MODUL DARAJASIDA import QILINMAYDI: ta'riflar o'lchovdan
+    # KEYIN va o'lchovdan TASHQARIDA qolishi kerak.
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.level == 1:
+            imported.add(node.module)
+        elif isinstance(node, ast.Import):
+            imported.update(a.name for a in node.names)
+    assert "reduce" not in imported
+    # `TrialFacts` da PSI ga tegishli fakt YO'Q.
+    assert not any("psi" in f or "stall" in f for f in sch.FACT_FIELDS)
+
+
+def test_washout_tezligi_faqat_2s_dan_katta_oynadan():
+    # <2 s oyna ONIY TEZLIK EMAS: `stall_fraction` None qaytaradi va biz
+    # uni SHUNDAY qoldiramiz (fail-closed -> tinch deb hisoblanmaydi).
+    from revix import cgroup as cg
+    assert cg.stall_fraction(0, 100, 0, 1_000_000) is None
+    assert D.WASHOUT_RATE_WINDOW_US >= 2_000_000
+
+
+# ===========================================================================
+# Oxirgi tekshiruv -- hech qanday qoldiq yo'q
+# ===========================================================================
+
+
+def test_zzz_hech_qanday_selftest_qoldigi_qolmadi():
+    """Bu modul HECH QANDAY unit yaratmaydi -- shuni tasdiqlaydi.
+
+    `user_bus_reason()` bo'lsa tekshiruv o'tkazib yuboriladi, lekin SABABI
+    ko'rinadi: "o'tdi" va "umuman ishlamadi" bir xil ko'rinmasligi kerak.
+    """
+    reason = U.user_bus_reason()
+    if reason is not None:
+        pytest.skip(f"user D-Bus yo'q: {reason}")
+    sd = U.SystemdUser(connect_signals=False)
+    try:
+        assert sd.list_units(SELFTEST_GLOB) == []
+        assert sd.list_units(SELFTEST_SLICE) == []
+        assert U.list_runtime_drop_ins([SELFTEST_GLOB, SELFTEST_SLICE]) == []
+    finally:
+        sd.close()
+
+
+# ===========================================================================
+# Reducer kirishi -- SUT'ga FILTRLANADI (bystander korruptsiyasining qulfi)
+# ===========================================================================
+
+
+def test_reducer_kirishi_bystander_probelarini_chiqaradi():
+    rows = [
+        {"target": "sut", "progress_counter": "10", "mono_us_send": "100",
+         "outcome": "ok", "trial_id": "t0"},
+        {"target": "bystander", "progress_counter": "999",
+         "mono_us_send": "101", "outcome": "ok", "trial_id": "t0"},
+    ]
+    _, probes = D.reducer_input([], rows)
+    assert [p["target"] for p in probes] == ["sut"]
+    # Filtr TEKSHIRILADIGAN: `target` ustuni qatorda QOLADI.
+    assert probes[0]["target"] == "sut"
+    # Nom moslashuvi ham shu yerda bajariladi.
+    assert probes[0]["progress"] == "10"
+
+
+def test_reducer_kirishi_bystander_unit_statelarini_chiqaradi():
+    recs = [
+        {"record_type": "unit_state", "unit": D.SUT_UNIT, "n_restarts": 1},
+        {"record_type": "unit_state", "unit": D.BYSTANDER_UNIT,
+         "n_restarts": 7},
+        {"record_type": "trial_begin", "arm": "A"},
+    ]
+    out, _ = D.reducer_input(recs, [])
+    units = [r.get("unit") for r in out if r["record_type"] == "unit_state"]
+    assert units == [D.SUT_UNIT]
+    # Boshqa record turlari TEGILMAYDI.
+    assert any(r["record_type"] == "trial_begin" for r in out)
+
+
+def test_reducer_kirishi_target_ustuni_bolmagan_qatorni_tashlamaydi():
+    # Ustun yo'q bo'lsa jimgina tashlash MA'LUMOT YO'QOTISH bo'lardi;
+    # faqat ANIQ boshqa target chiqariladi.
+    _, probes = D.reducer_input([], [{"progress_counter": "5"}])
+    assert len(probes) == 1
+
+
+def test_reducer_kirishi_xom_oqimni_OZGARTIRMAYDI(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    raw = events(run_dir)
+    before = len(raw)
+    out, _ = D.reducer_input(raw, [])
+    # Xom ro'yxat joyida o'zgarmaydi: `datasets/` append-only.
+    assert len(raw) == before
+    # Bystander'ning `unit_state` lari XOM oqimda QOLADI -- ular §12 ning
+    # `contaminated` disposition'i uchun DALIL.
+    assert any(r.get("unit") == D.BYSTANDER_UNIT for r in raw
+               if r["record_type"] == "unit_state")
+    assert not any(r.get("unit") == D.BYSTANDER_UNIT for r in out
+                   if r["record_type"] == "unit_state")
+
+
+def test_reducer_kirishi_bilan_R_ref_hisoblanadi():
+    """Filtrsiz bystander progress'i SUT'ning throughput qatoriga tushardi."""
+    from revix import reduce as R
+    rows = [
+        {"target": "sut", "trial_id": "t0", "mono_us_send": "1000000",
+         "outcome": "ok", "progress_counter": "100",
+         "invocation_id_seen": "a"},
+        {"target": "bystander", "trial_id": "t0", "mono_us_send": "1050000",
+         "outcome": "ok", "progress_counter": "900000",
+         "invocation_id_seen": "b"},
+        {"target": "sut", "trial_id": "t0", "mono_us_send": "2000000",
+         "outcome": "ok", "progress_counter": "2100",
+         "invocation_id_seen": "a"},
+    ]
+    _, probes = D.reducer_input([], rows)
+    objs = [R.probe_from_record(p) for p in probes]
+    thr, status, _ = R.window_throughput(objs, 0, 10_000_000)
+    assert status == "ok"
+    # 2000 iteratsiya / 1 s = 2000 iter/s (SUT'ning REAL tezligi).
+    assert thr == pytest.approx(2000.0)
+
+
+def test_action_chiqish_dalilisiz_yozilmaydi(tmp_path):
+    """Invocation o'zgardi, lekin `active` dan chiqish KUZATILMADI.
+
+    Bu "restart" emas, kuzatuvdagi bo'shliq. Dalilsiz `action` yozish
+    `validate.check_actions` ni yiqitardi (action vaqti yangi record'ning
+    vaqtiga teng bo'lib qolardi).
+    """
+    drv, pf, run_dir = make_driver(tmp_path)
+    trial = drv.selected[0]
+    state = drv._sut_state
+    state["invocation"] = "inv_old"
+    payload = {"active_state": "active", "invocation_id": "inv_new",
+               "recv_mono_us": 5_000, "n_restarts": 1,
+               "active_exit_ts_mono_us": None,
+               "exec_main_exit_ts_mono_us": None}
+    drv._note_unit_state(trial, D.SCOPE_SUT, payload)
+    assert of_type(events(run_dir), "action") == []
+    assert "invocation_changed_without_observed_exit" in state["anomalies"]
