@@ -613,3 +613,27 @@ def test_zanjir_Th_olchanmagan_run_ogohlantirish_bilan_otadi(run_dir):
     # reducer summary'si `no_t_up` bo'lmaganlarini: kamida shular.
     assert w.detail["n"] == 6
     assert out.summary["n_window_containment_not_evaluated"] >= 6
+
+
+# --- 6. §20 (v1.8): maxraj va survival a'zoligi disposition'dan KELIB CHIQMAYDI ---
+
+
+def test_zanjir_a_zolik_predikatlardan_hosil_boladi_dispositiondan_emas(base_dir):
+    """Validator reason matnlariga tayanmaydi; bu test iste'molchi tomonidan
+    §20 ni hujjatlaydi: binar maxrajga kirgan trial'da `vr` aniqlangan,
+    survival a'zoligi `enters_survival_set(disposition, vr_reason)` bilan mos,
+    chiqarilgan trial'da nomlangan sabab bor (va `unknown_source` emas)."""
+    run, _ = V.load_run_dir(base_dir)
+    for t in R.reduce_run(run).trials:
+        if t["included_in_primary"]:
+            assert t["vr"] is not None
+            assert t["exclusion_reason"] is None
+        else:
+            assert t["exclusion_reason"]
+            assert "unknown_source" not in t["exclusion_reason"]
+        assert t["included_in_survival"] is R.enters_survival_set(
+            t["disposition"], t["vr_reason"])
+        if not t["included_in_survival"]:
+            assert t["survival_exclusion_reason"]
+        # `censored` bo'lish survival a'zoligini o'z-o'zidan belgilamaydi:
+        # shuning uchun `("complete","censored")` ga tenglik QILINMAYDI.
