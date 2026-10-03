@@ -17,36 +17,28 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 require_not_root
 require_sde
+# TUZATISH (bug #8): guest build o'rtasida qayta ishga tushgan bo'lsa,
+# oldingi qadamning natijasi yo'q yoki yarim -- davom etish JIMGINA
+# buzilgan image berardi (lib/common.sh:require_same_generation).
+require_same_generation
 require_disk "$OUT_DIR" 10
-require_tools mksquashfs
+require_tools mksquashfs unshare
 [ -d "$ROOTFS_DIR" ] || die "rootfs yo'q: $ROOTFS_DIR -- avval 10-build-rootfs.sh"
 [ -f "$OUT_DIR/manifest.txt" ] || die "manifest yo'q -- avval 20-record-manifest.sh"
 
+prepare_build_dirs
+
 SQUASH="$STAGE_DIR/live/filesystem.squashfs"
 SORTFILE="$WORK_DIR/sortfile.txt"
-mkdir -p "$STAGE_DIR/live" "$WORK_DIR"
-
-# --- deterministik fayl tartibi ---------------------------------------------
-#
-# NEGA sort fayli: mksquashfs default'da fayllarni `readdir` tartibida
-# joylaydi, va `readdir` tartibi FAYL TIZIMIGA bog'liq -- ya'ni bir xil
-# rootfs boshqa mashinada boshqa squashfs beradi. `-sort` fayli tartibni
-# OSHKORA qiladi (09-iso-qurilishi.md §3.1 R4).
-#
-# NEGA LC_ALL=C: locale'ga bog'liq sort boshqa mashinada boshqa tartib
-# beradi. Bu determinizmning eng jimgina buziladigan joyi.
-#
-# Format: `<yo'l> <priority>`. Hamma faylga bir xil priority (0) beriladi,
-# demak tartibni FAYL RO'YXATINING O'ZI belgilaydi.
-log "deterministik sort fayli: $SORTFILE"
-( cd "$ROOTFS_DIR" && find . -print | LC_ALL=C sort ) \
-  | sed 's/^\.\///; s/$/ 0/' > "$SORTFILE"
-log "  yo'llar soni: $(wc -l < "$SORTFILE")"
 
 # --- determinizm bayroqlari -------------------------------------------------
 #
-# -all-time / -mkfs-time : barcha mtime va superblock vaqtini
-#   SOURCE_DATE_EPOCH ga qotiradi. Busiz har build boshqa timestamp beradi.
+# SOURCE_DATE_EPOCH (env) : barcha mtime va superblock vaqtini qotiradi.
+#   TUZATISH (bug #10): avval bu `-all-time`/`-mkfs-time` CLI bayroqlari
+#   bilan qilinardi, lekin squashfs-tools 4.7.5 env BILAN BIRGA berilgan
+#   bayroqlarni RAD ETADI ("FATAL ERROR: SOURCE_DATE_EPOCH and command line
+#   options can't be used at the same time"). Endi faqat env ishlatiladi;
+#   o'lchangan tasdiq va semantika farqi iso/lib/ns-squashfs.sh da.
 # -no-exports : NFS export jadvali inode tartibiga bog'liq -> olib tashlanadi.
 # -no-duplicates : dedup natijasi skan tartibiga bog'liq -> o'chiriladi.
 #   NARXI: image kattalashadi. Determinizm foydasiga qabul qilindi.
@@ -61,35 +53,26 @@ if [ "${REVIX_ISO_CONFIRM:-}" != "yes" ]; then
   die "to'xtatildi (fail-closed). Bajarish uchun: REVIX_ISO_CONFIRM=yes"
 fi
 
-rm -f "$SQUASH"
-# shellcheck disable=SC2086  # SQUASHFS_DETERMINISM ataylab bo'linadi
-mksquashfs "$ROOTFS_DIR" "$SQUASH" \
-  -comp "$SQUASHFS_COMP" \
-  -sort "$SORTFILE" \
-  -all-time "$SOURCE_DATE_EPOCH" \
-  -mkfs-time "$SOURCE_DATE_EPOCH" \
-  $SQUASHFS_DETERMINISM \
-  -no-progress
+# TUZATISH (bug #4): sort fayli, mksquashfs, kernel/initrd ko'chirish va
+# bootloader binarlarini chiqarish -- HAMMASI user namespace ICHIDA
+# bajariladi. Sababi va o'lchangan dalillari: iso/lib/ns-squashfs.sh
+# sarlavhasida. Qisqasi: rootfs tashqi uid 100000 ga tegishli va ichida
+# 0700/0600 joylar bor (`/root`, `initrd.img`), demak oddiy foydalanuvchi
+# sifatida qadam ishlamaydi -- va jimgina ishlagandek ko'rinsa, squashfs
+# ichidagi egalik 100000 bo'lib qolardi.
+export ROOTFS_DIR STAGE_DIR WORK_DIR SOURCE_DATE_EPOCH SQUASHFS_COMP SQUASHFS_DETERMINISM
+ns_run bash "$HERE/lib/ns-squashfs.sh"
 
-# --- live-boot uchun kernel va initrd ---------------------------------------
-#
-# NEGA squashfs'dan TASHQARIDA: bootloader ularni ISO9660 dan to'g'ridan-
-# to'g'ri o'qiydi -- squashfs hali mount qilinmagan paytda.
-#
-# NEGA `cp` + aniq nom: live-boot/GRUB konfiguratsiyasi aniq fayl nomini
-# kutadi, va versiyali nom (`vmlinuz-6.x.y-amd64`) har kernel yangilanishida
-# bootloader konfiguratsiyasini buzardi.
-KERNEL_SRC="$(find "$ROOTFS_DIR/boot" -maxdepth 1 -name 'vmlinuz-*' | LC_ALL=C sort | tail -1)"
-INITRD_SRC="$(find "$ROOTFS_DIR/boot" -maxdepth 1 -name 'initrd.img-*' | LC_ALL=C sort | tail -1)"
-[ -n "$KERNEL_SRC" ] || die "rootfs/boot ichida vmlinuz-* topilmadi -> linux-image o'rnatilmagan"
-[ -n "$INITRD_SRC" ] || die "rootfs/boot ichida initrd.img-* topilmadi -> initramfs-tools ishlamagan"
-
-cp -a "$KERNEL_SRC" "$STAGE_DIR/live/vmlinuz"
-cp -a "$INITRD_SRC" "$STAGE_DIR/live/initrd.img"
-touch --date="@$SOURCE_DATE_EPOCH" "$STAGE_DIR/live/vmlinuz" "$STAGE_DIR/live/initrd.img"
-
-log "kernel: $(basename "$KERNEL_SRC")"
-log "initrd: $(basename "$INITRD_SRC")"
+[ -f "$SQUASH" ] || die "squashfs yaratilmadi: $SQUASH"
+[ -f "$STAGE_DIR/live/vmlinuz" ] || die "vmlinuz stage'ga ko'chirilmadi"
+[ -f "$STAGE_DIR/live/initrd.img" ] || die "initrd.img stage'ga ko'chirilmadi"
+# FAIL-CLOSED: namespace ichida yozilgan fayllar TASHQARIDAN o'qilishi
+# SHART, aks holda 40-qadam (xorriso) o'ladi. Oshkora tekshiramiz.
+for f in "$SQUASH" "$STAGE_DIR/live/vmlinuz" "$STAGE_DIR/live/initrd.img"; do
+  [ -r "$f" ] || die "'$f' tashqaridan o'qilmaydi -> 40-qadam ishlamaydi (bug #4 qaytdi)"
+done
+log "sortfile yo'llar soni: $(wc -l < "$SORTFILE")"
+log "kernel/initrd stage'da, tashqaridan o'qiladi"
 # CHEKLOV (09 §3.2 N1): initramfs bit-reproducible EMAS. `update-initramfs`
 # cpio'ni ishga tushgan tizimdagi modul to'plamidan yig'adi va modul tartibi
 # `find` natijasiga bog'liq. SOURCE_DATE_EPOCH gzip header'ini tuzatadi,

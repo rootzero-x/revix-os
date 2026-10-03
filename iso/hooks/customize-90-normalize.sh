@@ -69,7 +69,41 @@ ln -sf /run/systemd/resolve/stub-resolv.conf "$ROOTFS/etc/resolv.conf"
 # daraxtni qayta hash qilishga majbur qiladi, va eng yomoni, index
 # nomuvofiqligi `git status --porcelain` ni NOBO'SH qilishi mumkin ->
 # doctor #18 git_clean WARN. Shuning uchun .git tegilmaydi.
-find "$ROOTFS" -path "$ROOTFS/opt/revix/.git" -prune -o \
+#
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #9): `/proc`, `/sys`, `/dev`,
+# `/run` HAM chiqarib tashlanadi. Eski kod ularni chetlab o'tmagan va hook
+# shunday o'lgan (haqiqiy chiqish):
+#
+#   touch: setting times of '.../rootfs/proc/13981/net/netfilter':
+#          Operation not permitted
+#   touch: setting times of '.../rootfs/proc/14017': No such file or directory
+#   E: setup failed: E: command failed: .../customize-90-normalize.sh "$1"
+#
+# SABAB: `mmdebstrap` customize-hook fazasida rootfs ICHIGA `/proc`, `/sys`,
+# `/dev` ni MOUNT qiladi (chroot'da `useradd`, `systemctl enable`,
+# `update-initramfs` ishlashi uchun -- ya'ni hook-20 aynan shunga tayanadi).
+# Natijada `find "$ROOTFS"` BUTUN JONLI procfs'ni aylanib chiqadi:
+#   (a) procfs fayllarining mtime'ini o'zgartirish PRINSIPIAL ravishda
+#       mumkin emas -> "Operation not permitted";
+#   (b) PID kataloglari yurish davomida PAYDO BO'LADI va YO'QOLADI ->
+#       "No such file or directory" -- ya'ni xato NONDETERMINISTIK,
+#       build har safar boshqa joyda o'lardi.
+#
+# NEGA bu determinizmni BUZMAYDI: `/proc`, `/sys`, `/run` image ichida
+# BO'SH mount point'lar (mmdebstrap ularni build oxirida unmount qiladi),
+# demak ularning mtime'i squashfs'ga TUSHMAYDI.
+# CHEKLOV: `/dev` ichidagi statik device node'lar (mmdebstrap yaratgan bir
+# nechta: null, zero, console, ...) mtime normalizatsiyasidan CHETDA
+# qoladi. Bu `09` §3.2 ning N1-N6 ro'yxatiga qo'shiladigan kichik, lekin
+# OSHKORA nondeterminizm manbai -- va `mksquashfs -all-time` baribir barcha
+# mtime'ni SOURCE_DATE_EPOCH ga qotiradi, demak IMAGE darajasida ta'siri
+# yo'q.
+find "$ROOTFS" \
+     \( -path "$ROOTFS/proc" \
+     -o -path "$ROOTFS/sys" \
+     -o -path "$ROOTFS/dev" \
+     -o -path "$ROOTFS/run" \
+     -o -path "$ROOTFS/opt/revix/.git" \) -prune -o \
      -print0 | xargs -0r touch --no-dereference --date="@$SOURCE_DATE_EPOCH"
 
 echo "[hook-90] tayyor"

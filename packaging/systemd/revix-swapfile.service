@@ -59,11 +59,35 @@ ConditionPathIsReadWrite=/var
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #14). Birinchi boot'da
+# o'lchangan:
+#     [FAILED] Failed to start revix-swapfile.service
+#
+# SABAB: `ConditionPathIsReadWrite=/var` live image'da ROST bo'ladi --
+# `live-boot` squashfs ustiga RAM'da (tmpfs/overlay) yoziladigan qatlam
+# qo'yadi, demak `/var` haqiqatan yoziladi. Lekin u RAM, ya'ni:
+#   (a) 4 GiB swapfile 3 GiB li VM'ning RAM'iga umuman SIG'MAYDI -> `dd`
+#       "No space left on device" bilan o'ladi;
+#   (b) sig'gan taqdirda ham bu RAM'ni RAM'ga swap qilish bo'lardi --
+#       FOYDASIZ va zararli.
+# Unit izohi bu holatni oldindan aytgan edi ("live rootfs overlay RAM'da
+# bo'lsa swapfile FOYDASIZ ... unit o'sha holatda O'ZINI O'CHIRADI"),
+# lekin `ConditionPathIsReadWrite=` uni ANIQLAY OLMAYDI -- u faqat
+# yozilishni tekshiradi, ORTDAGI QURILMANI emas.
+#
+# YECHIM: ExecStartPre birinchi bo'lib `/var` ning ortida HAQIQIY blok
+# qurilma bor-yo'qligini tekshiradi va RAM-backed bo'lsa unit'ni
+# MUVAFFAQIYAT bilan, lekin ISH QILMASDAN tugatadi.
+# NEGA `exit 0`, xato EMAS: swap yo'qligi doctor #11 da WARN, FAIL emas
+# (revix/cli.py:check_swap_headroom -> `if total == 0: ... WARN`), demak
+# bu holat nosozlik emas, KUTILGAN live rejim. Soxta FAILED holat esa
+# `systemctl is-system-running` ni `degraded` qiladi va haqiqiy
+# nosozliklarni ko'mib yuboradi.
 # NEGA fallocate EMAS, dd: fallocate bilan yaratilgan sparse fayl ba'zi
 # fayl tizimlarida `swapon` tomonidan rad etiladi ("has holes").
-ExecStartPre=/bin/sh -c 'test -f /var/swapfile || { dd if=/dev/zero of=/var/swapfile bs=1M count=4096 status=none && chmod 0600 /var/swapfile && mkswap /var/swapfile >/dev/null; }'
-ExecStart=/sbin/swapon /var/swapfile
-ExecStop=/sbin/swapoff /var/swapfile
+ExecStartPre=/bin/sh -c 'case "$(findmnt -no FSTYPE --target /var)" in tmpfs|overlay|ramfs) echo "revix-swapfile: /var RAM-backed ($(findmnt -no FSTYPE --target /var)) -- swapfile O\xe2\x80\x99TKAZIB YUBORILDI (09 live rejim)"; exit 0;; esac; test -f /var/swapfile || { dd if=/dev/zero of=/var/swapfile bs=1M count=4096 status=none && chmod 0600 /var/swapfile && mkswap /var/swapfile >/dev/null; }'
+ExecStart=/bin/sh -c 'case "$(findmnt -no FSTYPE --target /var)" in tmpfs|overlay|ramfs) exit 0;; esac; exec /sbin/swapon /var/swapfile'
+ExecStop=/bin/sh -c 'swapoff /var/swapfile 2>/dev/null || true'
 
 [Install]
 WantedBy=basic.target

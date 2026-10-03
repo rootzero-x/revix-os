@@ -31,8 +31,20 @@ require_not_root
 require_clean_env
 require_sde
 require_ext4_out "$OUT_DIR"
+# TUZATISH (bug #1, #2): mmdebstrap --mode=unshare ning uid map'i
+# foydalanuvchining o'z uid'ini map QILMAYDI, demak (a) build yo'li
+# namespace ichidan yetib boriladigan va (b) build kataloglari ichkaridagi
+# root uchun yozilishi mumkin bo'lishi SHART.
+# lib/common.sh:prepare_build_dirs() / require_userns_path() ga qarang.
+prepare_build_dirs
+# TUZATISH (bug #8): guest build o'rtasida qayta ishga tushishi mumkin
+# (07 §4.4). Generatsiya SHU YERDA qayd etiladi; keyingi har bir qadam
+# uni tekshiradi va o'zgargan bo'lsa RAD ETADI.
+record_generation
+require_userns_path "$OUT_DIR"
+require_userns_path "$WORK_DIR"
 require_disk "$OUT_DIR" "$MIN_FREE_GB"
-require_tools mmdebstrap git
+require_tools mmdebstrap git unshare
 
 # --- manba repo tekshiruvi --------------------------------------------------
 #
@@ -42,6 +54,10 @@ require_tools mmdebstrap git
 # qurilgandan KEYIN emas, HOZIR bilish kerak.
 [ -d "$REPO_SRC/.git" ] || [ -f "$REPO_SRC/.git" ] \
   || die "REPO_SRC '$REPO_SRC' git repozitoriysi emas"
+# TUZATISH (bug #5): clone namespace ICHIDA bajariladi, demak manba repo
+# ham namespace ichidan o'qilishi SHART. Tekshiruv BU YERDA, chunki xato
+# aks holda paket o'rnatish tugagandan keyin, ~20 daqiqa yo'qotib chiqadi.
+require_userns_readable "$REPO_SRC"
 SRC_COMMIT="$(git -C "$REPO_SRC" rev-parse HEAD)"
 SRC_DIRTY="$(test -z "$(git -C "$REPO_SRC" status --porcelain)" && echo no || echo YES)"
 log "manba repo: $REPO_SRC"
@@ -57,8 +73,20 @@ if [ "$SRC_DIRTY" = "YES" ]; then
 fi
 
 # --- ish kataloglari --------------------------------------------------------
-rm -rf "$ROOTFS_DIR"
-mkdir -p "$ROOTFS_DIR" "$WORK_DIR"
+#
+# TUZATISH (bug #2): eski kod `mkdir -p "$ROOTFS_DIR"` qilib uni OSHKORA
+# yaratardi. Natijada katalog egasi tashqi uid 1000 bo'lar, namespace
+# ichidagi root (tashqi 100000) esa unga YOZA OLMAS edi. Shuning uchun:
+#   * ROOTFS_DIR mmdebstrap'ning O'ZI yaratadi (oldindan yaratilmaydi);
+#   * uning ota-katalogi (WORK_DIR) 0777 bo'ladi, ya'ni namespace ichidagi
+#     root yozishi, tashqi foydalanuvchi esa o'qishi mumkin.
+# Eski rootfs'ni o'chirish ham namespace ICHIDA bajariladi: fayllar tashqi
+# uid 100000 ga tegishli va 0700 kataloglar bor -- tashqaridan `rm -rf`
+# "Permission denied" beradi.
+if [ -e "$ROOTFS_DIR" ]; then
+  log "eski rootfs o'chiriladi (namespace ichida): $ROOTFS_DIR"
+  ns_run rm -rf "$ROOTFS_DIR"
+fi
 
 # --- apt pinning: snapshot --------------------------------------------------
 #

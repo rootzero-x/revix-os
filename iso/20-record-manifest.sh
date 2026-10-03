@@ -28,6 +28,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 require_not_root
 require_sde
+# TUZATISH (bug #8): guest build o'rtasida qayta ishga tushgan bo'lsa,
+# oldingi qadamning natijasi yo'q yoki yarim -- davom etish JIMGINA
+# buzilgan image berardi (lib/common.sh:require_same_generation).
+require_same_generation
 [ -d "$ROOTFS_DIR" ] || die "rootfs yo'q: $ROOTFS_DIR -- avval 10-build-rootfs.sh"
 
 MANIFEST="$OUT_DIR/manifest.txt"
