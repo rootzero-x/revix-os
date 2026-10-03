@@ -118,6 +118,36 @@ chroot "$ROOTFS" /usr/bin/systemctl enable revix-swapfile.service
 install -D -m 0644 "${REVIX_PACKAGING_DIR}/systemd/revix-harness.slice" \
   "$ROOTFS/etc/systemd/system/revix-harness.slice"
 
+# --- (4b) dashboard (revix/gui.py) -- boot'da o'zi ishga tushadi ------------
+#
+# NEGA: image headless; foydalanuvchi ISO'ni boot qilgach dashboard'ni
+# qo'lda `--host ... --allow-remote` bilan ishga tushirishni bilishi shart
+# bo'lmasligi kerak. Unit'ning BARCHA qarorlari (system manager, User=revix,
+# default loopback, remote faqat kernel cmdline `revix.dashboard=remote`
+# bilan, o'lchovga ta'siri) unit faylining o'z izohida.
+#
+# NEGA FAIL-CLOSED tekshiruv: unit `User=revix`, `/run/user/1000`,
+# `user@1000.service` ni QATTIQ yozadi (system unit'da `User=` uchun
+# specifier yo'q). MEASURE_USER/MEASURE_UID o'zgartirilsa unit JIMGINA
+# noto'g'ri foydalanuvchining bus'iga ulanardi -- build'ni shu yerda to'xtatamiz.
+if [ "$MEASURE_USER" != "revix" ] || [ "$MEASURE_UID" != "1000" ]; then
+  echo "[hook-20] XATO: revix-dashboard.service User=revix/UID 1000 ni qattiq yozadi," >&2
+  echo "[hook-20]       lekin MEASURE_USER=$MEASURE_USER MEASURE_UID=$MEASURE_UID (fail-closed)" >&2
+  exit 1
+fi
+# NEGA system manager (`/etc/systemd/system`), user manager EMAS: dashboard
+# `user@1000.service` ichida tug'ilsa o'lchov scope'ini ifloslantiradi va
+# `revix-*` glob'i (iso/lib/common.sh REVIX_UNIT_GLOB) uni qoldiq unit deb
+# rad etadi. Asoslash unit faylida (1) bo'lim.
+install -D -m 0644 "${REVIX_PACKAGING_DIR}/systemd/revix-dashboard.service"   "$ROOTFS/etc/systemd/system/revix-dashboard.service"
+chroot "$ROOTFS" /usr/bin/systemctl enable revix-dashboard.service
+# NEGA user manager papkasida NUSXA YO'Q -- tekshiriladi: u bo'lsa
+# `systemctl --user list-units "revix-*"` uni ushlaydi.
+if [ -e "$ROOTFS/etc/systemd/user/revix-dashboard.service" ]; then
+  echo "[hook-20] XATO: revix-dashboard.service user manager papkasida (revix-* glob'iga tushadi)" >&2
+  exit 1
+fi
+
 # --- (5) systemd-oomd ATAYLAB YO'Q ------------------------------------------
 #
 # 09 §4.4 ni to'liq o'qing. Qisqasi: (a) image'da desktop sessiyasi yo'q --

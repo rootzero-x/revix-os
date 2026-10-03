@@ -1,0 +1,182 @@
+# REVIX: dashboard (revix/gui.py) -- boot'da o'zi ishga tushadi.
+#
+# ==========================================================================
+# Bu unit NIMA va NIMA EMAS
+# ==========================================================================
+# `revix/gui.py` -- FAQAT O'QIYDIGAN HTTP server (stdlib `http.server`; POST
+# yo'q, faylga yozmaydi, unit'ga tegmaydi, eksperiment ishga tushirmaydi --
+# gui.py docstring'i, qoida 9). Bu unit uni image boot bo'lganda ishga
+# tushiradi, xolos. U O'LCHOV VOSITASI EMAS va o'lchov natijasi hisoblamaydi.
+#
+# ==========================================================================
+# (1) NEGA SYSTEM MANAGER'DA -- `user@1000.service` ICHIDA EMAS
+# ==========================================================================
+# Butun o'lchov qamrovi `user@1000.service` ostida yashaydi
+# (`revixlab.slice` / `revixmon.slice`; 00-pilot-topologiya.md §1). Dashboard
+# user manager ichida tug'ilsa uch narsa buziladi:
+#   (a) uning RSS'i va CPU'si `user@1000.service` cgroup'ining
+#       `memory.current` / `cpu.stat` / PSI hisobiga TUSHARDI -- ya'ni guard
+#       kuzatadigan va oomd kill authority'ga ega bo'lgan scope'ni ifloslantirardi;
+#   (b) `revix-*` nomi `systemctl --user list-units "revix-*"` ga mos keladi
+#       (iso/lib/common.sh: REVIX_UNIT_GLOB; revix/units.py: UNIT_GLOB), ya'ni
+#       `require_clean()` / `preflight()` / doctor #leftover_state uni
+#       "BLOKLOVCHI qoldiq unit" deb sanab, HAR RUN'NI RAD ETARDI;
+#   (c) harness `systemctl --user` bilan faqat O'ZINING unit'larini ko'rishi
+#       kerak -- dashboard o'sha ro'yxatga kirmasligi shart.
+# System manager'da (`/etc/systemd/system`) unit `system.slice` ostida
+# yashaydi: `user.slice` ning QO'SHNISI, ichi emas. `systemctl --user` uni
+# KO'RMAYDI -- `revix-io-delegate.service` va `revix-swapfile.service` ham
+# aynan shu sababdan `revix-*` nomi bilan doctor #leftover_state'ni
+# buzmaydi (11-iso-qurilish-jurnali.md §6.1: leftover_state PASS). Bu
+# "ko'rinmaydi" da'vosi image'da O'LCHANDI -- iso-dash commit xabariga qarang.
+# Unit `/etc/systemd/user/` yoki `~/.config/systemd/user/` ga NUSXALANMASLIGI
+# kerak: shunda `revix-*` glob'i uni ushlaydi va run rad etiladi (bu to'g'ri
+# fail-closed xatti-harakat -- o'lchov scope'idagi dashboard qoldiq hisoblanadi).
+#
+# ==========================================================================
+# (2) NEGA `User=revix` (root EMAS)
+# ==========================================================================
+# gui.py `cli.status_report()` / `cli.collect_checks()` ni chaqiradi; ular
+# `systemctl --user` va `user@1000.service` cgroup'ini (`/sys/fs/cgroup/
+# user.slice/user-1000.slice/user@1000.service`) o'qiydi -- ya'ni o'lchov
+# foydalanuvchisi ko'zi bilan. Root bilan ishlasa `systemctl --user` boshqa
+# (root'ning) user manager'iga ulanardi va dashboard o'lchov muhitini EMAS,
+# boshqa narsani ko'rsatardi. Qolaversa harness privilegiyasiz ishlashga
+# mo'ljallangan (INSTALLATION.md §1) va read-only server root bo'lmasligi kerak.
+# `XDG_RUNTIME_DIR` / `DBUS_SESSION_BUS_ADDRESS` qo'lda beriladi, chunki
+# bu jarayon logind sessiyasi (`pam_systemd`) ichida tug'ilmaydi.
+# UID 1000 `iso/config.sh: MEASURE_UID` bilan MOS BO'LISHI SHART --
+# `iso/hooks/customize-20-systemd.sh` mos kelmasa build'ni FAIL-CLOSED to'xtatadi.
+#
+# ==========================================================================
+# (3) NEGA DEFAULT BIND = LOOPBACK (127.0.0.1), va nima uchun bu QIMMAT
+# ==========================================================================
+# 11-iso-qurilish-jurnali.md §8.11: image ISHONCHSIZ TARMOQ uchun YAROQSIZ --
+# parolsiz autologin va NOPASSWD sudo. Dashboard esa tirik tizim holatini
+# (cgroup, PSI, unit'lar, journal satrlari, muhit fingerprint'i) ko'rsatadi.
+# Uni default bilan tashqariga ochish "yaroqsiz image + qo'shimcha ma'lumot
+# sizishi" bo'lardi. gui.py ham aynan shu doktrinada yozilgan (`--allow-remote`
+# ATAYLAB talab qilinadi) -- unit shu himoyani chetlab o'tmaydi: default
+# `--allow-remote`SIZ.
+#
+# XARAJAT (yashirilmaydi): image headless va unda brauzer yo'q. VirtualBox
+# NAT port-forward guest'ning NIC manziliga (10.0.2.15) ulanadi, guest
+# loopback'iga EMAS. Demak LOOPBACK default'da dashboard FAQAT guest ichidan
+# (`curl http://127.0.0.1:8787/`) ko'rinadi -- host brauzeridan EMAS.
+#
+# OCHISH (ataylab, bir qadam): kernel buyruq satriga `revix.dashboard=remote`
+# qo'shing (isolinux'da Tab, GRUB'da `e`). Shunda unit
+# `--host 0.0.0.0 --allow-remote` bilan ishga tushadi. NEGA kernel buyruq
+# satri, fayl EMAS: image LIVE -- `/etc` RAM'da, qayta boot'da yo'qoladi;
+# faqat buyruq satri image'ni qayta qurmasdan boot'dan boot'ga o'tadi.
+# NEGA `0.0.0.0`, aniq manzil EMAS: guest NIC manzili oldindan ma'lum emas.
+#
+# CHEKLOV (REMOTE REJIMDA): server guest'ning BARCHA IPv4 interfeyslarida
+# tinglaydi. Autentifikatsiya YO'Q (gui.py'da yo'q), TLS YO'Q. NAT ortida
+# (VirtualBox default) guest tashqaridan yetib bo'lmaydi va faqat siz
+# yaratgan port-forward ochiq; BRIDGED yoki host-only tarmoqda esa shu
+# tarmoqdagi HAR KIM tirik tizim holatini o'qiy oladi. Bu rejim ishonchsiz
+# tarmoqda ISHLATILMASLIGI kerak. gui.py'ning o'zi ham remote bind'da
+# stderr'ga OGOHLIK yozadi, va bu unit ham journal'ga alohida satr yozadi.
+#
+# ==========================================================================
+# (4) NEGA SANDBOX YENGIL -- ataylab
+# ==========================================================================
+# Dashboard `revix doctor` bilan AYNI mashinani ko'rishi shart. Quyidagilar
+# QO'SHILMADI, chunki ular dashboard ko'rsatadigan NARSANI o'zgartirardi:
+#   * PrivateDevices=       -> /dev/kvm ko'rinmaydi (doctor #kvm_access soxta WARN);
+#   * ProtectHome=          -> run katalogi/dataset'lar yashirinadi;
+#   * ProtectControlGroups= -> cgroup RO bo'ladi (doctor #cgroup_write soxta FAIL);
+#   * ProtectKernelTunables -> /sys, /proc/sys RO (governor, PSI o'qishlari);
+#   * PrivateTmp=           -> /tmp'dagi run fayllari ko'rinmaydi.
+# QO'SHILDI: NoNewPrivileges, ProtectSystem=strict (butun fayl tizimi RO,
+# /dev /proc /sys dan tashqari) -- chunki gui.py hech narsaga YOZMAydi, va
+# "dashboard run kerak bo'lgan faylni ushlab turmaydi / o'zgartirmaydi" shu
+# bilan MAJBURIY, va'da emas. PYTHONDONTWRITEBYTECODE=1 va GIT_OPTIONAL_LOCKS=0:
+# repo daraxtiga (`/opt/revix`) hech narsa yozilmasin va `git status`
+# `.git/index.lock` olmasin -- aks holda dashboard doctor #git_clean'ni
+# hisoblayotganda run'ning `git status`i "index.lock" bilan to'qnashishi mumkin.
+# `io` controller'iga TEGILMAYDI (`IOWeight=` yo'q): fault class 6 topologiyasi
+# (revix-io-delegate.service) ga dashboard aralashmasligi kerak.
+#
+# ==========================================================================
+# (5) O'LCHOVGA TA'SIRI -- qoldiq, yashirilmaydi
+# ==========================================================================
+# Bo'sh turganda dashboard `accept()` da bloklangan: davriy ish YO'Q (gui.py'da
+# fon oqimi yo'q). Lekin sahifa ochilganda `status_report()` PSI uchun >= 2 s
+# uxlaydi va `doctor` 18 tekshiruv bajaradi (bittasi throwaway cgroup yaratadi
+# va o'chiradi). Bu CPU/IO bosimi o'lchov o'tayotganda sahifa OCHILSA
+# trial'ga tushadi -- bu gui.py DIZAYNI (u o'zi keshlaydi: 10 s / 60 s) va
+# shu unit uni yo'q qila olmaydi. Qoida: TRIAL DAVOMIDA dashboard'ni OCHMANG,
+# yoki run oldidan `systemctl stop revix-dashboard`. Unit shu kabi ta'sirni
+# kamaytirish uchun faqat Nice/CPUWeight/OOMScoreAdjust beradi:
+#   * Nice=10, CPUWeight=20 -- CPU talash bo'lsa dashboard yutqazadi;
+#   * OOMScoreAdjust=500 -- guest'da kernel global OOM killer YAGONA
+#     o'ldiruvchi (systemd-oomd ataylab yo'q, 09 §4.4); xotira tanqisligida
+#     birinchi o'ladigan SUT/harness EMAS, dashboard bo'ladi;
+#   * MemoryMax / TasksMax -- dashboard o'zi cheksiz o'smaydi.
+# Bu "TA'SIRI YO'Q" degani EMAS -- faqat "kam va dashboard foydasiga emas".
+#
+# ==========================================================================
+# (6) BO'SH HOLAT
+# ==========================================================================
+# Hech qanday run/dataset bo'lmasa ham unit ISHLAYDI: gui.py to'rt "qiymat
+# yo'q" holatini o'zi ko'rsatadi (qoida 2, 6). `datasets/` yo'qligi xato emas.
+# user@1000.service hali tirik bo'lmasa sahifa "manba yo'q" aytadi
+# (fail-closed), jarayon o'lmaydi.
+#
+# GIPOTEZA -> O'LCHOV: bu unit 11-iso-qurilish-jurnali.md image'ida ishlaydi,
+# doctor 0 FAIL saqlanadi va leftover_state PASS bo'lib qoladi. Natijalar
+# iso-dash commit xabarida (TASDIQLANGAN bloki).
+
+[Unit]
+Description=REVIX dashboard (read-only, system scope, outside measurement slices)
+Documentation=file:///opt/revix/revix/gui.py
+Documentation=file:///opt/revix/docs/architecture/11-iso-qurilish-jurnali.md
+# NEGA Wants= + After= (Requires= EMAS): user manager tirik bo'lishi KERAK
+# (aks holda `systemctl --user` ishlamaydi), lekin u qayta ishga tushsa
+# dashboard o'chib qolmasin. Wants= bo'lmasa After= ta'sirsiz: linger bilan
+# user@1000 boot tranzaksiyasidan ALOHIDA enqueue qilinadi va dashboard
+# undan OLDIN ishga tushib, birinchi doctor o'qishini "manba yo'q" bilan
+# keshlab qo'yardi.
+Wants=user@1000.service
+After=user@1000.service systemd-user-sessions.service
+
+# Soxta "restart loop" bo'lmasin: port band bo'lsa (gui.py rc=1) 5 urinishdan
+# keyin unit FAILED bo'lib qoladi va `is-system-running` buni halol ko'rsatadi.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=revix
+WorkingDirectory=/opt/revix
+
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+Environment=GIT_OPTIONAL_LOCKS=0
+
+# Bind tanlovi -- (3) bo'limi. `grep` ning regex'ida `[.]` (systemd `\.` ni
+# escape deb o'qiydi) va `$$` (systemd'da bitta `$`).
+# Port 8787 -- gui.py DEFAULT_PORT; oshkora yoziladi, chunki port-forward
+# shunga bog'lanadi va gui.py default'i o'zgarsa forward jimgina buzilmasin.
+ExecStart=/bin/sh -c 'if grep -qE "(^| )revix[.]dashboard=remote( |$$)" /proc/cmdline; then echo "revix-dashboard: REMOTE rejim (kernel cmdline revix.dashboard=remote): 0.0.0.0:8787 -- autentifikatsiyasiz, ishonchsiz tarmoqda ISHLATMANG" >&2; exec /usr/bin/python3 -m revix.gui --host 0.0.0.0 --port 8787 --allow-remote; else exec /usr/bin/python3 -m revix.gui --host 127.0.0.1 --port 8787; fi'
+
+Restart=on-failure
+RestartSec=5
+
+# O'lchovga aralashmaslik -- (5) bo'limi.
+Nice=10
+CPUWeight=20
+OOMScoreAdjust=500
+MemoryMax=384M
+TasksMax=64
+
+# Yengil sandbox -- (4) bo'limi.
+NoNewPrivileges=yes
+ProtectSystem=strict
+
+[Install]
+WantedBy=multi-user.target
