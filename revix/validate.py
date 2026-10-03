@@ -1546,14 +1546,29 @@ def check_planned_timeline(run: RawRun, probe_period_us: int = P_US) -> list[Fin
     qanoatlantiradi va `run_meta.t_trial_us` bilan izchil.
 
     NEGA: kontrakt §1.3-6: `TrialTimeline` invariantlari MAJBURLANADI --
-    "pressure cap = oomd himoyasi, afzallik emas" (§9.4: hold <= 12 s,
-    hold + ramp_above_threshold <= 15 s). `TrialTimeline` o'z cap'larini
-    parametr sifatida oladi, shuning uchun driver `hold_cap_s=100` bilan
+    "pressure cap = oomd himoyasi, afzallik emas" (§9.4: hold <= HOLD_CAP_S,
+    hold + ramp_above_threshold <= 15 s). `HOLD_CAP_S` qiymati bu yerda
+    QAYTA YOZILMAYDI -- `schedule.py` dan import qilinadi (§17.5 O3: oomd
+    bu muhitda yo'q, hold'ni endi 2-invariant chegaralaydi). `TrialTimeline`
+    o'z cap'larini parametr sifatida oladi, shuning uchun driver `hold_cap_s=100` bilan
     ichki izchil, lekin XAVFLI timeline yozishi mumkin: bu yerda cap'lar
     MUZLATILGAN konstantalarga (`schedule.HOLD_CAP_S`, `GUARD_SUSTAIN_WINDOW_S`)
     nisbatan tekshiriladi, yozilgan qiymatlarga emas. Yetishmayotgan maydon
     jimgina default bo'lmaydi. Kontrakt v1.1 §5.2: T_trial = t_pressure_off
     + w_stab_s + P va t_verify_end_earliest <= T_trial <= total_s.
+
+    CHEKLOV -- 2-invariant REJA qiymatiga qarshi tekshiriladi, O'LCHANGANIGA
+    EMAS: `hold_s + ramp_above_threshold_s <= 15 s` da `ramp_above_threshold_s`
+    `planned_timeline` dagi yozilgan (rejalashtirilgan) qiymat. Validator
+    trial'da HAQIQATAN o'lchangan ramp'ning chegaradan yuqori qismini
+    ko'rmaydi, chunki driver uni yozmaydi. Reja qiymati 0.0 (kalibratsiya:
+    29 epizoddan 29 tasida 0.000 s, docs/architecture/10-pressure-dozalash.md
+    §4.1), demak hold = HOLD_CAP_S da rejada ZAXIRA YO'Q va haqiqiy ramp
+    rejadan oshsa -- guard `aborted_guard` qiladigan trial -- validator buni
+    ushlamaydi. Zaxira QO'SHILMAYDI (to'ldirilgan konstanta yangi taxmin
+    bo'lardi); davosi -- driver har trial uchun o'lchangan ramp'ni yozishi va
+    validatorning uni rejaga qarshi tekshirishi (alohida ish, bu yerda
+    amalga oshirilmagan).
     """
     init = [f.name for f in dataclasses.fields(TrialTimeline)]
     default = TrialTimeline().as_dict()
@@ -1597,7 +1612,9 @@ def check_planned_timeline(run: RawRun, probe_period_us: int = P_US) -> list[Fin
         if tl.hold_cap_s > HOLD_CAP_S or tl.hold_s > HOLD_CAP_S:
             add("planned_timeline_cap_exceeded",
                 f"hold_s={tl.hold_s}/hold_cap_s={tl.hold_cap_s} muzlatilgan "
-                f"cap {HOLD_CAP_S} s dan oshadi (§9.4-1, oomd)", rec)
+                f"cap {HOLD_CAP_S} s dan oshadi (§9.4-1; cap'ni endi oomd emas, "
+                "§9.4 2-invariant va guard `sustain_max` chegaralaydi, "
+                "§17.5 O3)", rec)
         if (tl.guard_sustain_window_s > GUARD_SUSTAIN_WINDOW_S
                 or tl.hold_s + tl.ramp_above_threshold_s > GUARD_SUSTAIN_WINDOW_S):
             add("planned_timeline_cap_exceeded",
