@@ -293,9 +293,11 @@ def test_analysis_json_sxemasi_shartnomada_korsatilgan_kalitlarga_ega():
             s["km"]["by_pressure_band"].values()):
         assert set(curve) >= {"times", "survival", "at_risk",
                               "greenwood_var"}
-    # Shartnoma §2.10 ning `pressure_difference` kalitlari.
+    # Shartnoma §2.10 ning `pressure_difference` kalitlari + §18.2 ning
+    # `orientation` talabi (modul docstring'idagi OCHIQ ro'yxat).
     assert set(s["rmst"]["pressure_difference"]) == {
-        "contrast", "tau", "estimate", "se", "ci_lower", "ci_upper"}
+        "contrast", "orientation", "tau", "estimate", "se",
+        "ci_lower", "ci_upper"}
     assert s["rmst"]["pressure_difference"]["contrast"] == "P0-P2"
     assert s["rmst"]["pressure_difference"]["tau"] == 8_000_000.0
     # §16.5 -- pressure o'qi arm `A` ICHIDA.
@@ -1666,9 +1668,16 @@ def test_16_5_pressure_kontrasti_hisoblanadi_va_schema_gap_tushadi():
     assert obj["survival"]["logrank"]["by_pressure_band"]["contrast"] == "P0-P2"
     # Eski bo'shliq ogohlantirishi ENDI CHIQMAYDI.
     assert "schema_gap_rmst_pressure_contrast" not in warn_codes(obj)
-    # 20% chegarasining mos miqdori §11 da yozilmagan => HUKM berilmaydi.
-    assert "fail_slow_threshold_reference_unspecified" in warn_codes(obj)
+    # §18.2 -- `contrast` yorlig'i ayirish tartibini AYTMAYDI, shuning
+    # uchun tartib OCHIQ maydon sifatida ham chiqadi.
+    assert pd["orientation"] == "P0_minus_P2"
+    # §2.10 ning sloti HUKM BERMAYDI -- hukm `fail_slow` blokida
+    # (`P2 - P0` ustida), chunki §18.2 aynan shu kattalikni nomlaydi.
     assert "fail_slow_supported" not in pd
+    assert "thr" not in pd
+    # Eski "referens aytilmagan" ogohlantirishi ENDI CHIQMAYDI: §18.6
+    # F2 bilan hal qilindi.
+    assert "fail_slow_threshold_reference_unspecified" not in warn_codes(obj)
 
 
 def test_16_5_pressure_kontrasti_faqat_arm_A_ichida():
@@ -1706,6 +1715,356 @@ def test_16_5_arm_kontrasti_pressure_kontrasti_bilan_ALMASHTIRILMAYDI():
     assert r["difference"]["contrast"] == "A-no_action"
     assert r["pressure_difference"]["contrast"] == "P0-P2"
     assert r["difference"]["estimate"] != r["pressure_difference"]["estimate"]
+
+
+# --- 11f. §11 fail-slow limbi: §18.2 tartibi + §18.6/F2 referensi ---------
+#
+# Bu blokning qulflari `PREREGISTRATION.md` §18.2 (ayirish tartibi va
+# yo'nalish), §18.6 (referens tanlovi -- F2) va §2.3 #6 (hisoblanmasa
+# `null` + sabab) ni himoya qiladi. Barcha kutilgan son QO'LDA
+# hisoblangan va har test docstring'ida ko'rsatilgan.
+
+
+def _fs(obj):
+    return obj["survival"]["rmst"]["fail_slow"]
+
+
+def fail_slow_trials(p0_times_s, p2_times_s, **over):
+    """Arm `A` da `P0` va `P2` bandlari, hammasi EVENT (censored emas)."""
+    out = []
+    for i, t in enumerate(p0_times_s):
+        out.append(trial(f"SYNTH-fs-p0-{i}", arm="A", pressure_band="P0",
+                         time_to_vr_us=int(t * SEC), **over))
+    for i, t in enumerate(p2_times_s):
+        out.append(trial(f"SYNTH-fs-p2-{i}", arm="A", pressure_band="P2",
+                         time_to_vr_us=int(t * SEC), **over))
+    return out
+
+
+# `P0` tez / `P2` sekin: KM QO'LDA.
+#   P0 = {0.2, 0.3, 0.3, 0.4} s, hammasi event:
+#     [0, 0.2): S=1          -> 0.200
+#     t=0.2 (n=4, d=1): S=0.75; [0.2, 0.3) -> 0.075
+#     t=0.3 (n=3, d=2): S=0.25; [0.3, 0.4) -> 0.025
+#     t=0.4 (n=1, d=1): S=0;   [0.4, 8]   -> 0
+#     RMST(P0) = 0.300 s
+#   P2 = {4, 5, 5, 6} s, bir xil shakl 20x cho'zilgan:
+#     4 + 1*0.75 + 1*0.25 = 5.000 s  =>  RMST(P2) = 5.000 s
+#   Delta(P2,P0) = 5.000 - 0.300 = +4.700 s
+FS_SLOW_P0 = [0.2, 0.3, 0.3, 0.4]
+FS_SLOW_P2 = [4.0, 5.0, 5.0, 6.0]
+
+# Delta kichik, CI tor: `P2` = `P0` + 0.1 s (bir xil shakl, siljigan).
+#   P0 = {0.4, 0.5, 0.5, 0.6} s -> RMST = 0.4 + 0.1*0.75 + 0.1*0.25 = 0.500 s
+#   P2 = {0.5, 0.6, 0.6, 0.7} s -> RMST = 0.5 + 0.075 + 0.025     = 0.600 s
+#   Delta = +0.100 s
+#   var(RMST) = sum A_i^2 d_i / (n_i (n_i - d_i)), oxirgi had (n_i == d_i)
+#   KM konvensiyasi bo'yicha TASHLANADI:
+#     P0: A_0 = 0.5 - 0.4   = 0.1   -> 0.01   * 1/(4*3) = 8.3333e-4
+#         A_1 = 0.5 - 0.475 = 0.025 -> 6.25e-4 * 2/(3*1) = 4.1667e-4
+#         var_0 = 1.25e-3 s^2
+#     P2 (siljish A_i ni O'ZGARTIRMAYDI): var_2 = 1.25e-3 s^2
+#     SE = sqrt(2.5e-3) = 0.050 s  AYNAN
+#   CI = 0.100 +- 1.959964 * 0.050 = [0.002002, 0.197998] s
+FS_TIGHT_P0 = [0.4, 0.5, 0.5, 0.6]
+FS_TIGHT_P2 = [0.5, 0.6, 0.6, 0.7]
+
+
+def test_18_6_F2_chegarasi_aynan_1_6_sekund_va_16_probe_davri():
+    """`thr = 0.20 x tau = 0.20 x 8 s = 1.6 s = 1_600_000 us`.
+
+    QO'LDA HISOB. `tau = 8 s` (§11, §1 bo'yicha mikrosekundda
+    8_000_000 us), koeffitsiyent `0.20` §11 ning O'Z matnidan
+    ("20% oshish"). `1_600_000 us / P` = `1.6 s / 0.1 s` = **16 probe
+    davri** -- §18.4 ning taqqoslashi AYNAN shu.
+    """
+    assert A.TAU_RMST_US == 8_000_000.0
+    assert A.FAIL_SLOW_THR_COEFFICIENT == 0.20
+    assert A.fail_slow_threshold_us() == 1_600_000.0
+    # P = 100 ms = 100_000 us (§2). 16 probe davri.
+    assert A.fail_slow_threshold_us() / 100_000.0 == pytest.approx(16.0)
+    # Chiqishda ham AYNAN shu raqam.
+    fs = _fs(build(fail_slow_trials(FS_SLOW_P0, FS_SLOW_P2)))
+    assert fs["thr"] == 1_600_000.0
+    assert fs["thr_reference"] == "tau_F2"
+    assert fs["thr_coefficient"] == 0.20
+    assert fs["thr_basis"] == "0.20 * tau"
+    assert fs["tau"] == 8_000_000.0
+
+
+def test_18_6_chegara_tau_dan_HOSILA_tau_siljisa_thr_ham_siljiydi(monkeypatch):
+    """`thr` `tau` dan HOSILA, bare literal EMAS.
+
+    §18.6 ning ochiq bog'liqligi: §17.5 ning O1 varianti
+    `W_stab_pilot` ni, demak `tau` ni ham siljitishi mumkin edi, va
+    shunda F2 ning chegarasi ham siljishi SHART. (§17.5 aslida O3 bilan
+    hal qilindi va `tau` 8 s da qoldi -- lekin qulf bu faktga
+    TAYANMAYDI.)
+
+    QO'LDA HISOB. `tau := 4_000_000 us` => `thr = 0.20 x 4_000_000 =
+    800_000 us`. `tau := 10_000_000 us` => `thr = 2_000_000 us`.
+    """
+    monkeypatch.setattr(A, "TAU_RMST_US", 4_000_000.0)
+    assert A.fail_slow_threshold_us() == 800_000.0
+    fs = _fs(build(fail_slow_trials(FS_TIGHT_P0, FS_TIGHT_P2)))
+    assert fs["tau"] == 4_000_000.0
+    assert fs["thr"] == 800_000.0
+
+    monkeypatch.setattr(A, "TAU_RMST_US", 10_000_000.0)
+    assert A.fail_slow_threshold_us() == 2_000_000.0
+    fs = _fs(build(fail_slow_trials(FS_TIGHT_P0, FS_TIGHT_P2)))
+    assert fs["thr"] == 2_000_000.0
+    # Invariant: chiqishdagi `thr` HAR DOIM chiqishdagi `tau` ning 20% i.
+    assert fs["thr"] == pytest.approx(0.20 * fs["tau"])
+
+
+def test_18_6_chegara_modul_konstantasi_sifatida_MUZLATILMAGAN():
+    """`1.6 s` modul darajasida konstanta bo'lmasligi SHART.
+
+    Agar `FAIL_SLOW_THR_US = 1_600_000.0` kabi konstanta bo'lsa, u
+    `TAU_RMST_US` dan AJRALIB ketardi: `tau` siljiganda chegara
+    siljimasdan qolar, va buni hech narsa ushlamas edi. Shuning uchun
+    qulf STRUKTURAVIY: modulda qiymati `1_600_000.0` ga teng birorta
+    son konstantasi YO'Q, va chegara FUNKSIYA orqali beriladi.
+    """
+    frozen = {k: v for k, v in vars(A).items()
+              if isinstance(v, (int, float)) and not isinstance(v, bool)
+              and float(v) == 1_600_000.0}
+    assert frozen == {}, frozen
+    assert callable(A.fail_slow_threshold_us)
+
+
+def test_18_6_chegara_hold_cap_s_ga_BOGLANMAGAN():
+    """`thr` faqat `tau` ga bog'liq -- `hold_cap_s` ga EMAS.
+
+    §17.5 O3 `hold_cap_s` ni 12.0 dan 13.0 s ga ko'tardi
+    (`revix/schedule.py`). Agar `thr` qandaydir yo'l bilan shu
+    konstantaga bog'lansa, bir qarorning raqami ikkinchisini jimgina
+    siljitardi. Qulf: bu modul `schedule.py` dan HECH NARSA import
+    qilmaydi.
+    """
+    src = pathlib.Path(A.__file__).read_text(encoding="utf-8")
+    assert "from .schedule import" not in src
+    assert "from revix.schedule import" not in src
+    assert "import schedule" not in src
+    assert "HOLD_CAP" not in src
+
+
+def test_18_2_ayirish_tartibi_P2_minus_P0_va_Delta_MUSBAT():
+    """§18.2 -- baholanadigan kattalik `RMST(P2) - RMST(P0)`, teskarisi EMAS.
+
+    QO'LDA HISOB (fixture izohiga qarang): `RMST(P0) = 0.300 s`,
+    `RMST(P2) = 5.000 s`, demak `Delta = +4.700 s = +4_700_000 us`.
+    Fail-slow ostida pressure recovery'ni SEKINLASHTIRADI, demak
+    `Delta > 0`; §2.10 ning `pressure_difference` sloti esa `P0 - P2`
+    ni beradi, ya'ni AYNAN TESKARI belgi.
+    """
+    obj = build(fail_slow_trials(FS_SLOW_P0, FS_SLOW_P2))
+    fs = _fs(obj)
+    pd = obj["survival"]["rmst"]["pressure_difference"]
+    assert fs["contrast"] == "P2-P0"
+    assert fs["orientation"] == "P2_minus_P0"
+    assert obj["survival"]["rmst"]["by_pressure_band"]["P0"]["estimate"] \
+        == pytest.approx(0.300 * SEC)
+    assert obj["survival"]["rmst"]["by_pressure_band"]["P2"]["estimate"] \
+        == pytest.approx(5.000 * SEC)
+    assert fs["delta"] == pytest.approx(4.700 * SEC)
+    # Ikki maydon BIR-BIRINING TESKARISI, va ikkalasi ham tartibini AYTADI.
+    assert pd["orientation"] == "P0_minus_P2"
+    assert fs["delta"] == pytest.approx(-pd["estimate"])
+    # §16.5 -- qamrov arm `A` ICHIDA, ochiq yozilgan.
+    assert "within arm A" in fs["scope"]
+
+
+def test_18_2_taqqoslash_CI_ning_YUQORI_chegarasini_ishlatadi(monkeypatch):
+    """Mezon `CI95_upper[Delta] < thr`, `CI95_lower` EMAS.
+
+    QO'LDA HISOB (tor fixture): `Delta = 0.100 s`, `SE = 0.050 s`,
+    `CI = [0.002002, 0.197998] s`. Chegarani IKKI chegaraning ORASIGA
+    qo'yamiz: `thr = 0.100 s`. U holda
+      * to'g'ri qoida: `CI_upper (0.198) < 0.100` => YOLG'ON
+        => fail-slow QO'LLAB-QUVVATLANADI (`True`);
+      * pastki chegarani ishlatgan qoida: `CI_lower (0.002) < 0.100`
+        => HAQIQAT => `False` bo'lardi.
+    Demak `True` AYNAN yuqori chegara ishlatilganini ko'rsatadi.
+    """
+    trials = fail_slow_trials(FS_TIGHT_P0, FS_TIGHT_P2)
+    fs = _fs(build(trials))
+    assert fs["delta"] == pytest.approx(0.100 * SEC)
+    assert fs["se"] == pytest.approx(0.050 * SEC)
+    assert fs["ci_lower"] == pytest.approx(2001.80, rel=1e-4)
+    assert fs["ci_upper"] == pytest.approx(197998.20, rel=1e-4)
+    lo, hi = fs["ci_lower"], fs["ci_upper"]
+
+    thr_between = 0.100 * SEC
+    assert lo < thr_between < hi
+    monkeypatch.setattr(A, "fail_slow_threshold_us",
+                        lambda tau_us=None: thr_between)
+    assert _fs(build(trials))["fail_slow_supported"] is True
+
+
+def test_18_2_qatiy_tengsizlik_chegaraga_TENG_bolsa_falsifikatsiya_qilmaydi(
+        monkeypatch):
+    """`CI95_upper == thr` falsifikatsiya QILMAYDI (§11 konvensiyasi).
+
+    §11 ning kuchli shakl limbi "yuqori chegarasi < 0.15" deb QAT'IY
+    tengsizlik yozadi va `analyze.py` buni allaqachon shunday
+    bajaradi; fail-slow limbi ham §18.2 da `<` bilan yozilgan. Qulf:
+    `thr` AYNAN `CI_upper` ga teng bo'lsa HUKM `True`
+    (qo'llab-quvvatlanadi), `thr` bir mikrosekund KATTA bo'lsa `False`.
+    """
+    trials = fail_slow_trials(FS_TIGHT_P0, FS_TIGHT_P2)
+    hi = _fs(build(trials))["ci_upper"]
+
+    monkeypatch.setattr(A, "fail_slow_threshold_us", lambda tau_us=None: hi)
+    assert _fs(build(trials))["fail_slow_supported"] is True
+
+    monkeypatch.setattr(A, "fail_slow_threshold_us",
+                        lambda tau_us=None: hi + 1.0)
+    assert _fs(build(trials))["fail_slow_supported"] is False
+
+
+def test_18_2_ayirish_tartibi_STRUKTURAVIY_qulf_bilan_himoyalangan(monkeypatch):
+    """`_rmst_pair(hi, lo)` ni `(lo, hi)` ga almashtirish JIMGINA o'tmaydi.
+
+    Belgining teskari bo'lishi "oshish" ni "kamayish" ga aylantirardi va
+    hukmni teskari qilardi. Shuning uchun tartib hisoblangandan KEYIN
+    tekshiriladi va mos kelmasa `AnalysisError`.
+    """
+    monkeypatch.setattr(A, "FAIL_SLOW_ORIENTATION", "P0_minus_P2")
+    with pytest.raises(A.AnalysisError, match="ayirish tartibi"):
+        build(fail_slow_trials(FS_TIGHT_P0, FS_TIGHT_P2))
+
+
+def test_18_6_hukm_HECH_QACHON_kirishlarsiz_chiqmaydi():
+    """HUKM va UNI YARATGAN BARCHA KIRISH bitta obyektda.
+
+    `analysis.json` ni o'qigan odam `true`/`false` ni `delta`, `CI`,
+    `thr` va `thr_reference` ni ko'rmasdan O'QIMASLIGI kerak -- aks holda
+    raqam qaysi konvensiyadan kelganini aniqlab bo'lmaydi.
+    """
+    fs = _fs(build(fail_slow_trials(FS_SLOW_P0, FS_SLOW_P2)))
+    for key in ("limb", "preregistration_section", "decision", "rule",
+                "contrast", "orientation", "scope", "tau", "thr",
+                "thr_reference", "thr_coefficient", "thr_basis",
+                "delta", "se", "ci_lower", "ci_upper", "ci_level",
+                "ci_method", "fail_slow_supported", "bias"):
+        assert key in fs, key
+    assert fs["ci_level"] == pytest.approx(0.95)
+    assert fs["preregistration_section"] == "11"
+    assert "F2" in fs["decision"]
+    # Mezon satri mezonning O'ZINI yozadi -- yo'nalish bilan.
+    assert fs["rule"] == (
+        "CI95_upper[RMST_A(P2, tau) - RMST_A(P0, tau)] < thr "
+        "=> fail-slow form NOT supported "
+        "(strict: equality does NOT falsify)")
+    # QO'LDA HISOB: CI_upper = 5.396 s > thr = 1.6 s => QO'LLAB-QUVVATLANADI.
+    assert fs["ci_upper"] == pytest.approx(5.396408 * SEC, rel=1e-5)
+    assert fs["fail_slow_supported"] is True
+
+
+def test_18_6_tor_CI_da_fail_slow_QOLLAB_QUVVATLANMAYDI():
+    """QO'LDA HISOB: `CI_upper = 0.198 s < thr = 1.6 s` => `False`.
+
+    Bu F2 ning INKOR shoxi: F1 da (`thr = 0.20 x RMST(P0) = 0.20 x
+    0.500 s = 0.100 s`) xuddi shu ma'lumot `0.198 < 0.100` => `False`
+    BERMAS edi, ya'ni limb fail-slow'ni inkor QILA OLMAS edi. F2 da
+    inkor shoxi ERISHILADI -- va aynan shu F2 ning anti-konservativ
+    biasidir.
+    """
+    fs = _fs(build(fail_slow_trials(FS_TIGHT_P0, FS_TIGHT_P2)))
+    assert fs["ci_upper"] == pytest.approx(197998.20, rel=1e-4)
+    assert fs["thr"] == 1_600_000.0
+    assert fs["fail_slow_supported"] is False
+    # F1 ning chegarasi shu fixture'da: 0.20 * RMST(P0) = 0.20 * 0.5 s.
+    assert 0.20 * 0.500 * SEC == pytest.approx(100_000.0)
+    assert fs["ci_upper"] > 100_000.0      # F1 da inkor SHOXI YOPIQ
+
+
+def test_2_3_6_Delta_hisoblanmasa_null_va_SABAB_default_QOYILMAYDI():
+    """§2.3 #6 -- `P2` bandi bo'sh: HUKM `null`, sabab `warnings` da.
+
+    Fixture: arm `A` da faqat `P0` bor. `false` deb berish "fail-slow
+    qo'llab-quvvatlanmaydi" degan O'LCHANMAGAN da'vo bo'lardi, `true`
+    esa teskarisi. Kirish maydonlari ham `null` -- TAXMIN yo'q.
+    """
+    obj = build(fail_slow_trials(FS_TIGHT_P0, []))
+    fs = _fs(obj)
+    assert fs["fail_slow_supported"] is None
+    assert fs["delta"] is None
+    assert fs["ci_lower"] is None and fs["ci_upper"] is None
+    assert fs["se"] is None
+    # Chegara va referens BARIBIR beriladi: ular ma'lumotga bog'liq emas.
+    assert fs["thr"] == 1_600_000.0
+    assert fs["thr_reference"] == "tau_F2"
+    codes = warn_codes(obj)
+    assert "fail_slow_delta_not_computable" in codes
+    assert "fail_slow_not_evaluable" in codes
+    msgs = [w["message"] for w in obj["warnings"]
+            if w["code"] == "fail_slow_not_evaluable"]
+    assert any("BAHOLANMAYDI" in m for m in msgs)
+
+
+def test_2_3_6_hammasi_censored_bolsa_hukm_null_kirishlar_KORINADI():
+    """Degenerat CI (SE = 0): HUKM `null`, kirishlar ko'rinishda qoladi.
+
+    QO'LDA HISOB. Ikki bandda ham birorta event yo'q (hammasi censored),
+    demak KM `S(t) = 1` va `RMST = tau = 8 s` IKKI guruhda ham, demak
+    `Delta = 0` va dispersiyasi NOL, `CI = [0, 0]`. Bu ma'lumotdan
+    kelgan nol EMAS -- arifmetikadan kelgan nol (§21.1(b) aynan shu
+    tuzoqni ko'rsatadi: `CI_upper = 0 < 1.6` HAR QANDAY ma'lumot uchun
+    "qo'llab-quvvatlanmaydi" deb e'lon qilardi). Shuning uchun hukm
+    BERILMAYDI.
+    """
+    obj = build(fail_slow_trials([1.0, 2.0], [3.0, 4.0],
+                                 disposition="censored", vr=None,
+                                 time_to_vr_censored=True))
+    fs = _fs(obj)
+    assert fs["delta"] == pytest.approx(0.0)
+    assert fs["se"] == pytest.approx(0.0)
+    # Kirishlar YASHIRILMAYDI -- o'quvchi nolni O'ZI ko'radi.
+    assert fs["ci_lower"] == pytest.approx(0.0)
+    assert fs["ci_upper"] == pytest.approx(0.0)
+    assert fs["fail_slow_supported"] is None
+    codes = warn_codes(obj)
+    assert "fail_slow_delta_degenerate" in codes
+    assert "fail_slow_not_evaluable" in codes
+
+
+def test_18_6_F2_biasi_CHIQISHDA_yumshatilmagan_holda_yoziladi():
+    """§18.7 ning talabi: bias KO'RINMAS bo'lmasligi SHART.
+
+    F2 fail-slow gipotezasiga nisbatan ANTI-KONSERVATIV, va bu
+    `analysis.json` ning O'ZIDA yozilishi kerak -- `analyze.py` ni
+    ochmasdan. O'lchangan asos ham shu yerda: §18.6 ning yetarlilik
+    chegarasi `5 x P = 0.5 s`, o'lchangan F1 chegarasi `P0` da
+    `0.0600 s = 0.60 x P` (8.3x past).
+    """
+    obj = build(fail_slow_trials(FS_SLOW_P0, FS_SLOW_P2))
+    bias = _fs(obj)["bias"]
+    assert "ANTI-CONSERVATIVE" in bias
+    assert "easier to conclude" in bias
+    # O'LCHANGAN raqamlar, uchala band (10-pressure-dozalash.md §7.5).
+    assert "0.0600 s = 0.60 x P" in bias
+    assert "0.1700 s = 1.70 x P" in bias
+    assert "0.2050 s = 2.05 x P" in bias
+    assert "5 x P = 0.5 s" in bias
+    assert "10-pressure-dozalash.md §7.5" in bias
+    assert "is not a test" in bias
+    # Konvensiya HAR RUN'da `warnings` da ham qayd etiladi.
+    codes = warn_codes(obj)
+    assert "fail_slow_threshold_reference_f2" in codes
+    note = [w["message"] for w in obj["warnings"]
+            if w["code"] == "fail_slow_threshold_reference_f2"][0]
+    assert "ANTI-KONSERVATIV" in note
+    assert "v1.11" in note
+
+
+def test_18_6_chegara_funksiyasi_yaroqsiz_tau_ni_RAD_ETADI():
+    """`tau <= 0` yoki chekli bo'lmasa -- `AnalysisError`, jimgina nol EMAS."""
+    for bad in (0.0, -1.0, float("inf"), float("nan")):
+        with pytest.raises(A.AnalysisError, match="tau"):
+            A.fail_slow_threshold_us(bad)
 
 
 # --- 12. downtime: UCHALASI HAM har doim ----------------------------------
