@@ -1112,3 +1112,247 @@ kalibratsiyasi, `revix driver` ning ishga tushirilishi, `revix validate`.
 > o'tdi. Bu image o'lchov o'tkazish uchun TAYYOR EMAS: unda timing
 > haqiqiy emas (NEM emulyatsiyasi), guard kalibratsiyasi qilinmagan, va
 > adaptive recovery engine umuman mavjud emas.**
+
+---
+
+## 10. Dashboard o'z-o'zidan ishga tushadi va `curl` image'da (agent/iso-dash)
+
+Bu bo'lim §1–§9 dagi image'ga **ikkita amaliy kamchilikni** yopadi.
+Orchestrator ularni ishlayotgan VM'da o'lchagan edi: (1) image'da `curl`
+yo'q, demak dashboard guest ichidan sinalmaydi; (2) `revix/gui.py`
+`/opt/revix/` da bor, lekin uni foydalanuvchi qo'lda
+`--host 0.0.0.0 --allow-remote` bilan ishga tushirishi kerak. §0 va §8 dagi
+barcha cheklovlar **o'zgarmaydi**.
+
+### 10.1 Nima o'zgardi (uch fayl, boshqasiga tegilmadi)
+
+| Fayl | O'zgarish |
+|---|---|
+| `iso/config.sh` | `PKGS_TOOLS` ga `curl` |
+| `packaging/systemd/revix-dashboard.service` | **yangi** system unit |
+| `iso/hooks/customize-20-systemd.sh` | unit'ni o'rnatadi va yoqadi; `MEASURE_USER`/`MEASURE_UID` unit'dagi qattiq `revix`/`1000` ga mos kelmasa build'ni **fail-closed** to'xtatadi |
+
+**Qarorlar** (asoslari unit faylining o'z izohida, (1)–(6) bo'limlar):
+
+- **System manager, `user@1000.service` ichida EMAS.** O'lchov qamrovi
+  `user@1000.service` ostida; dashboard u yerda tug'ilsa uning RSS/CPU'si
+  guard kuzatadigan scope'ga tushardi, va `revix-*` nomi
+  `iso/lib/common.sh: REVIX_UNIT_GLOB` (`systemctl --user list-units
+  "revix-*"`) ga mos kelib `require_clean_env`/doctor `leftover_state`
+  uni **bloklovchi qoldiq** deb sanardi. System manager'da unit
+  `system.slice` ostida, `systemctl --user` uni ko'rmaydi (xuddi
+  `revix-io-delegate.service` va `revix-swapfile.service` kabi).
+- **`User=revix`**: `cli.status_report()`/`collect_checks()` o'lchov
+  foydalanuvchisining `systemctl --user` va `user@1000.service` cgroup'ini
+  o'qiydi. `XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS` qo'lda beriladi.
+- **Default bind = `127.0.0.1`** (`--allow-remote` **siz**). `gui.py`
+  himoyasi chetlab o'tilmadi va `gui.py` o'zgartirilmadi.
+- **Remote faqat kernel buyruq satri bilan**: `revix.dashboard=remote` ->
+  `--host 0.0.0.0 --port 8787 --allow-remote`. Fayl emas, chunki image
+  live (`/etc` RAM'da, qayta boot'da yo'qoladi).
+- **Yengil sandbox**: `NoNewPrivileges`, `ProtectSystem=strict`,
+  `PYTHONDONTWRITEBYTECODE=1`, `GIT_OPTIONAL_LOCKS=0`. `PrivateDevices`,
+  `ProtectHome`, `ProtectControlGroups`, `PrivateTmp` **ataylab yo'q**:
+  ular dashboard ko'rsatadigan doctor natijasini o'zgartirardi
+  (soxta `kvm_access`/`cgroup_write`). `io` controller'iga tegilmadi.
+- **O'lchovga yon ta'siri minimal**: `Nice=10`, `CPUWeight=20`,
+  `OOMScoreAdjust=500`, `MemoryMax=384M`, `TasksMax=64`.
+
+### 10.2 Build — o'lchangan
+
+**FAKT.** Manba: `main` `ea79af9` + shu uch fayl = build commit
+`e409858f5b7d1e2ff4a04896ac8f124e195ca3f5` (klon `/var/tmp/revix-src-dash`,
+`core.fileMode=false`, `git status --porcelain` bo'sh). Barcha qadamlar
+bitta `boot_id` (`4ea15279-acba-44ff-a533-6d7cd11924e5`) ichida; WSL guest
+oldingi sessiya va shu sessiya orasida qayta ishga tushgan edi
+(`fac1548b...` -> `4ea15279...`), shuning uchun holat qayta tekshirildi.
+
+```
+10-build-rootfs.sh    RC=0  2m33s   (apt kesh issiq; §3 da 14m37s edi)
+20-record-manifest.sh RC=0  0m00s
+30-make-squashfs.sh   RC=0  4m19s
+40-make-iso.sh        RC=0  0m02s
+50-fingerprint.sh     RC=0  0m02s
+JAMI                        6m56s
+```
+
+```
+iso        : revix-appliance-trixie-20261001T000000Z.iso
+hajm       : 566 231 040 bayt (540 MiB)
+sha256     : cc49ca27574132a27c79e835b00b674be154cc636fa6e334b33d2526db239763
+manifest   : 61a8db3ac174a2a686c7898004c3d04875c97420abdac9200279c2dc5692933d
+fingerprint: c0b769b94ee2ae1ae23e92fa0f9c16c3307ba1efd4ba6573f66fec21ae683ac1
+git_commit : e409858f5b7d1e2ff4a04896ac8f124e195ca3f5   git_dirty_at_build: false
+paket soni : 354
+```
+
+Oldingi image'ning manifest'i bilan farq (`diff`, tashlab yuborilgan
+birinchi build'da o'lchangan; yakuniy build'ning manifest sha256'i u bilan
+bir xil): **aniq ikki satr** — `curl 8.14.1-2+deb13u5` va
+`libcurl4t64 8.14.1-2+deb13u5`. Paket soni 352 -> 354. Manifest sha256
+o'zgardi (`05c92b0c...` -> `61a8db3a...`), ISO sha256 ham (`ccb08016...` ->
+`cc49ca27...`) — bu kutilgan.
+
+**TALQIN.** Image `git_commit` maydoniga `e409858` ni yozadi. Yakuniy
+commit shu uch fayl bilan **bir xil** va shu jurnal bo'limini qo'shadi
+(parent esa `main` ning keyingi uchi `9bdb6ae`; `e409858` dan keyin `main`
+ga boshqa o'zgarishlar kirgan): `git diff e409858 <yakuniy> -- iso packaging`
+**bo'sh** bo'lishi kerak (tekshirildi: 0 farq). Image va yakuniy commit
+hash'i shu sababli **farq qiladi**, va image `main` ning `9bdb6ae` dagi
+keyingi o'zgarishlarini (masalan `PREREGISTRATION.md` tuzatishlari) o'z ichiga
+**olmaydi**.
+
+**CHEKLOV.** Bundan oldingi, tashlab yuborilgan build (`8b80d50`, `main`
+yangilanishidan oldin; sha256 `30651641...`) ham xuddi shu uch fayl bilan
+boot bo'ldi va dashboard birinchi urinishda javob berdi; u hisobotga
+**kirmaydi**, quyidagi barcha raqamlar **yakuniy** image'dan.
+
+### 10.3 Boot va dashboard — o'lchangan (VirtualBox, 4096 MB, 2 vCPU, NEM)
+
+**FAKT.** O'z VM'im `revix-os-dash` (`revix-os` va `snowden` ga tegilmadi;
+`revix-os-dash` keyin o'chirildi). Birinchi urinish 4096 MB da Windows
+`commit limit` (xato 1455) bilan yiqildi, chunki o'sha paytda `revix-os`
+4 GiB ushlab turgan edi; `revix-os` to'xtagach 4096 MB boshlandi.
+
+```
+$ systemctl is-system-running            -> running   (ikkala boot'da)
+$ systemctl --failed                     -> (bo'sh)
+$ systemctl is-active revix-dashboard    -> active   ; is-enabled -> enabled
+ControlGroup=/system.slice/revix-dashboard.service
+User=revix  Nice=10  CPUWeight=20  OOMScoreAdjust=500  MemoryMax=402653184
+TasksMax=64  NoNewPrivileges=yes  ProtectSystem=strict  NRestarts=0
+$ ss -ltnH | grep 8787  -> LISTEN 127.0.0.1:8787          (default)
+RSS ~30.9 MB; MemoryPeak 41 275 392 B (barcha sahifalar ochilgandan keyin)
+```
+
+`curl` guest **ichidan** (yangi paket):
+
+```
+$ curl --version | head -1   -> curl 8.14.1 (x86_64-pc-linux-gnu) libcurl/8.14.1 OpenSSL/3.5.7 ...
+$ curl -sS -o /tmp/d.html -w "HTTP %{http_code} %{size_download} bytes\n" http://127.0.0.1:8787/
+HTTP 200 8457 bytes
+<title>REVIX &mdash; Boshqaruv paneli</title>
+/system-health 200 14393B  /services 200  /resources 200  /logs 200
+/settings 200  /about 200  /nonexistent 404   POST / -> 501 (faqat o'qish)
+birinchi so'rov 4.3 s (PSI >= 2 s + doctor), keyingilari ~2 ms (kesh)
+```
+
+**FAKT — loopback default HOST'dan ko'rinmaydi** (kutilgan):
+
+```
+PS> Invoke-WebRequest http://127.0.0.1:8788/      (NAT forward 8788 -> guest 8787)
+... The underlying connection was closed
+```
+
+**FAKT — remote rejim, ikki yo'l bilan:** (a) `/proc/cmdline` ustiga
+`mount --bind` (unit'ning HAQIQIY `ExecStart`'i, qayta boot'siz);
+(b) **haqiqiy boot**: `controlvm reset`, serial'da ISOLINUX menyusida
+`Tab` va ` revix.dashboard=remote`. Ikkinchisida:
+
+```
+$ cat /proc/cmdline  -> BOOT_IMAGE=/live/vmlinuz boot=live components quiet
+     console=ttyS0,115200n8 systemd.unified_cgroup_hierarchy=1 psi=1
+     initrd=/live/initrd.img revix.dashboard=remote
+$ ss -ltnH | grep 8787 -> LISTEN 0.0.0.0:8787
+journal: revix-dashboard: REMOTE rejim (kernel cmdline revix.dashboard=remote):
+         0.0.0.0:8787 -- autentifikatsiyasiz, ishonchsiz tarmoqda ISHLATMANG
+         OGOHLIK: loopback BO'LMAGAN manzil -- tirik tizim holati tashqariga ochilgan
+PS> Invoke-WebRequest http://127.0.0.1:8788/  -> HTTP 200, 8410 bayt,
+    <title>REVIX &mdash; Boshqaruv paneli</title>      (Windows -> NAT -> guest)
+$ systemctl is-system-running -> running
+```
+
+### 10.4 Qabul mezoni — `revix doctor` va `pytest`
+
+**FAKT** (`revix doctor --json`, dashboard ISHLAYOTGANDA, ikki alohida boot):
+
+```
+boot 1: rc=0   14 PASS   4 WARN   0 FAIL
+boot 2: rc=0   14 PASS   4 WARN   0 FAIL   (remote rejimda)
+WARN: memory_headroom, swap_headroom, cpu_governor, kvm_access   (§6.1 dagi to'rtta bilan bir xil)
+leftover_state: PASS -- qoldiq yo'q (unit ham, cgroup ham)
+```
+
+`09` §4.1 mezoni (**0 FAIL**) dashboard bilan **bajarildi**.
+
+**FAKT — `require_clean_env` buzilmadi:** dashboard ishlayotganda o'lchov
+foydalanuvchisining user manager'i unit'ni ko'rmaydi:
+
+```
+$ systemctl --user list-units "revix*" --all --no-legend ; echo rc=$?
+(bo'sh)  rc=0                         # serial'dagi revix sessiyasi
+$ sudo -u revix XDG_RUNTIME_DIR=/run/user/1000 systemctl --user list-units 'revix*' --all
+(bo'sh)  rc=0
+$ systemctl list-units 'revix*' --all   # SYSTEM manager
+revix-dashboard.service  loaded active running
+revix-io-delegate.service / revix-swapfile.service   loaded active exited
+$ ls /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/  -> revixlab/revixmon YO'Q
+```
+
+**FAKT — dashboard o'z doctor'i CLI bilan bir xil** (`/system-health`
+sahifasi, sandbox'ga qaramay): `cgroup_write PASS`, `kvm_access WARN`,
+`git_clean PASS (HEAD=e409858, toza)`, `leftover_state PASS`,
+`io_delegation PASS`. Sahifalar yuklangandan keyin `git -C /opt/revix
+status --porcelain` **bo'sh**.
+
+**FAKT — `python3 -m pytest tests/ -q`** (image ichida, 4096 MB):
+
+```
+1 failed, 1089 passed, 1 skipped in 107.38s (0:01:47)
+FAILED tests/unit/test_prober.py::test_pacing_10hz_va_drift_yigmaydi
+  assert 87734 < 50000
+```
+
+Yagona nosozlik — §6.3/§7 da ma'lum bo'lgan timing testi (NEM). **Yangi
+nosozlik yo'q.** (§6.3 da 1046 test edi; `main` testlar qo'shgani uchun
+endi 1091.)
+
+### 10.5 Dashboard xotira zaxirasini yeydi — o'lchangan, yupqa chegara
+
+**FAKT.** `memory_headroom` doctor'da `MemAvailable >= 3 597 152 kB`
+(3.43 GiB) talab qiladi, bundan kam bo'lsa FAIL. 4096 MB VM'da (MemTotal
+4 016 012 kB):
+
+```
+doctor paytida MemAvailable: boot 1 = 3 657 304 kB (chegaradan +60 MB)
+                             boot 2 = 3 668 688 kB (chegaradan +71 MB)
+dashboard TO'XTATILGAN:  3 610 732 kB
+dashboard ISHLAYOTGAN:   3 595 064 kB      -> farq ~ 15.7 MB
+pytest'dan keyin (dashboard ishlayotgan): 3 591 252 kB
+```
+
+**TALQIN.** 4096 MB da zaxira **bir necha o'n MB**, dashboard esa shundan
+~16 MB (RSS ~31 MB) oladi. `pytest`dan keyingi o'qish (3 591 252 kB)
+chegaradan **past**: shu paytda doctor chaqirilmagani uchun uning FAIL
+bergani **tasdiqlanmagan**, lekin raqam shuni ko'rsatadi. Ya'ni
+**0 FAIL natijasi 4096 MB da dashboard va page-cache holatiga sezgir**;
+`09` §6.2 tavsiyasi (6144 MB) shu sababli jiddiy. Bu image nuqsoni emas,
+host cheklovi (§6.1).
+
+### 10.6 CHEKLOV — oshkora
+
+1. **Image ishonchsiz tarmoq uchun YAROQSIZ** (parolsiz autologin +
+   NOPASSWD sudo, §8.11). Dashboard buni **o'zgartirmaydi**.
+   **Default loopback**: image headless, brauzer yo'q, VirtualBox NAT
+   forward guest loopback'iga emas NIC manziliga ulanadi — demak default'da
+   dashboard **faqat guest ichidan** (`curl`) ko'rinadi, host brauzeridan
+   emas. Bu ataylab olingan xarajat.
+2. **Remote rejim** (`revix.dashboard=remote`): `0.0.0.0` (barcha IPv4
+   interfeyslar), **autentifikatsiya yo'q, TLS yo'q**. NAT ortida faqat
+   o'zingiz yaratgan port-forward ochiq; bridged/host-only tarmoqda shu
+   tarmoqdagi **har kim** tirik tizim holatini (cgroup, PSI, unit, journal)
+   o'qiydi. `gui.py` o'zi ham stderr'ga ogohlik yozadi, unit ham alohida
+   satr yozadi.
+3. Remote rejimni yoqish uchun foydalanuvchi ISOLINUX/GRUB'da buyruq
+   satrini **qo'lda** tahrirlashi kerak: `iso/40-make-iso.sh` da alohida
+   menyu yo'li **yo'q** (bu fayl shu ishning qamrovida emas). Sinalgan:
+   ISOLINUX (BIOS) `Tab`. **GRUB (UEFI) yo'li sinalmadi.**
+4. Trial davomida dashboard sahifasini ochish o'lchovga bosim qo'shadi
+   (PSI >= 2 s, doctor 18 tekshiruv, throwaway cgroup) — `gui.py`
+   dizayni; unit buni yo'q qila olmaydi. Qoida: trial paytida ochmang yoki
+   `systemctl stop revix-dashboard`. Unit buni **avtomatik qilmaydi**.
+5. Timing o'lchovi bu VM'da haqiqiy emas (§7): dashboard va `curl` bilan
+   ham o'zgarmaydi.
+6. Buyruqlar serial konsol orqali yuborildi; uzun satrlarning *aks-sadosi*
+   buzilib ko'rinardi (kiritish emas, natija to'g'ri chiqdi). Skriptlar
+   heredoc bilan guest'ga yozildi va bajarildi.

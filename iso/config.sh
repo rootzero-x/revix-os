@@ -209,7 +209,20 @@ PKGS_REPO="git ca-certificates"
 # TARMOQQA chiqarish uchun MUTLAQO YAROQSIZ qiladi. U tadqiqot
 # appliance'i, deployment artifact'i EMAS (09 §0). Bu `customize-20`
 # dagi parolsiz autologin uchun allaqachon yozilgan ogohlikning davomi.
-PKGS_TOOLS="procps util-linux kmod less jq ca-certificates dmsetup iproute2 acl sudo"
+#
+# TUZATISH (iso-dash): `curl` QO'SHILDI. Orchestrator image'ga boot qilingan
+# VM'da O'LCHAGAN holat: `curl` yo'q -> dashboard (revix/gui.py) guest
+# ICHIDAN sinab bo'lmaydi (HTTP klient yo'q; python bilan urllib yozish esa
+# har safar yangi skript va yangi xato manbai).
+# NEGA aynan `curl`: `revix-dashboard.service` default'da LOOPBACK'da
+# tinglaydi (packaging/systemd/revix-dashboard.service (3)), ya'ni uni
+# tekshirishning YAGONA yo'li -- guest ichidan HTTP so'rov. `ca-certificates`
+# allaqachon bor.
+# CHEKLOV: `curl` o'lchov yo'liga KIRMAYDI (harness uni chaqirmaydi); u faqat
+# diagnostika vositasi. Manifest va sha256 shu sababli o'zgaradi -- bu
+# KUTILGAN, eski hash'ni saqlashga urinilmaydi. `curl` tortadigan qo'shimcha
+# kutubxonalar soni manifest'da (20-record-manifest.sh) o'lchanadi.
+PKGS_TOOLS="procps util-linux kmod less jq ca-certificates dmsetup iproute2 acl sudo curl"
 
 PKGS_ALL="${PKGS_BASE} ${PKGS_KERNEL} ${PKGS_LIVE} ${PKGS_BOOT} ${PKGS_TOOLCHAIN} ${PKGS_PYTHON} ${PKGS_REPO} ${PKGS_TOOLS}"
 
