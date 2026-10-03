@@ -40,6 +40,27 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin ${MEASURE_USER} --noclear %I \$TERM
 EOF
 
+# --- (1b) root yo'li va diagnostika huquqlari ------------------------------
+#
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #13). Birinchi boot'da
+# o'lchangan: image ichida root bo'lishning HECH QANDAY yo'li yo'q edi.
+# Sabab va oqibatlari `iso/config.sh` dagi PKGS_TOOLS izohida.
+#
+# NEGA NOPASSWD: image HEADLESS va serial console orqali avtomatlashtirilgan
+# ishlatiladi (09 §7); interaktiv parol so'rovi smoke test'ni ham, kampaniya
+# skriptini ham bloklaydi. Parolsiz autologin allaqachon shu sababga tayanadi.
+# CHEKLOV: bu image'ni ishonchsiz tarmoqqa chiqarish uchun YAROQSIZ qiladi.
+install -d -m 0750 "$ROOTFS/etc/sudoers.d"
+printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$MEASURE_USER" \
+  > "$ROOTFS/etc/sudoers.d/90-revix"
+chmod 0440 "$ROOTFS/etc/sudoers.d/90-revix"
+
+# NEGA `adm` va `systemd-journal`: root'siz `journalctl -u user@1000.service`
+# "No journal files were opened due to insufficient permissions" beradi --
+# ya'ni nosozlikni image ICHIDA diagnostika qilib bo'lmaydi. Birinchi
+# boot'da aynan shu to'siqqa urildik.
+chroot "$ROOTFS" /usr/sbin/usermod -aG adm,systemd-journal "$MEASURE_USER" 2>/dev/null || true
+
 # NEGA linger: `user@UID.service` login sessiyasidan MUSTAQIL tirik
 # bo'lishi kerak. Busiz serial sessiya uzilganda user manager va u bilan
 # birga barcha transient `revix-*` unit'lar o'ladi -- aynan

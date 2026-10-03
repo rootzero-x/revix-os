@@ -25,6 +25,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 require_not_root
 require_sde
+# TUZATISH (bug #8): guest build o'rtasida qayta ishga tushgan bo'lsa,
+# oldingi qadamning natijasi yo'q yoki yarim -- davom etish JIMGINA
+# buzilgan image berardi (lib/common.sh:require_same_generation).
+require_same_generation
 
 ISO_PATH="$OUT_DIR/$ISO_NAME"
 MANIFEST="$OUT_DIR/manifest.txt"
@@ -55,7 +59,15 @@ log "preregistration_sha256: $PREREG_SHA (manba va image MOS)"
 
 SRC_COMMIT="$(git -C "$REPO_SRC" rev-parse HEAD)"
 SRC_DIRTY="$(test -z "$(git -C "$REPO_SRC" status --porcelain)" && echo false || echo true)"
-IMG_COMMIT="$(git -C "$ROOTFS_DIR/${INSTALL_PREFIX#/}" rev-parse HEAD)"
+# TUZATISH (bug #6): image ichidagi repo egasi $MEASURE_UID (namespace
+# mapping'idan keyin tashqi 101000), bu skript esa oddiy foydalanuvchi
+# sifatida ishlaydi -> `git rev-parse` `detected dubious ownership` bilan
+# rc!=0 qaytaradi va fingerprint UMUMAN yozilmaydi. Oshkora
+# `safe.directory` bu xato sinfini yopadi.
+# NEGA `git config --global` EMAS: foydalanuvchining shaxsiy
+# konfiguratsiyasini o'zgartirish build skriptining ishi emas.
+IMG_REPO="$ROOTFS_DIR/${INSTALL_PREFIX#/}"
+IMG_COMMIT="$(git -c "safe.directory=$IMG_REPO" -C "$IMG_REPO" rev-parse HEAD)"
 if [ "$SRC_COMMIT" != "$IMG_COMMIT" ]; then
   die "image ichidagi commit manbadan farq qiladi: $IMG_COMMIT != $SRC_COMMIT"
 fi
@@ -110,7 +122,7 @@ cat > "$FP" <<EOF
     "package_set_recorded": "DA'VO QILINADI -- manifest.txt + sha256 (R2)",
     "composition_repeatable": "DA'VO QILINADI, SHARTLI -- snapshot.debian.org ga bog'liq (R1, N7)",
     "bit_identical_iso": "DA'VO QILINMAYDI -- 09 §3.2 N1-N6 (initramfs, dpkg tartibi, maintainer script keshlari, machine-id, GRUB memdisk, Debian .deb larining o'zi)",
-    "measurement_equivalent": "GIPOTEZA -- o'lchovi: ikki ISO + diffoscope + ikkisida ham `revix doctor --json` checks[].status bir xil"
+    "measurement_equivalent": "GIPOTEZA -- o'lchovi: ikki ISO + diffoscope + ikkisida ham \`revix doctor --json\` checks[].status bir xil"
   },
 
   "not_measured": [

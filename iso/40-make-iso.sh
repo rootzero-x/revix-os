@@ -26,6 +26,10 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 require_not_root
 require_sde
+# TUZATISH (bug #8): guest build o'rtasida qayta ishga tushgan bo'lsa,
+# oldingi qadamning natijasi yo'q yoki yarim -- davom etish JIMGINA
+# buzilgan image berardi (lib/common.sh:require_same_generation).
+require_same_generation
 require_ext4_out "$OUT_DIR"
 require_disk "$OUT_DIR" 8
 require_tools xorriso
@@ -55,13 +59,24 @@ ISO_PATH="$OUT_DIR/$ISO_NAME"
 KCMDLINE="boot=live components quiet console=ttyS0,115200n8 systemd.unified_cgroup_hierarchy=1 psi=1"
 
 # --- BIOS: isolinux ---------------------------------------------------------
-mkdir -p "$STAGE_DIR/isolinux"
+make_shared_dir "$STAGE_DIR/isolinux"
 # NEGA binarlar ROOTFS'dan olinadi, build host'idan EMAS: shunda bootloader
 # ham pinned snapshot'dan keladi va manifest to'liq bo'ladi (09 §2.4).
+#
+# TUZATISH (bug #4): eski kod bu yerda `find "$ROOTFS_DIR/usr/lib"` qilib
+# `cp -a` bilan ko'chirardi. Ikki sabab bilan ishlamaydi:
+#   (1) rootfs tashqi uid 100000 ga tegishli -> `find` 0700 kataloglarda
+#       "Permission denied" beradi va `set -o pipefail` ostida qadam o'ladi;
+#   (2) `cp -a` egalikni saqlashga urinadi -> oddiy foydalanuvchi uchun
+#       `chown` rad etiladi -> `cp` rc != 0 -> `set -e` qadamni o'ldiradi.
+# Shuning uchun binarlar 30-qadamda, namespace ICHIDA chiqarilib
+# `$WORK_DIR/bootloader` ga 0644 bilan qo'yiladi (iso/lib/ns-squashfs.sh).
+BL_DIR="$WORK_DIR/bootloader"
+[ -d "$BL_DIR" ] || die "bootloader binarlari yo'q: $BL_DIR -- avval 30-make-squashfs.sh"
 for f in isolinux.bin ldlinux.c32 libcom32.c32 libutil.c32 menu.c32; do
-  src="$(find "$ROOTFS_DIR/usr/lib" -name "$f" -type f 2>/dev/null | LC_ALL=C sort | head -1)"
-  [ -n "$src" ] || die "isolinux komponenti topilmadi: $f (rootfs'da isolinux/syslinux-common bormi?)"
-  cp -a "$src" "$STAGE_DIR/isolinux/$f"
+  [ -r "$BL_DIR/$f" ] || die "bootloader komponenti o'qilmadi: $BL_DIR/$f"
+  cp "$BL_DIR/$f" "$STAGE_DIR/isolinux/$f"
+  chmod 0644 "$STAGE_DIR/isolinux/$f"
 done
 
 cat > "$STAGE_DIR/isolinux/isolinux.cfg" <<EOF
@@ -115,9 +130,26 @@ grub-mkstandalone \
 # EFI boot image: FAT. NEGA aniq hajm va -i (volume id): mkfs.vfat
 # default'da TASODIFIY volume id va JORIY VAQTni yozadi -> determinizm yo'q.
 # `-i` volume id'ni qotiradi; hajm esa oshkora beriladi.
+#
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #3): eski kod hajmni QO'LDA
+# `2048` (KiB) deb yozgan edi. O'lchangan haqiqat:
+#       $ grub-mkstandalone --format=x86_64-efi ... -o bootx64.efi
+#       $ stat -c %s bootx64.efi   ->  3817472  (3728 KiB)
+# ya'ni EFI binari FAT image'dan QARIYB IKKI BARAVAR KATTA va `mcopy`
+# "disk full" bilan o'lardi. Qo'lda yozilgan hajm grub versiyasi o'zgarishi
+# bilan yana jimgina buziladi, shuning uchun hajm BINARIDAN HISOBLANADI.
+#
+# NEGA determinizm buzilmaydi: hajm faqat binarining o'lchamiga bog'liq
+# funksiya (vaqtga yoki tasodifga emas). 1024 KiB ga yuqoriga yaxlitlash
+# bir xil binari uchun HAR DOIM bir xil hajm beradi.
+# NEGA +512 KiB zaxira: FAT32/FAT16 superblock, FAT jadvallari va root
+# katalog yozuvlari joy egallaydi -- fayl hajmiga TENG image sig'maydi.
 EFI_IMG="$STAGE_DIR/EFI/boot/efiboot.img"
+EFI_BIN_KB=$(( ( $(stat -c %s "$WORK_DIR/bootx64.efi") + 1023 ) / 1024 ))
+EFI_IMG_KB=$(( ( (EFI_BIN_KB + 512 + 1023) / 1024 ) * 1024 ))
+log "EFI binari: ${EFI_BIN_KB} KiB -> FAT image: ${EFI_IMG_KB} KiB (binaridan hisoblandi)"
 rm -f "$EFI_IMG"
-mkfs.vfat -C "$EFI_IMG" 2048 -n REVIXEFI -i "$(printf '%08x' $(( SOURCE_DATE_EPOCH & 0xFFFFFFFF )))"
+mkfs.vfat -C "$EFI_IMG" "$EFI_IMG_KB" -n REVIXEFI -i "$(printf '%08x' $(( SOURCE_DATE_EPOCH & 0xFFFFFFFF )))"
 mmd -i "$EFI_IMG" ::/EFI ::/EFI/BOOT
 mcopy -i "$EFI_IMG" "$WORK_DIR/bootx64.efi" ::/EFI/BOOT/BOOTX64.EFI
 cp -a "$WORK_DIR/bootx64.efi" "$STAGE_DIR/EFI/boot/bootx64.efi"
@@ -130,8 +162,10 @@ cp -a "$WORK_DIR/bootx64.efi" "$STAGE_DIR/EFI/boot/bootx64.efi"
 # -eltorito-alt-boot ... -e : UEFI yo'li.
 # -J -r -joliet-long  : Joliet + Rock Ridge -- uzun nomlar.
 ISO_MOD_DATE="$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y%m%d%H%M%S00)"
-ISOHYBRID_MBR="$(find "$ROOTFS_DIR/usr/lib" -name 'isohdpfx.bin' -type f | LC_ALL=C sort | head -1)"
-[ -n "$ISOHYBRID_MBR" ] || die "isohdpfx.bin topilmadi (rootfs'da isolinux bormi?)"
+# TUZATISH (bug #4): avvalgidek `find "$ROOTFS_DIR/usr/lib"` emas -- 30-qadam
+# uni namespace ichida allaqachon chiqargan (yuqoridagi izohga qarang).
+ISOHYBRID_MBR="$BL_DIR/isohdpfx.bin"
+[ -r "$ISOHYBRID_MBR" ] || die "isohdpfx.bin o'qilmadi: $ISOHYBRID_MBR -- avval 30-make-squashfs.sh"
 
 rm -f "$ISO_PATH"
 xorriso -as mkisofs \

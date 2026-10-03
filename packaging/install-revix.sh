@@ -48,11 +48,81 @@ DEST="${ROOTFS%/}$PREFIX"
 log()  { printf '[install-revix] %s\n' "$*"; }
 die()  { printf '[install-revix] XATO: %s\n' "$*" >&2; exit 1; }
 
+# --- (0) build tomonidagi git'ni IZOLYATSIYA qilish -------------------------
+#
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #7). Namespace ichida ishlaganda
+# git shunday ogohlik oqimi berardi:
+#     warning: unable to access '/home/snowden/.config/git/ignore': Permission denied
+#     warning: unable to access '/home/snowden/.config/git/attributes': Permission denied
+# sababi $HOME (0700, map qilinmagan uid) namespace ichidan o'qilmaydi.
+#
+# Bu FAQAT shovqin emas. Agar $HOME O'QILSA (masalan boshqa mashinada, yoki
+# bu skript tirik tizimda `sudo` bilan ishlatilsa), build host'ining SHAXSIY
+# git konfiguratsiyasi clone'ga ta'sir qiladi -- `core.autocrlf`,
+# `core.excludesFile`, filter'lar. Natijada:
+#   * image ichidagi daraxt IFLOS chiqishi mumkin -> doctor #18 git_clean;
+#   * image build host'iga bog'liq bo'ladi -> 09 §3 determinizmi buziladi.
+# Bu `customize-90-normalize.sh` ning `resolv.conf` uchun aytgan sababining
+# aynan o'zi: "build host'ining sozlamalari image'ga TUSHADI -- bu ham
+# nondeterminizm, ham provenance oqishi."
+#
+# NEGA faqat HOME/XDG, `GIT_CONFIG_NOSYSTEM` EMAS: `/etc/gitconfig` ga
+# `safe.directory` YOZILISHI kerak (pastda, (3) bo'limi), demak tizim
+# darajasidagi konfiguratsiya o'chirilmaydi -- faqat FOYDALANUVCHI
+# darajasidagisi izolyatsiya qilinadi.
+GIT_ISOLATED_HOME="$(mktemp -d)"
+trap 'rm -rf "$GIT_ISOLATED_HOME"' EXIT
+export HOME="$GIT_ISOLATED_HOME"
+export XDG_CONFIG_HOME="$GIT_ISOLATED_HOME/.config"
+export GIT_TERMINAL_PROMPT=0
+mkdir -p "$XDG_CONFIG_HOME/git"
+
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #6): `chown` dan KEYIN image
+# ichidagi repo'ni BUILD TOMONIDAN o'qiydigan har qanday `git` chaqiruvi
+# `detected dubious ownership` beradi, chunki daraxt egasi $MEASURE_UID,
+# chaqiruvchi esa (namespace ichidagi) root -- ya'ni egalik MOS KELMAYDI.
+#
+# NEGA `$ROOTFS/etc/gitconfig` YETARLI EMAS: u IMAGE ichidagi git uchun
+# (guest'da `revix doctor` o'shani o'qiydi). Build tomonidagi git esa
+# build host'ining konfiguratsiyasini o'qiydi va image'ning `/etc/gitconfig`
+# ini KO'RMAYDI. Shuning uchun build tomonidagi chaqiruvlar oshkora
+# `-c safe.directory=` bilan qilinadi.
+#
+# NEGA global `git config --global` EMAS: u foydalanuvchining shaxsiy
+# konfiguratsiyasini o'zgartiradi -- build skriptining ishi emas.
+#
+# Bug #6 ning IKKI yuzi bor, va ikkinchisi image build'ida kutilmagan edi:
+#
+#   (a) MAQSAD daraxt ($DEST) `chown $MEASURE_UID` dan keyin -- egasi
+#       chaqiruvchidan farq qiladi;
+#   (b) MANBA daraxt ($REPO_SRC) namespace ICHIDA -- u tashqi uid 1000 ga
+#       tegishli, lekin o'sha uid map QILINMAGAN, demak ichkarida egasi
+#       `nobody` (65534) bo'lib ko'rinadi, chaqiruvchi esa uid 0.
+#       O'lchangan xato (soxta rootfs ustida, namespace ichida):
+#           fatal: detected dubious ownership in repository at '/var/tmp/revix-src'
+#       Bu `git clone` ni ham, `git rev-parse` ni ham o'ldiradi.
+#
+# Shuning uchun IKKI yo'l uchun ham oshkora `safe.directory` beriladi.
+# NEGA IKKI yozuv (`$p` VA `$p/.git`): `git clone <mahalliy yo'l>` manba
+# repoda `upload-pack` ni ishga tushiradi, va u egalikni GITDIR yo'li uchun
+# alohida tekshiradi. O'lchangan ketma-ketlik (ikkita alohida xato xabari):
+#     fatal: detected dubious ownership in repository at '/var/tmp/revix-src'
+#     fatal: detected dubious ownership in repository at '/var/tmp/revix-src/.git'
+# Faqat bittasini qo'shish YETARLI EMAS.
+# NEGA `safe.directory=*` EMAS: u BARCHA repozitoriylar uchun tekshiruvni
+# o'chiradi; bu yerda aniq ikki yo'l kifoya.
+git_safe() {
+  local p="$1"; shift
+  git -c "safe.directory=$p" -c "safe.directory=$p/.git" "$@"
+}
+git_src() { git_safe "$REPO_SRC" -C "$REPO_SRC" "$@"; }
+git_img() { git_safe "$DEST" -C "$DEST" "$@"; }
+
 [ -d "$REPO_SRC/.git" ] || [ -f "$REPO_SRC/.git" ] \
   || die "manba '$REPO_SRC' git repozitoriysi emas -> git_present/git_clean FAIL bo'lardi"
 command -v git >/dev/null 2>&1 || die "git topilmadi"
 
-SRC_COMMIT="$(git -C "$REPO_SRC" rev-parse HEAD)"
+SRC_COMMIT="$(git_src rev-parse HEAD)"
 log "manba: $REPO_SRC @ $SRC_COMMIT"
 log "maqsad: $DEST"
 
@@ -75,14 +145,14 @@ log "maqsad: $DEST"
 #   va `rev-parse` ishlamaydi.
 rm -rf "$DEST"
 mkdir -p "$(dirname "$DEST")"
-git clone --no-hardlinks "$REPO_SRC" "$DEST"
-git -C "$DEST" checkout --detach "$SRC_COMMIT"
+git_safe "$REPO_SRC" clone --no-hardlinks "$REPO_SRC" "$DEST"
+git_img checkout --detach "$SRC_COMMIT"
 
 # NEGA remote olib tashlanadi: image ichida `origin` build host'ining
 # mahalliy yo'liga ishora qiladi -- u guest'da mavjud emas va chalg'ituvchi.
 # `git fetch` ni ham imkonsiz qilish ataylab: image o'z commit'iga
 # QOTIRILGAN.
-git -C "$DEST" remote remove origin 2>/dev/null || true
+git_img remote remove origin 2>/dev/null || true
 
 # --- (2) toza daraxt tekshiruvi ---------------------------------------------
 #
@@ -91,11 +161,11 @@ git -C "$DEST" remote remove origin 2>/dev/null || true
 # bilan checkout qiladi (.gitattributes: `* text=auto eol=lf`), demak toza
 # bo'lishi KERAK. Bo'lmasa -- CRLF yoki `.gitignore` muammosi, va buni
 # IMAGE QURILGANDAN KEYIN emas, HOZIR bilish kerak.
-if [ -n "$(git -C "$DEST" status --porcelain)" ]; then
-  git -C "$DEST" status --porcelain >&2
+if [ -n "$(git_img status --porcelain)" ]; then
+  git_img status --porcelain >&2
   die "clone IFLOS chiqdi -> doctor #18 git_clean WARN bo'lardi. CRLF (.gitattributes) yoki .gitignore muammosi."
 fi
-log "clone toza: $(git -C "$DEST" rev-parse --short HEAD)"
+log "clone toza: $(git_img rev-parse --short HEAD)"
 
 # --- (3) `dubious ownership` ni oldini olish ---------------------------------
 #
@@ -152,7 +222,12 @@ MSG
 fi
 
 # --- (6) tekshiruv -----------------------------------------------------------
-log "o'rnatildi: $DEST @ $(git -C "$DEST" rev-parse --short HEAD)"
+#
+# TUZATISH (bug #6): bu chaqiruv `chown` dan KEYIN turadi, demak
+# `git -C "$DEST"` o'z-o'zidan `dubious ownership` bilan rc!=0 qaytarardi va
+# `set -e` butun o'rnatishni o'ldirardi -- image qurilgandan keyin emas,
+# ayni o'rnatish paytida. `git_img` oshkora `safe.directory` beradi.
+log "o'rnatildi: $DEST @ $(git_img rev-parse --short HEAD)"
 cat <<'MSG'
 [install-revix] INTEGRITY: `revix doctor` BU SKRIPT TOMONIDAN ISHGA
   TUSHIRILMADI. Uning 0 FAIL berishi -- GIPOTEZA

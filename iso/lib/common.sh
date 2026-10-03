@@ -138,6 +138,185 @@ require_ext4_out() {
   esac
 }
 
+# --- 3b. user namespace ichidan YETIB BORILADIGANLIK ------------------------
+#
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #1 va bug #2).
+#
+# `mmdebstrap --mode=unshare` uid map'i (o'lchangan, /usr/bin/mmdebstrap:1469
+# va `unshare --map-auto` bilan tasdiqlangan):
+#       0 -> 100000, range 65536
+# Foydalanuvchining O'Z uid'i map QILINMAYDI. Shundan ikki oqibat chiqadi va
+# ikkisi ham build'ni o'ldiradi:
+#
+#   (1) Build yo'lining HAR BIR ota-katalogi namespace ichidan o'tiladigan
+#       bo'lishi SHART (o+x). $HOME 0700 -> yaroqsiz (config.sh ga qarang).
+#   (2) mmdebstrap yozgan rootfs tashqi tomondan uid 100000 ga tegishli
+#       bo'ladi, va uning ichida 0700 rejimli kataloglar bor (`/root`,
+#       `/etc/ssh`, `initrd.img` 0600). Demak rootfs'ni OQIYDIGAN qadamlar
+#       (squashfs, kernel/initrd ko'chirish) oddiy foydalanuvchi sifatida
+#       ISHLAMAYDI -- va ishlagandek ko'rinsa, squashfs ichidagi EGALIK
+#       100000 bo'lib qolardi, ya'ni boot qilgan tizimda `/root` egasi
+#       `nobody` bo'lardi.
+#
+# NEGA fail-closed tekshiruv: bu xato BIRINCHI marta mmdebstrap'ning
+# tushunarsiz "cannot create ...: Permission denied" xabari bilan chiqdi --
+# sababi ko'rinmaydi. Tekshiruv sababni BUILD BOSHIDA, aniq matn bilan
+# aytadi.
+require_userns_path() {
+  local path="$1"
+  command -v unshare >/dev/null 2>&1 \
+    || die "unshare topilmadi -- mmdebstrap --mode=unshare ishlamaydi"
+  mkdir -p "$path"
+  if ! unshare --user --map-auto --setuid 0 --setgid 0 \
+         test -w "$path" 2>/dev/null; then
+    printf '[revix-iso] XATO: build yo\xe2\x80\x99li user namespace ICHIDAN yetib borilmaydi:\n' >&2
+    printf '[revix-iso]   %s\n' "$path" >&2
+    printf '[revix-iso] SABAB: mmdebstrap --mode=unshare uid map'"'"'i = (0 -> 100000, 65536);\n' >&2
+    printf '[revix-iso] foydalanuvchining o\xe2\x80\x99z uid\xe2\x80\x99i map QILINMAYDI, demak yo\xe2\x80\x99ldagi\n' >&2
+    printf '[revix-iso] har bir ota-katalog o+x bo\xe2\x80\x99lishi va build katalogi yozilishi\n' >&2
+    printf '[revix-iso] mumkin bo\xe2\x80\x99lishi SHART. $HOME (0700) bu rejim uchun yaroqsiz.\n' >&2
+    printf '[revix-iso] YECHIM: OUT_DIR ni o+x ota-katalog ostiga qo\xe2\x80\x99ying (default /var/tmp).\n' >&2
+    exit 1
+  fi
+  log "userns: '$path' namespace ichidan yoziladi"
+}
+
+# MANBA repo uchun: namespace ichidan O'QILISHI (va o'tilishi) kerak, lekin
+# yozilishi kerak EMAS.
+#
+# NEGA alohida tekshiruv kerak -- TUZATISH (bug #5):
+# `iso/hooks/customize-10-revix.sh` -> `packaging/install-revix.sh` ->
+# `git clone --no-hardlinks "$REPO_SRC" ...` mmdebstrap'ning customize-hook
+# fazasida, ya'ni NAMESPACE ICHIDA ishlaydi. Agar REPO_SRC `$HOME` ostida
+# bo'lsa (0700, map qilinmagan uid 1000), clone "Permission denied" bilan
+# o'ladi -- va bu BUTUN paket o'rnatish tugagandan KEYIN sodir bo'ladi,
+# ya'ni ~20 daqiqa behuda ketadi. Shuning uchun tekshiruv BUILD BOSHIDA.
+require_userns_readable() {
+  local path="$1"
+  command -v unshare >/dev/null 2>&1 \
+    || die "unshare topilmadi -- mmdebstrap --mode=unshare ishlamaydi"
+  [ -e "$path" ] || die "yo'l mavjud emas: $path"
+  if ! unshare --user --map-auto --setuid 0 --setgid 0 \
+         test -r "$path" 2>/dev/null; then
+    printf '[revix-iso] XATO: manba yo\xe2\x80\x99li user namespace ICHIDAN o\xe2\x80\x99qilmaydi:\n' >&2
+    printf '[revix-iso]   %s\n' "$path" >&2
+    printf '[revix-iso] SABAB: customize-hook (install-revix.sh -> git clone) namespace\n' >&2
+    printf '[revix-iso] ICHIDA ishlaydi, u yerda foydalanuvchining uid\xe2\x80\x99i map QILINMAGAN.\n' >&2
+    printf '[revix-iso] $HOME (0700) ostidagi manba repo clone qilinmaydi.\n' >&2
+    printf '[revix-iso] YECHIM: REPO_SRC ni o+rx yo\xe2\x80\x99lga ko\xe2\x80\x99chiring, masalan /var/tmp/revix-src.\n' >&2
+    exit 1
+  fi
+  log "userns: manba '$path' namespace ichidan o'qiladi"
+}
+
+# Namespace ichida mmdebstrap BILAN AYNAN BIR XIL identitet ostida buyruq
+# bajaradi: ichki uid 0 == tashqi uid 100000 == rootfs egasi.
+#
+# NEGA `--map-auto`: u /etc/subuid ni mmdebstrap bilan bir xil o'qiydi
+# (tasdiq: ikkisi ham `0 100000 65536` beradi). Boshqa map ishlatilsa
+# rootfs egaligi ichkarida yana mos kelmaydi.
+# NEGA `--setuid 0 --setgid 0`: busiz namespace ichida uid 65534 (nobody)
+# bo'lib qolinadi va hech narsa o'qilmaydi.
+ns_run() {
+  unshare --user --map-auto --setuid 0 --setgid 0 -- "$@"
+}
+
+# Build kataloglari: namespace ICHIDAGI root (tashqi 100000) ularga YOZISHI
+# kerak, tashqi foydalanuvchi (xorriso, sha256sum) esa O'QISHI kerak.
+# Ikkisi ham kerak bo'lgani uchun rejim 0777.
+# NEGA bu xavfsizlik muammosi emas: /var/tmp allaqachon 1777, va bu
+# vaqtinchalik build katalogi -- image'ga KIRMAYDI (image ichidagi egalik
+# va rejimlar mmdebstrap/squashfs tomonidan alohida belgilanadi).
+make_shared_dir() {
+  local d
+  for d in "$@"; do
+    mkdir -p "$d"
+    chmod 0777 "$d"
+  done
+}
+
+# Build daraxtining HAMMA kataloglari bir joyda tayyorlanadi.
+#
+# NEGA bitta funksiya: birinchi urinishda OUT_DIR 0777 qilindi, lekin
+# STAGE_DIR/live qilinmadi -- va xato faqat 30-qadamda, mksquashfs
+# "Permission denied" bergandan keyin ko'rindi. Kataloglar ro'yxati BITTA
+# joyda bo'lsa bu sinf butunlay yopiladi.
+#
+# NEGA OUT_DIR ham 0777: mmdebstrap namespace ICHIDAN butun yo'l zanjirini
+# (OUT_DIR -> work -> rootfs -> rootfs/etc/...) o'zi yaratadi, demak OUT_DIR
+# ichkaridagi root uchun yozilishi mumkin bo'lishi SHART. Birinchi urinishda
+# OUT_DIR snowden:snowden 0755 edi va mmdebstrap aynan shu yerda to'xtadi.
+prepare_build_dirs() {
+  make_shared_dir "$OUT_DIR" "$WORK_DIR" "$STAGE_DIR" "$STAGE_DIR/live"
+}
+
+# --- 3c. GUEST GENERATION -- build o'rtasida host qayta ishga tushdimi? -----
+#
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #8). Bu eng xavfli xato edi,
+# chunki u XATO BERMAYDI -- u JIMGINA muvaffaqiyatga o'xshaydi.
+#
+# O'LCHANGAN HODISA (ikki marta, mustaqil ravishda ko'rildi): `mmdebstrap`
+# PID ~1900 bilan ishlayotgan va rootfs 6.8 GB ga o'sgan; bir necha daqiqa
+# keyin AYNAN SHU buyruq PID ~400 bilan QAYTA ishlayapti, `work/rootfs`
+# BO'SH, `apt-get update` boshidan. Tizimdagi eng katta PID 2901 dan 557 ga
+# tushgan. Bu progress emas, YANGI BOOT.
+#
+# SABAB: WSL2 oxirgi `wsl.exe` klienti chiqqandan keyin distro'ni to'xtatadi
+# (`07-wsl-muhit-tekshiruvlari.md` §4.4: 10.3-15.3 s o'lchangan). Har bir
+# tool-call orasidagi bo'shliq -- guest'ni yo'q qilish imkoniyati.
+#
+# NEGA bu FAIL-CLOSED tekshiruvni talab qiladi: agar 10-qadam yarmida
+# o'lsa va 20-qadam davom etsa, ISO YARIM TO'LDIRILGAN rootfs'dan qurilardi
+# -- va build MUVAFFAQIYATLI ko'rinardi. Natija: buzilgan image, soxta
+# checksum, soxta manifest. Shuning uchun har qadam oldidan generatsiya
+# tekshiriladi.
+#
+# NEGA IKKI marker (bittasi YETARLI EMAS) -- `09` §1.1 jadvali aynan shuni
+# aytadi va `PREREGISTRATION.md` §16.11 ni takrorlaydi:
+#   * `boot_id`                -> to'liq VM restart'ni ushlaydi;
+#     ko'r nuqtasi: init-only restart'da O'ZGARMAYDI.
+#   * `/proc/1/stat` 22-maydon  -> init-only restart'ni ushlaydi
+#     (PID 1 ning starttime tick'i).
+# `09` §1.1: "§14.6(5) invarianti ZARUR, lekin YETARLI EMAS" va qo'shimcha
+# marker uni "almashtirmaydi, uni TO'LDIRADI".
+generation_now() {
+  local bid ticks
+  bid="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo UNKNOWN)"
+  ticks="$(awk '{print $22}' /proc/1/stat 2>/dev/null || echo UNKNOWN)"
+  printf 'boot_id=%s pid1_starttime_ticks=%s\n' "$bid" "$ticks"
+}
+
+generation_stamp_path() { printf '%s\n' "$WORK_DIR/build-generation.txt"; }
+
+record_generation() {
+  local f
+  f="$(generation_stamp_path)"
+  generation_now > "$f"
+  chmod 0666 "$f" 2>/dev/null || true
+  log "guest generation qayd etildi: $(cat "$f")"
+}
+
+require_same_generation() {
+  local f now recorded
+  f="$(generation_stamp_path)"
+  if [ ! -f "$f" ]; then
+    die "guest generation stamp yo'q ($f) -- avval iso/10-build-rootfs.sh (fail-closed)"
+  fi
+  recorded="$(cat "$f")"
+  now="$(generation_now)"
+  if [ "$recorded" != "$now" ]; then
+    printf '[revix-iso] XATO: GUEST BUILD O\xe2\x80\x99RTASIDA QAYTA ISHGA TUSHGAN.\n' >&2
+    printf '[revix-iso]   qayd etilgan: %s\n' "$recorded" >&2
+    printf '[revix-iso]   hozirgi:      %s\n' "$now" >&2
+    printf '[revix-iso] Oldingi qadamlarning natijasi YO\xe2\x80\x99Q yoki YARIM -- davom etish\n' >&2
+    printf '[revix-iso] YARIM TO\xe2\x80\x99LDIRILGAN rootfs\xe2\x80\x99dan ISO qurardi va build MUVAFFAQIYATLI\n' >&2
+    printf '[revix-iso] ko\xe2\x80\x99rinardi (07 \xc2\xa74.4; PREREGISTRATION.md \xc2\xa716.11).\n' >&2
+    printf '[revix-iso] Build RAD ETILDI. Noldan boshlang: iso/10-build-rootfs.sh\n' >&2
+    exit 1
+  fi
+  log "guest generation o'zgarmagan: $now"
+}
+
 # --- 4. disk zaxirasi -------------------------------------------------------
 
 require_disk() {

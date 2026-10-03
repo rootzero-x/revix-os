@@ -45,11 +45,34 @@ export SOURCE_DATE_EPOCH
 
 # --- yo'llar ----------------------------------------------------------------
 
-# NEGA ext4 HOME, /mnt/* EMAS: 07-wsl-muhit-tekshiruvlari.md §7.2 -- FAKT:
+# NEGA ext4, /mnt/* EMAS: 07-wsl-muhit-tekshiruvlari.md §7.2 -- FAKT:
 # /mnt/c = 9p/drvfs, 98% to'la, 10 G bo'sh; ext4 root'da 951 G. Build'ga
 # ~25 G kerak, va /mnt/c ni to'ldirish Windows tomonini buzadi.
 # scripts/sync-to-ext4.sh ayni shu fail-closed qoidani allaqachon qo'llaydi.
-OUT_DIR="${OUT_DIR:-$HOME/revix-iso}"
+#
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #1): avval bu yerda
+# `$HOME/revix-iso` yozilgan edi va build BIRINCHI qadamda o'ldi:
+#
+#   E: cannot create /home/snowden/revix-iso: Permission denied
+#
+# SABAB (o'lchangan, taxmin emas): `mmdebstrap --mode=unshare` uid map'ini
+# /etc/subuid dan BITTA satr bilan quradi -- `/usr/bin/mmdebstrap:1469`:
+#       push @result, ["u", 0, $subid, $num_subid];
+# ya'ni namespace ichidagi uid 0 -> tashqi uid 100000, va
+# FOYDALANUVCHINING O'Z uid'i (1000) UMUMAN MAP QILINMAYDI. Tasdiq:
+#       $ unshare --user --map-auto --setuid 0 -- cat /proc/self/uid_map
+#                0     100000      65536
+# Demak namespace ichida `/home/snowden` egasi `nobody` bo'lib ko'rinadi, va
+# uning rejimi `drwx------` -> namespace ICHIDA UMUMAN O'TIB BO'LMAYDI.
+# $HOME 0700 bo'lgani uchun u `--mode=unshare` bilan PRINSIPIAL ravishda
+# yaroqsiz; bu rejim yoki konfiguratsiya emas, STRUKTURA muammosi.
+#
+# NEGA /var/tmp: ota-katalog `drwxrwxrwt` (1777), demak namespace ichidan
+# o'tish mumkin; fs ext4 (`stat -fc %T /var/tmp` -> ext2/ext3) va 951 G bo'sh
+# -- ya'ni §7.2 ning ASL sababi (ext4, drvfs emas) buzilmaydi. $HOME'ning
+# o'zini `chmod o+x` qilish YECHIM EMAS: u foydalanuvchining shaxsiy
+# katalogi va uning rejimini o'zgartirish build skriptining ishi emas.
+OUT_DIR="${OUT_DIR:-/var/tmp/revix-iso}"
 WORK_DIR="${WORK_DIR:-$OUT_DIR/work}"
 ROOTFS_DIR="${ROOTFS_DIR:-$WORK_DIR/rootfs}"
 STAGE_DIR="${STAGE_DIR:-$WORK_DIR/stage}"
@@ -81,7 +104,44 @@ MEASURE_UID="${MEASURE_UID:-1000}"
 # tavsiya bo'yicha hech narsa qo'shilmaydi.
 
 # Minimal ishlaydigan tizim + live boot zanjiri.
-PKGS_BASE="systemd systemd-sysv dbus init"
+#
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #12): `libpam-systemd` va
+# `dbus-user-session` QO'SHILDI. Birinchi boot'da O'LCHANGAN natija:
+#
+#   $ systemctl status user@1000.service
+#     Active: failed (Result: exit-code)
+#     Process: 610 ExecStart=/usr/lib/systemd/systemd --user
+#              (code=exited, status=1/FAILURE)
+#     Error: code: 49 (Protocol driver not attached)
+#   $ dpkg -l libpam-systemd
+#     un  libpam-systemd <none>   <- UMUMAN O'RNATILMAGAN
+#   $ echo $XDG_RUNTIME_DIR
+#     (bo'sh)
+#
+# va shundan `revix doctor` da BEShTA FAIL kelib chiqdi -- hammasi bitta
+# ildizdan:
+#   delegated_controllers, io_delegation, psi_cgroup, cgroup_write
+#     -> RuntimeError('user@1000.service cgroup topilmadi: ...')
+#   leftover_state
+#     -> "Failed to connect to user scope bus via local transport:
+#         $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR not defined"
+#
+# NEGA bu HAL QILUVCHI: loyihaning BUTUN o'lchov qamrovi
+# `user@UID.service` ierarxiyasi ichida yashaydi (00-pilot-topologiya.md §1:
+# `revixlab.slice`/`revixmon.slice` `user@UID.service` ostida;
+# `revix/cgroup.py:user_service_cgroup()` shu yo'lni hisoblaydi). U
+# ishga tushmasa image BOOT BO'LADI, lekin BIRORTA trial o'tkaza OLMAYDI --
+# ya'ni "ISO boot bo'ldi" rost bo'lib, image baribir FOYDASIZ bo'lardi.
+#
+# NEGA `libpam-systemd`: `pam_systemd.so` login paytida logind sessiyasini
+# yaratadi va `XDG_RUNTIME_DIR` (`/run/user/1000`) ni o'rnatadi. Usiz
+# `systemd --user` o'z runtime katalogini topa olmaydi.
+# NEGA `dbus-user-session`: `user@UID.service` ichidagi session bus --
+# `revix/units.py` transient unit'larni `systemd-run --user` orqali
+# yaratadi, u esa session bus'ni talab qiladi.
+# NEGA `--variant=important` ularni O'ZI tortib kelmadi: ikkisi ham
+# Priority: optional/standard, demak "important" to'plamiga kirmaydi.
+PKGS_BASE="systemd systemd-sysv dbus init libpam-systemd dbus-user-session"
 # NEGA linux-image-amd64: CONFIG_PSI=y va cgroup v2 (INSTALLATION.md §2).
 # O'z kernel QURILMAYDI -- yangi o'lchanmagan o'zgaruvchi kiritadi (09 §2.3).
 PKGS_KERNEL="linux-image-${ARCH}"
@@ -104,7 +164,30 @@ PKGS_REPO="git ca-certificates"
 # Guest ichidagi diagnostika va privilegiyali tier vositalari.
 # NEGA dmsetup/iproute2: fault class 6 va tc netem -- "root kerak =
 # guest'ga tegishli" (00-pilot-topologiya.md §4).
-PKGS_TOOLS="procps util-linux kmod less jq ca-certificates dmsetup iproute2 acl"
+#
+# TUZATISH (bug #13): `sudo` QO'SHILDI. Birinchi boot'da o'lchangan holat:
+# image ichida ROOT BO'LISHNING HECH QANDAY YO'LI YO'Q edi -- `sudo`
+# o'rnatilmagan, root paroli Debian default'i bo'yicha QULFLANGAN (`*`),
+# va `customize-20-systemd.sh` faqat O'LCHOV foydalanuvchisining parolini
+# bo'shatadi (`passwd -d revix`).
+#
+# NEGA bu image'ning BUTUN asosiga zid: 09-iso-qurilishi.md §1 image'ni
+# aynan "privilegiyali tier'larni ochish" uchun asoslaydi --
+# 00-pilot-topologiya.md §4 ro'yxati: `io.max`, `dm-delay`/`dm-flakey`,
+# `tc netem`, cgroup `cpuset` pinning, `drop_caches`, harness'ni system
+# slice'ga ko'chirish. Ularning HAMMASI root talab qiladi. Root'siz image
+# "root kerak = guest'ga tegishli" prinsipini BAJARMAYDI, ya'ni o'zining
+# yagona ilmiy sababini bajarmaydi.
+# Qo'shimcha: root'siz `journalctl -u user@1000.service` ham o'qilmaydi,
+# demak nosozlikni image ICHIDA diagnostika qilib bo'lmaydi -- bu birinchi
+# boot'da aynan shunday bo'ldi.
+#
+# CHEKLOV (oshkora, yashirilmaydi): `sudo` NOPASSWD bilan sozlanadi va
+# o'lchov foydalanuvchisi parolsiz autologin qiladi. Bu image'ni ISHONCHSIZ
+# TARMOQQA chiqarish uchun MUTLAQO YAROQSIZ qiladi. U tadqiqot
+# appliance'i, deployment artifact'i EMAS (09 §0). Bu `customize-20`
+# dagi parolsiz autologin uchun allaqachon yozilgan ogohlikning davomi.
+PKGS_TOOLS="procps util-linux kmod less jq ca-certificates dmsetup iproute2 acl sudo"
 
 PKGS_ALL="${PKGS_BASE} ${PKGS_KERNEL} ${PKGS_LIVE} ${PKGS_BOOT} ${PKGS_TOOLCHAIN} ${PKGS_PYTHON} ${PKGS_REPO} ${PKGS_TOOLS}"
 
