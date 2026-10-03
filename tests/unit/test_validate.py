@@ -24,9 +24,15 @@ P = R.P_US
 SCHED = make_schedule([Factor("arm", ("A",)),
                        Factor("pressure_level", ("P1",))], 1, 12345)
 TID = SCHED.trials[0].trial_id
-# T_trial = t_pressure_off + w_stab_s + P (kontrakt v1.1 §5.2) = 40.1 s.
-T_TRIAL_US = 40_100_000
-N_PROBES = 402        # k = 0..401 -> T0 .. T0 + T_TRIAL (har 100 ms)
+# T_trial = t_pressure_off + w_stab_s + P (kontrakt v1.1 §5.2). Bu vaqtlar
+# `HOLD_CAP_S` ga bog'liq (default hold_s = HOLD_CAP_S), shuning uchun ular
+# QOTIRILMAYDI -- default `TrialTimeline` dan HISOBLANADI. Eski kod 12 s cap
+# ning natijasini (32 s / 40.1 s) jimgina o'zida saqlardi; cap o'zgarganda
+# fixture eski qiymatga qotib, formula testini yolg'on o'tkazmasligi kerak.
+_TL = TrialTimeline()
+T_PRESSURE_OFF_S = _TL.t_pressure_off
+T_TRIAL_US = round((_TL.t_pressure_off + _TL.w_stab_s) * 1_000_000) + P
+N_PROBES = T_TRIAL_US // 100_000 + 1   # k = 0..N-1 -> T0 .. T0 + T_TRIAL (har 100 ms)
 
 
 # --- toza run quruvchi ------------------------------------------------------
@@ -80,7 +86,7 @@ class Builder:
                         sources=["<memory>"])
 
 
-def timing(horizon_end_us, pressure_off_s=32.0):
+def timing(horizon_end_us, pressure_off_s=T_PRESSURE_OFF_S):
     """`trial_end.timing` (driver TrialTiming): T_h va horizon. `0` = hech
     qachon o'rnatilmagan (monotonic timestamp, o'lchangan nol EMAS)."""
     return {"begin_mono_us": T0, "pressure_off_mono_us":
@@ -784,7 +790,8 @@ def test_t_trial_us_formuladan_farq_qilsa_xato():
     """T_trial = t_pressure_off + w_stab_s + P (kontrakt v1.1 §5.2): jimgina
     konstanta emas, timeline'dan HISOBLANADI."""
     b = clean()
-    meta_of(b)["t_trial_us"] = 52_000_000       # total_s ni 'horizon' qilib olish
+    # total_s ni 'horizon' qilib olish
+    meta_of(b)["t_trial_us"] = round(TrialTimeline().total_s * 1_000_000)
     rep = V.validate_run(b.run())
     assert "t_trial_formula_mismatch" in codes(rep, V.SEVERITY_ERROR)
     assert "trial_horizon_mismatch" in codes(rep, V.SEVERITY_ERROR)
@@ -1149,6 +1156,83 @@ def test_planned_timeline_ozi_ichki_izchil_lekin_muzlatilgan_capdan_yuqori():
     recs(b, R.RT_TRIAL_BEGIN)[0]["planned_timeline"] = big
     assert "planned_timeline_cap_exceeded" in codes(V.validate_run(b.run()),
                                                     V.SEVERITY_ERROR)
+
+
+def _self_consistent(b, hold_s, ramp_above=0.0):
+    """Driver `hold_cap_s=hold_s` bilan ICHKI izchil timeline yozdi: u o'z
+    cap'ini o'zi belgilaydi, shuning uchun `TrialTimeline` buni qabul qiladi
+    va faqat validatorning MUZLATILGAN cap'ga nisbatan tekshiruvi ushlaydi."""
+    tl = TrialTimeline(hold_s=hold_s, hold_cap_s=hold_s,
+                       ramp_above_threshold_s=ramp_above)
+    recs(b, R.RT_TRIAL_BEGIN)[0]["planned_timeline"] = tl.as_dict()
+    return tl
+
+
+def test_validator_hold_capni_schedule_dagi_konstantadan_oladi():
+    """MEXANIZM testi (`HOLD_CAP_S` orqali, literalsiz): validator cap'ni
+    o'zida qayta yozmaydi, `schedule.HOLD_CAP_S` ga bog'liq. Shuning uchun
+    cap qaysi qiymatga o'zgarsa ham shu test o'zgarishsiz to'g'ri qoladi:
+    `HOLD_CAP_S` o'zi qabul, undan 0.5 s ortig'i rad."""
+    import revix.schedule as S
+    assert V.HOLD_CAP_S == S.HOLD_CAP_S
+
+    ok = clean()
+    _self_consistent(ok, V.HOLD_CAP_S)
+    assert "planned_timeline_cap_exceeded" not in codes(V.validate_run(ok.run()))
+
+    bad = clean()
+    _self_consistent(bad, V.HOLD_CAP_S + 0.5)
+    f = find(V.validate_run(bad.run()), "planned_timeline_cap_exceeded")
+    assert f.severity == V.SEVERITY_ERROR
+    assert "§9.4-1" in f.message
+
+
+def test_muzlatilgan_hold_cap_13_soniya_literal():
+    """QIYMAT testi (literal `13.0`): §17.5 O3 muzlatgan raqamning o'zi.
+    `hold_s = 13.0` qabul, `hold_s = 13.5` rad. Mexanizm testidan farqi:
+    u cap qiymati o'zgarsa ham o'tadi, bu esa cap o'zgarsa DARHOL qizaradi --
+    ya'ni cap'ni kimdir jimgina qaytarsa (12.0 ga) yoki ko'tarsa, ushlaydi.
+
+    DIQQAT: `agent/holdcap` (`schedule.HOLD_CAP_S = 13.0`) merge qilinmaguncha
+    bu test QIZARISHI KUTILADI va to'g'ri."""
+    assert V.HOLD_CAP_S == 13.0
+
+    ok = clean()
+    _self_consistent(ok, 13.0)
+    assert "planned_timeline_cap_exceeded" not in codes(V.validate_run(ok.run()))
+    assert "planned_timeline_invalid" not in codes(V.validate_run(ok.run()))
+
+    # (a) driver o'z cap'ini 13.5 qilgan: validator muzlatilgan cap'dan ushlaydi
+    bad = clean()
+    _self_consistent(bad, 13.5)
+    assert "planned_timeline_cap_exceeded" in codes(V.validate_run(bad.run()),
+                                                    V.SEVERITY_ERROR)
+
+    # (b) driver default cap'ni qoldirgan: TrialTimeline'ning o'zi rad etadi
+    bad2 = clean()
+    _timeline(bad2, hold_s=13.5)
+    f = find(V.validate_run(bad2.run()), "planned_timeline_invalid")
+    assert "PressureCapExceeded" in f.message
+
+
+def test_ikkinchi_invariant_hold_plyus_ramp_guard_oynasidan_oshsa_xato():
+    """§9.4-2 `hold_s + ramp_above_threshold_s <= 15 s` validatorda MAJBURLANADI
+    (guard'ning `sustain_max`). `HOLD_CAP_S` orqali ifodalangan: hold cap'da
+    turganda ramp'ning yuqori qismi `15 - HOLD_CAP_S` dan oshsa -- xato."""
+    g = V.GUARD_SUSTAIN_WINDOW_S
+    room = g - V.HOLD_CAP_S
+
+    ok = clean()      # chegarada: hold + ramp == 15 -- hali xato EMAS
+    recs(ok, R.RT_TRIAL_BEGIN)[0]["planned_timeline"] = TrialTimeline(
+        ramp_above_threshold_s=room).as_dict()
+    assert "planned_timeline_cap_exceeded" not in codes(V.validate_run(ok.run()))
+
+    bad = clean()     # driver guard oynasini o'zi 100 s qilib izchil yozdi
+    recs(bad, R.RT_TRIAL_BEGIN)[0]["planned_timeline"] = TrialTimeline(
+        ramp_above_threshold_s=room + 0.5,
+        guard_sustain_window_s=100.0).as_dict()
+    f = find(V.validate_run(bad.run()), "planned_timeline_cap_exceeded")
+    assert "§9.4-2" in f.message
 
 
 def test_planned_timeline_maydoni_yoq_bolsa_default_ga_tushmaydi():
@@ -1969,7 +2053,7 @@ def test_t_trial_tolerantligi_bitta_probe_davri():
 # --- 22. §17.4-5: verifikatsiya oynasi pressure hold ICHIDA (v1.6) -----------
 #
 # clean(): t_up = T0 + 1.3 s, W_stab = 8 s -> oyna oxiri T0 + 9.3 s;
-# T_h = T0 + 32 s, T_trial = T0 + 40.1 s.
+# T_h = T0 + t_pressure_off (default timeline'dan), T_trial = T0 + T_TRIAL_US.
 
 
 def _set_timing(b, **kw):
@@ -2064,7 +2148,7 @@ def test_cross_check_oyna_holatini_reducer_bilan_bir_xil_beradi():
 
 
 def test_oyna_w_stab_run_meta_timeline_dan_olinadi():
-    """Kengroq W_stab (60 s) bilan oyna 32 s hold'ga sig'maydi."""
+    """Kengroq W_stab (60 s) bilan oyna hold'ga (HOLD_CAP_S) sig'maydi."""
     b = clean()
     meta_of(b)["timeline"] = dict(TrialTimeline().as_dict(), w_stab_s=60.0)
     f = find(V.validate_run(b.run()), "window_outside_hold_complete")

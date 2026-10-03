@@ -1546,8 +1546,10 @@ def check_planned_timeline(run: RawRun, probe_period_us: int = P_US) -> list[Fin
     qanoatlantiradi va `run_meta.t_trial_us` bilan izchil.
 
     NEGA: kontrakt §1.3-6: `TrialTimeline` invariantlari MAJBURLANADI --
-    "pressure cap = oomd himoyasi, afzallik emas" (§9.4: hold <= 12 s,
-    hold + ramp_above_threshold <= 15 s). `TrialTimeline` o'z cap'larini
+    "pressure cap = oomd himoyasi, afzallik emas" (§9.4: hold <= HOLD_CAP_S,
+    hold + ramp_above_threshold <= 15 s). `HOLD_CAP_S` qiymati bu yerda
+    QAYTA YOZILMAYDI -- `schedule.py` dan import qilinadi (§17.5 O3: oomd
+    bu muhitda yo'q, hold'ni endi 2-invariant chegaralaydi). `TrialTimeline` o'z cap'larini
     parametr sifatida oladi, shuning uchun driver `hold_cap_s=100` bilan
     ichki izchil, lekin XAVFLI timeline yozishi mumkin: bu yerda cap'lar
     MUZLATILGAN konstantalarga (`schedule.HOLD_CAP_S`, `GUARD_SUSTAIN_WINDOW_S`)
