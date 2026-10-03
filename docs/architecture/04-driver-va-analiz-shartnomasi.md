@@ -25,7 +25,7 @@ versiyaning `sha256` i saqlanadi.
 | **v1.1 git tag** | **`v0.1.1-driver-contract`** — v1.2 integratsiyasidan keyin qo'yildi (v1.1 ni integratsiya qilgan merge `b6dbad2`). Uchala versiya ham taglangan: `v0.1.0-driver-contract`, `v0.1.1-driver-contract`, `v0.1.2-driver-contract` |
 | **Sabab** | **uchta mustaqil defekt, barchasi implementatsiya tomonidan topilgan:** (1) §3 ikkita majburiy figura talab qiladi (`downtime_ecdf`, `probe_cost`), lekin §2.2 ularga **ma'lumot bermaydi** — ya'ni shartnomaga mos `analysis.json` §3 ni bajara olmaydi (`agent/figures`, `92eca55`); (2) **`PREREGISTRATION.md` §11 ning fail-slow falsifikatsiya mezoni `analysis.json` dan HISOBLANMAYDI** — u `P0`–`P2` **pressure** kontrastini nomlaydi, §2.2 esa faqat arm kontrastini beradi (`agent/analyze`, `2518e26`); (3) **`boot_id` bu host'da yetarli emasligi O'LCHANDI** — guest PID 1 restart bo'lganda `boot_id` o'zgarmaydi, demak §14.6 invarianti 5 soxta "o'tdi" beradi (`agent/envcheck`, `fe914d6`; shu amendment paytida **mustaqil takrorlandi** — §1.4) |
 | **O'zgardi** | §1.1, §1.2 — **`guest_generation`** majburiy maydon; **yangi §1.4** (marker, o'lchov, identifikator va abort qoidasi); §1.3 — yangi majburiyatlar 13–16 va ikki tuzatilgan havola; §2.1 — kirish flaglari jadvali, yangi ixtiyoriy **`--events`** va **`--episodes`**, `probe_cost` provenance zanjiri; §2.2 — `time_unit`, `t_trial_us`, `t_trial_formula`, provenans kalitlari, `downtime` ning ichki shakli + ixtiyoriy `ecdf`, yangi `probe_cost`, `survival.censoring.n_undetermined`, **`survival.rmst.pressure_difference` va `*.by_pressure_band`**, `contrast` / `ci_level` / `basis` / `uncorrected` / `exclusions.n_*`; §2.3 — yangi majburiyatlar 10–19; **yangi §2.4–§2.10**; §3.1 — figura **degradatsiya** qoidalari; §4.2-3 va §4.6 — `stream` CHEKLOVI yopildi; §4.3 — `overhead_us` qatori; **yangi §4.7** (reducer kirishi bitta target/unit); §5.1 — bo'lim havolasi (v1.4 da qatorlar siljidi); §5.4 — horizon toleransi `P` deb raqamlandi; **yangi §7** (o'lchangan tuzoqlar); **yangi §8** (kod-vs-kod ochiq nomuvofiqliklari) |
-| **O'zgarMADI** | hech bir ta'rif, chegara, metrika, statistik test yoki **falsifikatsiya mezoni**. **§11 ning fail-slow mezoni va uning 20% chegarasi tegilmadi** — faqat uni hisoblash uchun transport qo'shildi (§2.10); `τ = 8 s` o'zgarmadi; `survival.rmst.by_arm` **saqlandi**. **§4.1–§4.6 ning maydon nomlari jadvali o'zgarmadi**; **§5.2 ning `T_trial` formulasi va 40.1 s o'zgarmadi**; **§6 (`matplotlib`) o'zgarmadi**; §1.1 ning mavjud maydonlari, §1.3 ning 1–12 majburiyatlari, §2.2 ning `primary.cells` / `falsification_rule` / `fr_b` / `sensitivity` grid'i va §3 ning figura ro'yxati o'z holida. **`SCHEMA_VERSION` SILJIMAYDI** — qo'shilgani faqat **payload va chiqish maydonlari**, yangi record turi ham, yangi enum qiymati ham yo'q (§2.2: `schema_version: 1`). §8 dagi ikki nomuvofiqlik **HAL QILINMADI**, faqat qayd etildi. `PREREGISTRATION.md` va `INSTALLATION.md` **tahrirlanmadi**; `revix/*.py` **tahrirlanmadi** |
+| **O'zgarMADI** | hech bir ta'rif, chegara, metrika, statistik test yoki **falsifikatsiya mezoni**. **§11 ning fail-slow mezoni va uning 20% chegarasi tegilmadi** — faqat uni hisoblash uchun transport qo'shildi (§2.10); `τ = 8 s` o'zgarmadi; `survival.rmst.by_arm` **saqlandi**. **§4.1–§4.6 ning maydon nomlari jadvali o'zgarmadi**; **§5.2 ning `T_trial` formulasi va 40.1 s o'zgarmadi** *[2026-10-03 tuzatma: bu bayonot faqat **v1.1 → v1.2** oralig'iga tegishli edi. 40.1 s hozirgi qiymat **emas** — `preregistration/v1.11` (`hold_cap_s` 12 s → 13 s) dan keyin default `T_trial` = **41.1 s**; formula o'zgarmadi. Qarang: "v1.2 ikkinchi revizyasi (2026-10-03)" pastda]*; **§6 (`matplotlib`) o'zgarmadi**; §1.1 ning mavjud maydonlari, §1.3 ning 1–12 majburiyatlari, §2.2 ning `primary.cells` / `falsification_rule` / `fr_b` / `sensitivity` grid'i va §3 ning figura ro'yxati o'z holida. **`SCHEMA_VERSION` SILJIMAYDI** — qo'shilgani faqat **payload va chiqish maydonlari**, yangi record turi ham, yangi enum qiymati ham yo'q (§2.2: `schema_version: 1`). §8 dagi ikki nomuvofiqlik **HAL QILINMADI**, faqat qayd etildi. `PREREGISTRATION.md` va `INSTALLATION.md` **tahrirlanmadi**; `revix/*.py` **tahrirlanmadi** |
 | **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan va hech qanday ma'lumot mavjud emas, demak **eski ta'riflar ostida qayta hisoblanadigan narsa yo'q** |
 
 **Bu amendment nega qonuniy:** uchala o'zgarish ham **transport** qatlamiga
@@ -81,6 +81,60 @@ o'zgarish qolardi:
 > yolg'on bayonotni olib yurardi, va *"ishga tushirilmagan test o'tdi deb
 > yozilmaydi"* qoidasining teskari tomoni ham shu — **o'tgan test
 > yo'q deb yozilmaydi**.
+
+#### v1.2 ikkinchi revizyasi (2026-10-03) — HISOBLANGAN qiymat siljidi, QOIDA o'zgarmadi
+
+**Versiya OSHIRILMADI.** Bu revizya shartnomaning birorta **qoidasini**
+o'zgartirmaydi: §5.2 ning formulasi, §5.4 ning hosilasi (derivation) va
+invarianti, `PROBE_PERIOD_US`, `SCHEMA_VERSION`, har bir record turi va har
+bir enum aynan o'sha. O'zgargan narsa — formulaning **default timeline'da
+beradigan qiymati**, va u o'zgargan sababi shu fayldan **tashqarida**.
+
+| | |
+|---|---|
+| **Sana** | 2026-10-03 |
+| **Sabab** | `PREREGISTRATION.md` §17.5 **O3** bo'yicha hal qilindi: `hold_cap_s` **12 s → 13 s** (amendment `preregistration/v1.11`, `main` ga merge qilingan, hali taglanmagan). §5.2 ning `T_trial = t_pressure_off + w_stab_s + P` formulasi `TrialTimeline` dan **hisoblanadi**; `hold_s` default'i `HOLD_CAP_S` (`revix/schedule.py:96`, `13.0`) bo'lgani uchun `t_pressure_off` 1 s ga surildi. **Hosila qiymat siljidi, hech qanday qoida o'zgarmadi.** |
+| **Hisob (kod'dan o'qildi va ishga tushirildi)** | `t_hold_start = preflight 5 + baseline 10 + ramp 5 = 20.0 s`; `t_pressure_off = 20.0 + hold 13.0 = 33.0 s`; `T_trial = 33.0 + w_stab 8.0 + P 0.1 = 41.1 s = 41 100 000 µs`; `total_s = 33.0 + washout 20.0 = 53.0 s`. `driver.t_trial_us(TrialTimeline())` = `41100000` |
+| **O'zgardi** | §5.2 "Pilot qiymatlari" jadvali: `t_pressure_off` **32.0 → 33.0 s**; **`T_trial` 40.1 s = 40 100 000 µs → 41.1 s = 41 100 000 µs**; `total_s` **52.0 → 53.0 s**. §5.3 ning "Busiz nima buzilardi" misolidagi `total_s` (52 s → 53 s) va `t_pressure_off` (32 s → 33 s). Shuningdek §5.1 va §5.5 dagi o'tgan zamon bayonotlari yonida **sanalangan tuzatma** qo'shildi (qarang pastda) |
+| **O'zgarMADI** | §5.2 ning **formulasi** va majburlanadigan invarianti `t_verify_end_earliest ≤ T_trial ≤ total_s` (`31.0 ≤ 41.1 ≤ 53.0` bajariladi); `t_inject` **23.0 s** va `t_verify_end_earliest` **31.0 s** (hold boshlanishi 20.0 s da qoladi); `w_stab_s` 8.0 s; `P` = `PROBE_PERIOD_US` = 100 000 µs; §5.4 ning barcha 6 majburiyati va `trial_end` toleransi `P`; `W_stab` sweep grid'i `{8,10,30,60,120}` va §2.3-7 (`60` va `120` hamon horizon'dan katta, `30` kichik); `τ = 8 s`; `SCHEMA_VERSION`; **har bir record turi va har bir enum qiymati**; §1–§4, §6–§8. `PREREGISTRATION.md`, `revix/*.py` va testlar bu revizya bilan **tahrirlanmadi** |
+| **Yig'ilgan ma'lumot** | **yo'q** — hech qanday eksperiment ishga tushirilmagan, **birorta P1 trial ham o'tkazilmagan**. Demak **eski qiymat (40.1 s) ostida qayta hisoblanadigan narsa yo'q**: horizon hech bir run'da `run_meta.t_trial_us` ga yozilmagan va hech bir trial u bo'yicha censor qilinmagan |
+
+**Hujjat `sha256` i o'zgaradi, versiya esa o'zgarmaydi** — shuning uchun bu
+yerda ochiq qayd etiladi:
+
+| | |
+|---|---|
+| v1.2 (birinchi revizyadan keyin, **shu revizyadan oldingi** matn; commit `7cc8178`) | `5ceae8076fa9f69e4b9bed4f1f5a13247dabcf63e1af72584030c29aefd1ea59` |
+| v1.2 (shu revizyadan keyin) | commit xabarida beriladi |
+
+`v0.1.2-driver-contract` tegi (`fa6e1725…`, v1.2 ning asl matni) **ko'chirilmaydi**
+va yangi teg qo'yilmaydi: teg versiyani belgilaydi, versiya esa o'zgarmadi.
+
+**Tarixiy matn nega o'z holida qoldi.** Quyidagi o'rinlar o'z davri uchun
+**to'g'ri** bayonot edi va amendment log'ning o'tgan yozuvlarini qayta yozish
+muzlatilgan hujjat intizomiga zid. Ular **o'chirilmadi** — ularning yoniga
+sanalangan tuzatma qo'shildi, shunda o'quvchi ikkala qatlamni ham ko'radi:
+
+| o'rin | asl matn | nega o'z holida | tuzatma |
+|---|---|---|---|
+| v1.1 → v1.2 yozuvi, **O'zgarMADI** qatori | *"§5.2 ning `T_trial` formulasi va 40.1 s o'zgarmadi"* | **v1.1 → v1.2** oralig'ida rost edi (v1.2 `hold_cap_s` ga tegmagan); lekin u **hozirgi** qiymat haqida emas | qator oxirida `[2026-10-03 tuzatma: …]` |
+| §5.1, *"Lekin `PREREGISTRATION.md` …"* xatboshisi | *"hold 12 s … ≈ 52 s"* — `PREREGISTRATION.md` §9.4 ning o'sha paytdagi matnidan **iqtibos** | `preregistration/v1.4` ni tekshirish paytida §9.4 shunday yozgan; iqtibos o'z davrining dalili | jumla oxirida qavsli izoh: §9.4 endi 13 s va ≈ 53 s |
+| §5.5 oxiridagi **"v1.2 tekshiruvi"** bloki | *"`hold_cap_s = 12 s` … o'zgarmadi — demak `T_trial = 40.1 s` ham o'zgarmaydi"* | `preregistration/v1.4` uchun **to'g'ri** xulosa edi | blokdan keyin yangi **"2026-10-03 tuzatma"** bloki |
+
+> **NEGA versiya oshirilmaydi:** shu fayl o'zining yuqoridagi qoidasiga
+> ko'ra (*"ta'rif, metrika yoki talab o'zgarganda"* oshiriladi) — bu yerda
+> **talab o'zgarmadi**. §5.4-1 *"`T_trial` hisoblanadi, kodga yozilgan
+> konstanta sifatida berilmaydi"* deb **raqamni emas, formulani** muzlatadi;
+> §5.2 jadvali esa formulaning **default'dagi natijasi** (*"`TrialTimeline()`
+> default'laridan ishga tushirilib hisoblangan"*), ya'ni kuzatuv, talab emas.
+> Haqiqiy versiya oshishi `PREREGISTRATION.md` da bo'ldi
+> (`preregistration/v1.11`) — shartnoma uni **kuzatadi**. Versiyani
+> oshirish `agent/driver` / `agent/analyze` / `agent/figures` ga mavjud
+> bo'lmagan **shartnoma farqini** izlashga majbur qiluvchi yolg'on signal
+> bo'lardi. Lekin qiymatni **yozmaslik** ham mumkin emas: validator
+> (`t_trial_formula_mismatch … != 41100000 us (kontrakt v1.1 §5.2)`) allaqachon
+> 41.1 s ni talab qiladi, hujjat esa 40.1 s ni aytib turardi — ya'ni hujjat
+> kod bilan **ziddiyatda** qolardi.
 
 ### v1 → v1.1 (2026-10-02)
 
@@ -1259,6 +1313,8 @@ Tekshirildi (`preregistration/v1.4` da **qayta** tekshirildi): `T_trial` faqat
 ta'riflanmaydi; §9.4 trial jadvalini
 fazalar bilan beradi (`pre-flight → baseline 10 s → ramp 5 s → hold 12 s →
 washout ≥20 s ≈ 52 s`), lekin recovery horizon'ini raqamlamaydi.
+*(2026-10-03: bu `preregistration/v1.4` dagi §9.4 dan iqtibos; `preregistration/v1.11`
+dan beri §9.4 `hold 13 s` va `≈ 53 s` deydi — qarang "v1.2 ikkinchi revizyasi".)*
 
 `reduce.py` esa uni **mavjud deb hisoblaydi**: `Trial.t_trial_us` =
 `trial_end.mono_us − trial_begin.mono_us` (`reduce.py:415`). Ya'ni horizon
@@ -1294,11 +1350,22 @@ hisoblangan):
 |---|---|
 | `t_inject` | 23.0 s |
 | `t_verify_end_earliest` | 31.0 s |
-| `t_pressure_off` | 32.0 s |
+| `t_pressure_off` | 33.0 s |
 | `w_stab_s` | 8.0 s |
 | `P` | 0.1 s |
-| **`T_trial`** | **40.1 s = 40 100 000 µs** |
-| `total_s` (yuqori chegara) | 52.0 s |
+| **`T_trial`** | **41.1 s = 41 100 000 µs** |
+| `total_s` (yuqori chegara) | 53.0 s |
+
+Hisob: `t_hold_start = 5.0 + 10.0 + 5.0 = 20.0 s`; `t_pressure_off = 20.0 +
+13.0 (hold_s = HOLD_CAP_S) = 33.0 s`; **`T_trial = 33.0 + 8.0 + 0.1 =
+41.1 s`**; `total_s = 33.0 + 20.0 (washout) = 53.0 s`. Invariant:
+`31.0 ≤ 41.1 ≤ 53.0`.
+
+> **v1.2 ikkinchi revizyasi (2026-10-03):** bu jadvalda `t_pressure_off`
+> 32.0 → 33.0 s, `T_trial` 40.1 → 41.1 s va `total_s` 52.0 → 53.0 s ga
+> o'zgardi, chunki `PREREGISTRATION.md` §17.5 **O3** (`preregistration/v1.11`)
+> `hold_cap_s` ni 12 s dan 13 s ga ko'tardi. **Formula o'zgarmadi** — faqat
+> uning default'dagi qiymati. Amendment log'ga qarang.
 
 ### 5.3 NEGA aynan shu formula
 
@@ -1310,8 +1377,8 @@ hisoblangan):
 | yuqori chegara `total_s` | `trial_end` rejalashtirilgan jadval ichida qolishi kerak, aks holda washout va keyingi trial bir-biriga kirib ketardi (§8.4 `T_w` poli) |
 | pastki chegara `t_verify_end_earliest` | §4 ning eng yaxshi holatdagi oynasi horizon ichiga **sig'ishi shart**; sig'masa shartnoma o'z-o'ziga qarama-qarshi bo'lardi |
 
-**Busiz nima buzilardi:** horizon jimgina `total_s` (52 s) yoki `t_pressure_off`
-(32 s) qilib olinsa — birinchi holatda `loop_rate` maxraji `loop_detected`
+**Busiz nima buzilardi:** horizon jimgina `total_s` (53 s) yoki `t_pressure_off`
+(33 s) qilib olinsa — birinchi holatda `loop_rate` maxraji `loop_detected`
 ta'rifidan ajralib ketardi, ikkinchi holatda deyarli har trial
 `window_truncated` bo'lib `vr=None` chiqardi. Ikkala holatda ham sabab
 hujjatda **yozilmagan** bo'lardi, ya'ni reviewer "horizon qanday tanlandi?"
@@ -1365,6 +1432,15 @@ tuzatilmaydi).
 > `hold_cap_s = 12 s` va `guard_sustain_s = 15 s` muzlatilgan qiymatlari
 > §5.2 ning hisobiga **kiradigan** qiymatlar bo'lib, ular **o'zgarmadi** —
 > demak `T_trial = 40.1 s` ham o'zgarmaydi.
+
+> **2026-10-03 tuzatma (v1.2 ikkinchi revizyasi):** yuqoridagi xulosa
+> `preregistration/v1.4` uchun **to'g'ri edi**, lekin **hozir amal qilmaydi**.
+> `preregistration/v1.11` (§17.5 **O3**) `hold_cap_s` ni **12 s → 13 s** ga
+> o'zgartirdi, shu sababli §5.2 ning hisobiga kiradigan `hold_s` o'zgardi va
+> default `T_trial` = `33.0 + 8.0 + 0.1` = **41.1 s** (`41 100 000 µs`).
+> `W_stab_pilot = 8 s` va `guard_sustain_s = 15 s` o'zgarmadi; **§5.2 ning
+> formulasi va §5.5 ning "`PREREGISTRATION.md` ustun" qoidasi o'zgarmadi** —
+> bu hujjatning formulasi kuchda, faqat uning default'dagi qiymati siljidi.
 
 ---
 
