@@ -98,12 +98,20 @@ backoff'iga nisbatan kam downtime va kam false-recovery beradi.
 | `revix/analyze.py` | ✅ | offline analiz → `analysis.json` |
 | `revix/figures.py` | ✅ | faqat `analysis.json` dan figura + raqam sidecar'i |
 
-### O'lchangan holat (2026-10-02, bu mashinada)
+### O'lchangan holat (2026-10-03, bu mashinada, commit `9482a1c`)
 
 ```
 make -C revix all              -> rc=0, ogohlantirishsiz (-Werror, C11)
-python3 -m pytest tests/ -q    -> 866 passed, 1 failed, 1 skipped
+python3 -m pytest tests/ -q    -> 1062 passed, 1 skipped (87.95s)
 python3 -m revix.cli doctor    -> 15 PASS, 3 WARN, 0 FAIL (exit 0)
+```
+
+Research appliance image (ISO) ichida, alohida o'lchangan:
+
+```
+revix doctor --json            -> 14 PASS, 4 WARN, 0 FAIL (exit 0)
+make -C /opt/revix/revix all   -> rc=0
+python3 -m pytest tests/ -q    -> 1045 passed, 1 failed, 1 skipped
 ```
 
 Muhit: WSL2 Kali, kernel `6.6.87.2-microsoft-standard-WSL2`, systemd 257,
@@ -112,9 +120,19 @@ Python 3.14.7, 9.71 GiB RAM, 12 CPU. **`systemd-oomd` o'rnatilmagan**,
 [`07-wsl-muhit-tekshiruvlari.md`](docs/architecture/07-wsl-muhit-tekshiruvlari.md)
 va `PREREGISTRATION.md` §15 da.
 
-Yiqilgan 1 test — driver'ning o'z fixture'i validatorning kengaytirilgan
-invariantlariga yetmaydi (tuzatilmoqda). Skip qilingan 1 test — oomd mavjud
-bo'lgan holat uchun; bu mashinada oomd yo'q.
+Host'da yiqilgan test **yo'q**. Skip qilingan 1 test — oomd mavjud bo'lgan
+holat uchun; bu mashinada oomd yo'q (**skip o'tish emas**).
+
+Image ichidagi yagona yiqilish — `test_pacing_10hz_va_drift_yigmaydi`,
+scheduler jitter'ini o'lchaydigan test. Sababi image'da emas: VirtualBox bu
+host'da **NEM (Windows Hypervisor Platform)** da ishlaydi, chunki WSL2'ning
+Hyper-V'si AMD-V ni egallagan. **VM ichida olingan hech qanday vaqt o'lchovi
+bu tadqiqot uchun valid emas** — tafsilot
+[`11-iso-qurilish-jurnali.md`](docs/architecture/11-iso-qurilish-jurnali.md).
+
+Image ichida `io` controller **delegated** (`subtree_control = cpu io memory
+pids`), host'da esa emas — ya'ni appliance `fault class 6` (`io_stall`) ni
+o'lchash imkonini beradi, host bermaydi.
 
 **Hech qanday eksperiment hali ishga tushirilmadi. Hech qanday natija hali yo'q.**
 

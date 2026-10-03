@@ -11,32 +11,61 @@
 ## 1. Hozirgi holat — o'lchangan
 
 ```
-$ python3 -m pytest tests/unit/ -q
-........................................................................ [ 70%]
-..............................                                           [100%]
-102 passed in 6.48s
+$ python3 -m pytest tests/ -q
+1062 passed, 1 skipped, 1 warning in 87.95s (0:01:27)
 ```
 
-**102 test o'tdi.** Bu raqam shu hujjat yozilganda haqiqatan ishga
-tushirilgan buyruqdan olingan (2026-09-29, Python 3.13.15, pytest 9.1.1,
-commit `26cf4cf`).
+**1062 test o'tdi, 1 skip, 0 yiqilish.** Bu raqam shu hujjat yozilganda
+haqiqatan ishga tushirilgan buyruqdan olingan: 2026-10-03, commit
+`9482a1c`, Python 3.14.7 (GCC 16.2.0), pytest 9.1.1, WSL2 Kali,
+kernel `6.6.87.2-microsoft-standard-WSL2`, ext4 ish joyi.
 
-Fayl bo'yicha taqsimlanishi (`pytest --collect-only` bilan sanalgan):
+Skip qilingan 1 test — `systemd-oomd` mavjud bo'lgan holat uchun; bu
+mashinada oomd o'rnatilmagan ([`07-wsl-muhit-tekshiruvlari.md`](docs/architecture/07-wsl-muhit-tekshiruvlari.md)
+§6.4). **Skip — o'tish emas.**
+
+`make -C revix all` → `rc=0`, `cc -O2 -Wall -Wextra -Werror -std=c11 -pthread`.
+
+Fayl bo'yicha taqsimlanishi (`pytest --collect-only -q` bilan sanalgan,
+har bir fayl alohida):
 
 | Fayl | Testlar | Nimani sinaydi |
 |---|---|---|
+| [`tests/unit/test_schema.py`](tests/unit/test_schema.py) | 12 | envelope, oqim bo'yicha `seq`, yozuvchilar, disposition enum'i |
 | [`tests/unit/test_cgroup.py`](tests/unit/test_cgroup.py) | 9 | PSI parse, `stall_fraction` kvantlash qoidasi, dash'siz slice nomi |
-| [`tests/unit/test_guard.py`](tests/unit/test_guard.py) | 21 | guard chegara mantiqi, FAIL-CLOSED, davomiylik himoyasi, tezlik oynasi |
-| [`tests/unit/test_pressure.py`](tests/unit/test_pressure.py) | 4 | churn tartibi (ajrat→bo'shat) va hisob tiklanishi |
+| [`tests/unit/test_guard.py`](tests/unit/test_guard.py) | 30 | guard chegara mantiqi, FAIL-CLOSED, davomiylik himoyasi, tezlik oynasi |
+| [`tests/unit/test_pressure.py`](tests/unit/test_pressure.py) | 9 | churn tartibi (ajrat→bo'shat), hisob tiklanishi, epizod chegarasi |
 | [`tests/unit/test_prober.py`](tests/unit/test_prober.py) | 40 | tasnif qarorlari, detection vaqti, pacing, invocation race |
-| [`tests/unit/test_schema.py`](tests/unit/test_schema.py) | 11 | envelope, oqim bo'yicha `seq`, yozuvchilar, disposition enum'i |
-| [`tests/unit/test_sut.py`](tests/unit/test_sut.py) | 17 | haqiqiy `sut.c` jarayoni ustidan wire protokol va `progress` semantikasi |
-| **Jami** | **102** | |
+| [`tests/unit/test_sut.py`](tests/unit/test_sut.py) | 23 | haqiqiy `sut.c` jarayoni ustidan wire protokol va `progress` semantikasi |
+| [`tests/unit/test_units.py`](tests/unit/test_units.py) | 19 | transient unit yaratish, property bracket'i, `require_alive` |
+| [`tests/unit/test_schedule.py`](tests/unit/test_schedule.py) | 75 | jadval determinizmi, `TrialTimeline` invariantlari, washout mashinasi |
+| [`tests/unit/test_stats.py`](tests/unit/test_stats.py) | 69 | Cochran–Armitage, KM, log-rank, RMST, Newcombe, Clopper–Pearson, BCa |
+| [`tests/unit/test_reduce.py`](tests/unit/test_reduce.py) | 69 | onset topish, birlamchi denominator a'zoligi (§16.2/§17.4/§20.2) |
+| [`tests/unit/test_driver.py`](tests/unit/test_driver.py) | 131 | trial orkestratsiyasi, 10 majburiyat, `--dry-run`, nol-doza rad etilishi |
+| [`tests/unit/test_analyze.py`](tests/unit/test_analyze.py) | 104 | `analysis.json` sxemasi, 8 majburiyat, taqiqlangan statistika yo'qligi |
+| [`tests/unit/test_figures.py`](tests/unit/test_figures.py) | 93 | 6 majburiy figura + raqam sidecar'i, oq-qora o'qiladigan |
+| [`tests/unit/test_cli.py`](tests/unit/test_cli.py) | 83 | subcommand'lar, `--json` uslubi, nolga teng bo'lmagan exit |
+| [`tests/unit/test_gui.py`](tests/unit/test_gui.py) | 74 | dashboard render'i, to'rt qiymat holati, `n/m reason=` |
+| [`tests/unit/test_validate.py`](tests/unit/test_validate.py) | 183 | driver chiqishi uchun invariantlar |
+| [`tests/integration/test_chain.py`](tests/integration/test_chain.py) | 40 | driver → reduce → validate → analyze → figures zanjiri, fixture ma'lumot bilan |
+| **Jami** | **1063** | |
 
-> ⚠️ **Diqqat:** commit `12b478b` (prober) xabarida "full unit suite 85 pass"
-> yozilgan. O'sha raqam **merge'dan oldingi** holat (prober branch'ida sut.c
-> testlari yo'q edi). Merge'dan keyingi haqiqiy raqam — **102**. Test sonini
-> commit xabaridan ko'chirmang; har doim o'zingiz ishga tushirib sanang.
+1063 collected = 1062 passed + 1 skipped. Yig'indi suite natijasiga mos.
+
+> ⚠️ **Diqqat — test sonini hech qaerdan ko'chirmang.** Bu hujjat uch marta
+> eskirgan: commit `12b478b` (prober) xabarida "full unit suite 85 pass"
+> yozilgan edi, u merge'dan oldingi holat; keyin bu bo'lim **102** da
+> qoldi (commit `26cf4cf`, faqat `tests/unit/`); `README.md` esa bir
+> muddat **866 passed, 1 failed** deb turdi. Uchalasi ham o'z vaqtida
+> to'g'ri bo'lgan va keyin jimgina noto'g'riga aylangan.
+>
+> Yana ikki tuzoq: `tests/unit/` ni `tests/` deb o'ylash
+> `tests/integration/` ning 40 testini yashiradi (bu xato
+> `test_zanjir_figura` ning yiqilishini bir muddat ko'rinmas qilgan);
+> va image ichidagi raqam host raqamidan farq qiladi — appliance'da
+> **1045 passed, 1 failed, 1 skipped** o'lchangan, yiqilgani
+> `test_pacing_10hz_va_drift_yigmaydi`, sababi VM emulatsiyasida timing
+> valid emas ([`11-iso-qurilish-jurnali.md`](docs/architecture/11-iso-qurilish-jurnali.md)).
 
 **Hech qanday eksperiment ishga tushirilmadi.** Quyidagi testlar harness
 komponentlarini sinaydi, gipotezani emas.
