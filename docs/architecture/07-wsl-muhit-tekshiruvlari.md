@@ -762,6 +762,92 @@ bu mashinada ham o'zgarishsiz.
 `cgroup.kill` throwaway child'da yoziladi va tozalanadi; `cgroup.kill` bilan
 subtree o'ldirish §3.4/§4.5 da kuzatildi.
 
+### 7.6 Guest o'z-o'zidan qayta ishga tushadi; `vmIdleTimeout` buni to'xtatmadi
+
+Bu bo'limni orkestrator o'lchadi (2026-10-03, ISO qurilishi davomida), chunki
+uzun ishlar — ISO qurilishi va **≈2.5 soatlik pilot kampaniyasi** — o'rtasida
+uzilib qolardi.
+
+#### O'lchov usuli
+
+`systemd-logind` har bir boot'da sessiya uchun `/var/tmp/systemd-private-<boot_id>-systemd-logind.service-XXXXXX`
+katalogini yaratadi va **o'chirmaydi**. Katalog nomidagi 32 belgili maydon —
+`/proc/sys/kernel/random/boot_id`. Demak bu kataloglar qayta ishga tushishlarning
+saqlanib qolgan yozuvi: nomdan `boot_id`, `stat`dan vaqt.
+
+#### FAKT
+
+```
+jami katalog              = 199
+jami uniq boot_id         = 89
+2026-10-03 uniq boot_id   = 23
+```
+
+2026-10-03 dagi qayta ishga tushish vaqtlari (`boot_id` o'zgargan daqiqalar):
+
+```
+00:06  03:24  03:29  03:36  03:38  04:22  04:36  04:37
+10:07  10:10  10:16  10:20  10:26  10:53  11:08  11:09
+11:14  11:27  11:31  12:03  12:08  12:12  12:12
+```
+
+Bo'sh holatdagi oraliqlar **1–5 daqiqa**. 11:33–12:01 oralig'ida (28 daqiqa)
+yangi `boot_id` yo'q — o'sha oynada `mmdebstrap` ishlayotgan va uni kuzatuvchi
+`wsl.exe` mijozi har 60 s da ochilayotgan edi.
+
+#### FAKT — `vmIdleTimeout` qo'yildi va YORDAM BERMADI
+
+`C:\Users\snowden\.wslconfig` ga `[wsl2] vmIdleTimeout=14400000` (4 soat)
+qo'shildi, `wsl --shutdown` bajarildi. Kalit **qabul qilindi** — ishga
+tushirishda "Unknown key" ogohligi chiqmadi (`pageReporting` chiqargan edi).
+Shundan **keyin** qayta ishga tushishlar davom etdi: `12:03`, `12:08`,
+`12:12`, `12:12`.
+
+Muhit: `WSL version 2.6.1.0`, `Kernel version 6.6.87.2-1`, guest
+`6.6.87.2-microsoft-standard-WSL2`, `systemd 257 (257.7-1)`.
+
+#### FAKT — uzoq yashovchi mijoz ushlab turdi
+
+Guest ichida 3 soatlik jarayon (`wsl.exe -d kali-linux -e sh -c 'exec sleep 10800'`)
+ochiq mijoz sifatida ushlab turildi. `boot_id=fac1548b-…` **12:12:28 dan
+12:27:04 gacha (≈15 daqiqa) o'zgarmadi** (`uptime` monoton o'sdi: 215 → 371 → 548 → 782 → 876 s),
+va bu oynada ikkita ISO build zanjiri ishga tushdi.
+
+#### TALQIN
+
+Guest'ni tirik tutadigan narsa — **ochiq `wsl.exe` mijozi**, `vmIdleTimeout`
+emas. Kalit nega hurmat qilinmagani **o'lchanmadi** (WSL ichki holati guest
+ichidan ko'rinmaydi, 6.3 ga qarang); ehtimolliklar: bu build kalitni tahlil
+qiladi-yu qo'llamaydi, yoki `[wsl2]` ichidagi boshqa kalit bilan ziddiyat.
+Bu **gipoteza, tasdiqlanmagan** — lekin yechim unga bog'liq emas.
+
+#### OQIBAT — protokol qadami (bajarilishi SHART)
+
+Har uzun ish (ISO qurilishi, `revix run` pilot kampaniyasi) **ochiq mijoz
+ushlab turilgan holda** boshlanadi, va ish **`boot_id` ni boshida yozib,
+har qadamdan oldin solishtiradi**. `boot_id` o'zgarsa — natija bekor, chunki
+transient unit'lar va `CLOCK_MONOTONIC` asosi yo'qolgan.
+
+Pilot uchun qo'shimcha talab: ushlab turuvchi jarayon `sleep` bo'lsin va
+o'lchanadigan slice'lardan **tashqarida** turishi kerak (WSL sessiya scope'ida,
+`revixlab.slice`/`revixmon.slice` da emas) — aks holda u o'lchovga kiradi.
+
+#### CHEKLOV — sanoq pastki chegara
+
+Usul faqat `systemd-logind` sessiya ochgan boot'larni ko'radi. Sessiyasiz
+boot iz qoldirmaydi, demak **23 — pastki chegara, aniq son emas**. Shuningdek
+katalog vaqti boot vaqti emas, balki birinchi sessiya vaqti; farq o'lchanmadi
+(hozirgi boot'da `uptime` bo'yicha ≈45 s).
+
+#### O'LCHOV ARTEFAKTI — userns build kataloglari tashqaridan o'qilmaydi
+
+`mmdebstrap --mode=unshare` yaratgan `rootfs` katalogi tashqi uid `100000` ga
+tegishli; ichidagi kataloglarning bir qismi `0700`. Tashqaridan `ls` **bo'sh
+natija** qaytaradi va `du` ichiga tushmaydi. Shuning uchun "katalog bo'sh"
+o'qishi **yo'qlik dalili emas** — bu xato orkestratorning dastlabki
+diagnostikasida sodir bo'ldi. Progress `du -sh <OUT_DIR>` (ota-katalog) yoki
+`df` delta bilan o'lchanadi.
+
 ---
 
 ## 8. Avvalgi mashina bilan taqqoslash
