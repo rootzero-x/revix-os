@@ -113,10 +113,11 @@ DIZAYN QOIDALARI (buzilmaydi)
     Struktura bilan majburlanadi, diqqat bilan emas.
 
 17. DOZA DIAL'I OSHKORA BERILADI, MEROS QILINMAYDI.
-    Mexanizm: `_pressure_argv()` generatorga `--step-mb` va `--base-mb` ni
-    HAR DOIM beradi (`PRESSURE_STEP_MB`, `PRESSURE_BASE_MB`), ya'ni
-    `pressure.run_pi` ning `base = max(16, high_MiB - 2*step_mb)` avtomatik
-    formulasiga TAYANMAYDI.
+    Mexanizm: `_pressure_argv()` generatorga `--step-mb`, `--base-mb` va
+    `--interval-ms` ni HAR DOIM beradi (`PRESSURE_STEP_MB`,
+    `PRESSURE_BASE_MB`, `PRESSURE_INTERVAL_MS`), ya'ni `pressure.run_pi`
+    ning `base = max(16, high_MiB - 2*step_mb)` avtomatik formulasiga ham,
+    modul default'lariga ham TAYANMAYDI.
     NEGA: 10-pressure-dozalash.md §2.5 / OQ-2 aynan shu merosni o'lchadi --
     argv dial'ni bermaganda modul default'i `step_mb=16` ishlab,
     `base = 192 - 2*16 = 160 MiB` chiqadi va bu §2.2 ning D1 epizodida
@@ -128,6 +129,12 @@ DIZAYN QOIDALARI (buzilmaydi)
     asbob tomonidagi analogi. Chiqishda buni ko'rsatuvchi hech narsa yo'q edi.
     Dial OSHKORA bo'lgani uchun `MemoryHigh` o'zgarsa baza JIMGINA o'zgarmaydi
     -- regressiya qulfi (`tests/unit/test_driver.py`) buni YIQITADI.
+    `--memory-high` esa RUNTIME bayrog'i, demak uni test tutib qolmaydi:
+    shu sababli `setup_run()` da `_require_nonzero_dose()` pre-flight'i bor
+    va u run'ning HAQIQIY `MemoryHigh` idan arifmetikani hisoblab, nol doza
+    bo'lsa `ZeroDoseError` bilan RUN'NI BOSHLATMAYDI (fail-closed, majburiyat
+    4 bilan bir xil posture). `P0` bundan MUSTASNO -- uning nol dozasi §9.3
+    ning "generator idle" sharti (§3.2), nuqson emas.
 
 
 MUZLATILMAGAN, SHUNING UCHUN OCHIQ PARAMETR (hech biri jimgina tanlanmaydi)
@@ -289,6 +296,14 @@ PRESSURE_BASE_MB: dict[str, int] = {"P0": 160, "P1": 184, "P2": 184}
 # faqat ko'chiriladi; `base_mb + overhead > MemoryHigh_MiB` breach shartini
 # AUDIT QILINADIGAN qiladi (regressiya qulfi shu munosabatni tekshiradi).
 PRESSURE_OVERHEAD_MB = 25.3
+# Control tik'i. §2.6 ning kalibrlangan qiymati 250 ms va u `pressure.py`
+# ning hozirgi modul default'i bilan TASODIFAN bir xil -- shuning uchun u
+# ham OSHKORA beriladi (dizayn qoidasi 17). NEGA: `step_mb` ning merosi
+# nol doza berdi (OQ-2); `interval_ms` ning merosi bugun zararsiz, lekin
+# `pressure.py` ning default'i o'zgarsa pilotning control tik'i JIMGINA
+# ko'chardi va §3.5 ning duty cycle granularligi (250 ms tik, 2 s PSI
+# oynasi, 4 MiB blok) boshqa bo'lib qolardi. Bir xil nuqson klassi.
+PRESSURE_INTERVAL_MS = 250
 
 # --- slice dial'lari (00-pilot-topologiya.md §1) ---------------------------
 LAB_SLICE_PROPERTIES: dict[str, Any] = {
@@ -381,6 +396,30 @@ class PressureNotAllowedError(DriverError):
 
     00-pilot-topologiya.md §6: guard tasdiqlanishi (qadam 3) pressure dosing
     kalibratsiyasidan (qadam 4) OLDIN bo'lishi SHART. "Retrofit qilinmaydi."
+    """
+
+
+class ZeroDoseError(DriverError):
+    """Dial nol doza beradi -> run BOSHLANMAYDI (majburiyat 4, fail-closed).
+
+    10-pressure-dozalash.md §2.2 ning arifmetikasi: doza FAQAT
+    `base_mb + overhead > MemoryHigh_MiB` bo'lganda yetkaziladi. Shart
+    buzilsa generator tirik, rezident va JIM bo'ladi -- erishilgan stall
+    aynan 0.0000 (§2.2 D1, 114 namuna).
+
+    NEGA OGOHLANTIRISH EMAS, XATO: nol doza bilan run ~2.5 soat ishlaydi va
+    oxirida null beradi; o'sha null H1 ga qarshi dalilga AYNAN O'XSHAYDI,
+    lekin u asbob nuqsoni (§2.5, PREREGISTRATION.md §9.2 ning analogi).
+    `--memory-high` RUNTIME bayrog'i, demak regressiya testi `--memory-high
+    256M` ni tutib qolmaydi: 184+25.3 = 209.3 < 256 -> breach YO'Q. Bu
+    teshikni faqat run'ning HAQIQIY `MemoryHigh` idan hisoblangan pre-flight
+    yopadi. Posture `guard.py` va `units.require_clean()` bilan bir xil.
+
+    NEGA PER-TRIAL EMAS, RUN DARAJASIDA: trial ichidagi istisno har pressure
+    trial'ini `harness_error` disposition'iga aylantirardi (qoida 13), ya'ni
+    konfiguratsiya nuqsoni 120 ta eksklyuziyaga va asbob tomonidan
+    boshqariladigan eksklyuziya tezligiga aylanardi -- §12 ning butun
+    maqsadiga zid.
     """
 
 
@@ -1699,18 +1738,22 @@ class Driver:
         §2.2 ning D1 epizodida o'lchangan NOL-DOZA konfiguratsiyasi
         (erishilgan stall 114 namunada ham aynan 0.0000).
 
-        `--interval-ms` BERILMAYDI: modul default'i 250 ms va bu §2.6 ning
-        kalibrlangan qiymatiga TENG, demak hozir nuqson emas (lekin u ham
-        meros -- qarang: hisobot/OQ-2).
+        `--interval-ms` HAM beriladi. Modul default'i (250 ms) §2.6 ning
+        kalibrlangan qiymatiga TASODIFAN teng, demak bugun nuqson yo'q --
+        lekin bu aynan `step_mb` ning merosi bilan bir xil klass: default
+        o'zgarsa pilotning control tik'i JIMGINA ko'chardi. Meros
+        QOLDIRILMAYDI.
         """
         return [
             self.cfg.python, "-m", "revix.pressure",
             "--mode", "pi",
             "--cgroup", str(self.lab_cgroup),
             "--target-rate", f"{pressure_target_rate(level)}",
-            # §2.6 ning kalibrlangan dial'i -- derivatsiya qilinmaydi.
+            # §2.6 ning kalibrlangan dial'i -- derivatsiya qilinmaydi va
+            # modul default'laridan MEROS QILINMAYDI.
             "--step-mb", f"{PRESSURE_STEP_MB}",
             "--base-mb", f"{pressure_base_mb(level)}",
+            "--interval-ms", f"{PRESSURE_INTERVAL_MS}",
             "--max-seconds", f"{max_seconds:.3f}",
             "--log", self.pressure_path,
             "--run-id", self.run_id,
@@ -1742,7 +1785,10 @@ class Driver:
              meros bo'lmasligi uchun (majburiyat 3);
           2. `require_clean()` -- qoldiq unit/cgroup jimgina kontaminatsiya
              qilmasligi uchun (majburiyat 4);
-          3. slice dial'lari -- 2 dan KEYIN, chunki `SetUnitProperties`
+          3. DOZA PRE-FLIGHT'i (`_require_nonzero_dose()`) -- dial'lar
+             systemd'ga YUKLANISHIDAN OLDIN: nol doza bilan run boshlanmasin
+             va rad etilgan run slice'da hech qanday holat qoldirmasin;
+          4. slice dial'lari -- 2 dan KEYIN, chunki `SetUnitProperties`
              slice'ni systemd'ga yuklaydi va pre-flight o'zimiz yaratgan
              holatdan yiqilardi.
         """
@@ -1752,6 +1798,10 @@ class Driver:
         self.mon_cgroup = self.pf.cgroup_path(MON_SLICE)
         lab_props = dict(LAB_SLICE_PROPERTIES)
         lab_props["MemoryHigh"] = self.cfg.memory_high
+        # Arifmetika slice'ga HAQIQATAN yuboriladigan `MemoryHigh` dan
+        # hisoblanadi, `DEFAULT_MEMORY_HIGH` dan EMAS -- `--memory-high`
+        # runtime bayrog'i (ZeroDoseError docstring'i).
+        dose = self._require_nonzero_dose(lab_props["MemoryHigh"])
         self.pf.set_slice_properties(LAB_SLICE, lab_props)
         self.pf.set_slice_properties(MON_SLICE, dict(MON_SLICE_PROPERTIES))
         return {
@@ -1761,6 +1811,66 @@ class Driver:
             "mon_slice_properties": dict(MON_SLICE_PROPERTIES),
             "lab_cgroup": self.lab_cgroup,
             "mon_cgroup": self.mon_cgroup,
+            "dose_preflight": dose,
+        }
+
+    def _require_nonzero_dose(self, memory_high: str) -> dict[str, Any]:
+        """Jadvaldagi HAR BIR dozalangan band haqiqatan doza berishi SHART.
+
+        `P0` ATAYLAB tekshirilmaydi: uning `breach_expected: false` i
+        TO'G'RI va §9.3 ning "generator idle" sharti (§3.2 -- generator
+        tirik, 160 MiB rezident, `memory.events high` delta 0). Shart faqat
+        `target_rate > 0` bo'lgan bandlarga qo'yiladi.
+
+        Faqat JADVALDAGI bandlar tekshiriladi (`--only` filtridan keyin):
+        `--only P0,A` run'i `P1`/`P2` ning dial'i buzilgani uchun rad
+        etilmasligi kerak -- u ularni ishlatmaydi.
+
+        Xato xabari ARIFMETIKANI ko'rsatadi, quruq rad etishni emas:
+        operator `projected_memory_current_mb` ni `MemoryHigh` ga qarshi
+        ko'rib, nima o'lchanishi kerakligini biladi (§2.6, OQ-11).
+
+        CHEKLOV -- shart FAQAT `breach_expected`: `ramp_free_expected`
+        (`base_mb < MemoryHigh_MiB`, §2.4/§4.1) bu yerda RAD ETISH sharti
+        EMAS. Demak `MemoryHigh` `base_mb` dan PAST bo'lsa (masalan 176M:
+        184+25.3 = 209.3 > 176, lekin 184 > 176) run BOSHLANADI, holbuki
+        §3.6 da `base=196 > high=192` ramp'ni 12.217 s cho'zib §9.4
+        invariant 2 ni buzgan. Bu yo'l jim EMAS -- `ramp_free_expected`
+        `run_meta.open_parameters.base_mb.dose_arithmetic` ga yoziladi va
+        regressiya qulfi uni default konfiguratsiyada tutadi -- lekin
+        runtime'da to'xtatilmaydi. Shartni kengaytirish qarori
+        `driver.py` egasiniki (hisobotda qayd etilgan).
+        """
+        levels = sorted({str(t.level("pressure_level")) for t in self.selected})
+        arithmetic = {
+            level: pressure_dose_arithmetic(level, memory_high)
+            for level in levels
+        }
+        broken = [
+            a for level, a in sorted(arithmetic.items())
+            if pressure_target_rate(level) > 0.0 and not a["breach_expected"]
+        ]
+        if broken:
+            detail = "; ".join(
+                f"{a['level']}: base_mb={a['base_mb']} + overhead "
+                f"{a['overhead_mb']} = {a['projected_memory_current_mb']} MiB "
+                f"<= MemoryHigh {a['memory_high_mib']} MiB "
+                f"(zaxira {a['breach_margin_mb']:+} MiB)"
+                for a in broken
+            )
+            raise ZeroDoseError(
+                "dial NOL doza beradi, run boshlanmaydi -- "
+                f"{detail}. memory.high buzilmaydi, demak erishilgan stall "
+                "aynan 0.0000 bo'lardi (10-pressure-dozalash.md §2.2 D1) va "
+                "§9.3 ning uch darajali dizayni bitta darajaga qulardi; "
+                "natija H1 ga qarshi dalil emas, ASBOB NUQSONI bo'lardi "
+                "(§2.5, OQ-2). MemoryHigh o'zgargan bo'lsa base_mb QAYTA "
+                "O'LCHANISHI kerak -- ishchi oyna tor (§3.6, OQ-11)."
+            )
+        return {
+            "memory_high": memory_high,
+            "levels_checked": levels,
+            "arithmetic": arithmetic,
         }
 
     def start_guard(self) -> dict[str, Any]:
@@ -1934,6 +2044,7 @@ class Driver:
             "pressure_target_rate": dict(PRESSURE_TARGET_RATE),
             "pressure_step_mb": PRESSURE_STEP_MB,
             "pressure_base_mb": dict(PRESSURE_BASE_MB),
+            "pressure_interval_ms": PRESSURE_INTERVAL_MS,
             "pressure_allowed": self.cfg.allow_pressure,
             "fault_class": FAULT_CLASS,
             "fault_kind": FAULT_KIND,
@@ -2012,6 +2123,16 @@ class Driver:
                             level, self.cfg.memory_high)
                         for level in PRESSURE_LEVELS
                     },
+                },
+                "interval_ms": {
+                    "value": PRESSURE_INTERVAL_MS,
+                    "source": "docs/architecture/10-pressure-dozalash.md §2.6 "
+                              "(kalibrlangan control tik'i; pressure.py ning "
+                              "modul default'i bilan TASODIFAN bir xil, demak "
+                              "oshkora beriladi -- qoida 17); §3.5: 250 ms tik "
+                              "+ 2 s PSI oynasi + 4 MiB blok granularligi "
+                              "bandni UZLUKSIZ ushlash uchun qo'pol (OQ-3)",
+                    "calibration_required": False,
                 },
                 "ramp_above_threshold_s": {
                     "value": self.timeline.ramp_above_threshold_s,
@@ -2443,6 +2564,7 @@ class Driver:
                 "target_rate": pressure_target_rate(level),
                 "step_mb": PRESSURE_STEP_MB,
                 "base_mb": pressure_base_mb(level),
+                "interval_ms": PRESSURE_INTERVAL_MS,
                 "max_seconds": max_seconds, "job": job,
                 "units_show_valid": (dump or {}).get("dump_valid")}
 

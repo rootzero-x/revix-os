@@ -1381,7 +1381,7 @@ def test_run_meta_ochiq_parametrlarni_kalibratsiya_talab_qiladi_deb_belgilaydi(
         assert op[key]["source"]
     # O'LCHANDI, demak belgi YECHILDI (10-pressure-dozalash.md §2.6, §3.1).
     # `None` = o'lchanmadi, `0`/`False` = o'lchangan -- dizayn qoidasi 15.
-    for key in ("pressure_target_rate", "step_mb", "base_mb"):
+    for key in ("pressure_target_rate", "step_mb", "base_mb", "interval_ms"):
         assert op[key]["calibration_required"] is False
         assert op[key]["source"]
 
@@ -1553,6 +1553,32 @@ def test_pressure_argv_P1_va_P2_kalibrlangan_dialni_beradi(tmp_path):
         assert _flag_value(argv, "--base-mb") == "184", level
         # §2.2 D2: step_mb=4 + base_mb=184 -> erishilgan p50 0.3344.
         assert "--step-mb" in argv and "--base-mb" in argv, level
+
+
+def test_pressure_argv_interval_ms_ni_ham_MEROS_QOLDIRMAYDI(tmp_path):
+    """§2.6: control tik'i 250 ms -- OSHKORA, modul default'idan EMAS.
+
+    Bugun qiymatlar teng, demak nuqson yo'q. Qulf TENGLIKKA tayanmaydi:
+    u argv'da bayroq BORLIGINI va qiymatning kalibrlangan 250 ms ekanini
+    talab qiladi, shuning uchun `pressure.py` ning default'i o'zgarsa ham
+    pilotning tik'i o'zgarmaydi -- `step_mb` merosi bilan bir xil klass.
+    """
+    import inspect
+
+    from revix import pressure as P
+
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.setup_run()
+    for level in D.PRESSURE_LEVELS:
+        argv = drv._pressure_argv(level, 17.0)
+        assert "--interval-ms" in argv, level
+        assert _flag_value(argv, "--interval-ms") == "250", level
+    assert D.PRESSURE_INTERVAL_MS == 250
+    # Bugun modul default'i bilan BIR XIL -- bu FAKT yoziladi, unga
+    # TAYANILMAYDI. Teng bo'lmasa ham argv kalibrlangan qiymatni beradi.
+    module_default = inspect.signature(
+        P.PressureGenerator.run_pi).parameters["interval_ms"].default
+    assert module_default == 250.0
 
 
 def test_pressure_argv_P0_olchangan_nol_doza_bazasini_beradi(tmp_path):
@@ -1727,6 +1753,104 @@ def test_doza_arifmetikasi_memory_high_ozgarsa_NOL_DOZANI_oshkor_qiladi():
     # Baza `MemoryHigh` dan yuqori bo'lsa ramp bepul bo'lmaydi (§2.4, §3.6).
     over = D.pressure_dose_arithmetic("P1", "176M")
     assert over["ramp_free_expected"] is False
+
+
+def test_nol_doza_dialida_RUN_BOSHLANMAYDI(tmp_path):
+    """FAIL-CLOSED pre-flight: `--memory-high` ni test tutib qolmaydi.
+
+    `--memory-high 256M` da `184 + 25.3 = 209.3 < 256` -> breach YO'Q ->
+    O'LCHANGAN 0.0000 doza. Bu run ~2.5 soat ishlab, H1 ga qarshi dalilga
+    AYNAN O'XSHAGAN null berardi (§2.5). Shuning uchun ogohlantirish emas,
+    `ZeroDoseError` -- va u slice dial'lari YUKLANISHIDAN OLDIN otiladi.
+    """
+    run_dir = D.prepare_run_dir(str(tmp_path / "run"))
+    pf = FakePlatform(tmp_path)
+    cfg = D.DriverConfig(run_dir=run_dir, seed=11, blocks=1,
+                         only=("P2", "A"), allow_pressure=True,
+                         sut_binary="/nonexistent/sut", memory_high="256M")
+    drv = D.Driver(cfg, pf, sch.p1_schedule(11, n_blocks=1),
+                   sch.TrialTimeline())
+    with pytest.raises(D.ZeroDoseError) as exc:
+        drv.setup_run()
+    msg = str(exc.value)
+    # Xabar ARIFMETIKANI ko'rsatadi, quruq rad etishni emas.
+    assert "P2" in msg and "209.3" in msg and "256.0" in msg
+    assert "base_mb=184" in msg
+    # Dial'lar systemd'ga YUKLANMADI -- rad etilgan run holat qoldirmaydi.
+    assert not any(k == "set_slice" for k, _ in pf.calls), pf.calls
+
+
+def test_P0_run_nol_doza_preflightidan_OTADI(tmp_path):
+    """`P0` ning nol dozasi §9.3 ning "generator idle" sharti (§3.2).
+
+    Shuning uchun pre-flight faqat `target_rate > 0` bandlarga qo'yiladi --
+    aks holda u har `P0` run'ini rad etardi.
+    """
+    drv, pf, run_dir = make_driver(tmp_path)
+    setup = drv.setup_run()
+    dose = setup["dose_preflight"]
+    assert dose["levels_checked"] == ["P0"]
+    assert dose["arithmetic"]["P0"]["breach_expected"] is False
+    assert D.pressure_target_rate("P0") == 0.0
+
+
+def test_nol_doza_preflighti_FAQAT_jadvaldagi_bandlarni_tekshiradi(tmp_path):
+    """`--only P0,A` run'i `P1`/`P2` ning dial'i uchun rad etilmaydi.
+
+    NEGA: u ularni ishlatmaydi. Pre-flight `--only` filtridan KEYINGI
+    jadvalga qaraydi.
+    """
+    run_dir = D.prepare_run_dir(str(tmp_path / "run"))
+    pf = FakePlatform(tmp_path)
+    cfg = D.DriverConfig(run_dir=run_dir, seed=11, blocks=1,
+                         only=("P0", "A"), sut_binary="/nonexistent/sut",
+                         memory_high="256M")
+    drv = D.Driver(cfg, pf, sch.p1_schedule(11, n_blocks=1),
+                   sch.TrialTimeline())
+    setup = drv.setup_run()     # 256M bo'lsa ham RAD ETILMAYDI
+    assert setup["dose_preflight"]["levels_checked"] == ["P0"]
+
+
+def test_nol_doza_preflighti_RAMP_shartini_tekshirmaydi_QAYD_ETILGAN(tmp_path):
+    """CHEKLOV hujjatlashtiriladi, yashirilmaydi.
+
+    Pre-flight sharti FAQAT `breach_expected`. `MemoryHigh=176M` da
+    `184 + 25.3 = 209.3 > 176` -> breach BOR, demak run BOSHLANADI --
+    lekin `base_mb=184 > 176` va §2.4/§4.1 ning "ramp bepul" sharti
+    BUZILADI (§3.6: `base=196 > high=192` ramp'ni 12.217 s cho'zib §9.4
+    invariant 2 ni buzgan).
+
+    Bu test o'sha xatti-harakatni QULFLAYDI, ya'ni kelajakda shart
+    kengaytirilsa test o'zgarishi kerak bo'ladi -- jimgina o'zgarmaydi.
+    Yo'l jim emas: `ramp_free_expected` oqimga tushadi.
+    """
+    run_dir = D.prepare_run_dir(str(tmp_path / "run"))
+    pf = FakePlatform(tmp_path)
+    cfg = D.DriverConfig(run_dir=run_dir, seed=11, blocks=1,
+                         only=("P1", "A"), allow_pressure=True,
+                         sut_binary="/nonexistent/sut", memory_high="176M")
+    drv = D.Driver(cfg, pf, sch.p1_schedule(11, n_blocks=1),
+                   sch.TrialTimeline())
+    setup = drv.setup_run()        # RAD ETILMAYDI -- bu hozirgi shart
+    a = setup["dose_preflight"]["arithmetic"]["P1"]
+    assert a["breach_expected"] is True        # shart bajarildi
+    assert a["ramp_free_expected"] is False    # LEKIN ramp bepul emas
+    # FAKT oqimda: operator buni run_meta'dan ko'radi.
+    assert a["base_mb"] > a["memory_high_mib"]
+
+
+def test_nol_doza_preflighti_HAQIQIY_memory_highdan_hisoblaydi(tmp_path):
+    """Arifmetika slice'ga yuboriladigan qiymatdan, konstantadan EMAS."""
+    drv, pf, run_dir = make_driver(tmp_path, only=("P1", "A"),
+                                   allow_pressure=True)
+    setup = drv.setup_run()
+    dose = setup["dose_preflight"]
+    assert dose["memory_high"] == setup["lab_slice_properties"]["MemoryHigh"]
+    assert dose["levels_checked"] == ["P1"]
+    a = dose["arithmetic"]["P1"]
+    assert a["memory_high_mib"] == 192.0
+    assert a["projected_memory_current_mb"] == pytest.approx(209.3)
+    assert a["breach_expected"] is True
 
 
 def test_memory_high_mib_systemd_1024_asosini_ishlatadi():
