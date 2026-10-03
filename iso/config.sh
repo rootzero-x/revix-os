@@ -158,7 +158,29 @@ PKGS_TOOLCHAIN="build-essential"
 # NEGA apt, pip EMAS: INSTALLATION.md §3 -- "pip install, setup.py yoki
 # pyproject.toml YO'Q -- bu ataylab". Va apt paketi pinned snapshot'dan
 # keladi, demak manifest'da versiyasi ko'rinadi; pip wheel'i ko'rinmaydi.
-PKGS_PYTHON="python3 python3-pytest python3-psutil python3-dbus python3-systemd python3-yaml python3-numpy python3-scipy"
+#
+# TUZATISH (11-iso-qurilish-jurnali.md, bug #16 va #17): `python3-gi` va
+# `python3-matplotlib` QO'SHILDI. Ikkisi ham image ICHIDA, `pytest` bilan
+# o'lchandi -- taxmin emas.
+#
+# NEGA python3-gi (bug #16) -- 12 ta ERROR:
+#     E  ModuleNotFoundError: No module named 'gi'
+#     revix/units.py:231: ModuleNotFoundError
+#   `revix/units.py` D-Bus signal'larini kuzatish uchun GLib main loop'ini
+#   (PyGObject) ishlatadi. U BUTUN `tests/unit/test_units.py` ni
+#   yiqitadi -- ya'ni transient unit yaratish, `RestartSteps=` round-trip,
+#   `preflight()`/`teardown()` -- harness'ning YADROSI sinalmay qoladi.
+#   `python3-dbus` YETARLI EMAS: u alohida bog'liqlik.
+#
+# NEGA python3-matplotlib (bug #17) -- 2 ta FAILED:
+#     tests/integration/test_chain.py::test_zanjir_figura
+#     (test docstring: "analysis.json -> `revix.figures` (matplotlib kerak)")
+#   `revix/cli.py` matplotlib'ni OPTIONAL_MODULES ga qo'yadi, demak
+#   `doctor` uni yo'q bo'lsa faqat WARN qiladi -- lekin TEST SUITE uni
+#   TALAB qiladi. Qabul mezoni (09 §4) `pytest tests/ -q` ni ham o'z
+#   ichiga oladi, shuning uchun u image'da bo'lishi SHART.
+#   Yon foyda: doctor #15 `python_modules` WARN -> PASS.
+PKGS_PYTHON="python3 python3-pytest python3-psutil python3-dbus python3-gi python3-systemd python3-yaml python3-numpy python3-scipy python3-matplotlib"
 # doctor #17/#18 git_present/git_clean -> git MAJBURIY (09 §5.1).
 PKGS_REPO="git ca-certificates"
 # Guest ichidagi diagnostika va privilegiyali tier vositalari.
