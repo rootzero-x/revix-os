@@ -112,12 +112,31 @@ DIZAYN QOIDALARI (buzilmaydi)
     (pressure dosing) dan OLDIN talab qiladi -- "Retrofit qilinmaydi".
     Struktura bilan majburlanadi, diqqat bilan emas.
 
+17. DOZA DIAL'I OSHKORA BERILADI, MEROS QILINMAYDI.
+    Mexanizm: `_pressure_argv()` generatorga `--step-mb` va `--base-mb` ni
+    HAR DOIM beradi (`PRESSURE_STEP_MB`, `PRESSURE_BASE_MB`), ya'ni
+    `pressure.run_pi` ning `base = max(16, high_MiB - 2*step_mb)` avtomatik
+    formulasiga TAYANMAYDI.
+    NEGA: 10-pressure-dozalash.md §2.5 / OQ-2 aynan shu merosni o'lchadi --
+    argv dial'ni bermaganda modul default'i `step_mb=16` ishlab,
+    `base = 192 - 2*16 = 160 MiB` chiqadi va bu §2.2 ning D1 epizodida
+    o'lchangan NOL-DOZA konfiguratsiyasi (erishilgan stall 114 namunada ham
+    aynan 0.0000). Busiz nima buzilardi: `P1` va `P2` arm'lari 0.0000 stall
+    bilan ishlab, PREREGISTRATION.md §9.3 ning UCH darajali dizayni jimgina
+    BITTA darajaga (`P0` ga) qulardi va natija H1 ga qarshi dalil emas,
+    ASBOB NUQSONI bo'lardi -- §9.2 ning "null ta'rif artefakti" ogohligining
+    asbob tomonidagi analogi. Chiqishda buni ko'rsatuvchi hech narsa yo'q edi.
+    Dial OSHKORA bo'lgani uchun `MemoryHigh` o'zgarsa baza JIMGINA o'zgarmaydi
+    -- regressiya qulfi (`tests/unit/test_driver.py`) buni YIQITADI.
+
 
 MUZLATILMAGAN, SHUNING UCHUN OCHIQ PARAMETR (hech biri jimgina tanlanmaydi)
 ==========================================================================
 `--watchdog-sec`, `--timeout-start-sec`, `--memory-high`, pressure band
 nishonlari: pre-registration ularni RAQAM bilan muzlatmagan. Hammasi
 `run_meta.open_parameters` da `calibration_required` belgisi bilan yoziladi.
+`step_mb` / `base_mb` ham o'sha yerda, lekin ular 10-pressure-dozalash.md
+§2.6 da O'LCHANGAN, demak `calibration_required: false`.
 """
 
 from __future__ import annotations
@@ -215,12 +234,61 @@ ARM_POLICY_DELAY_US: dict[str, int | None] = {"A": 100_000, "no_action": None}
 
 # --- pressure bandlari (§9.3) ----------------------------------------------
 # §9.3 bandlarni ULUSH oralig'i bilan beradi, nishon RAQAMINI bermaydi.
-# Nishonlar 02-guard-kalibratsiyasi.md §4 dan: 0.30 nishonida erishilgan
-# median 0.311 (band P1: 20-35% ichida). P2 uchun 0.70 -- band (60-80%)
-# MARKAZI, va u HALI KALIBRATSIYA QILINMAGAN (kalibratsiyada 0.60 nishonida
-# 0.558 erishilgan). Shuning uchun `calibration_required`.
-PRESSURE_TARGET_RATE: dict[str, float] = {"P0": 0.0, "P1": 0.30, "P2": 0.70}
+#
+# `P1 = 0.30` -- O'ZGARMADI. 02-guard-kalibratsiyasi.md §4 da erishilgan
+# median 0.311 edi; 10-pressure-dozalash.md §3.3 uni BU mashinada qayta
+# o'lchadi (13 epizod, epizod medianalarining medianasi 0.2810, xato -0.0190,
+# 10/13 band ichida) -- ya'ni kodda turgan qiymat TO'G'RI.
+#
+# `P2 = 0.60` -- O'LCHANGAN qiymat; band MARKAZI (0.70) EMAS.
+# NEGA: 10-pressure-dozalash.md §3.1 nishon->erishilgan xaritasini o'lchadi.
+#   nishon 0.70 -> erishilgan p50 **0.8868** -- §9.3 ning 0.60-0.80 bandidan
+#                  YUQORI, ya'ni OVER-DOZA (dose-02 `P2a`);
+#   nishon 0.60 -> epizod medianalari 0.5726..0.9213, p50 **0.7023**,
+#                  11 epizoddan **8 tasi** band ICHIDA (§3.4).
+# Xarita CHIZIQLI EMAS va MONOTON HAM EMAS (0.40 -> 0.5253, lekin
+# 0.45 -> 0.4833; 0.50 -> 0.5841, lekin 0.55 -> 0.5395), va boshqarish bu
+# mashinada 02 §4 ning ±0.08 idan **~5.7× QO'POLROQ** (oniy oraliq 0.03-0.95,
+# §3.5 / OQ-3). Demak 0.60 -- shu dial uchun EMPIRIK sozlama; uni mulohaza
+# bilan qayta chiqarib olish MUMKIN EMAS. `MemoryHigh` o'zgarsa `base_mb`
+# ham, bu nishon ham QAYTA O'LCHANISHI SHART (§3.6 ning tor oynasi, OQ-11).
+# ESLATMA: §3.4 `P2` ning band ichida USHLAB TURILISHINI rad etadi (eng uzun
+# uzluksiz 1.1 s) -- bu nishon masalasi emas, mexanizmning binarligi (§3.5).
+PRESSURE_TARGET_RATE: dict[str, float] = {"P0": 0.0, "P1": 0.30, "P2": 0.60}
 PRESSURE_LEVELS = tuple(PRESSURE_TARGET_RATE)
+
+# --- doza dial'i (10-pressure-dozalash.md §2.6 -- O'LCHANGAN) --------------
+# Dial generatorga OSHKORA beriladi (dizayn qoidasi 17), `run_pi` ning
+# `base = max(16, high_MiB - 2*step_mb)` formulasidan MEROS QILINMAYDI.
+#
+# §2.2 ning o'lchangan dial sweep'i (`MemoryHigh=192M`, nishon 0.30):
+#   step_mb=16 -> base 160 -> erishilgan p50 **0.0000**  (NOL doza, D1)
+#   step_mb=8  -> base 176 -> erishilgan p50 0.0138      (D3)
+#   step_mb=4  -> base 184 -> erishilgan p50 **0.3344**  (DOZA BOR, D2)
+# Arifmetikasi -- generator overhead'i O'LCHANGAN 25.3 MiB (§2.2):
+#   160 + 25.3 = 185.3 < 192  -> breach YO'Q      -> stall 0.0000
+#   176 + 25.3 = 201.3 > 192  -> kichik overage   -> stall 0.0138
+#   184 + 25.3 = 209.3 > 192  -> katta overage    -> stall 0.33
+# Ya'ni dozaning haqiqiy knob'i `base_mb` ning `memory.high` dan oshishi
+# (§2.4, OQ-1), blok hajmi yoki churn soni EMAS.
+#
+# Ishchi oyna TOR (§3.6): 184 -- 29 epizodda o'lchangan YAGONA ishlaydigan
+# qiymat; 188 to'yinish berib guard'ni URDI
+# (`user_full_rate2s_runaway` rate=0.9801962, kill_ok=true);
+# 196 da ramp 12.217 s davom etib HOLD fazasi UMUMAN bo'lmadi va
+# `ramp_above_threshold_s = 9.500 s` §9.4 invariant 2 ni BUZDI.
+# Shuning uchun bu qiymatlar DERIVATSIYA QILINMAYDI, oshkora yoziladi.
+PRESSURE_STEP_MB = 4
+# `P0` ning bazasi 160 -- bu ATAYLAB nol-doza konfiguratsiyasi: §3.2 da
+# generator tirik, 160 MiB rezident, `memory.events high` delta **0** va
+# 98 namunada stall aynan 0.0000 (9.8/9.8 s band ichida). §9.3 ning
+# "generator idle" sharti shu. `P1`/`P2` uchun 184 -- §2.6 ning dial'i.
+PRESSURE_BASE_MB: dict[str, int] = {"P0": 160, "P1": 184, "P2": 184}
+# Generator overhead'i, §2.2 da O'LCHANGAN (D1: memory.current max 185.3 MiB,
+# touched_mb 160 -> 185.3 - 160 = 25.3 MiB). Bu yerda QAYTA ta'riflanmaydi --
+# faqat ko'chiriladi; `base_mb + overhead > MemoryHigh_MiB` breach shartini
+# AUDIT QILINADIGAN qiladi (regressiya qulfi shu munosabatni tekshiradi).
+PRESSURE_OVERHEAD_MB = 25.3
 
 # --- slice dial'lari (00-pilot-topologiya.md §1) ---------------------------
 LAB_SLICE_PROPERTIES: dict[str, Any] = {
@@ -235,8 +303,16 @@ MON_SLICE_PROPERTIES: dict[str, Any] = {
 }
 # `MemoryHigh` -- PI controller'ning throttling chegarasi. 192M qiymati
 # 02-guard-kalibratsiyasi.md §3 da O'LCHANGAN (high=192M, baza=184M, ramp
-# tezligi median 0.000). LEKIN u o'sha yerda `MemoryMax=1G` bilan o'lchangan,
-# bu yerda `MemoryMax=2G`. Shuning uchun `calibration_required`.
+# tezligi median 0.000). U o'sha yerda `MemoryMax=1G` bilan o'lchangan edi.
+# 10-pressure-dozalash.md §2.2 uni `MemoryMax=2G` ostida QAYTA o'lchadi va
+# `192M` ning `base=184` juftligi qayta ishlab chiqarildi -- ya'ni `08` §12
+# OQ-4 YOPILDI: nol doza `MemoryMax` ning artefakti EMAS, u `base_mb` dan
+# keladi (§2.2 TALQIN). `calibration_required` SHUNDAY QOLADI, lekin sababi
+# BOSHQA: OQ-11 -- `MemoryHigh` ning O'ZI optimallashtirilmagan, boshqa
+# qiymatlari o'lchanmagan, va ishchi `base_mb` oynasi TOR (§3.6), demak
+# boshqa `MemoryHigh` da `base_mb` QAYTADAN topilishi kerak bo'ladi.
+# MUZLATILGAN: bu qiymat 00-pilot-topologiya.md §1 ga tegishli, bu yerda
+# o'zgartirilmaydi.
 DEFAULT_MEMORY_HIGH = "192M"
 
 # Monitoring unit'lari uchun cheklovlar (scripts/guard-test.sh da ishlatilgan
@@ -930,6 +1006,74 @@ def pressure_target_rate(level: str) -> float:
         ) from None
 
 
+def pressure_base_mb(level: str) -> int:
+    """Pressure darajasidan rezident baza (MiB). Noma'lum daraja -> istisno.
+
+    NEGA ALOHIDA FUNKSIYA: `pressure_target_rate` bilan bir xil fail-closed
+    shakl -- noma'lum daraja JIMGINA default'ga tushmaydi. 10-pressure-
+    dozalash.md §2.5 / OQ-2 ning nuqsoni aynan jim default edi.
+    """
+    try:
+        return PRESSURE_BASE_MB[level]
+    except KeyError:
+        raise DriverError(
+            f"bunday pressure darajasi yo'q: {level!r} "
+            f"(mavjud: {sorted(PRESSURE_BASE_MB)})"
+        ) from None
+
+
+def memory_high_mib(spec: str) -> float:
+    """`MemoryHigh=` spetsifikatsiyasidan MiB.
+
+    NEGA KERAK: doza sharti MiB da yoziladi (`pressure.run_pi` bazani
+    `high // (1 << 20)` bilan hisoblaydi), demak `base_mb` ni `MemoryHigh`
+    bilan taqqoslash uchun bir xil birlik kerak. systemd 1024 asosini
+    ishlatadi (`K/M/G/T`); suffiks bo'lmasa qiymat BAYT.
+    """
+    s = str(spec).strip()
+    mult = {"K": 1.0 / 1024, "M": 1.0, "G": 1024.0, "T": 1024.0 * 1024.0}
+    try:
+        if s and s[-1].upper() in mult:
+            return float(s[:-1]) * mult[s[-1].upper()]
+        return float(s) / (1 << 20)
+    except ValueError:
+        raise DriverError(f"MemoryHigh tushunarsiz: {spec!r}") from None
+
+
+def pressure_dose_arithmetic(level: str, memory_high: str) -> dict[str, Any]:
+    """§2.2 ning doza arifmetikasi -- HISOBLANADI, taxmin qilinmaydi.
+
+    NEGA BU FUNKSIYA BOR: 10-pressure-dozalash.md §2.5 ning eng xavfli
+    jihati nol dozaning CHIQISHDA iz qoldirmasligi edi -- `P1`/`P2` arm'lari
+    0.0000 stall bilan ishlardi va `run_meta` ham, trial oqimi ham buni
+    ko'rsatmasdi. `--memory-high` esa RUNTIME bayrog'i, demak uni regressiya
+    testi tutib qolmaydi: `--memory-high 256M` da `184 + 25.3 = 209.3 < 256`
+    va doza yana 0.0000 bo'lardi. Shuning uchun breach sharti har run'da
+    HISOBLANADI va `run_meta.open_parameters.base_mb` ga yoziladi.
+
+    Bu funksiya HECH NARSANI TO'XTATMAYDI va jimgina tuzatmaydi -- u faqat
+    FAKTni yozadi (dizayn qoidasi 15: `None` = o'lchanmadi).
+
+    `breach_expected` `False` bo'lishi `P0` da NORMAL (§3.2 -- generator
+    idle, atayin nol doza), `P1`/`P2` da esa OQ-2 ning qaytganini bildiradi.
+    """
+    base_mb = pressure_base_mb(level)
+    high_mib = memory_high_mib(memory_high)
+    margin = base_mb + PRESSURE_OVERHEAD_MB - high_mib
+    return {
+        "level": level,
+        "base_mb": base_mb,
+        "step_mb": PRESSURE_STEP_MB,
+        "memory_high_mib": high_mib,
+        "overhead_mb": PRESSURE_OVERHEAD_MB,
+        "projected_memory_current_mb": base_mb + PRESSURE_OVERHEAD_MB,
+        "breach_margin_mb": round(margin, 4),
+        "breach_expected": margin > 0.0,
+        "ramp_free_expected": base_mb < high_mib,
+        "dose_expected": margin > 0.0 and pressure_target_rate(level) > 0.0,
+    }
+
+
 def dry_run_report(
     schedule: sch.Schedule,
     timeline: sch.TrialTimeline,
@@ -1540,11 +1684,33 @@ class Driver:
         ]
 
     def _pressure_argv(self, level: str, max_seconds: float) -> list[str]:
+        """Generator argv'i. DOZA DIAL'I OSHKORA (dizayn qoidasi 17).
+
+        `--step-mb` va `--base-mb` ATAYLAB IKKISI HAM beriladi.
+
+        NEGA IKKISI HAM, bittasi emas: `pressure.run_pi` bazani
+        `base = max(16, high_MiB - 2*step_mb)` bilan O'ZI chiqaradi, ya'ni
+        baza `MemoryHigh` ga BOG'LIQ. 10-pressure-dozalash.md §3.6 ishchi
+        oynani o'lchadi va u TOR -- 29 epizodda faqat `base_mb=184` ishladi,
+        188 guard'ni urdi, 196 §9.4 invariant 2 ni buzdi. Demak `MemoryHigh`
+        o'zgarganda formula bazani JIMGINA boshqa qiymatga ko'chirardi, va
+        aynan shu mexanizm OQ-2 nuqsonini tug'dirdi: dial berilmaganda modul
+        default'i `step_mb=16` ishlab, `base = 192 - 2*16 = 160 MiB`, ya'ni
+        §2.2 ning D1 epizodida o'lchangan NOL-DOZA konfiguratsiyasi
+        (erishilgan stall 114 namunada ham aynan 0.0000).
+
+        `--interval-ms` BERILMAYDI: modul default'i 250 ms va bu §2.6 ning
+        kalibrlangan qiymatiga TENG, demak hozir nuqson emas (lekin u ham
+        meros -- qarang: hisobot/OQ-2).
+        """
         return [
             self.cfg.python, "-m", "revix.pressure",
             "--mode", "pi",
             "--cgroup", str(self.lab_cgroup),
             "--target-rate", f"{pressure_target_rate(level)}",
+            # §2.6 ning kalibrlangan dial'i -- derivatsiya qilinmaydi.
+            "--step-mb", f"{PRESSURE_STEP_MB}",
+            "--base-mb", f"{pressure_base_mb(level)}",
             "--max-seconds", f"{max_seconds:.3f}",
             "--log", self.pressure_path,
             "--run-id", self.run_id,
@@ -1766,6 +1932,8 @@ class Driver:
             "arms": {k: dict(v) for k, v in ARM_PROPERTIES.items()},
             "arm_policy_delay_us": dict(ARM_POLICY_DELAY_US),
             "pressure_target_rate": dict(PRESSURE_TARGET_RATE),
+            "pressure_step_mb": PRESSURE_STEP_MB,
+            "pressure_base_mb": dict(PRESSURE_BASE_MB),
             "pressure_allowed": self.cfg.allow_pressure,
             "fault_class": FAULT_CLASS,
             "fault_kind": FAULT_KIND,
@@ -1777,7 +1945,15 @@ class Driver:
                 "memory_high": {
                     "value": self.cfg.memory_high,
                     "source": "docs/architecture/02-guard-kalibratsiyasi.md §3 "
-                              "(high=192M, MemoryMax=1G bilan o'lchangan)",
+                              "(high=192M, MemoryMax=1G bilan o'lchangan); "
+                              "docs/architecture/10-pressure-dozalash.md §2.2 "
+                              "uni MemoryMax=2G ostida QAYTA o'lchadi va "
+                              "base=184 juftligini qayta ishlab chiqardi "
+                              "(08 §12 OQ-4 yopildi)",
+                    # SHUNDAY QOLADI, lekin sababi boshqa: OQ-11 -- MemoryHigh
+                    # ning O'ZI optimallashtirilmagan va ishchi base_mb oynasi
+                    # TOR (§3.6), demak boshqa MemoryHigh base_mb ni qaytadan
+                    # topishni TALAB QILADI.
                     "calibration_required": True,
                 },
                 "watchdog_sec": {
@@ -1793,10 +1969,49 @@ class Driver:
                 },
                 "pressure_target_rate": {
                     "value": dict(PRESSURE_TARGET_RATE),
-                    "source": "§9.3 bandlar (P1 20-35%, P2 60-80%); P1 nishoni "
-                              "0.30 o'lchangan (02-guard-kalibratsiyasi.md §4), "
-                              "P2 nishoni 0.70 O'LCHANMAGAN",
-                    "calibration_required": True,
+                    "source": "§9.3 bandlar (P1 20-35%, P2 60-80%); "
+                              "docs/architecture/10-pressure-dozalash.md §3.1 "
+                              "nishon->erishilgan xaritasini O'LCHADI: P1=0.30 "
+                              "-> epizod medianalarining medianasi 0.2810 "
+                              "(10/13 band ichida, §3.3); P2=0.60 -> 0.7023 "
+                              "(8/11 band ichida, §3.4); avvalgi P2=0.70 "
+                              "-> 0.8868, ya'ni band USTIDA (over-doza)",
+                    # Nishonlar endi IKKISI HAM o'lchangan (§3.1), lekin xarita
+                    # chiziqli emas va monoton emas, boshqarish ~5.7× qo'polroq
+                    # (OQ-3) -- qiymatlar EMPIRIK. MemoryHigh o'zgarsa qayta
+                    # o'lchanadi (OQ-11).
+                    "calibration_required": False,
+                },
+                # OQ-2 ning tuzatilishi: dial endi OSHKORA argv'da (qoida 17).
+                "step_mb": {
+                    "value": PRESSURE_STEP_MB,
+                    "source": "docs/architecture/10-pressure-dozalash.md §2.2 "
+                              "dial sweep'i (step_mb=16 -> base 160 -> "
+                              "erishilgan 0.0000 NOL doza; step_mb=8 -> 176 -> "
+                              "0.0138; step_mb=4 -> 184 -> 0.3344) va §2.6 ning "
+                              "kalibrlangan dial'i; OQ-2",
+                    "calibration_required": False,
+                },
+                "base_mb": {
+                    "value": dict(PRESSURE_BASE_MB),
+                    "source": "docs/architecture/10-pressure-dozalash.md §2.6 "
+                              f"(P0=160 §3.2, P1=P2=184 §2.2 D2); overhead "
+                              f"{PRESSURE_OVERHEAD_MB} MiB O'LCHANGAN (§2.2), "
+                              "demak 184+25.3=209.3 > 192 breach, "
+                              "160+25.3=185.3 < 192 breach YO'Q; ishchi oyna "
+                              "TOR -- 184 yagona ishlaydigan qiymat, 188 guard "
+                              "trip, 196 §9.4 invariant 2 ni buzdi (§3.6); "
+                              "OQ-2",
+                    "calibration_required": False,
+                    # Breach sharti SHU RUN ning `MemoryHigh` i bilan
+                    # HISOBLANADI, hardcode qilinmaydi. `--memory-high`
+                    # runtime bayrog'i, demak regressiya testi uni tutib
+                    # qolmaydi -- bu yerda nol doza KO'RINADI (§2.5).
+                    "dose_arithmetic": {
+                        level: pressure_dose_arithmetic(
+                            level, self.cfg.memory_high)
+                        for level in PRESSURE_LEVELS
+                    },
                 },
                 "ramp_above_threshold_s": {
                     "value": self.timeline.ramp_above_threshold_s,
@@ -2220,8 +2435,14 @@ class Driver:
             self.units_show[PRESS_UNIT] = dump
         except Exception as exc:  # noqa: BLE001
             self._harness_error("pressure_dump", exc, trial=trial)
+        # `step_mb` / `base_mb` HAR TRIALDA yoziladi, nafaqat `run_meta` da.
+        # NEGA: 10-pressure-dozalash.md §2.5 ning eng xavfli jihati -- nol
+        # doza chiqishda HECH QANDAY iz qoldirmasligi edi. Dial trial
+        # record'ida bo'lsa, `P1`/`P2` ning nol dozasi oqimdan KO'RINADI.
         return {"started": True, "level": level,
                 "target_rate": pressure_target_rate(level),
+                "step_mb": PRESSURE_STEP_MB,
+                "base_mb": pressure_base_mb(level),
                 "max_seconds": max_seconds, "job": job,
                 "units_show_valid": (dump or {}).get("dump_valid")}
 

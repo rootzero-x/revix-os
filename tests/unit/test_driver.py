@@ -1372,9 +1372,17 @@ def test_run_meta_ochiq_parametrlarni_kalibratsiya_talab_qiladi_deb_belgilaydi(
     meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
                           encoding="utf-8"))
     op = meta["open_parameters"]
+    # HALI o'lchanmagan parametrlar. `memory_high` ro'yxatda QOLADI: 10-
+    # pressure-dozalash.md §2.2 uni `MemoryMax=2G` ostida tasdiqladi, lekin
+    # OQ-11 bo'yicha `MemoryHigh` ning O'ZI optimallashtirilmagan.
     for key in ("memory_high", "watchdog_sec", "timeout_start_sec",
-                "pressure_target_rate", "ramp_above_threshold_s"):
+                "ramp_above_threshold_s"):
         assert op[key]["calibration_required"] is True
+        assert op[key]["source"]
+    # O'LCHANDI, demak belgi YECHILDI (10-pressure-dozalash.md §2.6, §3.1).
+    # `None` = o'lchanmadi, `0`/`False` = o'lchangan -- dizayn qoidasi 15.
+    for key in ("pressure_target_rate", "step_mb", "base_mb"):
+        assert op[key]["calibration_required"] is False
         assert op[key]["source"]
 
 
@@ -1491,6 +1499,259 @@ def test_pressure_generatorini_bevosita_chaqirish_ham_rad_etiladi(tmp_path):
     drv, pf, run_dir = make_driver(tmp_path)
     with pytest.raises(D.PressureNotAllowedError):
         drv._start_pressure(drv.selected[0], "P2", 10.0)
+
+
+# ===========================================================================
+# Doza dial'i -- OQ-2 ning regressiya QULFLARI
+# (docs/architecture/10-pressure-dozalash.md §2 va §3)
+#
+# NEGA BU BO'LIM BOR: §2.5 ni o'lchov shunday topdi -- `_pressure_argv`
+# generatorga dial bermaganida pilot `pressure.py` ning default'ini
+# (`step_mb=16`) meros qilib, `base = 192 - 2*16 = 160 MiB` da ishlagan va
+# bu §2.2 ning D1 epizodida O'LCHANGAN nol-doza konfiguratsiyasi
+# (erishilgan stall 114 namunada ham aynan 0.0000). Oqibati: `P1` va `P2`
+# arm'lari 0.0000 doza bilan ishlab, PREREGISTRATION.md §9.3 ning UCH
+# darajali dizayni jimgina BITTA darajaga qulardi -- natija H1 ga qarshi
+# dalil emas, ASBOB NUQSONI bo'lardi, va chiqishda buni ko'rsatuvchi hech
+# narsa yo'q edi. Shuning uchun qulflar LITERALNI emas, MUNOSABATNI ham
+# tekshiradi.
+# ===========================================================================
+
+
+def _mib(spec):
+    """systemd hajm spetsifikatsiyasidan MiB.
+
+    `pressure.run_pi` bazani MiB da hisoblaydi (`high // (1 << 20)`), demak
+    qulf ham aynan o'sha birlikda tekshirishi kerak.
+    """
+    s = str(spec).strip()
+    mult = {"K": 1.0 / 1024, "M": 1.0, "G": 1024.0}
+    if s and s[-1].upper() in mult:
+        return float(s[:-1]) * mult[s[-1].upper()]
+    return float(s) / (1 << 20)
+
+
+def _run_pi_derived_base_mb(high_mib, step_mb):
+    """`pressure.run_pi` ning O'Z avtomatik formulasi (pressure.py:375):
+
+        base = max(16, (high // (1 << 20)) - 2 * step_mb)
+
+    Bu yerda QAYTA YOZILGANI ataylab: OQ-2 ning nuqsoni aynan SHU formulaga
+    jim tayanishdan kelib chiqqan, demak qulf uni O'ZI hisoblab, driver
+    bergan oshkora bazaga TENG BO'LMASLIGINI talab qiladi.
+    """
+    return max(16, int(high_mib) - 2 * int(step_mb))
+
+
+def test_pressure_argv_P1_va_P2_kalibrlangan_dialni_beradi(tmp_path):
+    """§2.6: `step_mb=4`, `base_mb=184` -- IKKISI HAM argv'da."""
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.setup_run()
+    for level in ("P1", "P2"):
+        argv = drv._pressure_argv(level, 17.0)
+        assert _flag_value(argv, "--step-mb") == "4", level
+        assert _flag_value(argv, "--base-mb") == "184", level
+        # §2.2 D2: step_mb=4 + base_mb=184 -> erishilgan p50 0.3344.
+        assert "--step-mb" in argv and "--base-mb" in argv, level
+
+
+def test_pressure_argv_P0_olchangan_nol_doza_bazasini_beradi(tmp_path):
+    """§3.2: `P0` ATAYLAB nol doza -- `base_mb=160`, nishon 0.0.
+
+    `P0` da nol doza NUQSON EMAS, u §9.3 ning "generator idle" sharti:
+    generator tirik, 160 MiB rezident, `memory.events high` delta 0 va
+    98 namunada stall aynan 0.0000 (9.8/9.8 s band ichida).
+    """
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.setup_run()
+    argv = drv._pressure_argv("P0", 17.0)
+    assert _flag_value(argv, "--base-mb") == "160"
+    assert _flag_value(argv, "--step-mb") == "4"
+    assert _flag_value(argv, "--target-rate") == "0.0"
+
+
+def test_doza_argvsi_NOL_DOZA_konfiguratsiyasiga_qayta_tusha_olmaydi(tmp_path):
+    """ENG MUHIM QULF: literalni emas, MUNOSABATNI ushlaydi.
+
+    To'rtta shart, hammasi driver'ning O'Z qiymatlaridan hisoblanadi
+    (`MemoryHigh` slice property'sidan, `step_mb`/`base_mb` argv'dan):
+
+      1. dial OSHKORA argv'da -- `run_pi` bazani UMUMAN derivatsiya
+         qilmaydi (`base_mb is not None` yo'li, pressure.py:367);
+      2. baza `run_pi` ning MODUL DEFAULT'i bilan chiqadigan qiymatga TENG
+         EMAS (`max(16, high_MiB - 2*16)` = bugun 160 MiB) -- bu §2.2 ning
+         D1 epizodida O'LCHANGAN nol-doza konfiguratsiyasi;
+      3. `base_mb + overhead > MemoryHigh_MiB` -- §2.2 ning breach sharti,
+         ya'ni doza HAQIQATAN yetkaziladi (overhead 25.3 MiB O'LCHANGAN);
+      4. `base_mb < MemoryHigh_MiB` -- §2.4 / §4.1 ning "ramp bepul" sharti
+         (`base=184` da `ramp_above_threshold_s` 29/29 epizodda 0.000 s;
+         `base=196` da ramp 12.217 s davom etib §9.4 invariant 2 ni buzdi).
+
+    ESLATMA (§2.1): `base=184` AYNAN `step_mb=4` da formuladan ham chiqadi,
+    shuning uchun 2-shart `step_mb` ning argv'dagi qiymatini EMAS, modul
+    DEFAULT'ini ishlatadi -- nol doza aynan o'sha merosdan kelgan.
+
+    NIMANI TUTADI: `MemoryHigh` ni 192M dan boshqa qiymatga o'zgartirib
+    `base_mb` ni qayta o'lchamaslik. Masalan `MemoryHigh=256M` da
+    `184 + 25.3 = 209.3 < 256` -> breach YO'Q -> yana 0.0000 doza; 3-shart
+    o'sha o'zgarishda YIQILADI, pilot esa jimgina null bermaydi. Shuningdek
+    `--base-mb` ni argv'dan olib tashlash (1-shart) va bazani nol-doza
+    qiymatiga qaytarish (2-shart) ham tutiladi.
+    """
+    import inspect
+
+    from revix import pressure as P
+
+    step_default = inspect.signature(
+        P.PressureGenerator.run_pi).parameters["step_mb"].default
+    drv, pf, run_dir = make_driver(tmp_path)
+    setup = drv.setup_run()
+    # `MemoryHigh` driver'ning O'ZI slice'ga qo'ygan qiymatdan olinadi --
+    # test uni hardcode QILMAYDI.
+    high_mib = _mib(setup["lab_slice_properties"]["MemoryHigh"])
+    for level in ("P1", "P2"):
+        argv = drv._pressure_argv(level, 17.0)
+        assert "--step-mb" in argv and "--base-mb" in argv, (
+            f"{level}: dial argv'da yo'q -> run_pi bazani O'ZI chiqaradi "
+            "-> OQ-2 qaytdi")
+        base_mb = int(_flag_value(argv, "--base-mb"))
+        zero_dose = _run_pi_derived_base_mb(high_mib, step_default)
+        assert base_mb != zero_dose, (
+            f"{level}: baza modul default'i bilan chiqadigan nol-doza "
+            f"qiymatiga teng ({zero_dose} MiB) -- OQ-2 qaytdi")
+        assert base_mb + D.PRESSURE_OVERHEAD_MB > high_mib, (
+            f"{level}: {base_mb} + {D.PRESSURE_OVERHEAD_MB} <= {high_mib} "
+            "MiB -> memory.high buzilmaydi -> O'LCHANGAN 0.0000 doza "
+            "(10-pressure-dozalash.md §2.2)")
+        assert base_mb < high_mib, (
+            f"{level}: baza ({base_mb}) MemoryHigh ({high_mib} MiB) dan past "
+            "bo'lishi SHART, aks holda ramp bepul bo'lmaydi (§2.4, §4.1)")
+
+
+def test_modul_defaulti_bilan_derivatsiya_OLCHANGAN_NOL_DOZANI_beradi():
+    """Qulfning ASOSI: dial berilmasa nima bo'lardi -- o'lchov bilan.
+
+    §2.2 ning jadvali (`MemoryHigh=192M`, nishon 0.30):
+      step_mb=16 -> base 160 -> erishilgan p50 0.0000 (D1, NOL doza)
+      step_mb=8  -> base 176 -> erishilgan p50 0.0138 (D3)
+      step_mb=4  -> base 184 -> erishilgan p50 0.3344 (D2, DOZA BOR)
+    """
+    import inspect
+
+    from revix import pressure as P
+
+    # Modul default'i KODDAN o'qiladi, test uni taxmin qilmaydi.
+    step_default = inspect.signature(
+        P.PressureGenerator.run_pi).parameters["step_mb"].default
+    assert step_default == 16
+    high_mib = _mib(D.DEFAULT_MEMORY_HIGH)
+    assert high_mib == 192.0
+    assert _run_pi_derived_base_mb(high_mib, step_default) == 160
+    # 160 + 25.3 = 185.3 < 192 -> breach YO'Q -> 0.0000 (§2.2 D1).
+    assert 160 + D.PRESSURE_OVERHEAD_MB < high_mib
+    # 184 + 25.3 = 209.3 > 192 -> breach BOR -> 0.33 (§2.2 D2).
+    assert D.PRESSURE_BASE_MB["P1"] + D.PRESSURE_OVERHEAD_MB > high_mib
+    assert D.PRESSURE_BASE_MB["P2"] + D.PRESSURE_OVERHEAD_MB > high_mib
+    # `P0` ning bazasi esa AYNAN nol-doza qiymati -- bu ATAYLAB (§3.2).
+    assert D.PRESSURE_BASE_MB["P0"] == 160
+
+
+def test_P2_nishoni_olchangan_0_60_band_markazi_EMAS():
+    """§3.1: nishon 0.70 -> erishilgan 0.8868 (band USTIDA, over-doza);
+    nishon 0.60 -> epizod medianalari 0.5726..0.9213, p50 0.7023, 8/11
+    band ichida (§3.4). Xarita chiziqli emas va monoton emas, demak bu
+    EMPIRIK qiymat -- mulohaza bilan qayta chiqarib olinmaydi.
+    """
+    assert D.PRESSURE_TARGET_RATE["P2"] == 0.60
+    # `P1` O'ZGARMADI: §3.3 da erishilgan p50 0.2810 (xato -0.0190).
+    assert D.PRESSURE_TARGET_RATE["P1"] == 0.30
+    assert D.PRESSURE_TARGET_RATE["P0"] == 0.0
+    # §9.3 bandlari -- nishonlar band ICHIDA bo'lishi SHART.
+    assert 0.60 <= D.PRESSURE_TARGET_RATE["P2"] <= 0.80
+    assert 0.20 <= D.PRESSURE_TARGET_RATE["P1"] <= 0.35
+    # Nishon argv'ga aynan shu qiymat bilan tushadi.
+    assert D.pressure_target_rate("P2") == 0.60
+
+
+def test_pressure_base_mb_notogri_daraja_uchun_jim_default_bermaydi():
+    """FAIL-CLOSED: OQ-2 ning nuqsoni JIM DEFAULT edi, shu takrorlanmaydi."""
+    assert sorted(D.PRESSURE_BASE_MB) == sorted(D.PRESSURE_TARGET_RATE)
+    with pytest.raises(D.DriverError):
+        D.pressure_base_mb("P3")
+
+
+def test_run_meta_doza_arifmetikasini_HISOBLAB_yozadi(tmp_path):
+    """`run_meta.open_parameters.base_mb.dose_arithmetic` -- §2.2 ning
+    breach sharti har run'da hisoblanadi.
+
+    NEGA KERAK: `--memory-high` RUNTIME bayrog'i, demak yuqoridagi
+    regressiya qulfi uni tutib qolmaydi. Nol doza hech bo'lmaganda
+    CHIQISHDA ko'rinishi SHART -- §2.5 ning eng xavfli jihati aynan
+    izning yo'qligi edi.
+    """
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
+                          encoding="utf-8"))
+    arith = meta["open_parameters"]["base_mb"]["dose_arithmetic"]
+    assert set(arith) == set(D.PRESSURE_LEVELS)
+    # §2.2 arifmetikasi: 184 + 25.3 = 209.3 > 192 -> breach -> doza BOR.
+    for level in ("P1", "P2"):
+        a = arith[level]
+        assert a["projected_memory_current_mb"] == pytest.approx(209.3)
+        assert a["memory_high_mib"] == 192.0
+        assert a["breach_expected"] is True
+        assert a["ramp_free_expected"] is True
+        assert a["dose_expected"] is True
+        assert a["breach_margin_mb"] == pytest.approx(17.3)
+    # `P0` da breach YO'Q va bu ATAYLAB (§3.2 -- generator idle).
+    p0 = arith["P0"]
+    assert p0["projected_memory_current_mb"] == pytest.approx(185.3)
+    assert p0["breach_expected"] is False
+    assert p0["dose_expected"] is False
+
+
+def test_doza_arifmetikasi_memory_high_ozgarsa_NOL_DOZANI_oshkor_qiladi():
+    """`--memory-high` bilan dial buzilsa, FAKT yoziladi (jim emas).
+
+    Bu test qulfning TESHIGINI hujjatlashtiradi: runtime bayrog'i test
+    vaqtida ko'rinmaydi, shuning uchun `dose_expected` oqimga tushadi.
+    """
+    ok = D.pressure_dose_arithmetic("P1", "192M")
+    assert ok["breach_expected"] is True and ok["dose_expected"] is True
+    # 184 + 25.3 = 209.3 < 256 -> breach YO'Q -> O'LCHANGAN 0.0000 doza.
+    broken = D.pressure_dose_arithmetic("P1", "256M")
+    assert broken["breach_expected"] is False
+    assert broken["dose_expected"] is False
+    assert broken["breach_margin_mb"] < 0
+    # Baza `MemoryHigh` dan yuqori bo'lsa ramp bepul bo'lmaydi (§2.4, §3.6).
+    over = D.pressure_dose_arithmetic("P1", "176M")
+    assert over["ramp_free_expected"] is False
+
+
+def test_memory_high_mib_systemd_1024_asosini_ishlatadi():
+    assert D.memory_high_mib("192M") == 192.0
+    assert D.memory_high_mib("2G") == 2048.0
+    assert D.memory_high_mib("1024K") == 1.0
+    assert D.memory_high_mib("201326592") == 192.0     # suffikssiz = BAYT
+    with pytest.raises(D.DriverError):
+        D.memory_high_mib("katta")
+
+
+def test_pressure_dial_trial_recordida_ham_korinadi(tmp_path):
+    """§2.5: nol doza chiqishda HECH QANDAY iz qoldirmasligi eng xavfli
+    jihati edi. Dial `detail.pressure` da bo'lsa oqimdan KO'RINADI.
+    """
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "A"),
+                                   allow_pressure=True)
+    drv.setup_run()
+    detail = drv._start_pressure(drv.selected[0], "P2", 17.0)
+    assert detail["step_mb"] == 4
+    assert detail["base_mb"] == 184
+    assert detail["target_rate"] == 0.60
+    argv = pf.started[D.PRESS_UNIT]["ExecStart"]
+    assert _flag_value(argv, "--step-mb") == "4"
+    assert _flag_value(argv, "--base-mb") == "184"
 
 
 # ===========================================================================
