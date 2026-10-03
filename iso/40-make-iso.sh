@@ -91,6 +91,18 @@ LABEL revix
   LINUX /live/vmlinuz
   INITRD /live/initrd.img
   APPEND ${KCMDLINE}
+
+# NEGA ikkinchi band: panel (revix-dashboard.service) default'da faqat LOOPBACK'da tinglaydi,
+# image esa headless -- ya'ni host brauzeridan ochib bo'lmaydi. Remote rejim kernel cmdline
+# `revix.dashboard=remote` bilan yoqiladi (11-iso-qurilish-jurnali.md section 10). Bu band shu
+# parametrni Tab bilan qo'lda yozish zaruratini olib tashlaydi. DEFAULT bo'lmaydi: u
+# autentifikatsiyasiz va TLS'siz, image esa ishonchsiz tarmoq uchun YAROQSIZ -- shuning uchun
+# foydalanuvchi uni onglik bilan tanlaydi.
+LABEL revix-dash
+  MENU LABEL REVIX research appliance (live) - dashboard reachable from host [NO AUTH]
+  LINUX /live/vmlinuz
+  INITRD /live/initrd.img
+  APPEND ${KCMDLINE} revix.dashboard=remote
 EOF
 
 # --- UEFI: grub -------------------------------------------------------------
@@ -104,6 +116,11 @@ terminal_output serial console
 
 menuentry "REVIX research appliance (live)" {
     linux /live/vmlinuz ${KCMDLINE}
+    initrd /live/initrd.img
+}
+
+menuentry "REVIX research appliance (live) - dashboard reachable from host [NO AUTH]" {
+    linux /live/vmlinuz ${KCMDLINE} revix.dashboard=remote
     initrd /live/initrd.img
 }
 EOF
