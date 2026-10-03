@@ -530,8 +530,10 @@ def test_t_trial_muzlatilgan_timeline_xususiyatlaridan_hisoblanadi():
     # Formula: t_pressure_off + w_stab_s + P.
     assert D.t_trial_us(tl) == round((tl.t_pressure_off + tl.w_stab_s) * 1e6) \
         + D.PROBE_PERIOD_US
-    # Muzlatilgan default'larda aynan 40.1 s.
-    assert D.t_trial_us(tl) == 40_100_000
+    # Muzlatilgan default'larda aynan 41.1 s: hold_cap_s = 13 s (preregistration/v1.11, §17.5 O3).
+    # Bu YAGONA literal pin -- qiymatning o'zi uchun; qolgan testlar uni timeline'dan
+    # hisoblaydi, shunda cap yana siljisa ular jimgina eskirmaydi.
+    assert D.t_trial_us(tl) == 41_100_000
     # Invariant: eng erta oyna sig'adi va horizon washout ichiga kirmaydi.
     assert round(tl.t_verify_end_earliest * 1e6) <= D.t_trial_us(tl)
     assert D.t_trial_us(tl) <= round(tl.total_s * 1e6)
@@ -909,7 +911,7 @@ def test_trial_end_mono_us_begin_plus_t_trial(tmp_path):
     recs = events(run_dir)
     b = of_type(recs, "trial_begin")[0]
     e = of_type(recs, "trial_end")[0]
-    assert e["mono_us"] - b["mono_us"] == drv.t_trial_us == 40_100_000
+    assert e["mono_us"] - b["mono_us"] == drv.t_trial_us == D.t_trial_us(sch.TrialTimeline())
     # Record washout'dan KEYIN yozilgan, lekin vaqt TO'QILMAGAN: yozish
     # vaqti alohida field'da va u horizon'dan KEYIN.
     assert e["mono_us_record_written"] > e["mono_us"]
@@ -1354,7 +1356,7 @@ def test_run_meta_majburiy_maydonlar(tmp_path):
                 "started_real_us", "started_mono_us", "t_trial_us",
                 "t_trial_formula"):
         assert key in meta, key
-    assert meta["t_trial_us"] == 40_100_000
+    assert meta["t_trial_us"] == D.t_trial_us(sch.TrialTimeline())
     assert meta["rng_seed"] == 11
     assert meta["schedule_digest"] == drv.schedule.digest()
 
@@ -2312,7 +2314,7 @@ def test_main_dry_run_json_siz_ham_ishlaydi(tmp_path, capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "HECH NARSA ISHGA TUSHIRILMADI" in out
-    assert "T_trial=40.100 s" in out
+    assert f"T_trial={D.t_trial_us(sch.TrialTimeline()) / 1e6:.3f} s" in out
 
 
 # ===========================================================================

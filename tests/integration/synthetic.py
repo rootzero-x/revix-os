@@ -34,7 +34,11 @@ SYNTHETIC_SHA = "SYNTHETIC-FIXTURE-NOT-A-REAL-HASH"
 SEED = 20260101
 
 P = 100_000                       # probe davri, us
-T_TRIAL_US = 40_100_000           # kontrakt v1.1 §5.2 (TrialTimeline() default'lari)
+# kontrakt v1.1 §5.2: T_trial = t_pressure_off + w_stab_s + P, TrialTimeline() default'laridan
+# HISOBLANADI. NEGA literal emas: hold_cap_s 12 -> 13 s bo'lganda (preregistration/v1.11, §17.5 O3)
+# literal 40.1 s jimgina eskirdi va validator t_trial_formula_mismatch bilan ushladi.
+_TL = TrialTimeline()
+T_TRIAL_US = round((_TL.t_pressure_off + _TL.w_stab_s) * 1e6) + P
 GUEST_START_TICKS = 123456        # sintetik PID 1 starttime
 TRIAL_SPACING_US = 60_000_000     # trial'lar orasidagi sintetik vaqt
 FIRST_TRIAL_US = 10_000_000
