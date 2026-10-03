@@ -2,14 +2,15 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.10` |
+| **Versiya** | `preregistration/v1.11` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8, v1.9, v1.10) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8, v1.9, v1.10, v1.11) |
 | **Muhit** | Bu pre-registration **§15.1 va §16.11 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
-| **⚠️ Ochiq qaror 1** | **§17.5 — dizayn nuqsoni** (stabilizatsiya oynasi pressure hold'ga sig'maydi). **O'LCHOV BILAN TASDIQLANDI zarur** — §21.5: `p90(t_start)` pressure ostida `5.40 s`, budjet `0.8 s`, `0/6`. |
-| **⚠️ Ochiq qaror 2** | **§18.6 — §11 ning fail-slow limbi ishlamaydi**. **O'LCHOV BILAN TASDIQLANDI zarur** — §21.3: `thr = 0.0967 s = 0.97 × P`; va §21.2 bo'yicha **OQ-12 ning javobidan qat'i nazar**. |
-| | Ikkala qaror ham **birinchi pilot trial'idan OLDIN** va **birgalikda** qabul qilinishi shart (tuguni `τ = W_stab_pilot = 8 s`; §18.6, §19.3). |
+| **✅ Qaror 1 — QABUL QILINDI (v1.11)** | **§17.5 — dizayn nuqsoni** (stabilizatsiya oynasi pressure hold'ga sig'maydi) → **O3**: `hold_cap_s` **12 s → 13 s**. Orkestrator, egasining 2026-10-03 dagi ochiq delegatsiyasi bo'yicha. Asos, narx va cheklovlar: **Amendment log, v1.10 → v1.11** va §17.5. |
+| **✅ Qaror 2 — QABUL QILINDI (v1.11)** | **§18.6 — §11 ning fail-slow limbi ishlamaydi** → **F2**: `thr = 0.20 × τ = 1.6 s`, **fiksa**. Orkestrator, o'sha delegatsiya bo'yicha. §18.2 ning `thr = 0.20 × RMST(P0)` o'qishi **bekor qilinadi**. Asos, **bias yo'nalishi** va narx: **Amendment log, v1.10 → v1.11**, §18.6, §18.7. |
+| | Ikkala qaror **birinchi pilot trial'idan OLDIN** va **birgalikda** qabul qilindi (tuguni `τ = W_stab_pilot = 8 s`; §18.6, §19.3). **Juftlik izchil:** O3 `W_stab_pilot` ni ham, `τ` ni ham **tegmasdan qoldiradi**, demak §18.6 ning O1 haqidagi ogohligi **yuzaga kelmaydi**. |
+| **🔴 Oshkora e'lon (v1.11)** | **Ikkala tanlov ham KALIBRATSIYA MA'LUMOTI KO'RILGANDAN KEYIN qabul qilindi.** P1 trial'i o'tkazilmagan, lekin `10-pressure-dozalash.md` ning o'lchovlari tanlov paytida **qo'lda edi**, va F2 holatida nomzod chegaralar **o'lchangan `P2 − P0` farqiga nisbatan** taqqoslandi. §17.6 va §18.7 ning *“ma'lumot mavjud emas”* kafolati **v1.11 ga O'TMAYDI** — Amendment log, v1.10 → v1.11, **0-band**. |
 | **⛔ Gate** | **§21.7 — generator §9.4 ning ikki invariantini majburlamaguncha hech qanday pilot trial o'tkazilmaydi** (o'lchangan: 5 s so'rov → 16.3 s epizod). |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
@@ -22,6 +23,630 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.10 → v1.11 (2026-10-03)
+
+| | |
+|---|---|
+| **v1.10 sha256** | `5c5d0dd9c3a0661cd658e678cb44c34214a7497ba6b65d78b7830284177436d8` |
+| **v1.10 git tag** | `v0.1.10-preregistration` |
+| **Sabab** | Sarlavhadagi **ikki ochiq qaror** — §17.5 (O1–O4) va §18.6 (F1–F4) — qabul qilindi. Ikkisi ham **birinchi pilot trial'idan OLDIN** talab qilingan edi, va `docs/architecture/10-pressure-dozalash.md` ning **kalibrlangan dozadagi** o'lchovlari ikkisining ham **zarurligini** tasdiqladi |
+| **Qarorni kim qabul qildi** | **Orkestrator**, loyiha egasining **2026-10-03 dagi ochiq delegatsiyasi** bo'yicha. §17.5 va §18.6 tanlovni *"loyiha egasiga"* qoldirgan edi; delegatsiya shu huquqni orkestratorga o'tkazdi va bu shu yerda qayd etiladi |
+| **O'zgardi** | **(1) `hold_cap_s`: 12 s → 13 s** — §9.4 invariant 1, §4 ning `W_stab_pilot` izohi, §9.4 ning kampaniya arifmetikasi (52 → 53 s). **(2) §11 ning fail-slow limbining CHEGARASI** — referens `RMST(P0)` dan **`τ`** ga o'tdi ⇒ `thr = 0.20 × τ = 1.6 s`, **fiksa**; §18.2 ning o'qishi **bekor qilinadi**. **(3) `ramp_above_threshold_s`: eskirgan TAXMIN `3.0 s` → **o'lchangan** `0.000 s`** (3-band — bu **qaror emas**, §9.4 ning o'z talabining bajarilishi). **(4) §0 ning *“12 sekunddan uzoq sustained pressure”*** bandi **cap'ni kuzatadigan** shaklga keltirildi (1.11-band) — aks holda hujjat **o'zining birinchi sahifasida o'ziga zid** bo'lardi. §17.5 va §18.6 qaror qayd etilgan holda qayta yozildi — **O1–O4 va F1–F4 jadvallari SAQLANDI** |
+| **O'zgarMADI** | **hech bir metrika ta'rifi, statistik test, arm, fault klassi, probe parametri, VR ta'rifi, FR ta'rifi, `disposition` enum'i, va fail-slow limbining chegarasidan BOSHQA hech bir falsifikatsiya mezoni.** To'liq ro'yxat 5-bandda |
+| **Yig'ilgan ma'lumot** | **P1 trial'i ma'lumoti — YO'Q:** hech qanday trial o'tkazilmagan, demak **eski ta'riflar ostida qayta hisoblanadigan endpoint yo'q** (`DEVELOPMENT.md` §7 ning *"ma'lumot yig'ilgandan keyin"* qoidasi qo'llanmaydi). **LEKIN kalibratsiya o'lchovlari MAVJUD edi** — 0-bandni ko'ring |
+
+**0. 🔴 OSHKORA E'LON — BU IKKI QAROR MA'LUMOT KO'RILGANDAN KEYIN QABUL QILINDI.**
+
+§17.6 va §18.7 — o'z qarorlarini (v1.6 va v1.7 da) himoya qilib — shunday
+yozgan edi: *"Qaror hech qanday ma'lumot mavjud bo'lmaganda qabul qilinadi,
+demak natijani ko'rib tanlash imkoniyati yo'q."* **O'sha kafolat v1.11 ga
+O'TMAYDI, va buni footnote emas, OSHKORA E'LON sifatida yozaman.**
+
+- **O1–O4 va F1–F4 tanlovi `10-pressure-dozalash.md` ning o'lchovlari
+  QO'LDA bo'lgan holda qilindi.** Qaysi variant qaysi o'lchov bilan
+  o'tadi — tanlovchiga **ma'lum** edi: `hold_cap_s` ning har bir
+  nomzod qiymati `t_start` taqsimotiga nisbatan tekshirildi (1-band), va
+  **F1 ning hamda F2 ning chegaralari o'lchangan `P2 − P0` farqiga
+  nisbatan taqqoslandi** (2.5-band).
+- **Bu aynan shu hujjat oldini olishga qaratilgan xavf sinfi:**
+  chegarani o'lchovga qarab tanlash. O'quvchi buni **ko'rishi shart**,
+  va shuning uchun u sarlavhada ham turadi.
+- **Nima bu xavfni CHEKLAYDI** (bekor qilmaydi, faqat chegaralaydi):
+  **(i)** hech qanday **P1 trial'i** o'tkazilmagan, demak **birlamchi
+  endpoint** (`P(VR)`), `Δ`, CI va p-qiymat **ko'rilmagan** — ko'rilgan
+  narsa kalibratsiya proxy'lari (`t_start`, `D_probe` proxy),
+  gipotezaning natijasi **emas**; **(ii)** ikkala qarorning **bias
+  yo'nalishi** ochiq e'lon qilinadi (1.7, 2.10-bandlar), va F2 ning
+  bias'i **loyihaning o'z tezisiga QARSHI**; **(iii)** qaror
+  hujjatning **o'zi** majburiy qilgan va **o'zi sanab bergan** to'rt
+  variantdan tanlangan — yangi variant **ixtiro qilinmagan**;
+  **(iv)** rad etilgan variantlarning jadvallari **saqlandi**, demak
+  tanlov **tekshirilishi** mumkin.
+- **Nima bu xavfni CHEKLAMAYDI:** F2 ning tanlovi `thr` ni o'lchangan
+  farqning **qaysi tomoniga** tushirishini bilib turib qilindi
+  (2.5-band: farq F1 ning chegarasidan **katta**, F2 ning chegarasidan
+  **kichik**). **Ya'ni ikki konvensiya o'lchangan farqning qarama-qarshi
+  tomonlarida turadi, va tanlovchi buni KO'RGAN.** Shuning uchun F2 ni
+  *"matn shunday deydi"* deb emas, **"F1 ning inkor shoxi asbobning
+  kvantlash polidan past"** deb asoslayman — 2-band — va bias'ni
+  2.9 da ochiq e'lon qilaman.
+
+> **Maqolada shunday yoziladi:** *"§9.4 ning `hold_cap_s` i va §11 ning
+> fail-slow chegarasi pilotning birinchi trial'idan oldin, lekin
+> **dozalash kalibratsiyasining natijalari ko'rilgandan keyin**
+> muzlatilgan; ikkala tanlovning bias yo'nalishi pre-registration'da
+> oldindan e'lon qilingan."*
+
+**1. QAROR 1 — §17.5 O3 bo'yicha hal qilindi: `hold_cap_s` 12 s → 13 s.**
+
+**(1.1) §17.2 ning arifmetikasi, 12 s da.** Oyna hold ichida bo'lishi
+sharti `t_up + W_stab_pilot ≤ t_h + hold_cap_s`, injeksiya `t_h + 3` da
+⇒ `t_up − t_inject ≤ hold_cap_s − 11`. Budjet taqsimoti:
+`RestartSec (0.1) + t_start + probe kvantlashi (0.1)`, demak
+**`t_start ≤ hold_cap_s − 11 − 0.2`**. `hold_cap_s = 12 s` da bu
+**`t_start ≤ 0.8 s`** — §17.2 ning o'z raqami.
+
+**(1.2) §17.5 ning qochish bandi QO'LLANMAYDI.** §17.5 shunday yozgan:
+*"`p90(t_start) ≤ 0.8 s` bo'lsa — nuqson amalda bezarar va O1–O4 kerak
+emas."* O'lchangan (`10` §6.2, §6.5; **kalibrlangan** doza, `base_mb=184`):
+
+| band | n | **p90** | p99 | max | `≤ 0.8 s` | qochish bandi |
+|---|---|---|---|---|---|---|
+| `P0` (generator yo'q) | 30 | **0.0481** | 0.0555 | 0.0576 | **30/30** | qo'llanadi |
+| **`P1`** (kalibrlangan) | 24 | **0.9543** | **1.3948** | **1.4807** | **19/24** | **QO'LLANMAYDI** |
+| `P2` (kalibrlangan) | 24 | **0.7863** | 1.1211 | 1.1883 | 22/24 | harfan qo'llanadi, **1.7% zaxira** |
+| **`P1 + P2`** | 48 | **0.9105** | 1.3433 | 1.4807 | **41/48** | **QO'LLANMAYDI** |
+
+`P1` budjetni **19.3%** ga, birlashtirilgan 48 namuna **13.8%** ga
+oshiradi. `P2` ning 1.7% zaxirasi esa `10` §12.4 ning o'z hukmi bilan
+**o'lchov shovqinidan kichik** (`n = 24`, va `P1` ning p90 i `P2` dan
+**yuqori** chiqqan — monotonlikning buzilishi). §9.3 `P1` ni
+**to'laqonli yacheyka** qiladi (`3 × 2 × 20` dizaynining uchdan biri),
+demak `P1` da buzilgan invariant **butun dizaynni** qamrab oladi.
+
+> **Demak qaror MAJBURIY, va §17.5 ning o'z shartiga ko'ra u birinchi
+> pilot trial'idan OLDIN qabul qilinishi kerak edi.** Shu bajarildi:
+> hech qanday trial o'tkazilmagan.
+
+**(1.3) 13 s da arifmetika, va QAYSI budjet `P1` ni boshqaradi.**
+`hold_cap_s = 13 s` da `t_up − t_inject ≤ 2 s` ⇒ **`t_start ≤ 1.8 s`**.
+
+§17.2 ning **gate qilingan** varianti (`+D_f = 300 ms` ⇒ `t_start ≤ 1.5 s`)
+**shartli**: u *"agar action `F_probe` ga gate qilinsa"* deb yozilgan.
+§9.3 P1 ning arm'larini muzlatadi: **`A`** (`Restart=on-failure`,
+`RestartSec=100ms` — restart'ni **systemd o'zi** qiladi, yo'lda harness
+qarori yo'q) va **`no_action`** (`Restart=no`). **Ikkisi ham `F_probe` ga
+gate qilinmagan.** Probe'ga gate qilingan aktor — **arm C**, va §13 uni
+**muzlatmaydi** va bu pilotdan **tashqarida** qoldiradi.
+
+> **Demak `P1` ni boshqaradigan budjet — GATE QILINMAGAN budjet: 1.8 s.**
+
+| band | p99 | budjetgacha (1.8 s) | max | budjetgacha |
+|---|---|---|---|---|
+| `P1` (hal qiluvchi band) | **1.3948 s** | **22% pastda** | **1.4807 s** | **18% pastda** |
+| `P2` | 1.1211 s | 38% pastda | 1.1883 s | 34% pastda |
+| `P0` | 0.0555 s | 97% pastda | 0.0576 s | 97% pastda |
+
+**78 urinishning 78 tasi** `1.8 s` budjeti ichida (eng katta o'lchangan
+`t_start = 1.4807 s`, `10` §6.2 / §10.1).
+
+**Va §17.2 ning asosiy e'tirozi son bilan toraytiriladi.** §17.2:
+*"`0.8 s < t_start < 10 s` bo'lgan har qanday 'muvaffaqiyatli' restart,
+verifikatsiya oynasi pressure'dan **chiqib ketgan** restart'dir."*
+O'lchangan (`10` §10.1): o'sha oraliqqa `P1` da **5/24**, `P2` da
+**2/24** urinish tushadi — ya'ni `12 s` da **7/48**. `13 s` da oraliq
+`1.8 s < t_start < 10 s` ga aylanadi va unga **0/48** urinish tushadi.
+
+**(1.4) Nega aynan 13 s.** **Minimal o'zgarish — printsipial sabab, va u
+har qanday zaxira argumentidan kuchliroq:** muzlatilgan qiymat
+**kerak bo'lgan eng kichik qadamga** siljitiladi.
+
+- **12.5 s ishlamaydi:** budjet `12.5 − 11 − 0.2 = 1.3 s`, `P1` ning
+  o'lchangan max'i **1.4807 s** undan **oshadi**.
+- **13 s ishlaydi:** budjet **1.8 s**, 78/78 ichida (yuqoriga qarang).
+- **15 s tanlanMAYDI**, garchi `10` §6.5 uni ruxsat etilgan deb
+  ko'rsatgan bo'lsa ham: `15 + 0.000 = 15 ≤ 15` — invariant 2
+  **tenglik bilan** qanoatlanadi, ya'ni **nol zaxira**. 13 s esa
+  **2.000 s** zaxira qoldiradi.
+
+**(1.5) §9.4 invariant 2 buzilMAYDI — O'LCHANGAN.** `10` §4.1:
+`ramp_above_threshold_s` = **0.000 s**, **29 epizoddan 29 tasida**,
+**haqiqiy** dozada (`base_mb = 184`, `step_mb = 4`, `MemoryHigh = 192M`;
+erishilgan doza p50 `0.223 .. 0.921`; ramp tezligi `min = p50 = max =
+0.0000`).
+
+```
+hold_s + ramp_above_threshold_s <= guard_sustain_s
+13 + 0.000 = 13.000  <=  15     ✓   zaxira 2.000 s
+```
+
+§17.5 O3 uchun **ikki shart** qo'ygan edi: invariant 2 **qayta
+tekshirilsin** va guard **qayta kalibratsiya qilinsin**. Birinchisi
+bajarildi (yuqoridagi o'lchov). Ikkinchisi — `10` §4.2 va §6.5 ga
+ko'ra **kerak emas**: guard'ning `sustain_max_seconds = 15.0` va
+`sustain_rate_threshold = 0.35` **o'zgarmaydi**, chunki
+`ramp_above_threshold_s = 0` bo'lgani uchun sustain taymeri faqat hold
+ichida boshlanishi mumkin, va `base_mb=184` ning **29 epizodida
+`sustained_pressure` trip'i YO'Q**.
+
+**(1.6) §15.3 ning IKKI sababi ham javob oladi.** §15.3 `hold_cap_s = 12 s`
+ni **ikki mustaqil yetarli** sabab bilan saqlagan edi:
+
+1. *"Ular muzlatilgan qiymatlar. Pre-registration qulaylik uchun
+   bo'shashtirilmaydi."* — **rad etilmaydi, QO'LLANMAYDI.** Bu
+   bo'shashtirish **qulaylik uchun emas**: §17.5 ning o'zi to'rt
+   muzlatilgan qiymatning **birgalikda qanoatlantirilmasligini** e'lon
+   qilgan va qarorni **majburiy** qilgan; o'lchov esa nuqsonning
+   `P1` da **haqiqatan** yuzaga kelishini ko'rsatdi. (Bu **ma'lumotga
+   tayangan** amendment — 0-bandning oshkora e'loni shu yerga ham
+   tegishli.)
+2. *"12 s — endi shartnomaviy arifmetika: `injection_offset (3 s) +
+   W_stab_pilot (8 s) = 11 s ≤ 12 s`."* — **o'z kuchida va
+   BUZILMADI**: `11 ≤ 13`, zaxira `1 s → 2 s` ga **oshdi**. Demak
+   **v1.3 bekor qilinmaydi**; uning ziddiyat yechimi (cheklov faqat
+   HOLD ga tegishli, ramp+hold ga emas) **kengroq zaxira bilan**
+   saqlanadi: `13 − 5 = 8 < 11`, ya'ni cheklovni ramp+hold ga
+   qo'llash hamon ziddiyat beradi.
+
+**(1.7) Asl 12 s ni YARATGAN cheklov bu muhitda endi bog'lamaydi.**
+12 s `systemd-oomd` ning 20 s sustained oynasi ostidagi vaqt zaxirasi
+sifatida tanlangan (§9.4 invariant 1 ning asl izohi;
+`00-pilot-topologiya.md` §3.1 ning *"1-RAQAMLI XAVF"* i). O'lchangan:
+`systemd-oomd` **bu mashinada yo'q** (§15.2; binar, unit, config, drop-in
+yo'q; `docs/architecture/07-wsl-muhit-tekshiruvlari.md` §6.4, doctor
+`oomd` → PASS, *"kill authority YO'Q"*), va u tadqiqot appliance
+image'ida ham **ATAYLAB yo'q**: `iso/config.sh` da
+`OOMD_INSTALLED="no"`, `iso/20-record-manifest.sh` manifest'da
+`systemd-oomd` paydo bo'lsa **build'ni to'xtatadi**, va qurilish
+jurnali shuni qayd etgan (`docs/architecture/11-iso-qurilish-jurnali.md`:
+*"systemd-oomd: yo'q (ATAYLAB, 09 §4.4)"*).
+
+> **⚠️ CHEKLOV — bu zaxirani OLIB TASHLAYDI, va buni ochiq yozaman.**
+> oomd bor muhitda pilotning xavfsizlik argumenti **ikki qatlamli**
+> edi: guard **va** oomd. oomd yo'q, va hold 12 s dan 13 s ga chiqdi,
+> demak argument endi **faqat guard'ga** tayanadi (§15.3 ning
+> *"guard majburiy va fail-closed"* bandi, `02-guard-kalibratsiyasi.md`
+> ning oniy chegaralari, §8.4(3) ning fail-closed qoidasi). Qolgan
+> xavflar o'z joyida: **kernel global OOM killer** va **runaway
+> generator**. Qolaversa image *"oomd armed desktop"* muhitini
+> **qayta ishlab chiqarmaydi** (`04-novelty-statement.md` C4), demak
+> natijalar oomd ostidagi muhitga **ko'chirilmaydi**.
+
+**(1.8) ⚠️ CHEKLOV — arm C `hold_cap_s = 13 s` ni MEROS QILIB OLMAYDI.**
+13 s da **gate qilingan** budjet 1.5 s, va `P1` ning o'lchangan max'i
+1.4807 s ⇒ zaxira **0.0193 s = 1.3%**. `10` §12.4 allaqachon **1.7%**
+zaxirani *"o'lchov shovqinidan kichik"* deb hukm qilgan, demak 1.3% ham
+shunday. Probe'ga gate qilingan arm'ni (arm C, §13) pre-register
+qiladigan kishi **§17.2 ning arifmetikasini o'zi uchun qaytadan
+bajarishi SHART**. Bu **P1 dagi nuqson emas** — bu **oldinga qaragan
+cheklov**.
+
+**(1.9) ⚠️ CHEKLOV — O3 `window_past_pressure` ni KAMAYTIRADI, YO'Q
+QILMAYDI.** `t_up − t_inject` uchun ruxsat 12 s da `1.0 s`, 13 s da
+`2.0 s`. O'lchangan `D_probe` proxy epizodlari (`10` §7.2, arm `A`,
+har bandda n=12) — agar failure injeksiya bilan **bir vaqtda** deb
+olinsa, `D_probe ≈ t_up − t_inject`:
+
+| ruxsat | oshgan epizod (`P1 + P2`, n=24) |
+|---|---|
+| `1.0 s` (12 s) | **5/24** (`P1`: 1.7, 1.1 · `P2`: 1.1, 2.2, 1.6) |
+| **`2.0 s` (13 s)** | **1/24** (`P2` ning **2.200 s** li epizodi) |
+
+`P1` ning max'i **1.700 s** (ruxsat ichida), `P2` ning max'i
+**2.200 s** — **ruxsatdan oshadi**. Demak:
+
+> **O3 nuqsonni 5/24 dan 1/24 ga tushiradi, lekin YO'Q QILMAYDI.**
+> §17.4(4) ning talabi **o'z kuchida va majburiy**:
+> `window_past_pressure` darajasi **har `(arm × pressure)` yacheykasi
+> bo'yicha ALOHIDA beriladi**, va §12 ning *"yuqori eksklyuziya
+> darajasi o'zi natija — yashirilmaydi"* qoidasi qo'llanadi.
+
+**Bu hisob ikki taqribga tayanadi, va ikkisi ham `1/24` ni PAST
+baho qiladi:** (i) failure injeksiya bilan bir vaqtda deb olinadi —
+toza restart bo'lmagan uzilishlar `t_start` ustiga vaqt **qo'shadi**;
+(ii) epizodlar `0.1 s` li probe panjarasida va `±P` kvantlash bilan
+(§6.1), demak *"aynan 1.0"* va *"1.0 dan katta"* farqi polning
+**ichida**.
+
+**(1.10) Nega O1, O2, O4 emas — har birining narxi §17.5 ning o'z
+so'zlari bilan.**
+
+| variant | nega tanlanmadi |
+|---|---|
+| **O1** (`W_stab_pilot` kichraytiriladi) | §17.5: *"VR da'vosini **kuchsizlashtiradi** — §4 ning 5-bandi (throughput) qisqa oynada kamroq ma'noga ega."* Qolaversa u `τ` ni ham siljitadi (§10.2/§11 da `τ = 8 s` — `W_stab_pilot` bilan **bir xil raqam**), demak **Qaror 2 bilan to'qnashadi** — §18.6 ning o'z ogohligi |
+| **O2** (`injection_offset` kichraytiriladi) | §17.5: 3 s *"hold boshidan keyin pressure'ning **barqarorlashuvi** uchun bor; kichraytirish 'o'rnatilgan pressure ostida injeksiya' binosini kuchsizlashtiradi"* — ya'ni **mustaqil o'zgaruvchini confound qiladi** |
+| **O4** (oyna pressure'dan chiqishiga ruxsat) | §17.5: §4 ning o'z cheklov izohiga (*"pressure davom etayotganda tasdiqlangan recovery"*) **qarshi** — *"bu raqam emas, **metrikaning ma'nosini** o'zgartiradi, demak eng og'ir variant"* |
+
+> **§17.5 O3 ni o'zi *"yagona variant hech bir ilmiy da'voni
+> kuchsizlashtirmaydigan"* deb belgilagan.** O3 shu sababdan tanlandi,
+> va uning o'zi qo'ygan ikki sharti (invariant 2 + guard) o'lchov bilan
+> **bajarildi** (1.5-band). O3 ning narxi — ta'rif o'zgarishi **va**
+> yuqoridagi to'rt CHEKLOV, **ilmiy da'vo emas**.
+
+**(1.11) §0 NING QAMROV BANDI TUZATILDI — aks holda hujjat o'ziga zid
+bo'lardi.** §0 (*"Nima o'lchanmaydi"*) P1 hech qanday da'vo qilmaydigan
+narsalar orasida **`12 sekunddan uzoq sustained pressure`** ni sanagan edi.
+`hold_cap_s = 13 s` da **har bir trial 13 s ishlaydi**, ya'ni §0 ning o'zi
+qamrovdan tashqari deb e'lon qilgan rejimda — **birinchi sahifadagi
+ziddiyat**.
+
+Band **raqamni almashtirish bilan emas**, **cap'ni kuzatadigan** shaklga
+keltirildi, va uning **asl maqsadi saqlandi**: u *uzoq davomiylik rejimini*
+chiqarib tashlash uchun bor, ya'ni `W_stab = 60 s` ning to'liq dizayni va
+daqiqalar tartibidagi sustained pressure — bular P1 ning qamrovida
+**emas** va **bo'lmaydi** (§4 ning *"P1 dagi ochiq cheklov"* i,
+§15.5). **Qamrov sinfi o'zgarmadi; chegara 1 s siljidi.**
+
+**2. QAROR 2 — §18.6 F2 bo'yicha hal qilindi: `thr = 0.20 × τ = 1.6 s`, fiksa.**
+
+**(2.1) §18.6 ning qochish bandi QO'LLANMAYDI.** §18.6:
+*"Agar `thr ≥ ~5 × P` bo'lsa, 18.4 ning cheklovi amalda bezarar va F1
+yetarli."* `P = 100 ms` ⇒ qochish chegarasi **0.5 s**. F1 ostidagi
+`thr = 0.20 × RMST(P0)` **ikki mustaqil yo'l** bilan hisoblanadi, va
+ikkisi ham bir xil javob beradi:
+
+**(a) O'LCHANGAN** (`10` §7.2, §7.5 — loyihaning o'z prober'i, 10 Hz,
+arm `A`, har bandda 12 injeksiya, epizod `invocation_id` o'zgarishi
+bo'yicha tasniflangan):
+
+```
+D_probe proxy (P0):  n = 12,  hammasi AYNAN 0.300 s  =>  mean 0.3000 s
+thr = 0.20 x 0.3000  =  0.0600 s  =  0.60 x P        =>  5P dan 8.3x PAST
+```
+
+**(b) CHIQARILGAN** (§18.4 ning muzlatilgan-overhead yo'li:
+`D_probe(P0) = t_start + (0.2 … 0.4) s`), o'lchangan
+`p50(t_start | P0) = 0.0386 s` (`10` §6.2) bilan:
+
+```
+D_probe(P0) ~ 0.2386 .. 0.4386 s   =>   thr ~ 0.048 .. 0.088 s
+                                        o'rtasi ~ 0.068 s  =  0.68 x P
+```
+
+**(c) Va xulosa `P0` bandining artefakti EMAS** (`10` §7.5, o'lchangan):
+
+| band | referens (`D_probe` proxy `mean`) | `thr = 0.20 × referens` | `P` birligida | `≥ 5P`? |
+|---|---|---|---|---|
+| `P0` | 0.3000 s | **0.0600 s** | 0.60 × P | ❌ |
+| `P1` | 0.8500 s | **0.1700 s** | 1.70 × P | ❌ |
+| `P2` | 1.0250 s | **0.2050 s** | 2.05 × P | ❌ |
+
+Eng katta qiymat — `p90(P2)` da **3.10 × P** — ham `5P` dan past.
+
+> **Har uch yo'lda bir xil xulosa: F1 ning INKOR shoxi asbobning o'z
+> kvantlash polining OSTIDA qoladi.** §6.1 `D_probe` ning o'zini
+> *"±P kvantlash, har chekkada +P/2 bias"* bilan beradi, §7 esa
+> *"100 ms delta oniy tezlik deb talqin qilinmaydi"* deb ogohlantiradi.
+> **Demak F1 YETARLI EMAS.**
+
+**(2.2) F1 ga qarshi hal qiluvchi dalil.** **Inkor shoxiga erishib
+bo'lmaydigan pre-registered falsifikatsiya mezoni — test emas.** U
+faqat *"qo'llab-quvvatlanadi"* ni chiqaradigan shtamp bo'ladi, ya'ni
+§11 ning fail-slow limbi o'zi e'lon qilgan ishni **qilmaydi**. Bu
+§17 ning argumentining aynan o'zi, fail-slow limbiga qo'llangan.
+
+**(2.3) F3 DOMINATSIYA QILINGAN.** (i) U §18.4 ning kvantlash
+muammosini **hal qilmaydi** — o'lchangan `P0` taqsimoti **degenerat**:
+12 epizodning hammasi aynan `0.300 s`, demak `median = mean = 0.300 s`
+va `thr` **o'zgarmaydi** (umumiy holda mediana o'rtachadan **kichik**,
+ya'ni chegara yana **kichrayadi**); (ii) §18.6 ning o'zi qo'shimcha
+nuqsonni sanaydi: KM medianasi **`nan`** bo'lishi mumkin
+(`04-driver-va-analiz-shartnomasi.md` §2.3, 8-band).
+
+**(2.4) F4 emas, lekin F2 — PRINTSIPIAL `k` bilan F4.** §18.6 F4 ni
+*"`k` ni tanlash **o'lchov talab qiladi**"* deb hozirga qoldirgan edi.
+O'lchov endi bor, lekin **`k` uchun hali ham ankor yo'q**: har qanday
+`k × P` tanlovi o'zboshimcha bo'ladi. **F2 — aynan F4, lekin
+asoslangan `k` bilan:** u matnning **o'z `0.20` koeffitsientini**
+saqlaydi va uni **muzlatilgan qiymat** `τ = 8 s` ga ankorlaydi.
+
+```
+thr = 0.20 x tau = 0.20 x 8 s = 1.6 s = 16 x P      =>  kvantlashdan 16x YUQORI
+```
+
+**(2.5) F2 ostida IKKALA shox ham erishiladigan — va aynan shu yerda
+0-bandning oshkora e'loni eng muhim.** `10` §7.2 ning o'lchangan
+`D_probe` proxy **o'rtachalari**: `P0` **0.3000 s**, `P2` **1.0250 s**
+⇒ farq **0.7250 s**. Bu:
+
+```
+0.7250 / 0.0600 (F1 ning thr i)  ~  12 x      =>  F1: "qo'llab-quvvatlanadi" deyarli avtomatik
+0.7250 / 1.6    (F2 ning thr i)  ~  0.45 x    =>  F2: IKKALA shox ham erishiladigan
+```
+
+> **⚠️ Bu raqam FAQAT ILLYUSTRATIV, va uch sababdan da'vo emas:**
+> **(i)** u `D_probe` **proxy'i**, §10.2 ning Kaplan–Meier egrisidan
+> hisoblangan **`RMST` EMAS** (`10` §7.5 ning o'z CHEKLOV'i);
+> **(ii)** `n = 12` har bandda; **(iii)** **hech qanday ishonch
+> intervali hisoblanmagan**, falsifikatsiya mezoni esa `CI95_upper` ga
+> tayanadi. U faqat bitta narsani ko'rsatadi: **ikki konvensiya
+> o'lchangan farqning QARAMA-QARSHI tomonlarida turadi** — va
+> **shuning uchun 0-bandning post-data e'loni zarur**, chunki
+> tanlovchi buni **ko'rgan**.
+
+**(2.6) F2 §18.5 NING QOPLAMA (coverage) E'TIROZINI BUTUNLAY YO'Q QILADI
+— bu kvantlash dalilidan MUSTAQIL, va oldin aytilmagan argument.**
+
+§18.5 ikki mustaqil statistik e'tiroz qo'ygan edi, va **F2 ikkisini ham
+yo'q qiladi**:
+
+1. **Qoplama.** F1 da `thr = 0.20 × RMST(P0)` — **baholangan**
+   kattalik, konstanta emas, demak `CI95[Δ]` ni **xuddi shu
+   ma'lumotdan** baholangan chegaraga qarshi taqqoslash **95%
+   qoplamaga ega emas** (`RMST(P0)` ning noaniqligi `Δ` da ham,
+   `thr` da ham, **korrelyatsiyalangan** holda ishtirok etadi). **F2 da
+   `thr = 0.20 × τ = 1.6 s` — MUZLATILGAN qiymatdan olingan
+   KONSTANTA**, demak **ikkinchi baholangan kattalik YO'Q** va
+   birgalikdagi noaniqlik muammosi **umuman tug'ilmaydi**.
+2. **Nisbiy chegara vs muzlatilgan effect measure.** §18.5: nisbiy
+   chegara (`20%`) va §10.2 ning muzlatilgan *"RMST **difference**"*
+   effect measure'i **bir-biriga mos kelmaydi**. **F2 da chegara
+   sekundda ifodalangan ABSOLUT kattalik (`1.6 s`)**, demak u
+   `RMST` **farqining** `CI95_upper` i bilan **bir xil birlikda** va
+   **to'g'ridan-to'g'ri** taqqoslanadi.
+
+**Va bu amaliy oqibat beradi.** §18.5 ning yumshatish yo'li **bootstrap**
+edi: har resample'da `Δ*` va `thr* = 0.20 × RMST*(P0)` qayta hisoblanadi.
+Lekin loyihaning o'z `revix/stats.py` idagi `bootstrap_ci` **ochiq
+bayon qiladi**: *"**CENSORED ma'lumot uchun YARAMAYDI.** Censoring bor
+joyda KM/RMST"* — va §6.2 censored trial'larni **tashlashni taqiqlaydi**
+(*"censored trial'lar Kaplan–Meier / log-rank analiziga **kiradi**"*).
+
+> **Demak F1 ostida BUYURILGAN usul (birgalikdagi noaniqlik bootstrap'i)
+> va MAVJUD usul (censoring bilan ishlay olmaydigan bootstrap)
+> ZIDDIYATDA edi. F2 ostida ziddiyat YO'Q:** chegara konstanta, demak
+> taqqoslash **analitik** `RMST` farq intervali bilan bajariladi —
+> Greenwood variansi + normal interval, `revix/stats.py` ning
+> `rmst_difference` i (`SE = sqrt(var_a + var_b)`,
+> `CI = diff ± z · SE`), u **censoring'ni KM orqali to'g'ri
+> ishlaydi**.
+>
+> **§10.2 ning o'z bootstrap talabi o'zgarmaydi** — `rmst_difference`
+> ning izohi normal yaqinlashishni kichik `n` da *"taxminiy"* deb
+> belgilaydi va §10.2 bootstrap variantini **ham** talab qiladi. F2 yo'q
+> qilgan narsa — **chegaraga qarshi taqqoslash uchun** birgalikdagi
+> noaniqlik bootstrap'ining **zaruriyati**, umuman bootstrap emas.
+
+**(2.7) Qo'shimcha foyda — §18.8 ning ta'siri TORAYADI.** §18.8
+*"time-to-VR"* ning §6.1 ning uch o'lchovidan (`D_sd` / `D_probe` /
+`D_eff`) qaysi biriga bog'lanishini **ochiq qoldirgan**, va §21.4
+uchala nomzod ham F1 ostida `thr ≈ 0.1 s` berishini ko'rsatgan. F2 da
+`thr = 0.20 × τ` — **endpoint tanlovidan MUSTAQIL**, demak chegara
+§18.8 ga **bog'liq bo'lmay qoladi**. §18.8 **o'z sabablari bilan ochiq
+qoladi** (`Δ` hamon endpoint'ga bog'liq), lekin F2 uning
+**chegaraga** ta'sirini yo'qotadi.
+
+**(2.8) F2 NING NARXI — ochiq yoziladi.** F2 *"20% oshish"* ning
+**bazasini** `P0` ning downtime'idan **horizonga** ko'chiradi, va
+§18.6 buni o'z so'zi bilan *"**boshqa bayonot**"* deb atagan: u
+§11 ning *"×P0"* grammatikasiga (davom etish mezoni (b):
+*"`D_eff` `P2` da ≥1.5× `P0`"*) **qarshi** boradi. §18.2 ning
+uchta matn asosi (§11 ning o'z grammatikasi, §10.2 ning downtime
+o'qishi, `P0` ning solishtirma daraja bo'lishi) **rad etilmaydi** —
+ular **matnga sodiqlik** uchun hamon kuchli, va F2 ularga **qarshi**
+tanlandi.
+
+**(2.9) §18.7(2) ning ogohligi tan olinadi.** §18.7 ochiq yozgan edi:
+*"menga qulay bo'lgan variant **F2** bo'lardi (u limbni ishlaydigan
+qiladi va H1 ga qarshi bias beradi, ya'ni 'qattiqqo'l' ko'rinardi) —
+lekin F2 matn bilan **qo'llab-quvvatlanmaydi**."* **Bu ogohlik bekor
+qilinmaydi, balki javob oladi:** F2 **matnga sodiqlik** uchun emas,
+**sinaluvchanlik (testability)** uchun tanlandi — F1 ning inkor shoxi
+**o'lchov bilan** erishib bo'lmaydigan ekani ko'rsatilgandan keyin.
+Matniy narx 2.8 da, bias 2.10 da, va **tanlovning ma'lumot ko'rilgandan
+keyin qilingani 0-bandda** qayd etilgan. **§18.7 ning *"ma'lumot
+mavjud emas"* kafolati bu tanlovga QO'LLANMAYDI** — u §18.2 ning
+v1.7 dagi qaroriga tegishli.
+
+**(2.10) 🔴 BIAS — F2 ANTI-KONSERVATIV, va bu yumshatilmaydi.**
+F2 `thr` ni **kattalashtiradi** (`0.0600 s → 1.6 s`, ≈27×), demak
+`CI95_upper[Δ] < thr` shartini **osonlashtiradi**:
+
+```
+fail-slow shakli QO'LLAB-QUVVATLANMAYDI  <=>  CI95_upper[ Delta(P2,P0) ] < thr
+```
+
+> **Ya'ni F2 *"fail-slow qo'llab-quvvatlanmaydi"* degan xulosani F1 ga
+> nisbatan OSON qiladi — u fail-slow gipotezasiga nisbatan
+> ANTI-KONSERVATIV.** §18.6 ning jadvali buni allaqachon shunday
+> belgilagan: F1 — *"fail-slow / H1 FOYDASIGA"*, F2 —
+> *"H1 GA QARSHI"*. **Ikki variant QARAMA-QARSHI yo'nalishda og'adi va
+> o'quvchi bu tanlov QAYSI tomonga og'ganini bilishi SHART.** Bu
+> **yumshatilmaydi**.
+
+**3. `ramp_above_threshold_s`: eskirgan TAXMIN `3.0 s` → o'lchangan `0.000 s`.**
+
+**Bu uchinchi qaror EMAS** — bu §9.4 ning **o'z talabining** bajarilishi:
+*"`ramp_above_threshold_s` … **pressure dosing kalibratsiyasidan
+olinadi**, taxmin qilinmaydi."*
+
+- **`3.0 s` hech qachon o'lchanmagan**, va kod buni o'zi aytadi:
+  `revix/schedule.py:70` da `RAMP_ABOVE_THRESHOLD_S = 3.0`, izohi —
+  *"guard.py kalibratsiyasi bu qismni ≤3 s deb hisoblagan. **Bu
+  TAXMIN**, va dosing kalibratsiyasidan … haqiqiy qiymat olinishi
+  kerak."*
+- **O'lchangan qiymat — `0.000 s`, 29 epizoddan 29 tasida**, kalibrlangan
+  `base_mb = 184` da (`10` §4.1).
+- **Hujjat allaqachon o'lchangan qiymatni ishlatgan, faqat KOD orqada
+  qolgan:** `10` §4.2 kalibratsiyadan beri invariant 2 ni
+  `12 + 0.000 = 12.000 ≤ 15` deb yozadi.
+
+**Nega bu amendment'da qayd etiladi:** `TrialTimeline.__post_init__`
+(`revix/schedule.py:844`) invariant 2 ni shu konstanta bo'yicha
+**majburlaydi**, demak `hold_cap_s = 13.0` eski juftlik bilan default
+timeline'ni **ishga tushmaydigan** qiladi:
+
+```
+eski juftlik:  12 + 3 = 15 <= 15      o'tadi, lekin AYNAN chegarada (nol zaxira)
+yangi 13 va 3: 13 + 3 = 16  > 15      PressureCapExceeded
+yangi juftlik: 13 + 0.000   = 13 <= 15   zaxira 2.000 s
+```
+
+> **Demak juftlik `13.0 / 0.0` invariant 2 ga zaxira QO'SHADI** (nol →
+> 2.000 s), ya'ni bu amendment zaxirani **sarflamaydi**, balki
+> **yaratadi**. **Kod o'zgarishi bu amendment'ning qismi emas** — u
+> `revix/schedule.py` da bajariladi; bu yerda **qayd etilishi** shart,
+> chunki invariant 2 ning arifmetikasi shu konstantaga tayanadi.
+
+**⚠️ CHEKLOV 1 — jarayon nuqsoni.** Eski juftlik invariant 2 ni
+**aynan chegarada** qanoatlantirgan (`12 + 3 = 15`), ya'ni **nol
+zaxira** bilan, va **birorta test default `TrialTimeline()`
+konstruksiyasini sinamagan**. Demak ikki konstanta faqat
+**tasodifan** izchil edi, va muammo taxmin yozilgan paytda emas,
+**boshqa, aloqasiz o'zgarish paytida** yuzaga chiqdi. Bu
+**pre-registration nuqsoni emas, jarayon nuqsoni**, lekin u
+`hold_cap_s` ning har qanday o'zgarishi kod invariantini
+**jimgina** buzishi mumkinligini ko'rsatadi.
+
+**⚠️ CHEKLOV 2 — invariant REJA ustida, REALLIK ustida emas.**
+Validator (`revix/validate.py:1602`, `check_planned_timeline`)
+`trial_begin.planned_timeline` ga yozilgan **rejalashtirilgan**
+`ramp_above_threshold_s` ni tekshiradi, **trial bo'yicha o'lchangan
+qiymatni emas**. Reja `0.0` bo'lsa, u **hech qanday zaxira ko'tarmaydi**:
+haqiqiy ramp noldan oshgan run **rejani buzadi**, va reja uni
+**yutmaydi**. Yumshatish — har trial'ning **o'lchangan** ramp'ini
+yozish va invariantni **unga** nisbatan tekshirish; **bu ish
+BAJARILMAGAN**, demak *"invariant 2 reallikka nisbatan majburlanadi"*
+deb **o'qilmaydi**. (`10` §4.1 ning 29/29 o'lchovi bu xavfni
+**kichik** qiladi, lekin **yo'q qilmaydi**.)
+
+**4. IKKI QARORNING IZCHILLIGI — nega ular BIRGA tanlandi.**
+
+§18.6 ochiq ogohlantirgan edi:
+
+> *"§17.5 ning O1 varianti (`W_stab_pilot` ni kichraytirish) `τ` ni ham
+> o'zgartirishi mumkin … va `τ` o'zgarsa F2 ning chegarasi ham
+> o'zgaradi. §17.5 va §18.6 ni alohida hal qilish ziddiyat yaratishi
+> mumkin."*
+
+**O3 bu ziddiyatni yuzaga kelmaydigan qiladi:** u faqat `hold_cap_s` ga
+tegadi va **`W_stab_pilot = 8 s` ni ham, `τ = 8 s` ni ham tegmasdan
+qoldiradi**, demak F2 ning `thr = 0.20 × τ = 1.6 s` chegarasi
+**barqaror**. Teskarisi ham to'g'ri: F2 `τ` ga tayanadi, demak u O1 ni
+**qimmatlashtiradi** — va O1 allaqachon VR da'vosini kuchsizlashtirgani
+uchun rad etilgan.
+
+> **(O3, F2) — ichki izchil juftlik, va bu ularni BIRGALIKDA tanlashning
+> sabablaridan biri.** §17.5/§18.6 ning *"birgalikda hal qilinishi
+> tabiiy"* talabi shu bilan bajarildi.
+
+**5. NIMA O'ZGARMADI — to'liq ro'yxat.**
+
+**§0 ning qolgan bandlari** (H2/A-vs-B, arm C, host-wide pressure,
+`io` stall, sintetik SUT) — **o'zgarmadi**; faqat sustained-pressure
+bandining chegarasi cap bilan birga siljidi (1.11-band).
+
+**Hech bir metrika ta'rifi** (§4 VR, §5 FR-A/FR-B, §6.1 ning uch
+downtime o'lchovi `D_sd`/`D_probe`/`D_eff`, §6.3 latency, §6.4 recovery
+loop, §7 pressure o'lchovi); **hech bir statistik test**
+(§10.1 Cochran–Armitage, Newcombe/Wilson, Clopper–Pearson,
+§10.2 Kaplan–Meier / log-rank / **RMST difference** / Cox-HR taqiqi,
+§10.4 Holm oilasi); **hech bir arm** (`A`, `no_action` — §9.3);
+**hech bir fault klassi** (faqat `clean_crash`); **hech bir probe
+parametri** (`P = 100 ms`, `T_conn = 50 ms`, `T_rt = 50 ms`, `k_f = 3`
+⇒ `D_f = 300 ms`); **`disposition` ning yopiq enum'i** va *"aynan bitta
+disposition"* qoidasi (§12); **§14 data schema**; va **fail-slow
+limbining chegarasidan BOSHQA hech bir falsifikatsiya mezoni** —
+§11 ning **kuchli shakli** (`trend p > 0.05` **VA** Newcombe yuqori
+chegarasi `< 0.15`), **halol power bayonoti**, **davom etish mezonlari
+(a)(b)(c)**, va **null bo'lsa burilish** — **hammasi o'zgarmadi.**
+§17.4 ning ikki `disposition_source` qiymati va besh bandi —
+**o'zgarmadi** (1.9-band ularni **majburiy** deb qaytaradi).
+
+**Raqamlar, ochiq:**
+
+| qiymat | holat |
+|---|---|
+| `W_stab_pilot = 8 s` | **O'ZGARMADI** |
+| `τ = 8 s` (§10.2, §11) | **O'ZGARMADI** |
+| `injection_offset = 3 s` | **O'ZGARMADI** |
+| `θ = 0.8` | **O'ZGARMADI** |
+| `k_f = 3` | **O'ZGARMADI** |
+| `P = 100 ms` | **O'ZGARMADI** |
+| `T_conn = 50 ms`, `T_rt = 50 ms` | **O'ZGARMADI** |
+| **20 blok / 120 trial** (`3 × 2 × 20`) | **O'ZGARMADI** |
+| `W_stab = 60 s`, `guard_sustain_s = 15 s`, `ε = 32 MiB`, quiescence `0.05`, `T_q = 5 s`, `T_w = 15 s`, `T_w_max = 120 s`, `ramp_s = 5 s`, `baseline = 10 s`, washout `≥ 20 s` | **O'ZGARMADI** (kod tomonda ham mexanik tekshirildi: `GUARD_SUSTAIN_WINDOW_S`, `INJECTION_OFFSET_S`, `W_STAB_PILOT_S`, washout va quiescence konstantalari — **tegilmagan**) |
+| `hold_cap_s` | **12 s → 13 s** |
+| fail-slow limbining `thr` i | **`0.20 × RMST(P0)` → `0.20 × τ = 1.6 s`** |
+| `ramp_above_threshold_s` (**muzlatilgan qiymat emas** — §9.4 uni kalibratsiyadan oladi) | taxmin `3.0 s` → **o'lchangan `0.000 s`** |
+
+§0 (qamrovdan tashqari) va §13 (nima muzlatilmaydi) ga **tegilmadi**.
+§16, §19, §20, §21, §22 ning qarorlari **o'z kuchida**.
+
+**6. TARIXIY BO'LIMLAR QAYTA YOZILMADI.** §17.9, §18.10, §19.4,
+§21.10 va §22 ning *"NIMA O'ZGARMAYDI"* ro'yxatlari, §15.6 ning jadvali
+va §16 ning ro'yxatlari `hold_cap_s = 12 s` deb yozadi. **Bular
+o'z versiyasidagi holat haqidagi bayonotlar va ular TO'G'RI — shuning
+uchun ular o'zgartirilmaydi.** Ularni qayta yozish tarixni
+soxtalashtirish bo'lardi. Buning o'rniga **normativ** joylar yangilandi
+(§4, §9.4, §11) va §15.3, §17.2, §17.6, §18.2, §18.7 ga
+**belgilangan `v1.11` ko'rsatkichi** qo'yildi, demak o'sha bandlarni
+o'qiyotgan kishi eski qiymatga yoki eski kafolatga **ishonib qolmaydi**.
+
+**7. NEGA BU AMENDMENT QONUNIY — va u NIMANI KAFOLATLAMAYDI.**
+
+1. **Hech qanday P1 trial'i o'tkazilmagan**, demak **birlamchi endpoint
+   ko'rilmagan** va `DEVELOPMENT.md` §7 ning *"ma'lumot yig'ilgandan
+   keyin"* qoidasi **qo'llanmaydi**. **Lekin kalibratsiya ma'lumoti
+   ko'rilgan** — 0-bandning oshkora e'loni, va bu **kafolat emas,
+   e'lon**;
+2. **ikkala o'zgarish ham hujjatning O'ZI talab qilgan**: §17.5 va
+   §18.6 qarorni *"birinchi pilot trial'idan oldin"* **shart** qilgan,
+   va §9.4 `ramp_above_threshold_s` ni kalibratsiyadan olishni **shart**
+   qilgan;
+3. **ikkalasi ham o'lchov bilan asoslangan, taxmin bilan emas** — v1.3
+   ning *"ma'lumot bilan asoslangan amendment, taxmin bilan emas"*
+   qoidasi ostida (`10-pressure-dozalash.md` §4, §6, §7);
+4. **protsedura bajarildi** (`DEVELOPMENT.md` §7): sana, sabab, nima
+   o'zgardi, **nima o'zgarMAdi**, ma'lumot holati, va **v1.10 ning
+   `sha256` i bilan git tag'i saqlandi**. Hash hujjatdan ko'chirilmadi —
+   `sha256sum` ishga tushirildi va `v0.1.10-preregistration` tag xabari
+   bilan solishtirildi (ikkisi **mos**).
+
+**8. BU AMENDMENT NIMANI YOPMAYDI.**
+
+1. **§21.7 ning GATE'i yopilmaydi.** `10` §12.2 gate shartini
+   *"o'lchov bo'yicha BAJARILDI"* deb beradi (`overrun_s` n=34, p50
+   0.0619 s, max 0.2899 s), lekin *"gate'ni rasman yopish frozen matn
+   egasining qarori"* deb ham yozadi. **Bu amendment gate'ga tegmaydi.**
+   Sarlavhadagi ⛔ Gate qatori **o'z joyida qoladi** (matni endi
+   `hold_s ≤ 13 s` ni bildiradi).
+2. **§18.8 ochiq qoladi** — survival endpoint hamon `D_sd`/`D_probe`/
+   `D_eff` dan biriga bog'lanmagan (2.6-band ta'sirni toraytiradi,
+   masalani hal qilmaydi).
+3. **§17.7 ochiq qoladi** — §8.2 ning (ii) nazorati (*"injeksiya yo'q,
+   pressure bor"*) §9.3 ning panjarasida hamon yo'q.
+4. **§14.4 ning havolasi ATAYLAB yopilmaydi, va bu qarz ko'rinadigan
+   qoladi.** §17.8 va §18.9 shunday shart qo'ygan edi: *"§17.5 ning
+   O1–O4 qarori muzlatilgan matnga baribir tegadi … shu amendment bu
+   havolani tuzatish uchun to'g'ri joy."* **v1.11 — o'sha amendment, va
+   shart bajarildi.** Lekin havola tuzatishi **delegatsiya qilingan
+   qarorning qismi emas**, shuning uchun u bu yerda **qilinmaydi**.
+   **Talab to'liq kuchda:** `units_show` unit **TIRIK** paytida olinadi
+   (to'g'ri havola: `docs/architecture/01-muhit-tekshiruvlari.md` §4;
+   `04-driver-va-analiz-shartnomasi.md` §1.1 unga to'g'ri havola qiladi).
+   Bu **beshinchi** amendment bo'ylab ochiq.
+5. **`window_past_pressure` yo'q qilinmadi** — 1.9-band: `1/24` epizod
+   hamon ruxsatdan oshadi, va §17.4(4) ning yacheyka bo'yicha hisobot
+   talabi **majburiy** bo'lib qoladi.
+6. **Pilot hali ishga tushirilishi mumkin emas** — `10` §12.5 ning
+   qolgan blokerlari **kod** tomonda (OQ-2: `driver.py` generatorga
+   dozalash parametrlarini bermaydi ⇒ o'lchangan **nol doza**;
+   `PRESSURE_TARGET_RATE["P2"] = 0.70` over-doza beradi, o'lchangan
+   to'g'ri qiymat **0.60**), ustiga 3-bandning `schedule.py` dagi ikki
+   konstantasi. **Bular pre-registration masalasi emas.**
+7. **Ikki kod nuqsoni — ular bu amendment'ning ma'lumot holati
+   bayonotiga TEGADI, lekin bu yerda tuzatilmaydi** (boshqa agentga
+   topshirilgan): `revix/driver.py` `ramp_above_threshold_s` ni hamon
+   **`"calibration_required": true`** bilan beradi, holbuki
+   kalibratsiya **bajarilgan** (3-band), va bir test shu nosaholiq
+   qiymatni **tasdiqlaydi**; shuningdek `tests/unit/test_driver.py`
+   hamon `13.0 s` li hold **rad etilishini** tasdiqlaydi. **Ya'ni
+   harness hozir kalibratsiyani ham, yangi cap'ni ham to'g'ri
+   ifodalamaydi**, va bu holat bu hujjatning 0-bandidagi ma'lumot
+   holati bilan **birga o'qilishi** kerak: o'lchov bor, lekin kod uni
+   hali aks ettirmagan.
 
 ### v1.9 → v1.10 (2026-10-03)
 
@@ -1004,7 +1629,13 @@ P1 quyidagilar haqida **hech qanday** da'vo qilmaydi:
 - H2 (PSI-gating vs systemd native backoff) — A-vs-B taqqoslash P1 da **yo'q** (§6.3).
 - REVIX arm C, failure classifier, action selector, `Repairs()` matritsasi.
 - Host-wide (global `/proc/pressure`) pressure.
-- 12 sekunddan uzoq sustained pressure.
+- `hold_cap_s` dan uzoq sustained pressure — **v1.11** dan beri **13 s**
+  (§9.4 invariant 1; avval 12 s, §17.5 O3 bilan siljidi). **Bu band cap'ni
+  KUZATADI, literal raqamni emas:** har bir P1 trial'i aynan bitta sustained
+  hold ichida o'lchanadi, demak **uzoq davomiylik rejimi** — `W_stab = 60 s`
+  ning to'liq dizayni va daqiqalar tartibidagi sustained pressure — P1 ning
+  qamrovidan **tashqarida qoladi** (§4 ning *“P1 dagi ochiq cheklov”* i,
+  §15.5). **Qamrov sinfi o'zgarmadi; faqat chegara 1 s siljidi.**
 - Nazorat qilinadigan IO stall (`io` controller delegated emas).
 - Haqiqiy xizmatlar (SUT sintetik).
 
@@ -1101,7 +1732,7 @@ ishlayotgan xizmat recovered emas. Busiz butun hissa "process tirikmi?" ga qulay
 |---|---|---|
 | `θ` | **0.8** | pre-fault throughput'ning ulushi |
 | `W_stab` | **60 s** (to'liq dizayn) | mexanik asos: λ tezlikdagi leak va M shift uchun refail vaqti ≈ M/λ; λ shunday tanlanadi-ki bu 15–25 s bo'ladi, demak 60 s ≥2 refail tsiklini qoplaydi |
-| `W_stab_pilot` | **8 s** | sustained HOLD (≤12 s) ichida sig'ishi kerak: injeksiya hold'ga 3 s kirgach boshlanadi, demak 3 + 8 = 11 ≤ 12 ✓ (v1.3 aniqlashtirishi) |
+| `W_stab_pilot` | **8 s** | sustained HOLD (≤13 s) ichida sig'ishi kerak: injeksiya hold'ga 3 s kirgach boshlanadi, demak 3 + 8 = 11 ≤ 13 ✓ (v1.3 aniqlashtirishi; `hold_cap_s` **v1.11** da 12 s → 13 s — §17.5 O3, zaxira 1 s → 2 s) |
 
 > **P1 dagi ochiq cheklov:** `W_stab_pilot = 8 s` bilan o'lchanadigan narsa —
 > **"pressure davom etayotganda tasdiqlangan recovery"**, 60 s sustained recovery **emas**.
@@ -1422,18 +2053,32 @@ hold'ga 3 s kirgach → pressure off → washout ≥20 s.
 
 | # | invariant | qiymat | nega |
 |---|---|---|---|
-| 1 | `hold_s ≤ hold_cap_s` | **12 s** | oomd 20 s sustained talab qiladi; bu asosiy vaqt zaxirasi |
+| 1 | `hold_s ≤ hold_cap_s` | **13 s** (**v1.11**: 12 s → 13 s) | **Asl asos (v1.3):** *“oomd 20 s sustained talab qiladi; bu asosiy vaqt zaxirasi”* — bu muhitda kuchini yo'qotgan: `systemd-oomd` **yo'q** (§15.2). **v1.11 asosi (§17.5 O3):** o'lchangan `t_start` 12 s li cheklovni `P1` da buzadi; 13 s da budjet `t_start ≤ 1.8 s` va 78/78 urinish ichida. Shartnomaviy arifmetika saqlanadi: `3 + 8 = 11 ≤ 13` |
 | 2 | `hold_s + ramp_above_threshold_s ≤ guard_sustain_s` | **15 s** | ramp ham pressure beradi; bu guard'ning `sustain_max_seconds` i, demak to'g'ri trial guard'ni ISHGA TUSHIRMASLIGI matematik kafolatlanadi |
 
-> **12 s cheklovi faqat HOLD ga tegishli, ramp+hold ga emas.** Aks holda
-> `hold ≤ 7 s` bo'lardi, lekin injeksiya(3 s) + `W_stab_pilot`(8 s) = 11 s
-> talab qilinadi — ya'ni ziddiyat. Ikkinchi invariant uzun ramp orqali
+> **`hold_cap_s` cheklovi faqat HOLD ga tegishli, ramp+hold ga emas.** Aks
+> holda `hold ≤ 13 − 5 = 8 s` bo'lardi, lekin injeksiya(3 s) +
+> `W_stab_pilot`(8 s) = 11 s talab qilinadi — ya'ni ziddiyat (v1.3 ning
+> arifmetikasi 12 s da `hold ≤ 7 s` bergan edi; **v1.11** dan keyin 8 s,
+> va 8 < 11 bo'lgani uchun yechim o'zgarmaydi). Ikkinchi invariant uzun ramp orqali
 > qo'shimcha pressure "olib o'tilishini" to'xtatadi.
 
 `ramp_above_threshold_s` (ramp'ning quiescence chegarasidan yuqori qismi)
 **pressure dosing kalibratsiyasidan olinadi**, taxmin qilinmaydi.
 
-**Kampaniya vaqti:** fazalar yig'indisi = pre-flight + 10 + 5 + 12 + 20 ≈ 52 s.
+> **✅ v1.11 — bu talab BAJARILDI:** o'lchangan qiymat **`0.000 s`**,
+> kalibrlangan `base_mb = 184` da **29 epizoddan 29 tasida**
+> (`docs/architecture/10-pressure-dozalash.md` §4.1). Demak invariant 2:
+> `13 + 0.000 = 13.000 ≤ 15`, **zaxira 2.000 s**. Eski kod qiymati
+> `3.0 s` **TAXMIN** edi (`revix/schedule.py` izohining o'z so'zi) va u
+> invariant 2 ni **aynan chegarada** (`12 + 3 = 15`) o'tkazardi —
+> Amendment log, v1.10 → v1.11, **3-band**, va o'sha banddagi ikki
+> CHEKLOV (validator **rejalashtirilgan**, o'lchangan emas, qiymatni
+> tekshiradi).
+
+**Kampaniya vaqti:** fazalar yig'indisi = pre-flight + 10 + 5 + 13 + 20 ≈ 53 s
+(**v1.11**: `hold_cap_s` 12 → 13 s, demak 52 → 53 s — bu **chiqarilgan baho**,
+muzlatilgan parametr emas).
 Haqiqiy trial vaqti bundan katta (unit yaratish/yo'q qilish, D-Bus
 round-trip, ma'lumot flush). Bu qo'shimcha **o'lchanadi, taxmin qilinmaydi**,
 va kampaniya bahosiga o'lchangan qiymat kiritiladi. Boshlang'ich baho
@@ -1504,6 +2149,26 @@ deb belgilanadi.
 
 Bir vaqtda, fail-slow shakli qo'llab-quvvatlanmaydi, agar `P0` va `P2` orasidagi
 time-to-VR RMST farqi (τ = 8 s) uchun 95% CI 20% oshishni chiqarib tashlasa.
+
+> **✅ v1.11 — bu limbning aytilmagan referensi HAL QILINDI (§18.6 → F2).**
+> Chegara `τ` ga ankorlanadi va **fiksa**:
+>
+> ```
+> Delta(P2,P0) := RMST_A(P2, tau=8 s) - RMST_A(P0, tau=8 s)
+> thr          := 0.20 x tau = 0.20 x 8 s = 1.6 s      (fiksa, 16 x P)
+>
+> fail-slow shakli QO'LLAB-QUVVATLANMAYDI  <=>  CI95_upper[ Delta(P2,P0) ] < 1.6 s
+> ```
+>
+> `_A` — §16.5 bo'yicha **arm `A` ichida**; ayirish tartibi va yo'nalish
+> §18.2 dan **o'zgarmagan holda** saqlanadi. **§18.2 ning
+> `thr = 0.20 × RMST(P0)` o'qishi (F1) BEKOR QILINADI.** Sabab (F1 ning
+> inkor shoxi asbobning kvantlash polidan past), **bias yo'nalishi
+> (F2 ANTI-KONSERVATIV)**, narxi, va **qaror kalibratsiya ma'lumoti
+> ko'rilgandan keyin qabul qilingani**: **Amendment log, v1.10 → v1.11**
+> (0-band va 2-band), §18.6, §18.7. §11 ning qolgan hamma bandi —
+> kuchli shakl, power bayonoti, davom etish mezonlari, burilish —
+> **o'zgarmadi**.
 
 ### Halol power bayonoti (oldindan majburiyat)
 `n = 20`/daraja Fisher exact bilan `1.00 → ~0.65` ni ≈80% power bilan aniqlaydi.
@@ -1768,6 +2433,21 @@ muhitga, qisman shartnomaga tayanadi.** v1.3 gacha u sof muhit cheklovi edi
 yagona hukmron asos bo'lib qoladi.** §9.4 jadvalidagi *"oomd 20 s sustained
 talab qiladi"* izohi — **o'sha muhitdagi** asos, va u matn **o'zgartirilmaydi**;
 bu bo'lim uni to'ldiradi.
+
+> **⚠️ v1.11 — bu banddagi `hold_cap_s = 12 s` BEKOR QILINDI.** §17.5 ning
+> qarori **O3** bo'yicha `hold_cap_s` = **13 s** (§9.4 invariant 1).
+> 15.3 ning ikki sababi **rad etilmaydi**, javob oladi: **1-sabab**
+> (muzlatilgan qiymat qulaylik uchun bo'shashtirilmaydi) **qo'llanmaydi**,
+> chunki §17.5 to'rt muzlatilgan qiymatning **birgalikda
+> qanoatlantirilmasligini** e'lon qilgan va qarorni **birinchi trial'dan
+> oldin majburiy** qilgan — demak bu qulaylik emas, **e'lon qilingan
+> dizayn nuqsoni**, va u `10-pressure-dozalash.md` §6.5 da **o'lchandi**;
+> **2-sabab** (shartnomaviy arifmetika) **o'z kuchida va buzilmadi** —
+> `injection_offset(3) + W_stab_pilot(8) = 11 ≤ 13`, zaxira 1 s dan
+> **2 s** ga oshdi, demak **v1.3 bekor qilinmaydi**. Pastdagi *"guard
+> majburiy va fail-closed"* bandi **kuchayadi**, chunki oomd yo'q va hold
+> uzaygan holda xavfsizlik argumenti **faqat guard'ga** tayanadi —
+> Amendment log, v1.10 → v1.11, (1.7).
 
 #### Guard majburiy va fail-closed bo'lib qoladi
 
@@ -2416,6 +3096,18 @@ qo'shiladi ⇒ **`t_start ≤ 0.5 s`**.
 > **FAKT: muzlatilgan dizayn SUT'dan `P2` pressure ostida ~0.8 s ichida
 > ishga tushib contract'dan o'tishni TALAB qiladi.**
 
+> **⚠️ v1.11 — bu arifmetika `hold_cap_s = 12 s` uchun.** §17.5 ning
+> qarori **O3** bo'yicha `hold_cap_s` = **13 s**, demak umumiy shakl
+> `t_start ≤ hold_cap_s − 11 − 0.2` ga ko'ra budjet **`t_start ≤ 1.8 s`**
+> (gate qilingan variant: **`≤ 1.5 s`**, lekin u §9.3 ning ikki arm'iga
+> **qo'llanmaydi** — Amendment log (1.3)). O'lchangan `max(t_start) =
+> 1.4807 s` (78 urinish; `10-pressure-dozalash.md` §6.2, §10.1) ⇒
+> **78/78 budjet ichida**, va pastdagi `0.8 s < t_start < 10 s` oralig'i
+> `1.8 s < t_start < 10 s` ga aylanib unga **0/48** urinish tushadi
+> (12 s da 7/48 edi). **Lekin nuqson YO'Q QILINMADI** — Amendment log
+> (1.9): `D_probe` proxy bo'yicha `1/24` epizod hamon ruxsatdan oshadi.
+> 17.5 ning qaroriga qarang.
+
 **Va bu §9.2 ga to'g'ridan-to'g'ri qarshi.** §9.2 oldindan aytilgan
 mexanizm **(i)** — *"`TimeoutStartSec` oshib ketdi"* — va **(iv)** —
 *"scheduling delay'dan watchdog miss"* — ya'ni dizayn **sekin start'ni
@@ -2520,9 +3212,16 @@ hisoblab bo'lmaydi.** Buni hech qanday disposition qoidasi tuzatmaydi.
 | 3 | `hold_cap_s = 12 s` | §9.4 invariant 1 |
 | 4 | oyna hold **ichida** bo'lishi sharti | §4 (*"ichida sig'ishi kerak"*) + §4 cheklov izohi (*"pressure davom etayotganda"*) |
 
-> **Bu savolga javob berish muzlatilgan ta'rifga tegadi, shuning uchun
-> men uni HAL QILMAYMAN.** Qaror loyiha egasiga tegishli. Pastda
-> variantlar va har birining narxi — **tanlov qilinmagan.**
+> **✅ QABUL QILINDI (v1.11) — O3: `hold_cap_s` 12 s → 13 s.** Qarorni
+> **orkestrator** qabul qildi, loyiha egasining **2026-10-03 dagi ochiq
+> delegatsiyasi** bo'yicha. Asos, o'lchangan raqamlar, to'rt CHEKLOV va
+> O1/O2/O4 ning rad etilish sabablari: **Amendment log, v1.10 → v1.11**,
+> 1-band; qisqa shakli pastdagi *“QAROR (v1.11)”* bandida. **Qaror
+> kalibratsiya ma'lumoti ko'rilgandan keyin qabul qilindi** — o'sha
+> log'ning **0-bandi**.
+>
+> **Pastdagi jadval ATAYLAB saqlanadi** — o'quvchi nima rad etilganini va
+> **nega** rad etilganini ko'rishi kerak.
 
 | variant | nima o'zgaradi | narxi |
 |---|---|---|
@@ -2551,6 +3250,61 @@ o'tmaguncha taqiqlangan.
 > egasi O1–O4 dan birini tanlashi **shart**, va bu tanlov **birinchi
 > pilot trial'idan oldin** qilinishi kerak.
 
+#### ✅ QAROR (v1.11) — O3 tanlandi: `hold_cap_s` 12 s → 13 s
+
+**So'ralgan o'lchov BAJARILDI.** Yuqoridagi so'rov
+(`experiment/pressure-cal` yoki `guard-recal` har pressure bandida
+`t_start` taqsimotini bersin) `docs/architecture/10-pressure-dozalash.md`
+§6 da bajarildi, **kalibrlangan** dozada (`base_mb = 184`; `08` ning
+nazoratsiz to'yinish dozasi emas).
+
+| band | n | **p90** | p99 | max | `≤ 0.8 s` (12 s) | `≤ 1.8 s` (13 s) |
+|---|---|---|---|---|---|---|
+| `P0` | 30 | **0.0481** | 0.0555 | 0.0576 | **30/30** | 30/30 |
+| **`P1`** | 24 | **0.9543** | **1.3948** | **1.4807** | **19/24** | **24/24** |
+| `P2` | 24 | **0.7863** | 1.1211 | 1.1883 | 22/24 | 24/24 |
+| `P1 + P2` | 48 | **0.9105** | 1.3433 | 1.4807 | **41/48** | **48/48** |
+
+- **Qochish bandi (`p90 ≤ 0.8 s`) QO'LLANMAYDI:** `P1` budjetni
+  **19.3%** ga oshiradi (`P1` — §9.3 bo'yicha to'laqonli yacheyka),
+  birlashtirilgan 48 namuna **13.8%** ga; `P2` ning 1.7% zaxirasi
+  `10` §12.4 ga ko'ra **o'lchov shovqinidan kichik**. Demak qaror
+  **majburiy** edi.
+- **13 s da budjet `t_start ≤ 1.8 s`** (gate qilingan `≤ 1.5 s`
+  **qo'llanmaydi**: §9.3 ning `A` va `no_action` arm'lari `F_probe` ga
+  gate qilinmagan; probe'ga gate qilingan aktor — **arm C**, §13 uni
+  muzlatmaydi). `P1` p99 **22%**, max **18%** zaxira bilan o'tadi,
+  va **78/78** urinish ichida.
+- **Nega 13, nega 12.5 emas:** 12.5 s da budjet 1.3 s va `P1` ning max'i
+  **1.4807 s** undan oshadi ⇒ **13 s — ishlaydigan eng kichik yarim
+  sekundli qadam**. Muzlatilgan qiymatga **minimal o'zgarish** —
+  printsipial sabab.
+- **Nega 15 emas** (`10` §6.5 uni ruxsat etilgan deb ko'rsatgan):
+  `15 + 0.000 = 15 ≤ 15` — invariant 2 **tenglik bilan**
+  qanoatlanadi, nol zaxira. 13 s **2.000 s** qoldiradi.
+- **Invariant 2 buzilmaydi, O'LCHANGAN:** `ramp_above_threshold_s =
+  0.000 s`, **29/29 epizod**, haqiqiy dozada (`10` §4.1) ⇒
+  `13 + 0.000 = 13 ≤ 15`. **Guard qayta kalibratsiya qilinMAYDI** —
+  `sustain_max_seconds = 15.0` o'zgarmaydi (`10` §4.2, §6.5), demak
+  yuqoridagi O3 qatorining ikki sharti **bajarildi**.
+
+**To'rt CHEKLOV, ochiq:** **(1)** 12 s ni yaratgan `systemd-oomd`
+zaxirasi bu muhitda yo'q (§15.2), demak pilotning xavfsizlik argumenti
+endi **faqat guard'ga** tayanadi, guard + oomd ga emas; **(2) arm C
+`hold_cap_s = 13 s` ni meros qilib olmaydi** — gate qilingan budjetda
+zaxira `P1` ning max'iga nisbatan **1.3%**, demak probe'ga gate qilingan
+arm'ni pre-register qiladigan kishi §17.2 ning arifmetikasini **o'zi
+uchun qaytadan bajarishi shart**; **(3) `hold_s = 13 s` li epizod hech
+qachon ishga tushirilmagan** — `10` §4.2 ga ko'ra hatto 12 s li hold ham
+sinalmagan (epizodlar ≤12 s ramp+hold bilan cheklangan), demak 13 s da
+invariant 2 **arifmetika + o'lchangan ramp** ga tayanadi; **(4) nuqson
+KAMAYDI, YO'Q BO'LMADI** — `D_probe` proxy bo'yicha ruxsatdan oshgan
+epizod `5/24` dan `1/24` ga tushdi, demak **17.4(4) ning yacheyka
+bo'yicha `window_past_pressure` hisoboti MAJBURIY bo'lib qoladi**.
+
+Batafsil: **Amendment log, v1.10 → v1.11**, 0-band (post-data e'lon) va
+1-band (1.1–1.11; 1.11 — §0 ning qamrov bandi).
+
 ### 17.6 Bias yo'nalishini ochiq e'lon qilish
 
 17.4 ning qarori holat (a) ni va holat (b) ni **ikkalasini** binar
@@ -2574,6 +3328,15 @@ Qaror hech qanday ma'lumot mavjud bo'lmaganda qabul qilinadi, demak
 natijani ko'rib tanlash imkoniyati yo'q. **Agar `t_start` o'lchangandan
 keyin ma'lum bo'lsa-ki (b) ustun, bu qaror O'ZGARMAYDI** — u
 o'lchangan natija emas, ta'rif asosida qabul qilingan.
+
+> **⚠️ v1.11 — bu banddagi *“hech qanday ma'lumot mavjud bo'lmaganda”*
+> kafolati FAQAT 17.4 NING QARORIGA tegishli.** U **17.5 ning O3
+> tanloviga QO'LLANMAYDI**: O3 `10-pressure-dozalash.md` ning
+> kalibratsiya o'lchovlari **ko'rilgandan keyin** tanlandi — Amendment
+> log, v1.10 → v1.11, **0-band**. 17.4 ning qarori (holat (a) va (b) ni
+> binar maxrajdan chiqarish) va uning yuqoridagi bias bahosi
+> **o'zgarmadi**, va u hamon `t_start` o'lchanmagan paytda qabul
+> qilingan qaror bo'lib qoladi.
 
 ### 17.7 DIZAYN NUQSONI — §8.2 ning (ii) nazorati §9.3 panjarasida yo'q
 
@@ -2726,6 +3489,18 @@ shuning uchun **baholanadigan kattalik `P2 − P0`**, teskarisi emas.
 > tartibini **ochiq** ko'rsatishi shart (masalan
 > `orientation: "P2_minus_P0"`).
 
+> **⚠️ v1.11 — 18.2 ning REFERENSI BEKOR QILINDI.** §18.6 ning qarori
+> **F2** bo'yicha referens `RMST(P0)` **emas**, balki **`τ`**:
+> `thr = 0.20 × τ = 1.6 s`, **fiksa** (§11 ning yangilangan bandi).
+> 18.2 ning **uch matn asosi rad etilmaydi** — ular matnga sodiqlik
+> uchun hamon kuchli, va F2 ularga **qarshi** tanlandi, chunki
+> 18.4/18.6 ning kvantlash cheklovi **o'lchov bilan tasdiqlandi**:
+> F1 ning **inkor shoxi** asbobning kvantlash polidan **past**.
+> **Ayirish tartibi, yo'nalish talabi va `orientation` sxema talabi
+> O'ZGARMADI.** Sabab, bias yo'nalishi, narx, va **qaror ma'lumot
+> ko'rilgandan keyin qabul qilingani**: **Amendment log,
+> v1.10 → v1.11**, 0- va 2-bandlar; §18.6, §18.7.
+
 ### 18.3 FAKT — bu yerda RMST nima, va nega `τ = 8 s` degenerat emas
 
 `time-to-VR` ning survival endpoint'i uchun RMST:
@@ -2831,6 +3606,26 @@ etadi (*"median, p90, p99 + BCa bootstrap CI"*, §10.3 *"`scipy`
 … bootstrap'ni qoplaydi"*). **Bu hisoblash yo'li, qaror emas** —
 u 18.4 ning kvantlash polini **hal qilmaydi**.
 
+> **✅ v1.11 — 18.5 NING IKKI E'TIROZI HAM YO'Q BO'LDI.** §18.6 ning
+> qarori **F2** bo'yicha `thr = 0.20 × τ = 1.6 s` — **muzlatilgan
+> qiymatdan olingan KONSTANTA**. Demak: **(a)** `thr` **baholanmaydi**,
+> ya'ni `Δ` va `thr` ning **birgalikdagi noaniqligi** muammosi
+> **umuman tug'ilmaydi** va yuqoridagi qoplama e'tirozi **kuchini
+> yo'qotadi**; **(b)** chegara **sekundda absolut**, demak §10.2 ning
+> muzlatilgan *"RMST **difference**"* effect measure'i bilan **mos
+> keladi** — nisbat (`ρ`) ga o'tish **kerak emas**.
+>
+> **Oqibati amaliy va muhim:** yuqoridagi bootstrap yumshatishi
+> **shart emas** — taqqoslash **analitik** interval bilan bajariladi
+> (Greenwood variansi + normal interval,
+> `revix/stats.py:rmst_difference`). Bu muhim, chunki
+> `revix/stats.py:bootstrap_ci` o'zi *"**CENSORED ma'lumot uchun
+> YARAMAYDI.** Censoring bor joyda KM/RMST"* deb yozadi, §6.2 esa
+> censored trial'larni **tashlashni taqiqlaydi** — ya'ni **F1 ostida
+> buyurilgan usul va mavjud usul ZIDDIYATDA edi**. **§10.2 ning o'z
+> bootstrap talabi (kichik `n` da robustlik) o'zgarmaydi.**
+> Amendment log, v1.10 → v1.11, **(2.6)**.
+
 ### 18.6 HAL QILMAYDIGAN QAROR — limb ishlamaydi, bu egasining tanlovi
 
 18.2 referensni aniqladi, demak limb **hisoblanadigan** bo'ldi. Lekin
@@ -2839,9 +3634,19 @@ INKOR QILA OLMAYDI**, chunki inkor shoxi o'lchov kvantlashidan
 mayda farqni ko'rsatishni talab qiladi.
 
 > **Buni 18.2 ning referensini o'zgartirmasdan tuzatib bo'lmaydi, va
-> referensni o'zgartirish §11 ning MA'NOSINI o'zgartiradi. Shuning
-> uchun men bu tanlovni QILMAYMAN.** Variantlar va narxlari pastda —
-> **tanlov qilinmagan.**
+> referensni o'zgartirish §11 ning MA'NOSINI o'zgartiradi.**
+>
+> **✅ QABUL QILINDI (v1.11) — F2: `thr = 0.20 × τ = 1.6 s`, fiksa.**
+> Qarorni **orkestrator** qabul qildi, loyiha egasining **2026-10-03 dagi
+> ochiq delegatsiyasi** bo'yicha, va **§17.5 ning O3 qarori bilan
+> BIRGALIKDA**. Asos, o'lchangan raqamlar, **bias yo'nalishi** va narxi:
+> **Amendment log, v1.10 → v1.11**, 2-band; qisqa shakli pastdagi
+> *“QAROR (v1.11)”* bandida, bias esa §18.7 da. **Qaror kalibratsiya
+> ma'lumoti ko'rilgandan keyin qabul qilindi** — o'sha log'ning
+> **0-bandi**.
+>
+> **Pastdagi jadval ATAYLAB saqlanadi** — o'quvchi nima rad etilganini va
+> **nega** rad etilganini ko'rishi kerak.
 
 | variant | nima bo'ladi | narxi | bias yo'nalishi |
 |---|---|---|---|
@@ -2875,6 +3680,76 @@ narsa o'lchamadi (WSL ishi to'xtatilgan).
 > `thr ≥ ~5 × P` bo'lsa, 18.4 ning cheklovi amalda bezarar va F1
 > yetarli; aks holda egasi F1–F4 dan birini tanlashi **shart**.
 
+#### ✅ QAROR (v1.11) — F2 tanlandi: `thr = 0.20 × τ = 1.6 s`, fiksa
+
+**So'ralgan o'lchov BAJARILDI** (`docs/architecture/10-pressure-dozalash.md`
+§7, kalibrlangan dozada), va **qochish bandi (`thr ≥ ~5 × P = 0.5 s`)
+QO'LLANMAYDI** — uch mustaqil yo'lda:
+
+| yo'l | manba | `thr` | `P` birligida | `≥ 5P`? |
+|---|---|---|---|---|
+| **O'LCHANGAN** | `10` §7.2/§7.5: `D_probe(P0)` proxy, n=12, **hammasi aynan 0.300 s** ⇒ `0.20 × 0.3000` | **0.0600 s** | **0.60 × P** | ❌ (5P dan **8.3×** past) |
+| **CHIQARILGAN** | §18.4 ning muzlatilgan-overhead yo'li; o'lchangan `p50(t_start\|P0) = 0.0386 s` ⇒ `0.20 × (0.2386 .. 0.4386)` | **0.048 .. 0.088 s**, o'rtasi ≈ **0.068 s** | ≈ 0.68 × P | ❌ |
+| **O'LCHANGAN, boshqa bandlar** | `10` §7.5: `P1` mean 0.8500 s / `P2` mean 1.0250 s | **0.170 s** / **0.205 s** | 1.70 / 2.05 × P | ❌ (eng katta — `p90(P2)` da **3.10 × P**) |
+
+Ya'ni xulosa **bandga bog'liq emas** va **`P0` bandining artefakti emas**.
+**Har bir raqam o'lchangan yoki chiqarilgan deb belgilangan.**
+
+- **F1 yetarli emas:** uning **inkor** shoxi §6.1 ning `±P` kvantlashi va
+  §7 ning *“100 ms delta oniy tezlik deb talqin qilinmaydi”*
+  ogohligining **ostida** qoladi. **Inkor shoxiga erishib bo'lmaydigan
+  pre-registered falsifikatsiya mezoni — test emas.** Bu F1 ga qarshi
+  **hal qiluvchi** dalil.
+- **F3 dominatsiya qilingan:** o'lchangan `P0` taqsimoti **degenerat**
+  (12/12 epizod aynan `0.300 s` ⇒ `median = mean`), demak kvantlash
+  muammosi **o'zgarmaydi** (umuman mediana o'rtachadan kichik ⇒ chegara
+  yana **kichrayadi**), ustiga §18.6 ning sanagan **`nan`** nuqsoni.
+- **F4 uchun `k` ga ankor yo'q; F2 — aynan F4, lekin printsipial `k`
+  bilan:** matnning **o'z `0.20`** koeffitsienti saqlanadi va
+  **muzlatilgan** `τ = 8 s` ga ankorlanadi ⇒ `thr = 1.6 s = 16 × P`,
+  kvantlashdan **16× yuqori**.
+- **F2 da ikkala shox ham erishiladigan:** `10` §7.2 ning `D_probe`
+  proxy **o'rtachalari** farqi `P2 − P0 = 1.0250 − 0.3000 =` **0.7250 s**
+  — F1 ning chegarasidan ≈**12× katta**, F2 ning chegarasidan esa
+  ≈**0.45×**, ya'ni kichik. **⚠️ Bu raqam ILLYUSTRATIV, da'vo emas:**
+  u `RMST` **emas** (`D_probe` proxy'i; `10` §7.5 ning CHEKLOV'i),
+  `n = 12`, va **hech qanday CI hisoblanmagan** — mezon esa
+  `CI95_upper` ga tayanadi.
+- **§18.5 NING IKKI E'TIROZI YO'Q BO'LADI** (kvantlash dalilidan
+  **mustaqil**): F2 da `thr` — **muzlatilgan qiymatdan olingan
+  konstanta**, demak **(a)** `Δ` va `thr` ning **birgalikdagi
+  noaniqligi** muammosi **tug'ilmaydi** (18.5 ning qoplama e'tirozi), va
+  **(b)** chegara **sekundda absolut** bo'lgani uchun §10.2 ning
+  muzlatilgan *"RMST **difference**"* effect measure'i bilan
+  **mos keladi**. Oqibati amaliy: taqqoslash **analitik** interval bilan
+  bajariladi (Greenwood variansi + normal interval,
+  `revix/stats.py:rmst_difference`), 18.5 ning bootstrap yo'li bilan
+  **emas** — va bu muhim, chunki `revix/stats.py:bootstrap_ci` o'zi
+  *"CENSORED ma'lumot uchun YARAMAYDI"* deb yozadi, §6.2 esa censored
+  trial'larni tashlashni **taqiqlaydi**. §10.2 ning o'z bootstrap
+  talabi (kichik `n` da robustlik uchun) **o'zgarmaydi**.
+- **Qo'shimcha foyda:** `thr = 0.20 × τ` **endpoint tanlovidan
+  mustaqil**, demak §18.8 ning ochiq masalasi **chegaraga** ta'sir
+  qilmaydi (§21.4 F1 ostida uchala nomzod ham `thr ≈ 0.1 s` berishini
+  ko'rsatgan edi). §18.8 **o'z sabablari bilan ochiq qoladi**.
+- **§17.5 bilan izchil:** O3 `W_stab_pilot` ni ham, `τ` ni ham
+  **tegmasdan** qoldiradi, demak yuqoridagi *“Bog'liqlik”* ogohligi
+  (O1 ⇒ `τ` siljiydi ⇒ F2 ning chegarasi siljiydi) **yuzaga
+  kelmaydi**. Juftlik `(O3, F2)` **ichki izchil**, va bu ularni
+  **birgalikda** tanlashning sabablaridan biri.
+- **NARXI:** F2 *“20% oshish”* ning **bazasini** `P0` ning
+  downtime'idan **horizonga** ko'chiradi — yuqoridagi jadvalning o'z
+  so'zi bilan *“boshqa bayonot”*, va §11 ning *“×P0”*
+  grammatikasiga qarshi.
+- **🔴 BIAS: F2 ANTI-KONSERVATIV** — 18.7 ning v1.11 bandiga qarang,
+  u **yumshatilmaydi**.
+- **🔴 POST-DATA:** bu tanlov **kalibratsiya o'lchovlari ko'rilgandan
+  keyin** qilindi, va yuqoridagi `0.7250 s` ko'rsatadi-ki ikki
+  konvensiya o'sha farqning **qarama-qarshi tomonlarida** turadi —
+  Amendment log, v1.10 → v1.11, **0-band**.
+
+Batafsil: **Amendment log, v1.10 → v1.11**, 0-band va 2-band (2.1–2.10).
+
 ### 18.7 Bias yo'nalishini ochiq e'lon qilish
 
 **18.2 ning qarori (referens = `RMST(P0)`) fail-slow / H1 FOYDASIGA
@@ -2903,6 +3778,60 @@ falsifikatsiyadan **amalda himoya qiladi**.
 > yuqori chiqsa, 18.2 ning qarori O'ZGARMAYDI** — u o'lchangan natijaga
 > emas, matnga asoslangan. O'zgaradigan narsa — 18.4 ning cheklovi
 > kuchini yo'qotadi, va bu **yaxshi xabar**, qayta talqin emas.
+
+#### 🔴 v1.11 — F2 NING BIAS'I: ANTI-KONSERVATIV, va yuqoridagi kafolat O'TMAYDI
+
+Yuqoridagi hamma narsa **18.2 ning referensi (F1)** haqida edi. v1.11 da
+referens **F2** ga o'tdi, demak **bias yo'nalishi ham TESKARIGA aylandi**,
+va buni ochiq yozish shart.
+
+```
+fail-slow shakli QO'LLAB-QUVVATLANMAYDI  <=>  CI95_upper[ Delta(P2,P0) ] < thr
+thr:  F1 => 0.0600 s (o'lchangan)        F2 => 1.6 s (fiksa)      ~27x KATTA
+```
+
+> **`thr` kattalashgani uchun shart OSONLASHADI, demak F2
+> *“fail-slow qo'llab-quvvatlanmaydi”* degan xulosani F1 ga nisbatan
+> OSON qiladi — ya'ni F2 fail-slow gipotezasiga nisbatan
+> ANTI-KONSERVATIV.** 18.6 ning jadvali buni allaqachon shunday
+> belgilagan: F1 — *“fail-slow / H1 FOYDASIGA”*, F2 —
+> *“H1 GA QARSHI”*.
+
+**🔴 Va yuqoridagi 3-band — *“hech qanday ma'lumot mavjud emas, demak bu
+qarorni natijani ko'rib tanlash imkoniyati yo'q”* — F2 GA
+QO'LLANMAYDI.** U **18.2 ning v1.7 dagi qaroriga** tegishli va o'sha
+yerda o'z kuchida. **F2 esa kalibratsiya o'lchovlari ko'rilgandan keyin
+tanlandi**, va 18.6 ning QAROR bandidagi `0.7250 s` ko'rsatadi-ki F1 va
+F2 o'sha o'lchangan farqning **qarama-qarshi tomonlarida** turadi —
+ya'ni tanlovchi **qaysi konvensiya qaysi javobni beradigan** ekanini
+ko'rgan. Oshkora e'lon: **Amendment log, v1.10 → v1.11, 0-band.**
+
+**Shunga qaramay F2 qabul qilinadi, chunki:**
+
+1. F1 ning **inkor** shoxi o'lchov bilan **erishib bo'lmaydigan**
+   (18.6 ning QAROR bandi: `thr = 0.60 × P`, uchala bandda `< 5P`),
+   ya'ni F1 limbni **bir tomonlama** qoldiradi — va bir tomonlama
+   falsifikatsiya mezoni **mezon emas**;
+2. **hech qanday P1 trial'i o'tkazilmagan**, demak **birlamchi endpoint,
+   `Δ`, CI va p-qiymat KO'RILMAGAN** — ko'rilgan narsa kalibratsiya
+   proxy'lari, gipotezaning natijasi emas;
+3. **matniy narx ochiq qayd etilgan** (18.6 ning QAROR bandi): F2
+   §11 ning *“×P0”* grammatikasiga qarshi boradi va *“20% oshish”*
+   ning bazasini horizonga ko'chiradi;
+4. va **yuqoridagi 2-band tan olinadi**: o'sha band F2 ni *“menga
+   qulay bo'lgan variant”* deb belgilagan va *“matn bilan
+   qo'llab-quvvatlanmaydi”* deb rad etgan edi. **Bu ogohlik bekor
+   qilinmaydi.** F2 **matnga sodiqlik** uchun emas,
+   **sinaluvchanlik** uchun tanlandi — va bias'i, narxi hamda
+   post-data holati **hammasi oldindan, ma'lumot yig'ilishidan oldin**
+   e'lon qilinadi.
+
+> **F1 va F2 QARAMA-QARSHI yo'nalishda og'adi, va o'quvchi bu tanlov
+> QAYSI tomonga og'ganini bilishi SHART.** Maqolada shunday yoziladi:
+> *“fail-slow limbining chegarasi birinchi trial'dan OLDIN, lekin
+> dozalash kalibratsiyasi KO'RILGANDAN KEYIN `thr = 0.20 × τ = 1.6 s`
+> ga fiksa qilingan; bu F1 (`0.20 × RMST(P0)`) ga nisbatan
+> fail-slow'ni INKOR qilishni osonlashtiradi.”* Bu **yumshatilmaydi**.
 
 ### 18.8 OCHIQ BO'SHLIQ — "time-to-VR" §6.1 ning uch o'lchovidan birortasiga bog'lanmagan
 
