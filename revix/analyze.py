@@ -81,6 +81,20 @@ amendment savoli, bu yerda O'ZBOSHIMCHALIK bilan hal qilinmaydi):
   * `survival.rmst.difference.contrast` va
     `primary.risk_difference.contrast` -- belgisiz/nomsiz farq TALQIN
     QILINMAYDI.
+  * `survival.rmst.{difference,pressure_difference}.orientation` --
+    §18.2 ning "Sxema talabi": `contrast: "P0-P2"` yorlig'i faqat
+    JUFTLIKNI nomlaydi, AYIRISH TARTIBINI aytmaydi, va §18.2 buni
+    "qoidani hisoblanmaydigan qiladigan yana bir yo'l" deb nomlaydi.
+    Tartib `"<a>_minus_<b>"` shaklida OCHIQ chiqadi.
+  * `survival.rmst.fail_slow` -- §11 ning IKKINCHI limbi. §18.2 ayirish
+    tartibini (`Delta := RMST_A(P2) - RMST_A(P0)`) va yo'nalishni
+    (`CI95_upper[Delta] < thr` => qo'llab-quvvatlanMAYDI) aniqlagan;
+    §18.6 ning referens tanlovi F2 bilan hal qilingan
+    (`thr = 0.20 x tau = 1.6 s`, FIKSA). Blok HUKMNI va UNI YARATGAN
+    BARCHA KIRISHNI birga beradi (`delta`, `se`, `ci_lower`, `ci_upper`,
+    `tau`, `thr`, `thr_reference`, `orientation`, `bias`) -- §2.3 #6
+    bo'yicha hukm kirishlarsiz CHIQMAYDI, va hisoblanmasa `null` +
+    `warnings`. Asos: `fail_slow_threshold_us()` docstring'i.
   * `primary.arm`, `primary.scope`, `primary.cells[].arm`,
     `survival.km.by_pressure_band_scope`,
     `survival.rmst.by_pressure_band_scope` -- §16.2(A) ga ko'ra qamrov
@@ -260,6 +274,42 @@ TREND_P_THRESHOLD = 0.05
 NEWCOMBE_UPPER_THRESHOLD = 0.15
 FALSIFICATION_RULE = "trend p>0.05 AND newcombe_upper<0.15"
 
+# §11 ning IKKINCHI limbi -- fail-slow. Koeffitsiyent §11 ning O'Z
+# matnidan ("20% oshish"); REFERENS esa `tau`, `RMST(P0)` EMAS -- bu
+# §18.6 ning "F2" varianti va uning to'liq asosi
+# `fail_slow_threshold_us()` docstring'ida. Chegara shu yerda LITERAL
+# sifatida YOZILMAYDI: u `TAU_RMST_US` dan HOSILA qilinadi, aks holda
+# `tau` siljiganda ikki konstanta bir-biridan ajralib ketardi.
+FAIL_SLOW_THR_COEFFICIENT = 0.20
+FAIL_SLOW_THR_REFERENCE = "tau_F2"
+
+# §18.2 -- ayirish tartibi OCHIQ ko'rsatilishi SHART (`contrast: "P0-P2"`
+# yorlig'i faqat juftlikni nomlaydi, tartibni AYTMAYDI). Fail-slow ostida
+# pressure recovery'ni sekinlashtiradi, demak baholanadigan kattalik
+# `P2 - P0`, teskarisi EMAS.
+FAIL_SLOW_ORIENTATION = "P2_minus_P0"
+FAIL_SLOW_RULE = ("CI95_upper[RMST_A(P2, tau) - RMST_A(P0, tau)] < thr "
+                  "=> fail-slow form NOT supported "
+                  "(strict: equality does NOT falsify)")
+FAIL_SLOW_DECISION = "PREREGISTRATION.md §18.6 option F2 (thr = 0.20 * tau)"
+
+# BIAS -- CHIQISHDA, YUMSHATILMAGAN HOLDA. `analysis.json` ni o'qigan
+# odam qaysi konvensiya raqamni yaratganini VA u qaysi tomonga
+# ishlashini `analyze.py` ni ochmasdan ko'rishi kerak.
+FAIL_SLOW_BIAS_NOTE = (
+    "thr = 0.20 * tau (PREREGISTRATION.md §18.6 option F2) is "
+    "ANTI-CONSERVATIVE with respect to the fail-slow hypothesis: a larger "
+    "thr makes CI95_upper[delta] < thr easier to satisfy, so 'fail-slow not "
+    "supported' is easier to conclude than under F1 (thr = 0.20 * "
+    "RMST(P0)). F1 was rejected because its refutation branch sits below "
+    "the probe quantization floor: measured thr = 0.0600 s = 0.60 x P at "
+    "P0, 0.1700 s = 1.70 x P at P1, 0.2050 s = 2.05 x P at P2 "
+    "(docs/architecture/10-pressure-dozalash.md §7.5), against §18.6's "
+    "adequacy threshold of 5 x P = 0.5 s. A pre-registered falsification "
+    "criterion whose refutation branch cannot be reached is not a test. "
+    "Both costs are stated in full in analyze.py fail_slow_threshold_us()."
+)
+
 # §2.2 -- shartnoma AYNAN shu satrni talab qiladi.
 FR_B_REASON_P1 = "no calibration matrix (P1)"
 
@@ -320,6 +370,118 @@ HAZARD_TOKENS: tuple[str, ...] = (
 
 class AnalysisError(Exception):
     """Analiz invarianti buzildi. Jimgina davom etilmaydi."""
+
+
+# --- §11 fail-slow limbi: chegara `tau` dan HOSILA -------------------------
+
+
+def fail_slow_threshold_us(tau_us: float | None = None) -> float:
+    """§11 ning fail-slow limbi uchun `thr` -- §18.6 ning F2 varianti.
+
+    NIMA QAYTARADI. `thr` MIKROSEKUNDDA (§1 vaqt disiplinasi), `tau` dan
+    HOSILA: `tau_us=None` bo'lsa modul darajasidagi `TAU_RMST_US` CHAQIRUV
+    PAYTIDA o'qiladi, demak `tau` siljisa `thr` ham siljiydi. `1.6 s` bu
+    modulda LITERAL sifatida YOZILMAGAN -- ataylab: ikki mustaqil
+    konstanta bir-biridan jimgina ajralib ketardi.
+
+        thr = 0.20 x tau = 0.20 x 8 s = 1.6 s = 1_600_000 us = 16 x P
+
+    MEZON (§18.2 ning ayirish tartibi va yo'nalishi AYNAN saqlanadi;
+    faqat REFERENS `RMST(P0)` dan `tau` ga o'zgargan):
+
+        Delta(P2,P0) := RMST_A(P2, tau=8 s) - RMST_A(P0, tau=8 s)
+        thr          := 0.20 x tau              # FIKSA, `RMST(P0)` dan EMAS
+        fail-slow shakli QO'LLAB-QUVVATLANMAYDI
+                                     <=>  CI95_upper[Delta] < thr
+
+    `_A` -- §16.5 bo'yicha arm `A` ICHIDA. Fail-slow ostida pressure
+    recovery'ni sekinlashtiradi, demak `RMST(P2) > RMST(P0)` va
+    `Delta > 0`; baholanadigan kattalik AYNAN `P2 - P0`, teskarisi EMAS
+    (§18.2). Tengsizlik QAT'IY -- §11 ning kuchli shakl limbi bilan bir
+    xil konvensiya: `CI95_upper == thr` falsifikatsiya QILMAYDI.
+
+    NEGA F2, VA NEGA F1 EMAS. §18.6 to'rt variantni (F1-F4) sanab,
+    tanlovni ATAYLAB loyiha egasiga qoldirgan; egasi F2 ni tanladi.
+    `PREREGISTRATION.md` ning v1.11 amendment'i shu tanlovni
+    ratifikatsiya qiladi va uni BOSHQA agent yozmoqda, shuning uchun bu
+    modul amendment'dan oldinda yurmaydi: tanlangan konvensiya
+    `analysis.json` da `thr_reference` sifatida OCHIQ nomlanadi, demak
+    raqamni o'qigan odam qaysi qoida uni yaratganini ko'radi.
+
+    F1 (`thr = 0.20 x RMST(P0)`) ning INKOR shoxi asbobning kvantlash
+    polidan past, va buni bir nechta mustaqil manba ko'rsatadi:
+
+      * O'LCHANGAN -- `docs/architecture/10-pressure-dozalash.md` §7.5
+        (kalibrlangan doza, arm `A`, har bandda n=12 restart epizodi):
+        `RMST(P0)` proksisi `D_probe` taqsimotidan `mean = 0.3000 s`
+        => `thr = 0.0600 s = 0.60 x P`. §18.6 ning yetarlilik chegarasi
+        `5 x P = 0.5 s`, demak o'lchov undan 8.3x PAST.
+      * O'LCHANGAN, QOLGAN IKKI BAND (shu jadval) -- `P1`:
+        `mean = 0.8500 s` => `thr = 0.1700 s = 1.70 x P`; `P2`:
+        `mean = 1.0250 s` => `thr = 0.2050 s = 2.05 x P`. Ya'ni xulosa
+        `P0` bandining ARTEFAKTI EMAS: UCHALA bandda ham F1 ning
+        chegarasi `5P` dan past.
+      * O'LCHANGAN, AVVALGI HOST -- `PREREGISTRATION.md` §21.3:
+        `mean = 0.4833 s` => `thr = 0.0967 s = 0.97 x P`. Bir xil
+        yo'nalish, mustaqil o'lchov.
+      * HOSILA, O'LCHOV EMAS -- §18.4 ning muzlatilgan-overhead yo'li
+        (`D_probe(P0) = t_start + (0.2 ... 0.4) s`) o'lchangan
+        `p50(t_start | P0) = 0.0386 s` (`10-pressure-dozalash.md` §6.2)
+        bilan `thr ~ 0.048 ... 0.088 s`, o'rtasi `~ 0.068 s`. Bu raqam
+        yuqoridagi O'LCHOVLARNI tasdiqlaydi, ularni ALMASHTIRMAYDI.
+      * §6.1 `D_probe` ning O'ZINI "+-P kvantlash, har chekkada +P/2
+        bias" bilan beradi, §7 esa "100 ms delta oniy tezlik deb talqin
+        qilinmaydi" deydi. Demak F1 ning chegarasi ASBOBNING KVANTLASH
+        POLIDA, va §19.3 buni aniq chegara bilan yozadi
+        (`thr >= P <=> RMST(P0) >= 0.5 s`).
+
+    > Inkor shoxiga ERISHIB BO'LMAYDIGAN pre-registered falsifikatsiya
+    > mezoni TEST EMAS. F1 aynan shu sababdan rad etildi.
+
+    F2 §11 ning O'Z `0.20` koeffitsiyentini saqlaydi va uni MUZLATILGAN
+    `tau = 8 s` ga bog'laydi: `thr = 1.6 s = 16 x P`, kvantlashdan 16x
+    yuqori va `RMST(P0)` ning rejimidan MUSTAQIL. Qo'shimcha foyda:
+    `thr` endi BAHOLANGAN kattalik emas, demak §18.5 ning e'tirozi
+    (bir xil ma'lumotdan baholangan chegaraga qarshi CI taqqoslash 95%
+    qoplamaga ega emas) F2 da UMUMAN tug'ilmaydi va qo'shma bootstrap
+    kerak bo'lmaydi.
+
+    BIAS -- YUMSHATILMAYDI. Kattaroq `thr` `CI95_upper[Delta] < thr` ni
+    qanoatlantirishni OSONLASHTIRADI, demak F2 fail-slow gipotezasiga
+    nisbatan ANTI-KONSERVATIV: u "fail-slow qo'llab-quvvatlanmaydi"
+    degan xulosaga F1 dan KO'RA OSONROQ olib keladi. §18.6 ning jadvali
+    buni "H1 GA QARSHI" deb nomlaydi, va §18.7(2) F2 ni aynan "menga
+    qulay bo'lgan variant" deb atagan. Narx OCHIQ qabul qilinadi: F1
+    ning narxi limbning UMUMAN ishlamasligi, F2 ning narxi esa limbning
+    MA'LUM YO'NALISHDA qattiqroq bo'lishi. Maqolada IKKISI ham
+    yozilishi SHART, va shuning uchun bias `analysis.json` ning O'ZIDA
+    (`fail_slow.bias`) ham turadi.
+
+    NIMA HAL QILINMAYDI.
+      (a) §19.3 ning "ceiling" cheklovi F2 da ham QOLADI:
+          `RMST in [0, tau]` dan `Delta <= tau - RMST(P0)`, demak
+          `RMST(P0) > 6.4 s` bo'lsa `thr = 1.6 s` ham erishib
+          bo'lmaydigan bo'ladi. U referensdan EMAS, `tau` ning
+          chegaralanganligidan kelib chiqadi -- hech bir F varianti uni
+          yo'qotmaydi.
+      (b) §18.8 OCHIQ: survival endpoint `D_probe`, `D_eff` yoki `D_sd`
+          ekani §11 da aytilmagan. Bu modul `reduce.py` bergan
+          `time_to_vr_us` ni OLADI va o'zi TANLAMAYDI.
+
+    BOG'LIQLIK (§18.6 ochiq yozgan). §17.5 O3 bilan hal qilindi
+    (`hold_cap_s = 13.0 s`), ya'ni `W_stab_pilot` va `tau` 8 s da
+    TEGILMAGAN, demak F2 ning chegarasi AYNAN 1.6 s bo'lib qoladi. O1
+    (`W_stab_pilot` ni kichraytirish) tanlangan bo'lsa `tau` ham
+    siljirdi; bu funksiya `thr` ni `TAU_RMST_US` dan hosila qilib shu
+    ziddiyatdan himoyalanadi. `thr` `hold_cap_s` ga BOG'LANMAGAN -- bu
+    modul `revix/schedule.py` dan hech narsa import QILMAYDI.
+    """
+    tau = TAU_RMST_US if tau_us is None else float(tau_us)
+    if not math.isfinite(tau) or tau <= 0.0:
+        raise AnalysisError(
+            f"fail-slow chegarasi uchun `tau` musbat va chekli bo'lishi "
+            f"kerak (§11: tau = 8 s), berilgani: {tau_us!r}")
+    return FAIL_SLOW_THR_COEFFICIENT * tau
 
 
 # --- warnings jurnali (§2.3 #6) --------------------------------------------
@@ -1028,8 +1190,16 @@ def _rmst_pair(arrays: dict[str, tuple[list[float], list[int]]],
                a: str, b: str, where: str, log: WarningLog,
                code_prefix: str) -> dict[str, Any]:
     """`a - b` RMST farqi. `contrast` HAR DOIM beriladi (shartnoma §2.8:
-    nomsiz/belgisiz farq TALQIN QILINMAYDI)."""
-    empty = {"contrast": f"{a}-{b}", "tau": TAU_RMST_US, "estimate": None,
+    nomsiz/belgisiz farq TALQIN QILINMAYDI).
+
+    `orientation` -- §18.2 ning "Sxema talabi": `contrast: "P0-P2"`
+    yorlig'i faqat JUFTLIKNI nomlaydi, AYIRISH TARTIBINI aytmaydi, va
+    §18.2 buni "qoidani hisoblanmaydigan qiladigan yana bir yo'l" deb
+    nomlaydi. Shuning uchun tartib OCHIQ maydon sifatida chiqadi
+    (`"<a>_minus_<b>"`), belgini o'quvchining taxminiga QOLDIRMAYDI.
+    """
+    empty = {"contrast": f"{a}-{b}", "orientation": f"{a}_minus_{b}",
+             "tau": TAU_RMST_US, "estimate": None,
              "se": None, "ci_lower": None, "ci_upper": None}
     if a not in arrays or b not in arrays:
         log.add(f"{code_prefix}_not_computable", where,
@@ -1043,13 +1213,128 @@ def _rmst_pair(arrays: dict[str, tuple[list[float], list[int]]],
     except ValueError as exc:
         log.add(f"{code_prefix}_not_computable", where, str(exc))
         return empty
-    out = {"contrast": f"{a}-{b}", "tau": TAU_RMST_US,
+    out = {"contrast": f"{a}-{b}", "orientation": f"{a}_minus_{b}",
+           "tau": TAU_RMST_US,
            "estimate": _f(rd.difference), "se": _f(rd.std_err),
            "ci_lower": _f(rd.lower), "ci_upper": _f(rd.upper)}
     if out["se"] in (None, 0.0):
         log.add(f"{code_prefix}_degenerate", where,
                 "RMST farqining standard error'i nol yoki aniqlanmagan -- "
                 "CI MA'NOSIZ, talqin qilinmaydi")
+    return out
+
+
+def _fail_slow_section(arrays: dict[str, tuple[list[float], list[int]]],
+                       lo: str, hi: str, log: WarningLog) -> dict[str, Any]:
+    """§11 ning fail-slow limbi: `Delta`, uning CI'si, `thr` va HUKM.
+
+    HUKM HECH QACHON KIRISHLARSIZ BERILMAYDI. `delta`, `se`, `ci_lower`,
+    `ci_upper`, `tau`, `thr`, `thr_reference` va `orientation` HAMMASI
+    bitta obyektda, HUKM bilan birga -- `analysis.json` ni o'qigan odam
+    `true`/`false` ni uni yaratgan raqamlarni ko'rmasdan O'QIMAYDI.
+
+    HISOBLANMASA -- `None` va `warnings` da SABAB (§2.3 #6): taxmin
+    qilinmaydi, default QO'YILMAYDI. Uchta uchrashi mumkin bo'lgan sabab:
+    (1) `P0` yoki `P2` guruhi arm `A` ichida bo'sh (trial yetarli emas),
+    (2) `stats.rmst_difference` `tau` ni qo'llab-quvvatlamaydigan
+    ma'lumotda `ValueError` beradi, (3) SE nol/aniqlanmagan -- masalan
+    HAR IKKI guruhda birorta event yo'q (hammasi censored), u holda
+    `S(t) = 1` va `RMST = tau` IKKI guruhda ham, demak `Delta = 0` va
+    uning dispersiyasi nol: bu ma'lumotdan kelgan nol EMAS,
+    arifmetikadan kelgan nol, va unga asoslangan hukm `CI = [0, 0]`
+    bilan HAR DOIM "qo'llab-quvvatlanmaydi" degan natijani bersa
+    (§21.1(b) aynan shu tuzoqni ko'rsatadi), mezon ma'lumotni UMUMAN
+    o'qimagan bo'lardi.
+
+    `Delta` ning CI'si -- `stats.rmst_difference` ning Greenwood
+    dispersiyasiga asoslangan normal intervali (Royston & Parmar 2013),
+    ya'ni §10.2 ning muzlatilgan effect measure'i. BOOTSTRAP ISHLATILMAYDI
+    va bu TANLOV emas, CHEKLOV: `stats.bootstrap_ci` o'z docstring'ida
+    "CENSORED ma'lumot uchun YARAMAYDI, censoring bor joyda KM/RMST"
+    deydi, va §6.2 censored kuzatuvni tashlashni TAQIQLAYDI -- demak
+    survival ma'lumotini `bootstrap_ci` ga berish mumkin emas. §18.5
+    bootstrap'ni faqat `thr` BAHOLANGAN bo'lgan holat uchun (F1) taklif
+    qilgan; F2 da `thr` FIKSA, demak qo'shma noaniqlik YO'Q va
+    bootstrap'ning sababi UMUMAN tug'ilmaydi. Resampling arifmetikasini
+    bu modulda yozish qoida 3 ni (statistika qayta yozilmaydi) buzardi.
+    """
+    where = "survival.rmst.fail_slow"
+    thr = fail_slow_threshold_us()
+    delta = _rmst_pair(arrays, hi, lo, where, log, "fail_slow_delta")
+
+    # §18.2 ning ayirish tartibi STRUKTURAVIY qulf bilan himoyalanadi:
+    # `_rmst_pair(hi, lo)` ni kimdir `(lo, hi)` ga almashtirsa, belgi
+    # jimgina teskari bo'lib, "oshish" "kamayish" ga aylanardi.
+    if delta["orientation"] != FAIL_SLOW_ORIENTATION:
+        raise AnalysisError(
+            f"§18.2 ning ayirish tartibi buzildi: fail-slow limbi "
+            f"`{FAIL_SLOW_ORIENTATION}` talab qiladi, hisoblangani "
+            f"`{delta['orientation']}`")
+
+    out: dict[str, Any] = {
+        "limb": "fail_slow",
+        "preregistration_section": "11",
+        "decision": FAIL_SLOW_DECISION,
+        "rule": FAIL_SLOW_RULE,
+        "contrast": delta["contrast"],
+        "orientation": delta["orientation"],
+        "scope": (f"within arm {PRIMARY_ARM} "
+                  "(PREREGISTRATION.md §16.5); not pooled across arms"),
+        "tau": TAU_RMST_US,
+        "thr": thr,
+        "thr_reference": FAIL_SLOW_THR_REFERENCE,
+        "thr_coefficient": FAIL_SLOW_THR_COEFFICIENT,
+        "thr_basis": "0.20 * tau",
+        "delta": delta["estimate"],
+        "se": delta["se"],
+        "ci_lower": delta["ci_lower"],
+        "ci_upper": delta["ci_upper"],
+        "ci_level": CI_LEVEL,
+        "ci_method": "rmst_difference_greenwood_normal",
+        "fail_slow_supported": None,
+        "bias": FAIL_SLOW_BIAS_NOTE,
+    }
+
+    # Konvensiya HAR RUN'da qayd etiladi: §18.2 matndan `RMST(P0)` ni
+    # o'qigan, F2 esa `tau` ni oladi, demak raqam muzlatilgan matnning
+    # eng sodiq o'qilishi EMAS va buni hisobot AYTISHI kerak.
+    log.add("fail_slow_threshold_reference_f2", where,
+            "§11 ning fail-slow limbi §18.6 ning F2 varianti bilan "
+            "hisoblandi: `thr = 0.20 x tau = 1.6 s`, REFERENS `tau` -- "
+            "§18.2 matndan o'qigan `RMST(P0)` EMAS. Sabab: F1 ning "
+            "chegarasi o'lchangan holda `5 x P` dan past (`P0` 0.0600 s "
+            "= 0.60 x P, `P1` 0.1700 s, `P2` 0.2050 s; "
+            "`docs/architecture/10-pressure-dozalash.md` §7.5), demak F1 "
+            "ning INKOR shoxiga erishib bo'lmaydi. OCHIQ BIAS: kattaroq "
+            "`thr` `CI95_upper[Delta] < thr` ni osonlashtiradi, ya'ni F2 "
+            "fail-slow gipotezasiga nisbatan ANTI-KONSERVATIV. "
+            "Ratifikatsiya: `PREREGISTRATION.md` v1.11 amendment'i")
+
+    if out["delta"] is None or out["ci_upper"] is None:
+        log.add("fail_slow_not_evaluable", where,
+                "§11 ning fail-slow mezoni BAHOLANMAYDI: `Delta` yoki "
+                "uning 95% CI'si hisoblanmadi (sabab yuqoridagi "
+                "`fail_slow_delta_*` yozuvida). `false` deb berish "
+                "'fail-slow qo'llab-quvvatlanadi' yoki "
+                "'qo'llab-quvvatlanmaydi' degan O'LCHANMAGAN da'vo "
+                "bo'lardi. Shartnoma §3.1 ga ko'ra figura buni AYTADI va "
+                "arm kontrastini uning O'RNIGA KO'RSATMAYDI")
+        return out
+    if out["se"] in (None, 0.0):
+        log.add("fail_slow_not_evaluable", where,
+                "§11 ning fail-slow mezoni BAHOLANMAYDI: `Delta` ning SE'si "
+                "nol yoki aniqlanmagan, demak CI DEGENERAT va "
+                "`CI95_upper < thr` taqqoslashi ma'lumotdan emas, "
+                "ARIFMETIKADAN javob berardi (§21.1(b)). Kirishlar "
+                "(`delta`, `ci_lower`, `ci_upper`) ko'rinishda qoladi, "
+                "HUKM esa `null`")
+        return out
+
+    # §11 ning konvensiyasi: QAT'IY tengsizlik. `CI95_upper == thr`
+    # falsifikatsiya QILMAYDI, demak u holda limb fail-slow'ni
+    # QO'LLAB-QUVVATLAYDI.
+    not_supported = bool(out["ci_upper"] < thr)
+    out["fail_slow_supported"] = not not_supported
     return out
 
 
@@ -1082,6 +1367,17 @@ def survival_section(survival_trials: Sequence[dict[str, Any]],
         bilan arm `A` ichiga qo'yadi: `no_action` da time-to-VR uchala
         darajada ta'rifan mavjud emas, demak u yerda kontrast BO'SH, va
         pool qilish §16.2(A) dagi aynan o'sha susaytirish bo'lardi.
+
+    IKKI `P0`/`P2` MAYDONI, IKKI BOSHQA VAZIFA -- ATAYLAB:
+
+      * `pressure_difference` -- shartnoma §2.10 ning sloti,
+        `P0 - P2` (`orientation: "P0_minus_P2"`). Bu `figures.py`
+        o'qiydigan maydon va uning BELGISI O'ZGARMAYDI.
+      * `fail_slow` -- §11 ning fail-slow limbi, §18.2 talab qilgan
+        `P2 - P0` (`orientation: "P2_minus_P0"`) ustida, `thr` va HUKM
+        bilan. Bitta maydonga ikki ma'no yuklash o'rniga limb O'Z
+        blokiga chiqarilgan: §18.2 ning e'tirozi aynan "yorliq ayirish
+        tartibini aytmaydi" edi.
 
     KM egri chiziqlari pressure bo'yicha ham BERILADI, chunki
     `pressure_difference` HOSILA qiymat: egri chiziqlar berilmasa uni
@@ -1138,30 +1434,14 @@ def survival_section(survival_trials: Sequence[dict[str, Any]],
         band_arrays, lo, hi, "survival.rmst.pressure_difference", log,
         "rmst_pressure_difference")
 
-    # §11 ning 20% chegarasi: mezon "95% CI 20% OSHISHNI chiqarib tashlasa"
-    # deydi, lekin 20% NIMAGA NISBATAN ekanini (`RMST(P0)` gami, boshqa
-    # miqdorgami) §11 AYTMAYDI. Transport beriladi, HUKM berilmaydi --
-    # chegarani bu yerda tanlash muzlatilgan mezonni qayta yozish bo'lardi.
-    if pressure_difference["estimate"] is not None:
-        log.add("fail_slow_threshold_reference_unspecified",
-                "survival.rmst.pressure_difference",
-                "§11 ning fail-slow mezoni '95% CI 20% oshishni chiqarib "
-                "tashlasa' deydi, lekin 20% QAYSI miqdorga nisbatan ekani "
-                "§11 da yozilmagan (masalan `RMST(P0)` ning 20% imi). "
-                "Kontrast (estimate/se/CI) BERILADI, lekin HUKM "
-                "(`fail_slow_supported`) HISOBLANMAYDI -- chegarani bu "
-                "yerda tanlash muzlatilgan mezonni qayta yozish bo'lardi. "
-                "PREREGISTRATION/shartnoma uchun ochiq savol")
-    else:
-        # Shartnoma §3.1 degradatsiya qoidasi: figura "§11 fail-slow
-        # criterion not evaluable" deb yozadi va ARM kontrastini uning
-        # O'RNIGA KO'RSATMAYDI.
-        log.add("fail_slow_not_evaluable",
-                "survival.rmst.pressure_difference",
-                "§11 ning fail-slow mezoni BAHOLANMAYDI: `P0`-`P2` "
-                f"pressure kontrasti arm `{PRIMARY_ARM}` ichida "
-                "hisoblanmadi. Shartnoma §3.1 ga ko'ra figura buni AYTADI "
-                "va arm kontrastini uning O'RNIGA KO'RSATMAYDI")
+    # §11 ning fail-slow limbi -- ENDI HISOBLANADI. §18.2 ayirish tartibini
+    # va yo'nalishni aniqlagan, §18.6 ning referens tanlovi esa F2 bilan
+    # hal qilingan (`thr = 0.20 x tau`, FIKSA). `pressure_difference`
+    # shartnoma §2.10 ning `P0-P2` sloti bo'lib QOLADI -- u figura o'qiydigan
+    # maydon va uning belgisi O'ZGARMAYDI; fail-slow limbi §18.2 talab
+    # qilgan `P2 - P0` kattaligini O'Z blokida beradi, demak bitta
+    # maydonga ikki ma'no yuklanmaydi.
+    fail_slow = _fail_slow_section(band_arrays, lo, hi, log)
 
     n_censored = sum(1 for r in survival_trials
                      if r.get("time_to_vr_us") is not None
@@ -1187,6 +1467,8 @@ def survival_section(survival_trials: Sequence[dict[str, Any]],
                  "difference": diff,
                  "by_pressure_band": rmst_by_band,
                  "pressure_difference": pressure_difference,
+                 # §11 ning IKKINCHI limbi (§18.2 + §18.6/F2).
+                 "fail_slow": fail_slow,
                  "by_pressure_band_scope": band_scope},
         # §2.3 #2 -- tekshirilmagan, demak HR/Cox CHIQMAYDI.
         "proportional_hazards_checked": False,
@@ -2503,6 +2785,11 @@ def main(argv: list[str] | None = None) -> int:
               f"[{p['risk_difference']['ci_lower']}, "
               f"{p['risk_difference']['ci_upper']}] (newcombe)")
         print(f"falsified ({p['falsification_rule']}): {p['falsified']}")
+        fs = obj["survival"]["rmst"]["fail_slow"]
+        # HUKM HECH QACHON KIRISHLARSIZ CHIQMAYDI -- terminalda ham.
+        print(f"fail-slow ({fs['thr_reference']}): "
+              f"delta={fs['delta']} CI_upper={fs['ci_upper']} "
+              f"thr={fs['thr']} => supported={fs['fail_slow_supported']}")
         print(f"T_trial ichida recovered: {p['recovered_within_horizon']}")
         print(f"warnings: {len(obj['warnings'])}")
         print(f"  out: {args.out}")
