@@ -561,9 +561,44 @@ def test_probe_davri_muzlatilgan_qiymat_bilan_mos():
 
 def test_timeline_pressure_cap_invarianti_driver_tomonidan_yumshatilmaydi():
     # hold > cap: `TrialTimeline` O'ZI raise qiladi. Driver uni tutmaydi,
-    # tuzatmaydi va ogohlantirishga aylantirmaydi.
-    with pytest.raises(sch.PressureCapExceeded):
-        sch.TrialTimeline(hold_s=13.0)
+    # tuzatmaydi va ogohlantirishga aylantirmaydi. QULFLANGAN NARSA shu
+    # QOIDA, cap'ning bugungi raqami EMAS.
+    #
+    # NEGA literal emas, `HOLD_CAP_S + delta`: bu yerda avval `hold_s=13.0`
+    # "rad etiladigan qiymat" deb yozilgan edi. `PREREGISTRATION.md` §17.5
+    # O3 qarori cap'ni 12 s dan 13 s ga ko'chirgach 13.0 QONUNIY bo'ldi --
+    # ya'ni test eski cap'ga qotib qolib, qoidani UMUMAN tekshirmay
+    # qolardi. Konstantadan hisoblangan qiymat cap qayerda bo'lsa ham
+    # "cap'dan yuqori" bo'lib qoladi, demak ikkinchi marta eskirmaydi.
+    #
+    # `ramp_above_threshold_s=0.0` OSHKORA beriladi: aks holda ikkinchi
+    # invariant (`hold_s + ramp <= guard_sustain_window_s`) BIRINCHI
+    # qulashi mumkin va test o'zi nomlagan invariantni emas, boshqasini
+    # tekshirardi. `match` ham shu uchun -- xabar BIRINCHI invariantning.
+    with pytest.raises(sch.PressureCapExceeded, match="sustained pressure-on"):
+        sch.TrialTimeline(hold_s=sch.HOLD_CAP_S + 0.1,
+                          ramp_above_threshold_s=0.0)
+
+
+def test_hold_cap_muzlatilgan_qiymati_va_chegaraning_OZI_qonuniy():
+    """§17.5 ning O3 qarori: `hold_cap_s` 12 s dan 13 s ga ko'chdi.
+
+    NEGA literal pin HAM kerak: yuqoridagi test cap'ning QAYERDA
+    turganini tekshirmaydi -- u faqat "cap'dan yuqori rad etiladi" ni
+    qulflaydi, va cap jimgina surilsa ham o'tib ketadi. Muzlatilgan
+    QIYMATNING o'zi alohida qulflanadi, aks holda amendment'siz siljish
+    hech qaysi testga urilmaydi. Bu fayl uslubi aynan shunday
+    (`PROBE_PERIOD_US` va `t_trial_us` ning muzlatilgan qiymatlari
+    literal bilan pin qilinadi).
+
+    Ikkinchi tasdiq chegaraning SEMANTIKASI haqida: cap "oshmaydi",
+    "yetmaydi" EMAS -- `hold_s == hold_cap_s` QONUNIY, demak §17.5 ning
+    13 s li qarori amalda ishlatilishi mumkin.
+    """
+    assert sch.HOLD_CAP_S == 13.0
+    tl = sch.TrialTimeline(hold_s=sch.HOLD_CAP_S)
+    assert tl.hold_s == sch.HOLD_CAP_S
+    assert tl.hold_s + tl.ramp_above_threshold_s <= sch.GUARD_SUSTAIN_WINDOW_S
 
 
 def test_timeline_guard_sustain_invarianti_majburlanadi():
@@ -578,8 +613,18 @@ def test_driver_timeline_istisnosini_yutmaydi(tmp_path):
     schedule = sch.p1_schedule(1, n_blocks=1)
     # W_stab hold ichiga sig'maydi -> ScheduleError, va u DRIVER'ga emas,
     # chaqiruvchiga chiqadi.
+    #
+    # Qiymat KONSTANTALARDAN hisoblanadi, literal emas: invariant
+    # `injection_offset_s + w_stab_s <= hold_s`, demak trigger
+    # `hold_cap - injection_offset` dan YUQORI bo'lishi kerak. Bu yerda
+    # avval `w_stab_s=10.0` literal turgan edi va u `hold_cap_s` 12 s da
+    # ishlardi; §17.5 O3 cap'ni 13 s ga ko'chirgach 3 + 10 = 13 <= 13
+    # bo'lib, test SUKUT BILAN hech narsani tekshirmay qoldi (DID NOT
+    # RAISE). Bu `hold_s=13.0` literali bilan AYNI nuqson klassi.
+    w_stab_sigmaydi = sch.HOLD_CAP_S - sch.INJECTION_OFFSET_S + 0.1
     with pytest.raises(sch.ScheduleError):
-        D.Driver(cfg, pf, schedule, sch.TrialTimeline(w_stab_s=10.0))
+        D.Driver(cfg, pf, schedule,
+                 sch.TrialTimeline(w_stab_s=w_stab_sigmaydi))
 
 
 # ===========================================================================
@@ -1375,15 +1420,77 @@ def test_run_meta_ochiq_parametrlarni_kalibratsiya_talab_qiladi_deb_belgilaydi(
     # HALI o'lchanmagan parametrlar. `memory_high` ro'yxatda QOLADI: 10-
     # pressure-dozalash.md §2.2 uni `MemoryMax=2G` ostida tasdiqladi, lekin
     # OQ-11 bo'yicha `MemoryHigh` ning O'ZI optimallashtirilmagan.
-    for key in ("memory_high", "watchdog_sec", "timeout_start_sec",
-                "ramp_above_threshold_s"):
+    # `watchdog_sec` ham QOLADI -- §10.2 ning o'lchovi BAJARILMADI (OQ-8).
+    for key in ("memory_high", "watchdog_sec", "timeout_start_sec"):
         assert op[key]["calibration_required"] is True
         assert op[key]["source"]
     # O'LCHANDI, demak belgi YECHILDI (10-pressure-dozalash.md §2.6, §3.1).
     # `None` = o'lchanmadi, `0`/`False` = o'lchangan -- dizayn qoidasi 15.
-    for key in ("pressure_target_rate", "step_mb", "base_mb", "interval_ms"):
+    # `ramp_above_threshold_s` SHU RO'YXATGA KO'CHDI: §4.1 uni HAQIQIY doza
+    # ostida 29/29 epizodda 0.000 s deb o'lchadi. Batafsil tasdiqlar
+    # `test_run_meta_ramp_above_threshold_OLCHANGAN_deb_yoziladi` da.
+    for key in ("pressure_target_rate", "step_mb", "base_mb", "interval_ms",
+                "ramp_above_threshold_s"):
         assert op[key]["calibration_required"] is False
         assert op[key]["source"]
+
+
+def test_run_meta_ramp_above_threshold_OLCHANGAN_deb_yoziladi(tmp_path):
+    """Yashil test YOLG'ONNI himoya qilmasligi SHART.
+
+    Avval shu faylda `op["ramp_above_threshold_s"]["calibration_required"]
+    is True` tasdiqlanardi va test O'TARDI -- lekin da'vo NOTO'G'RI edi:
+    kalibratsiya `docs/architecture/10-pressure-dozalash.md` §4.1 da
+    BAJARILGAN (HAQIQIY doza ostida, 29 epizoddan 29 tasida 0.000 s), va
+    §4.2 dan buyon invariant 2 shu 0.000 bilan yozilmoqda. O'tib turgan
+    test noto'g'ri da'voni QULFLAB qo'ygan edi -- nuqsonning yomon yarmi
+    shu.
+
+    Boolean'ni `False` ga aylantirish YETARLI EMAS: `run_meta` ni
+    o'qiydigan odam (a) qiymat o'lchanganini, (b) QAYERDA o'lchanganini,
+    (c) rejada qancha zaxira qolganini ko'rishi kerak. Shuning uchun
+    `calibration` bloki tekshiriladi, va zaxira HISOBLANADI -- matndan
+    o'qilmaydi.
+    """
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
+                          encoding="utf-8"))
+    op = meta["open_parameters"]["ramp_above_threshold_s"]
+    assert op["calibration_required"] is False
+    # Provenance `source` ning O'ZIDA ham bo'lishi kerak -- `calibration`
+    # blokini o'qimagan vosita ham manbani ko'radi.
+    assert "10-pressure-dozalash.md" in op["source"]
+    assert "§4.1" in op["source"]
+
+    cal = op["calibration"]
+    # (a) + (b): o'lchov, uning manbasi va epizod soni.
+    assert cal["measured_s"] == 0.0
+    assert cal["measured_episodes"] == 29
+    assert cal["measured_episodes_at_value"] == 29
+    assert "10-pressure-dozalash.md" in cal["measured_in"]
+    assert "§4.1" in cal["measured_in"]
+    # O'lchov QAYSI dial'da bajarilgan -- driver'ning O'Z qiymatlaridan,
+    # hardcode qilinmaydi (§4.1: base_mb=184, step_mb=4).
+    assert cal["measured_dial"]["base_mb"] == D.PRESSURE_BASE_MB["P2"]
+    assert cal["measured_dial"]["step_mb"] == D.PRESSURE_STEP_MB
+    assert cal["measured_dial"]["memory_high"] == drv.cfg.memory_high
+
+    # (c) ZAXIRA: reja minus o'lchov, HISOBLANADI.
+    assert cal["planned_s"] == pytest.approx(sch.RAMP_ABOVE_THRESHOLD_S)
+    assert cal["plan_slack_s"] == pytest.approx(
+        cal["planned_s"] - cal["measured_s"])
+    # Reja o'lchovdan PAST bo'lishi mumkin emas: bu oldindan buzilgan
+    # reja bo'lardi. 0.0 = zaxira YO'Q, va bu `run_meta_payload`
+    # docstring'idagi CHEKLOV'ning aynan predmeti.
+    assert cal["plan_slack_s"] >= 0.0
+
+    # §9.4 invariant 2 ning zaxirasi SHU run'ning timeline'idan.
+    tl = meta["timeline"]
+    assert cal["guard_sustain_headroom_s"] == pytest.approx(
+        tl["guard_sustain_window_s"]
+        - (tl["hold_s"] + tl["ramp_above_threshold_s"]))
+    assert cal["guard_sustain_headroom_s"] >= 0.0
 
 
 # ===========================================================================
