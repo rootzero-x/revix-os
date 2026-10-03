@@ -98,8 +98,24 @@ Distro paketlari afzal (Debian/Kali/Ubuntu nomlari):
 
 ```bash
 sudo apt install build-essential python3-pytest python3-psutil \
-     python3-dbus python3-systemd python3-yaml python3-numpy python3-scipy
+     python3-dbus python3-systemd python3-yaml python3-numpy python3-scipy \
+     python3-matplotlib python3-gi rsync zstd
 ```
+
+> `python3-matplotlib` — `figures.py` ni `04-driver-va-analiz-shartnomasi.md`
+> §3 talab qiladi, lekin u uzoq vaqt bu ro'yxatda **yo'q edi**. Bo'shliq
+> o'lchov bilan tasdiqlandi: research appliance image'ida matplotlib
+> bo'lmaganida `pytest` **2 ta failure** berdi, `python3-gi` bo'lmaganida
+> esa **12 ta error** (`revix/units.py:231`) —
+> [`11-iso-qurilish-jurnali.md`](docs/architecture/11-iso-qurilish-jurnali.md)
+> nuqson #16 va #17. `rsync` ext4 ish joyi uchun
+> ([`scripts/sync-to-ext4.sh`](scripts/sync-to-ext4.sh)), `zstd` esa xom
+> dataset arxivlari (`*.zst`) uchun.
+>
+> Bu `CONTRIBUTING.md` §4 ning "yangi dependency yo'q" qoidasini
+> **buzmaydi**: matplotlib'ni muzlatilgan shartnomaning o'zi talab qiladi,
+> `python3-gi` esa `dbus`/`GLib` yo'li uchun allaqachon kerak bo'lgan —
+> ikkisi ham yangi tanlov emas, hujjatdagi bo'shliq edi.
 
 > Paket o'rnatish — **root talab qiladigan yagona sozlash qadami** va u
 > o'lchovdan oldin, bir marta bajariladi. O'lchov davomida hech qanday root

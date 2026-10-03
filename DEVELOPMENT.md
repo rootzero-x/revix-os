@@ -240,7 +240,7 @@ Muzlatilgan hujjatlar:
 
 | Hujjat | Versiya nomi |
 |---|---|
-| [`PREREGISTRATION.md`](PREREGISTRATION.md) | `preregistration/v1.1` |
+| [`PREREGISTRATION.md`](PREREGISTRATION.md) | `preregistration/v1.10` |
 | [`docs/architecture/03-sut-protokoli.md`](docs/architecture/03-sut-protokoli.md) | `sut-protocol/v1` |
 
 `PREREGISTRATION.md` har eksperiment run'iga `run_meta.preregistration_sha256`
@@ -251,11 +251,21 @@ Tekshirish (hozir mos keladi):
 
 ```bash
 $ sha256sum PREREGISTRATION.md
-ff4233e1a5e60fcf4cdc75d07bf7871a6dbec688b6b5e5f38fc98b5acab1c966  PREREGISTRATION.md
+5c5d0dd9c3a0661cd658e678cb44c34214a7497ba6b65d78b7830284177436d8  PREREGISTRATION.md
 ```
 
-Bu qiymat faylning o'z Amendment log'idagi v1.1 hash'i va
-`v0.1.1-preregistration` tag xabaridagi hash bilan bir xil.
+Bu qiymat `v0.1.10-preregistration` tag xabaridagi hash bilan **bir xil**
+(2026-10-03 da `sha256sum` ishga tushirilib tekshirildi). Oldingi qiymat
+`ff4233e1a5e60fcf4cdc75d07bf7871a6dbec688b6b5e5f38fc98b5acab1c966` —
+**v1.1** ga tegishli va bu hujjatda to'qqiz amendment davomida
+o'zgartirilmay qolgan edi.
+
+> ⚠️ Bu shunchaki eskirgan raqam emas, **provenance xavfi** edi:
+> `run_meta.preregistration_sha256` run'ni ta'riflarga bog'laydigan yagona
+> halqa. Noto'g'ri hash turgan paytda, kimdir uni kutilgan qiymat deb olsa,
+> run **boshqa** versiyaga bog'langan deb o'qilardi. Hash hujjatdan
+> ko'chirilmaydi — `sha256sum` ishga tushiriladi va tag xabari bilan
+> solishtiriladi.
 
 ### Amendment protsedurasi
 
