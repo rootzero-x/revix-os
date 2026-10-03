@@ -47,7 +47,53 @@ RNG_NAME = "python-random-mt19937"
 
 R_REF_BASELINE_S = 10.0        # §9.4 -- fault'dan oldingi throughput o'lchovi
 RAMP_S = 5.0                   # §9.4 -- PI controller nishonga chiqadi
-HOLD_CAP_S = 12.0              # §9.4 -- oomd xavfsiz oynasi (oomd 20 s talab qiladi)
+# §9.4 invariant 1. PREREGISTRATION.md §17.5 ning O3 variantiga ko'ra
+# **12.0 -> 13.0** (v1.11 amendment; qaror loyiha egasiniki, §17.5 ni ko'ring).
+#
+# NEGA 12 YETMADI. §17.2 ning arifmetikasi:
+#     0.1 (RestartSec) + t_start + 0.1 (probe kvantlashi)
+#         <= hold_cap_s - (injection_offset 3 + W_stab 8)
+# 12 s da bu `t_start <= 0.8 s` beradi. Kalibrlangan dozada O'LCHANGAN
+# `p90(t_start)`: `P0` 0.0481 s, `P2` 0.7863 s, lekin **`P1` 0.9543 s** --
+# budjetdan 19.3% KATTA (docs/architecture/10-pressure-dozalash.md §6.5).
+# `P1` §9.3 da to'laqonli yacheyka (dizaynning uchdan biri), demak nuqson
+# haqiqiy va §17.5 ning qarori MAJBURIY edi.
+#
+# QAYSI BUDJET AMAL QILADI -- ungated'i. §17.2 gated budjetni (`+D_f = 300 ms`,
+# §3 ning `k_f = 3`) FAQAT *"agar action `F_probe` ga gate qilinsa"* beradi.
+# §9.3 P1 ning arm'larini `A` (`Restart=on-failure`, `RestartSec=100ms` --
+# restart'ni systemd O'ZI qiladi, qaror yo'lida harness yo'q) va `no_action`
+# (`Restart=no`) deb muzlatadi; ikkisi ham `F_probe` ga gate QILINMAGAN.
+# Probe'ga gate qilinadigan aktor -- arm C, va uni §13 muzlatmaydi
+# (*"o'z pre-registration'ini talab qiladi"*), §0 esa P1 qamrovidan
+# CHIQARADI. Demak `P1` ni boshqaradigan budjet 13 s da `t_start <= 1.8 s`.
+#
+# NEGA AYNAN 13 -- eng kichik ishlaydigan qadam. Qaror qiluvchi band `P1`:
+# o'lchangan **max 1.4807 s** (budjetdan 18% past), p99 1.3948 s (22% past)
+# -- §6.2 jadvali, §10.1 da takrorlangan. 12.5 s da ungated budjet 1.3 s
+# bo'lardi va `P1` ning MAKSIMUMI 1.4807 s undan OSHADI, ya'ni 13.0 --
+# boshqaruvchi budjetni qaror qiluvchi bandning o'lchangan maksimumida
+# qanoatlantiradigan eng kichik yarim-sekundlik qadam. Muzlatilgan qiymatga
+# eng KICHIK o'zgarish.
+#
+# KELAJAK UCHUN CHEKLOV (test bilan qo'yilgan, da'vo emas). Gated arifmetika
+# 13 s da `t_start <= 1.5 s` beradi, ya'ni `P1` max'iga qarshi zaxira faqat
+# 1.5 - 1.4807 = 0.0193 s (1.3%). §12.4 esa 1.7% zaxirani *"o'lchov
+# shovqinidan kichik"* deb baholaydi. Shuning uchun bu cap probe'ga gate
+# qilinadigan arm'ga (arm C) **MEROS QILIB BERILMAYDI**: u §13 bo'yicha o'z
+# pre-registration'ida arifmetikani QAYTA hisoblashi shart.
+#
+# NIMA CHEKLAYDI -- 12 s ni yaratgan sabab EMAS. 12 s `systemd-oomd` ning
+# 20 s sustained oynasidan kelgan; `systemd-oomd` bu host'da binary, unit
+# va config darajasida YO'Q (o'lchangan:
+# docs/architecture/07-wsl-muhit-tekshiruvlari.md §6.4, kill authority yo'q).
+# Qiymatni endi §9.4 **invariant 2** cheklaydi:
+#     hold_s + ramp_above_threshold_s <= 15 s   (guard'ning `sustain_max`)
+# `ramp_above_threshold_s` kalibrlangan `base_mb = 184` da 29 epizoddan
+# **29 tasida 0.000 s** (§4.1), demak `13 + 0.000 = 13 <= 15` -- 2 s zaxira.
+# §6.5 ning *"15 s gacha oshirish invariant 2 ni buzmaydi"* kuzatuvi to'g'ri,
+# lekin 15 s zaxirani NOLGA tushirardi; 13 s 2 s zaxira qoldiradi.
+HOLD_CAP_S = 13.0
 INJECTION_OFFSET_S = 3.0       # §9.4 -- injeksiya hold'ga 3 s kirgach
 W_STAB_PILOT_S = 8.0           # §4   -- pilot stabilizatsiya oynasi
 T_Q_S = 5.0                    # §8.4 -- quiescence davomiyligi
@@ -63,11 +109,35 @@ GUARD_SUSTAIN_WINDOW_S = 15.0
 
 # Ramp'ning guard chegarasidan YUQORI o'tadigan qismi. §9.4 ramp'ni 5 s deb
 # beradi, lekin ramp boshida tezlik nolga yaqin -- guard'ning hisoblagichi
-# faqat chegaradan oshgandan keyin yuradi. guard.py kalibratsiyasi bu
-# qismni <=3 s deb hisoblagan. Bu TAXMIN, va dosing kalibratsiyasidan
-# (docs/architecture/00-pilot-topologiya.md §6, qadam 4) haqiqiy qiymat
-# olinishi kerak.
-RAMP_ABOVE_THRESHOLD_S = 3.0
+# faqat chegaradan oshgandan keyin yuradi.
+#
+# Oldingi qiymat 3.0 TAXMIN edi (guard.py kalibratsiyasining "<=3 s" budjeti)
+# va u faqat `hold_cap_s = 12` bilan birga ma'noga ega edi: `12 + 3 = 15`
+# guard oynasini AYNAN to'ldiradi, zaxira nol. `hold_cap_s = 13` da o'sha
+# taxmin invariant 2 ni buzardi, demak u shu o'zgarish bilan BIRGA
+# yangilanishi shart.
+#
+# §9.4 bu qiymatni dosing kalibratsiyasidan olishni talab qiladi, taxmin
+# qilishni emas -- va kalibratsiya BAJARILDI: `base_mb = 184` da, ya'ni doza
+# haqiqatan yetkazilgan yagona konfiguratsiyada, `ramp_above_threshold_s`
+# 29 epizoddan **29 tasida aynan 0.000 s**; ramp tezligi min=p50=max=0.0000,
+# ya'ni §8.4 ning quiescence chegarasi 0.05 ga yaqinlashmadi ham
+# (docs/architecture/10-pressure-dozalash.md §4.1). §4.2 esa invariantni
+# allaqachon `12 + 0.000 = 12 <= 15` deb yozadi -- ya'ni hujjat
+# kalibratsiyadan beri 0.000 ni ishlatgan, KOD esa yangilanmagan. Bu
+# o'zgarish shu bo'shliqni yopadi; u YANGI muzlatilgan qiymat qarori
+# EMAS, eskirgan konstantani o'lchov bilan almashtirish.
+#
+# OCHIQ BO'SHLIQ (ataylab yopilmagan). `validate.py` REJALASHTIRILGAN
+# `ramp_above_threshold_s` ni (`planned_timeline` dagi qiymatni)
+# tekshiradi, trial'da O'LCHANGAN qiymatni emas. Reja 0.0 bo'lgani uchun
+# rejada zaxira QOLMAYDI: haqiqiy run nolga teng bo'lmagan ramp bersa, u
+# yutilmaydi -- reja BUZILGAN bo'ladi. Konstanta ATAYLAB to'ldirilmaydi:
+# to'ldirish taxmin bo'lardi, va aynan taxmin oldingi 3.0 ning nuqsoni
+# edi. To'g'ri yechim -- driver har trial'da o'lchangan ramp qismini
+# yozishi va validator uni rejaga qarshi tekshirishi; bu ALOHIDA ish
+# bandi va bu yerda bajarilmaydi.
+RAMP_ABOVE_THRESHOLD_S = 0.0
 
 # ε va quiescence chegarasi pre-registration'da RAQAM bilan muzlatilmagan
 # (§8.4 faqat "baseline ±ε" va "quiescence chegarasidan past" deydi).
@@ -793,21 +863,28 @@ class TrialTimeline:
     hold'ga 3 s kirgach) -> pressure off -> washout.
 
     XAVFSIZLIK INVARIANTI (qattiq cheklov, xohish emas): sustained
-    pressure-on vaqti `hold_cap_s` dan oshmaydi. Sabab `systemd-oomd`:
-    u 20 s sustained memory pressure ko'rsa `user@UID.service` ichidagi
-    eng yirik iste'molchini o'ldiradi -- ya'ni foydalanuvchining
-    brauzerini, editorini yoki butun desktop sessiyasini. PSI ierarxik,
-    demak `revixlab.slice` ichidagi stall yuqoriga tarqaladi va bu xavf
-    gipoteza emas, tasdiqlangan konfiguratsiya (revix/guard.py;
-    docs/architecture/02-guard-kalibratsiyasi.md). Shuning uchun cheklov
-    buzilsa parametr to'plami QABUL QILINMAYDI -- ogohlantirish emas,
-    istisno.
+    pressure-on vaqti `hold_cap_s` dan oshmaydi. Cheklov buzilsa parametr
+    to'plami QABUL QILINMAYDI -- ogohlantirish emas, istisno.
 
-    Ikkinchi invariant: `hold_s + ramp_above_threshold_s` guard'ning
-    sustain oynasidan (15 s) oshmasligi kerak. Aks holda TO'G'RI ishlagan
-    trial ham guard'ni qo'zg'atib `aborted_guard` bo'lardi -- xavfsizlik
-    buzilmaydi, lekin trial isrof bo'ladi va eksklyuziya darajasi
-    sun'iy ravishda oshadi.
+    NIMA UCHUN bu cheklov bor -- va nima uni BUGUN cheklaydi. Tarixan
+    `hold_cap_s = 12 s` ni `systemd-oomd` yaratgan: u 20 s sustained memory
+    pressure ko'rsa `user@UID.service` ichidagi eng yirik iste'molchini
+    o'ldiradi, ya'ni foydalanuvchining brauzerini yoki butun desktop
+    sessiyasini. Bu host'da `systemd-oomd` YO'Q -- binary, unit va config
+    darajasida o'rnatilmagan, kill authority yo'q (o'lchangan:
+    docs/architecture/07-wsl-muhit-tekshiruvlari.md §6.4). Demak 12 s ni
+    yaratgan sabab bu muhitda AMAL QILMAYDI, va `hold_cap_s` §17.5 ning O3
+    variantiga ko'ra 13 s ga ko'tarildi (HOLD_CAP_S ning izohini ko'ring).
+    Cap'ning O'ZI saqlanadi: §15.3 uni shartnomaviy asosda talab qiladi va
+    oomd MAVJUD bo'lgan host'da yana 1-raqamli xavf bo'ladi.
+
+    Qiymatni bugun cheklaydigan invariant -- IKKINCHISI:
+    `hold_s + ramp_above_threshold_s` guard'ning sustain oynasidan (15 s)
+    oshmasligi kerak. Aks holda TO'G'RI ishlagan trial ham guard'ni
+    qo'zg'atib `aborted_guard` bo'lardi -- xavfsizlik buzilmaydi, lekin
+    trial isrof bo'ladi va eksklyuziya darajasi sun'iy ravishda oshadi.
+    Kalibrlangan dial'da `ramp_above_threshold_s = 0.000 s` (29/29 epizod,
+    10-pressure-dozalash.md §4.1), demak `13 + 0.000 = 13 <= 15`: 2 s zaxira.
     """
 
     preflight_s: float = 5.0
@@ -1008,8 +1085,9 @@ def estimate_campaign(
     """Jadval + trial jadvali -> baholangan davomiylik (§9.4).
 
     `per_trial_overhead_s` -- §9.4 dagi ≈75 s/trial fazalar yig'indisidan
-    (default parametrlarda 52 s) katta, va farq §9.4 da band-band
-    yozilmagan (unit reset, D-Bus so'rovlari, cache tegishi, log flush).
+    (default parametrlarda 53 s: hold 12 -> 13 s, §17.5 O3) katta, va farq
+    §9.4 da band-band yozilmagan (unit reset, D-Bus so'rovlari, cache
+    tegishi, log flush).
     Shuning uchun u AYRIM parametr: baho jimgina to'ldirilmaydi,
     chaqiruvchi qo'shimchani oshkora beradi.
 

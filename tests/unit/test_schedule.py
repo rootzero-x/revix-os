@@ -17,12 +17,17 @@ from revix.schedule import (
     DISPOSITION_RULES,
     EXCLUDED_DISPOSITIONS,
     FACT_FIELDS,
+    GUARD_SUSTAIN_WINDOW_S,
+    HOLD_CAP_S,
+    INJECTION_OFFSET_S,
     P1_BLOCKS,
     P1_FACTORS,
     PRIMARY_ANALYSIS_DISPOSITIONS,
+    RAMP_ABOVE_THRESHOLD_S,
     T_Q_S,
     T_W_MAX_S,
     T_W_S,
+    W_STAB_PILOT_S,
     CampaignTooLong,
     Factor,
     PressureCapExceeded,
@@ -544,16 +549,16 @@ def test_p1_jadvali_default_qiymatlari():
     tl = TrialTimeline()
     assert tl.baseline_s == 10.0
     assert tl.ramp_s == 5.0
-    assert tl.hold_s == 12.0
+    assert tl.hold_s == 13.0        # §17.5 O3: 12.0 -> 13.0 (v1.11)
     assert tl.injection_offset_s == 3.0
     assert tl.w_stab_s == 8.0
     assert tl.t_ramp_start == tl.preflight_s + 10.0
     assert tl.t_hold_start == tl.t_ramp_start + 5.0
     assert tl.t_inject == tl.t_hold_start + 3.0
-    assert tl.t_pressure_off == tl.t_hold_start + 12.0
+    assert tl.t_pressure_off == tl.t_hold_start + 13.0
     assert tl.t_washout_start == tl.t_pressure_off
-    assert tl.sustained_pressure_on_s == 12.0
-    assert tl.pressure_on_s == 17.0  # generator yoniq (ramp + hold)
+    assert tl.sustained_pressure_on_s == 13.0
+    assert tl.pressure_on_s == 18.0  # generator yoniq (ramp + hold)
     assert tl.total_s == tl.t_pressure_off + tl.washout_s
 
 
@@ -574,16 +579,16 @@ def test_fazalar_boshliqsiz_va_tartibli():
 
 
 def test_w_stab_oynasi_pressure_ichiga_sigadi():
-    """§4: `W_stab_pilot = 8 s` oomd xavfsizlik oynasi ichida sig'ishi kerak."""
+    """§4: `W_stab_pilot = 8 s` hold (pressure) oynasi ichida sig'ishi kerak."""
     tl = TrialTimeline()
     assert tl.t_verify_end_earliest <= tl.t_pressure_off
 
 
 def test_uzun_hold_pressure_cap_ni_buzadi():
-    """XAVFSIZLIK: sustained pressure-on <= 12 s. Bu qattiq cheklov --
-    oomd 20 s sustained'da foydalanuvchi ilovalarini o'ldiradi."""
+    """XAVFSIZLIK: sustained pressure-on <= `hold_cap_s` (§17.5 O3 dan keyin
+    13 s). Bu qattiq cheklov -- buzilsa istisno, ogohlantirish emas."""
     with pytest.raises(PressureCapExceeded):
-        TrialTimeline(hold_s=12.5)
+        TrialTimeline(hold_s=13.5)
     with pytest.raises(PressureCapExceeded):
         TrialTimeline(hold_s=20.0)
     # Cap'ni oshirib yuborish ham boshqa invariantga urinadi (guard oynasi).
@@ -608,9 +613,9 @@ def test_ramp_above_threshold_ramp_dan_katta_bolmaydi():
 def test_w_stab_sigmasa_rad_etiladi():
     """§4: injeksiya + W_stab hold ichiga sig'ishi kerak."""
     with pytest.raises(ScheduleError):
-        TrialTimeline(injection_offset_s=6.0)          # 6 + 8 > 12
+        TrialTimeline(injection_offset_s=6.0)          # 6 + 8 > 13
     with pytest.raises(ScheduleError):
-        TrialTimeline(w_stab_s=10.0)                   # 3 + 10 > 12
+        TrialTimeline(w_stab_s=11.0)                   # 3 + 11 > 13
     with pytest.raises(ScheduleError):
         TrialTimeline(hold_s=8.0, ramp_above_threshold_s=0.0)  # 3 + 8 > 8
 
@@ -642,9 +647,213 @@ def test_manfiy_yoki_nol_davomiylik_rad_etiladi(kw):
 
 def test_jadval_as_dict_serializatsiya_qilinadi():
     d = TrialTimeline().as_dict()
-    assert d["hold_s"] == 12.0
-    assert d["sustained_pressure_on_s"] == 12.0
-    assert d["total_s"] == 52.0
+    assert d["hold_s"] == 13.0
+    assert d["sustained_pressure_on_s"] == 13.0
+    assert d["total_s"] == 53.0           # 5 + 10 + 5 + 13 + 20 (§17.5 O3)
+
+
+# ===========================================================================
+# 4b. §17.5 O3 -- `hold_cap_s` 12.0 -> 13.0 REGRESSIYA QULFLARI
+#
+# Maqsad: muzlatilgan qiymat JIMGINA orqaga siljimasligi, va uni asoslagan
+# arifmetika JIMGINA buzilmasligi. Har bir raqamning yonida uni beradigan
+# O'LCHOV yoki muzlatilgan bo'lim turadi.
+# ===========================================================================
+
+# `t_start` -- SUT ning `READY=1` ga qadar start davomiyligi. Bu MAGIC
+# NUMBER EMAS, kalibrlangan dozada O'LCHANGAN qiymat
+# (docs/architecture/10-pressure-dozalash.md §6.2 jadvali, §10.1 da
+# takrorlangan):
+#     band   n    p90      p99      max
+#     P0     30   0.0481   0.0555   0.0576
+#     P1     24   0.9543   1.3948   1.4807   <- QAROR QILUVCHI band (§9.3)
+#     P2     24   0.7863   1.1211   1.1883
+# Chegara sinovida `P1` ning MAKSIMUMI ishlatiladi, p99 emas: cheklov
+# "oshib ketmasligi kerak" turidagi, demak qaror qiluvchi bandning
+# maksimumi to'g'ri statistika -- va u p99 dan QAT'IYROQ.
+T_START_P1_MAX_S = 1.4807          # §6.2 -- o'lchangan, n=24
+T_START_P1_P99_S = 1.3948          # §6.2 -- o'lchangan, n=24
+T_START_P1_P90_S = 0.9543          # §6.2 -- o'lchangan; 12 s budjetini BUZDI
+
+# §17.2 ning budjet hadlari -- hammasi muzlatilgan matndan.
+RESTART_SEC_S = 0.1                # §9.3 -- arm `A` ning `RestartSec=100ms`
+PROBE_QUANTIZATION_S = 0.1         # §2   -- `P = 100 ms`, `t_up` probe'da
+GATED_D_F_S = 0.3                  # §3   -- `k_f = 3`; FAQAT gated action
+
+# §4.1 -- kalibrlangan `base_mb = 184` da 29 epizoddan 29 tasida 0.000 s.
+RAMP_ABOVE_THRESHOLD_MEASURED_S = 0.0
+
+
+def _window_offset_s() -> float:
+    """§17.2 ning `-11` hadi -- LITERAL EMAS, ikki muzlatilgan qiymatdan.
+
+    `injection_offset` (§9.4) + `W_stab_pilot` (§4). Shunday yozilgani
+    uchun o'sha qiymatlardan birini jimgina o'zgartirish ham tutiladi.
+    """
+    return INJECTION_OFFSET_S + W_STAB_PILOT_S
+
+
+def test_hold_cap_s_13_0_da_muzlatilgan():
+    """Yalang'och pin: §17.5 O3 ning qiymati sezilmay siljimasligi kerak."""
+    assert HOLD_CAP_S == 13.0
+
+
+def test_ramp_above_threshold_olchangan_nolda_muzlatilgan():
+    """Yalang'och pin: `ramp_above_threshold_s` -- O'LCHOV, taxmin emas.
+
+    Oldingi 3.0 hech qachon o'lchanmagan (kodning o'z izohi uni `TAXMIN`
+    deb belgilagan). Kalibratsiya haqiqiy qiymatni berdi: `base_mb = 184`
+    da 29 epizoddan 29 tasida **0.000 s** (doc 10 §4.1), va doc 10 §4.2
+    invariantni allaqachon `12 + 0.000 = 12 <= 15` deb yozadi -- ya'ni
+    hujjat kalibratsiyadan beri 0.000 ni ishlatgan, kod esa yangilanmagan.
+    Bu pin o'sha bo'shliq QAYTA ochilmasligini qulflaydi.
+    """
+    assert RAMP_ABOVE_THRESHOLD_S == 0.0
+
+
+def test_default_timeline_istisnosiz_quriladi():
+    """REGRESSIYA: DEFAULT `TrialTimeline()` istisno BERMASLIGI kerak.
+
+    Aynan bu testning YO'QLIGI `HOLD_CAP_S` va `RAMP_ABOVE_THRESHOLD_S`
+    juftligini jimgina buzilishiga yo'l qo'yardi: suite'da default
+    qurilishni invariant 2 ga qarshi uradigan hech narsa yo'q edi, demak
+    ikki konstanta faqat TASODIFAN birga to'g'ri bo'lishi mumkin edi
+    (eski juftlik `12 + 3 = 15` AYNAN chegarada o'tgan; `13 + 3 = 16`
+    esa `PressureCapExceeded` berardi).
+
+    Shuning uchun bu test juftlikni QURILISH orqali tekshiradi, arifmetika
+    orqali emas: default parametrlar bilan timeline tuzilsa, hamma
+    `__post_init__` invarianti bajarilgan bo'ladi.
+    """
+    tl = TrialTimeline()                      # istisno bo'lmasligi SHART
+    assert tl.hold_s == HOLD_CAP_S
+    assert tl.hold_cap_s == HOLD_CAP_S
+    assert tl.ramp_above_threshold_s == RAMP_ABOVE_THRESHOLD_S
+    assert tl.hold_s + tl.ramp_above_threshold_s == pytest.approx(13.0)
+    assert tl.hold_s + tl.ramp_above_threshold_s <= GUARD_SUSTAIN_WINDOW_S
+
+
+def test_17_2_arifmetikasi_identitet_sifatida_bajariladi():
+    """§17.2: `0.1 + t_start + 0.1 <= hold_cap_s - (injection + W_stab)`.
+
+    UNGATED budjet -- va aynan u `P1` ni boshqaradi: §17.2 gated hadni
+    (`+D_f`) faqat *"agar action `F_probe` ga gate qilinsa"* beradi, §9.3
+    esa P1 ning arm'larini `A` (`Restart=on-failure` -- restart'ni systemd
+    O'ZI qiladi, qaror yo'lida harness yo'q) va `no_action` (`Restart=no`)
+    deb muzlatadi; ikkisi ham `F_probe` ga gate qilinmagan.
+    """
+    assert _window_offset_s() == 11.0
+    rhs = HOLD_CAP_S - _window_offset_s()
+    assert rhs == pytest.approx(2.0)
+    # Qaror qiluvchi band `P1`, o'lchangan MAKSIMUM bilan.
+    assert RESTART_SEC_S + T_START_P1_MAX_S + PROBE_QUANTIZATION_S <= rhs
+    # p99 ham (max'dan yumshoqroq, lekin oshkora yozib qo'yiladi).
+    assert RESTART_SEC_S + T_START_P1_P99_S + PROBE_QUANTIZATION_S <= rhs
+
+
+def test_13_0_eng_kichik_ishlaydigan_qadam_12_5_YIQILADI():
+    """13.0 TASODIFAN tanlanmagan -- eng kichik ishlaydigan yarim qadam.
+
+    12.5 s da `t_start` budjeti 1.3 s ga tushadi va `P1` ning o'lchangan
+    MAKSIMUMI 1.4807 s undan oshadi (§6.2). Eski 12.0 cap'da esa hatto
+    `P1` ning p90 i ham sig'maydi -- §17.5 ning qarori shuning uchun
+    MAJBURIY edi.
+    """
+    lhs_max = RESTART_SEC_S + T_START_P1_MAX_S + PROBE_QUANTIZATION_S
+    assert not lhs_max <= 12.5 - _window_offset_s()      # budjet 1.3 s
+    assert lhs_max <= HOLD_CAP_S - _window_offset_s()    # budjet 1.8 s
+    # 12.0 (eski cap): budjet 0.8 s -- `P1` ning p90 i 19.3% oshadi.
+    lhs_p90 = RESTART_SEC_S + T_START_P1_P90_S + PROBE_QUANTIZATION_S
+    assert not lhs_p90 <= 12.0 - _window_offset_s()
+
+
+def test_gated_arifmetika_zaxirasi_olchov_shovqini_ichida():
+    """OGOHLANTIRISH-QULF: bu cap GATE qilingan arm'ga MEROS BERILMAYDI.
+
+    Bu test gated arifmetikani YETARLI deb TASDIQLAMAYDI. 13 s da gated
+    budjet 1.5 s, `P1` max'iga qarshi zaxira faqat `1.5 - 1.4807 =
+    0.0193 s` (1.3%), va §12.4 1.7% zaxirani *"o'lchov shovqinidan
+    kichik"* deb baholaydi. Demak probe'ga gate qilinadigan aktor
+    (arm C -- §13 uni muzlatmaydi, §0 esa P1 qamrovidan chiqaradi) bu
+    cap'ni meros qilib OLMAYDI va arifmetikani QAYTA hisoblashi shart.
+    """
+    gated_budget = (HOLD_CAP_S - _window_offset_s()
+                    - RESTART_SEC_S - PROBE_QUANTIZATION_S - GATED_D_F_S)
+    assert gated_budget == pytest.approx(1.5)
+    margin = gated_budget - T_START_P1_MAX_S
+    assert 0.0 < margin < 0.05, "zaxira kichik -- bu FAKT, kafolat emas"
+    assert margin / gated_budget < 0.017   # §12.4: 1.7% = shovqin ichida
+
+
+def test_invariant_2_zaxira_bilan_bajariladi():
+    """§9.4 invariant 2: `hold_s + ramp_above_threshold_s <= 15 s`.
+
+    `ramp_above_threshold_s` endi TAXMIN emas, O'LCHOV: kalibrlangan
+    `base_mb = 184` da 29 epizoddan 29 tasida 0.000 s (doc 10 §4.1).
+    """
+    assert RAMP_ABOVE_THRESHOLD_S == RAMP_ABOVE_THRESHOLD_MEASURED_S
+    assert GUARD_SUSTAIN_WINDOW_S == 15.0
+    assert HOLD_CAP_S + RAMP_ABOVE_THRESHOLD_MEASURED_S <= 15.0
+    # 2 s zaxira. §6.5 "15 s gacha oshirish mumkin" deydi -- lekin 15 s
+    # zaxirani NOLGA tushirardi (`15 + 0.000 = 15 <= 15`).
+    headroom = 15.0 - (HOLD_CAP_S + RAMP_ABOVE_THRESHOLD_MEASURED_S)
+    assert headroom == pytest.approx(2.0)
+    # Default timeline invariantni QURILISH vaqtida majburlaydi.
+    tl = TrialTimeline()
+    assert tl.hold_s + tl.ramp_above_threshold_s <= tl.guard_sustain_window_s
+
+
+def test_13_0_qabul_qilinadi_13_5_rad_etiladi():
+    """Cap TISHLASHDA DAVOM ETADI: chegara ko'chdi, cheklov yo'qolmadi."""
+    tl = TrialTimeline(hold_s=13.0)
+    assert tl.hold_s == 13.0
+    assert tl.sustained_pressure_on_s == 13.0
+    with pytest.raises(PressureCapExceeded):
+        TrialTimeline(hold_s=13.5)
+    with pytest.raises(PressureCapExceeded):
+        TrialTimeline(hold_s=13.0 + 1e-9)
+
+
+def test_post_init_invariantlari_captan_boshqa_ozgarmadi():
+    """§17.5 O3 FAQAT cap chegarasini ko'chirdi, boshqa hech nimani.
+
+    Har bir `__post_init__` tekshiruvi AYRIM urib ko'riladi: bir xil
+    shart, bir xil istisno turi. Shunday qilib cap bilan birga jimgina
+    yumshatilgan invariant tutiladi.
+    """
+    # (1) qat'iy musbat davomiyliklar
+    for kw in ({"baseline_s": 0.0}, {"ramp_s": -1.0}, {"hold_s": 0.0},
+               {"w_stab_s": 0.0}, {"washout_s": 0.0}):
+        with pytest.raises(ScheduleError):
+            TrialTimeline(**kw)
+    # (2) manfiy bo'lmagan davomiyliklar
+    for kw in ({"preflight_s": -1.0}, {"injection_offset_s": -1.0},
+               {"ramp_above_threshold_s": -1.0}):
+        with pytest.raises(ScheduleError):
+            TrialTimeline(**kw)
+    # (3) ramp-above ramp'dan katta bo'lmaydi
+    with pytest.raises(ScheduleError):
+        TrialTimeline(ramp_s=2.0, ramp_above_threshold_s=3.0)
+    # (4) guard sustain oynasi -- cap'dan MUSTAQIL majburlanadi
+    with pytest.raises(PressureCapExceeded):
+        TrialTimeline(hold_s=13.0, ramp_above_threshold_s=2.5)   # 15.5 > 15
+    assert TrialTimeline(hold_s=13.0, ramp_above_threshold_s=2.0).hold_s == 13.0
+    # (5) §4: injeksiya + W_stab hold ICHIGA sig'adi
+    with pytest.raises(ScheduleError):
+        TrialTimeline(w_stab_s=11.0)                              # 3 + 11 > 13
+    with pytest.raises(ScheduleError):
+        TrialTimeline(injection_offset_s=6.0)                     # 6 + 8 > 13
+    # (6) §8.4: washout poli va cap
+    with pytest.raises(ScheduleError):
+        TrialTimeline(washout_s=14.0)
+    with pytest.raises(ScheduleError):
+        TrialTimeline(washout_s=121.0)
+    # (7) YAGONA o'zgargan xatti-harakat: `(12.0, 13.0]` oralig'i ILGARI
+    #     rad etilardi, ENDI qabul qilinadi. Pastda va yuqorida -- bir xil.
+    for hold in (12.0, 12.5, 12.9, 13.0):
+        assert TrialTimeline(hold_s=hold).hold_s == hold
+    with pytest.raises(PressureCapExceeded):
+        TrialTimeline(hold_s=20.0)
 
 
 # ===========================================================================
@@ -653,24 +862,25 @@ def test_jadval_as_dict_serializatsiya_qilinadi():
 
 
 def test_kampaniya_bahosi_p1():
-    """§9.4: 120 trial. Default fazalar yig'indisi 52 s/trial."""
+    """§9.4: 120 trial. Default fazalar yig'indisi 53 s/trial (hold 13 s)."""
     sch = p1_schedule(seed=1)
     tl = TrialTimeline()
     est = estimate_campaign(sch, tl)
     assert est.n_trials == 120
     assert est.n_blocks == 20
-    assert est.per_trial_s == 52.0
-    assert est.total_s == pytest.approx(6240.0)
-    assert est.total_hours == pytest.approx(6240.0 / 3600.0)
-    assert est.sustained_pressure_on_total_s == pytest.approx(120 * 12.0)
-    assert est.pressure_on_total_s == pytest.approx(120 * 17.0)
+    assert est.per_trial_s == 53.0
+    assert est.total_s == pytest.approx(6360.0)
+    assert est.total_hours == pytest.approx(6360.0 / 3600.0)
+    assert est.sustained_pressure_on_total_s == pytest.approx(120 * 13.0)
+    assert est.pressure_on_total_s == pytest.approx(120 * 18.0)
 
 
 def test_qoshimcha_vaqt_oshkora_beriladi():
     """§9.4 ≈75 s/trial deydi; farq band-band yozilmagan, demak baho
     jimgina to'ldirilmaydi -- chaqiruvchi oshkora beradi."""
     sch = p1_schedule(seed=1)
-    est = estimate_campaign(sch, TrialTimeline(), per_trial_overhead_s=23.0)
+    # 53 (default fazalar, hold 13 s) + 22 = 75 s. §17.5 O3 dan oldin 52 + 23.
+    est = estimate_campaign(sch, TrialTimeline(), per_trial_overhead_s=22.0)
     assert est.per_trial_s == 75.0
     assert est.total_hours == pytest.approx(75.0 * 120 / 3600.0)
     assert est.total_hours == pytest.approx(2.5)
