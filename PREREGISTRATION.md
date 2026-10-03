@@ -32,8 +32,8 @@ Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
 | **v1.10 git tag** | `v0.1.10-preregistration` |
 | **Sabab** | Sarlavhadagi **ikki ochiq qaror** — §17.5 (O1–O4) va §18.6 (F1–F4) — qabul qilindi. Ikkisi ham **birinchi pilot trial'idan OLDIN** talab qilingan edi, va `docs/architecture/10-pressure-dozalash.md` ning **kalibrlangan dozadagi** o'lchovlari ikkisining ham **zarurligini** tasdiqladi |
 | **Qarorni kim qabul qildi** | **Orkestrator**, loyiha egasining **2026-10-03 dagi ochiq delegatsiyasi** bo'yicha. §17.5 va §18.6 tanlovni *"loyiha egasiga"* qoldirgan edi; delegatsiya shu huquqni orkestratorga o'tkazdi va bu shu yerda qayd etiladi |
-| **O'zgardi** | **(1) `hold_cap_s`: 12 s → 13 s** — §9.4 invariant 1, §4 ning `W_stab_pilot` izohi, §9.4 ning kampaniya arifmetikasi (52 → 53 s). **(2) §11 ning fail-slow limbining CHEGARASI** — referens `RMST(P0)` dan **`τ`** ga o'tdi ⇒ `thr = 0.20 × τ = 1.6 s`, **fiksa**; §18.2 ning o'qishi **bekor qilinadi**. **(3) `ramp_above_threshold_s`: eskirgan TAXMIN `3.0 s` → **o'lchangan** `0.000 s`** (3-band — bu **qaror emas**, §9.4 ning o'z talabining bajarilishi). **(4) §0 ning *“12 sekunddan uzoq sustained pressure”*** bandi **cap'ni kuzatadigan** shaklga keltirildi (1.11-band) — aks holda hujjat **o'zining birinchi sahifasida o'ziga zid** bo'lardi. §17.5 va §18.6 qaror qayd etilgan holda qayta yozildi — **O1–O4 va F1–F4 jadvallari SAQLANDI** |
-| **O'zgarMADI** | **hech bir metrika ta'rifi, statistik test, arm, fault klassi, probe parametri, VR ta'rifi, FR ta'rifi, `disposition` enum'i, va fail-slow limbining chegarasidan BOSHQA hech bir falsifikatsiya mezoni.** To'liq ro'yxat 5-bandda |
+| **O'zgardi** | **(1) `hold_cap_s`: 12 s → 13 s** — §9.4 invariant 1, §4 ning `W_stab_pilot` izohi, §9.4 ning kampaniya arifmetikasi (52 → 53 s). **(2) §11 ning fail-slow limbining CHEGARASI** — referens `RMST(P0)` dan **`τ`** ga o'tdi ⇒ `thr = 0.20 × τ = 1.6 s`, **fiksa**; §18.2 ning o'qishi **bekor qilinadi**. **(3) `ramp_above_threshold_s`: eskirgan TAXMIN `3.0 s` → **o'lchangan** `0.000 s`** (3-band — bu **qaror emas**, §9.4 ning o'z talabining bajarilishi). **(4) §0 ning *“12 sekunddan uzoq sustained pressure”*** bandi **cap'ni kuzatadigan** shaklga keltirildi (1.11-band) — aks holda hujjat **o'zining birinchi sahifasida o'ziga zid** bo'lardi. §17.5 va §18.6 qaror qayd etilgan holda qayta yozildi — **O1–O4 va F1–F4 jadvallari SAQLANDI**. **(5) `T_trial` ning chiqarilgan default'i: 40.1 s → 41.1 s** — (1) ning **mexanik oqibati**, formula o'zgarmadi, raqam hech qachon muzlatilmagan (4-band — **qaror emas**); shu bandda §17.3 ning (b) chegarasi va §16.10 ning pastki chegarasi **bir xil vaqt boshida qayta chiqarildi** — ikkalasi pre-flight'ni tashlab ketgan edi, **hech bir xulosa o'zgarmaydi**. **(6) §14.4 ning ichki havolasi tuzatildi** (§7 → `01-muhit-tekshiruvlari.md` §4; 9.4-band — **ilmiy o'zgarish emas**) |
+| **O'zgarMADI** | **hech bir metrika ta'rifi, statistik test, arm, fault klassi, probe parametri, VR ta'rifi, FR ta'rifi, `disposition` enum'i, va fail-slow limbining chegarasidan BOSHQA hech bir falsifikatsiya mezoni.** To'liq ro'yxat 6-bandda |
 | **Yig'ilgan ma'lumot** | **P1 trial'i ma'lumoti — YO'Q:** hech qanday trial o'tkazilmagan, demak **eski ta'riflar ostida qayta hisoblanadigan endpoint yo'q** (`DEVELOPMENT.md` §7 ning *"ma'lumot yig'ilgandan keyin"* qoidasi qo'llanmaydi). **LEKIN kalibratsiya o'lchovlari MAVJUD edi** — 0-bandni ko'ring |
 
 **0. 🔴 OSHKORA E'LON — BU IKKI QAROR MA'LUMOT KO'RILGANDAN KEYIN QABUL QILINDI.**
@@ -511,7 +511,104 @@ BAJARILMAGAN**, demak *"invariant 2 reallikka nisbatan majburlanadi"*
 deb **o'qilmaydi**. (`10` §4.1 ning 29/29 o'lchovi bu xavfni
 **kichik** qiladi, lekin **yo'q qilmaydi**.)
 
-**4. IKKI QARORNING IZCHILLIGI — nega ular BIRGA tanlandi.**
+**4. `T_trial` (horizon): chiqarilgan default 40.1 s → 41.1 s — O3 ning OQIBATI, qaror EMAS.**
+
+**Bu uchinchi qaror ham EMAS.** `T_trial` ni `revix/driver.py` ning
+`t_trial_us()` i **o'zgarmagan** formula bo'yicha hisoblaydi
+(`04-driver-va-analiz-shartnomasi.md` §5.2):
+
+```
+T_trial = t_pressure_off + w_stab_s + P
+```
+
+**Vaqt boshi — `trial_begin`** (`TrialTimeline` ning `t = 0` nuqtasi;
+`04` §5.2: *"`T_trial` `trial_begin` dan … o'lchanadi"*). Bu boshdan
+§9.4 jadvali **pre-flight bilan** boshlanadi: pre-flight 5 s → baseline
+10 s → ramp 5 s → hold. Quyidagi hamma raqam **shu bitta boshdan**:
+
+| kattalik | `hold_cap_s = 12 s` (v1.10; `04` §5.2 jadvali) | **`hold_cap_s = 13 s` (v1.11; o'lchangan)** |
+|---|---|---|
+| `t_hold_start` (`t_h`) | 20.0 s | 20.0 s |
+| `t_inject` (`t_h + 3`) | 23.0 s | 23.0 s |
+| `t_verify_end_earliest` (`t_inject + W_stab_pilot`) | 31.0 s | 31.0 s |
+| `t_pressure_off` (`t_h + hold_s`) | 32.0 s | **33.0 s** |
+| **`T_trial`** | **40.1 s** | **41.1 s = 41 100 000 µs** |
+| `total_s` (yuqori chegara) | 52.0 s | 53.0 s |
+
+13 s ustuni **ishga tushirib** olindi: `TrialTimeline()` default'i va
+`driver.t_trial_us(TrialTimeline())` = `41100000`. Validator ham shuni
+majburlaydi: 40.1 s ni ko'targan `run_meta` `t_trial_formula_mismatch`
+bilan rad etiladi (`run_meta.t_trial_us` formuladan hisoblangan qiymatga
+teng bo'lishi shart) — bu **kod/test** tomonining ishi, bu amendment'ning
+emas.
+
+**(4.1) Nega bu ilmiy o'zgarish EMAS.** §16.10 ning 5-qatori `T_trial`
+ni **muzlatilmagan** deb sanaydi, va §16.10 ning qarori ochiq yozadi:
+*"raqam muzlatilMAYDI, QOIDA muzlatiladi"*. Qoida — formula — o'zgarmadi;
+faqat uning kirishi `t_pressure_off` (1) ning `hold_cap_s` 12 → 13 s
+qadami bilan **1 s** siljidi. **Demak 41.1 s yangi tanlov emas, eski
+qoidaning yangi muzlatilgan qiymatdagi natijasi.** §16.10(1) va (4) ning
+talabi — aniq qiymat birinchi pilot trial'idan **oldin** ochiq qaror
+bilan muzlatiladi — **o'z kuchida**, va bu band u qarorni **qilmaydi**
+(9.8-band).
+
+**(4.2) TUZATISH — §16.10 ning 4-QAROR bandidagi pastki chegara XATO
+chiqarilgan edi.** U shunday yozgan: *"injeksiya trial boshidan ≥ 18 s
+da … ⇒ `T_trial` ≥ 26 s"*. **18 s pre-flight'ni (5 s) tashlab ketadi**,
+`T_trial` esa (40.1 s) `trial_begin` dan, ya'ni pre-flight **bilan**
+o'lchanadi — **ikki xil vaqt boshi aralashgan**. Bir xil boshda
+injeksiya **23 s** da, eng erta oyna oxiri **31 s** da, demak:
+
+```
+to'g'ri pastki chegara:  T_trial >= t_verify_end_earliest = 23 + 8 = 31 s
+```
+
+Kod aynan shu chegarani majburlaydi: `t_trial_us()`
+`t_verify_end_earliest ≤ T_trial ≤ total_s` buzilsa **istisno** beradi.
+**Matn tayangan ikkala tengsizlik ham o'z kuchida:** `41.1 ≥ 31` ✓ (va
+eski yozilgan `41.1 ≥ 26` ham ✓), `τ = 8 ≤ 41.1` ✓; yuqoridan
+`41.1 ≤ 53` ✓.
+
+**(4.3) TUZATISH — §17.3 ning (b) holati chegarasi XATO chiqarilgan edi;
+bir xil boshda qayta hisoblanadi.** §17.3 `t_h = 15 s`, injeksiya
+`18 s`, hold oxiri `27 s` (pre-flight'siz bosh) ni `T_trial = 40.1 s`
+(pre-flight bilan bosh) ga qarshi qo'ygan va `t_start > ~14 s` ni
+olgan — **o'sha aralashish, 5 s xato bilan.** To'g'ri hisob, faqat
+`trial_begin` boshida:
+
+```
+(b):          t_up + W_stab_pilot > T_trial
+              T_trial = t_pressure_off + W_stab_pilot + P
+         =>   t_up > t_pressure_off + P
+              t_pressure_off = t_inject + (hold_cap_s - injection_offset)
+         =>   t_up - t_inject > hold_cap_s - 3 + 0.1
+budjet (§17.2):  t_up - t_inject = RestartSec (0.1) + t_start + probe kvantlashi (<= 0.1)
+         =>   t_start > hold_cap_s - 3.1   (taxminan; kvantlash 0 .. 0.1 s)
+
+12 s:  t_up > 32.0 + 0.1 = 32.1   =>  t_up - t_inject > 9.1    =>  t_start > ~8.9 s
+13 s:  t_up > 33.0 + 0.1 = 33.1   =>  t_up - t_inject > 10.1   =>  t_start > ~9.9 s
+```
+
+Ya'ni (b) — **oyna pressure o'chgandan keyin boshlansa**; u faqat
+`hold_cap_s` ga bog'liq, `T_trial` ning o'z raqamiga emas.
+
+**(4.4) HECH BIR XULOSA O'ZGARMAYDI.** §17.3 ning hukmi — **(a) ustun,
+ya'ni bias asosan H1 GA QARSHI** — o'z kuchida: (a) `t_start > 1.8 s`
+da (v1.11; v1.10 da `0.8 s`), (b) `t_start > ~9.9 s` da (v1.10 da
+`~8.9 s`, `~14 s` emas). Tuzatish (b) ni **yaqinlashtiradi**, lekin
+(a) va (b) orasidagi tartibni **o'zgartirmaydi**. O'lchangan
+`max(t_start) = 1.4807 s` (78 urinish, 1.3-band) ikkalasidan ham past.
+
+**(4.5) KUZATUV, xulosa chiqarilmaydi:** `~9.9 s` driver'ning
+`TimeoutStartSec = 10 s` default'idan (§16.10 ning 1-qatori) **biroz
+pastda** turadi.
+
+**(4.6) Tarix qayta yozilMADI** (7-band). v1.5 → v1.6 log yozuvi
+`~14 s` va `40.1 s` ni o'z versiyasining bayonoti sifatida saqlaydi;
+§16.10 ning 5-qatoriga va §17.3 ning hisobiga **belgilangan `v1.11`
+ko'rsatkichi** qo'yildi.
+
+**5. IKKI QARORNING IZCHILLIGI — nega ular BIRGA tanlandi.**
 
 §18.6 ochiq ogohlantirgan edi:
 
@@ -531,7 +628,7 @@ uchun rad etilgan.
 > sabablaridan biri.** §17.5/§18.6 ning *"birgalikda hal qilinishi
 > tabiiy"* talabi shu bilan bajarildi.
 
-**5. NIMA O'ZGARMADI — to'liq ro'yxat.**
+**6. NIMA O'ZGARMADI — to'liq ro'yxat.**
 
 **§0 ning qolgan bandlari** (H2/A-vs-B, arm C, host-wide pressure,
 `io` stall, sintetik SUT) — **o'zgarmadi**; faqat sustained-pressure
@@ -570,11 +667,12 @@ chegarasi `< 0.15`), **halol power bayonoti**, **davom etish mezonlari
 | `hold_cap_s` | **12 s → 13 s** |
 | fail-slow limbining `thr` i | **`0.20 × RMST(P0)` → `0.20 × τ = 1.6 s`** |
 | `ramp_above_threshold_s` (**muzlatilgan qiymat emas** — §9.4 uni kalibratsiyadan oladi) | taxmin `3.0 s` → **o'lchangan `0.000 s`** |
+| `T_trial` (**muzlatilgan qiymat emas** — §16.10 ning 5-qatori; formula `t_pressure_off + w_stab_s + P` **o'zgarmadi**) | chiqarilgan default **40.1 s → 41.1 s** (4-band) |
 
 §0 (qamrovdan tashqari) va §13 (nima muzlatilmaydi) ga **tegilmadi**.
 §16, §19, §20, §21, §22 ning qarorlari **o'z kuchida**.
 
-**6. TARIXIY BO'LIMLAR QAYTA YOZILMADI.** §17.9, §18.10, §19.4,
+**7. TARIXIY BO'LIMLAR QAYTA YOZILMADI.** §17.9, §18.10, §19.4,
 §21.10 va §22 ning *"NIMA O'ZGARMAYDI"* ro'yxatlari, §15.6 ning jadvali
 va §16 ning ro'yxatlari `hold_cap_s = 12 s` deb yozadi. **Bular
 o'z versiyasidagi holat haqidagi bayonotlar va ular TO'G'RI — shuning
@@ -583,8 +681,14 @@ soxtalashtirish bo'lardi. Buning o'rniga **normativ** joylar yangilandi
 (§4, §9.4, §11) va §15.3, §17.2, §17.6, §18.2, §18.7 ga
 **belgilangan `v1.11` ko'rsatkichi** qo'yildi, demak o'sha bandlarni
 o'qiyotgan kishi eski qiymatga yoki eski kafolatga **ishonib qolmaydi**.
+Xuddi shu qoida bo'yicha §16.10 ning 5-qatori va §17.3 ning (b) hisobi
+(4-band), hamda §15.6(2), §17.8 va §18.9 ning *"§14.4 havolasi ochiq"*
+bayonotlari (9.4-band) ham **belgilangan `v1.11` ko'rsatkichi** oldi;
+v1.5 → v1.6 log yozuvining `~14 s` i va eski log yozuvlarining
+*"ATAYLAB yopilmadi"* bayonotlari **qayta yozilmadi**. Yagona **normativ
+matn tuzatishi** — §14.4 ning havolasi (9.4-band).
 
-**7. NEGA BU AMENDMENT QONUNIY — va u NIMANI KAFOLATLAMAYDI.**
+**8. NEGA BU AMENDMENT QONUNIY — va u NIMANI KAFOLATLAMAYDI.**
 
 1. **Hech qanday P1 trial'i o'tkazilmagan**, demak **birlamchi endpoint
    ko'rilmagan** va `DEVELOPMENT.md` §7 ning *"ma'lumot yig'ilgandan
@@ -602,9 +706,21 @@ o'qiyotgan kishi eski qiymatga yoki eski kafolatga **ishonib qolmaydi**.
    o'zgardi, **nima o'zgarMAdi**, ma'lumot holati, va **v1.10 ning
    `sha256` i bilan git tag'i saqlandi**. Hash hujjatdan ko'chirilmadi —
    `sha256sum` ishga tushirildi va `v0.1.10-preregistration` tag xabari
-   bilan solishtirildi (ikkisi **mos**).
+   bilan solishtirildi (ikkisi **mos**). v1.11 ning o'z `sha256` i bu
+   yerda yozilmaydi — har bir yozuv faqat **oldingi** versiyaning hash'ini
+   saqlaydi; v1.11 niki merge'dan keyin `v0.1.11-preregistration` tag
+   xabarida qayd etiladi;
+5. **bu yozuv tag va push'dan OLDIN joyida tuzatildi** (2026-10-03).
+   Birinchi tahririda (`744ef93`, merge `7e7a837`) uchta kamchilik
+   bor edi: `T_trial` ning siljishi qayd etilmagan (endi 4-band); 9.6
+   band yozilgan paytdayoq **eskirgan**, 9.7 band esa keyinroq kod
+   tuzatilgach eskirgan (ikkalasi endi tarixi bilan qayta yozildi); va
+   §14.4 havolasi ochiq qoldirilgan (endi 9.4-band). Tuzatish paytida
+   `origin/main` hamon `76fa33c` da va `v0.1.11-preregistration` tag'i
+   **yo'q** edi — ya'ni v1.11 hech qachon **e'lon qilinmagan**, va
+   tuzatish yangi versiya (v1.12) talab qilmaydi.
 
-**8. BU AMENDMENT NIMANI YOPMAYDI.**
+**9. BU AMENDMENT NIMANI YOPMAYDI** (va 9.4 da — nimani **yopdi**).
 
 1. **§21.7 ning GATE'i yopilmaydi.** `10` §12.2 gate shartini
    *"o'lchov bo'yicha BAJARILDI"* deb beradi (`overrun_s` n=34, p50
@@ -617,36 +733,103 @@ o'qiyotgan kishi eski qiymatga yoki eski kafolatga **ishonib qolmaydi**.
    masalani hal qilmaydi).
 3. **§17.7 ochiq qoladi** — §8.2 ning (ii) nazorati (*"injeksiya yo'q,
    pressure bor"*) §9.3 ning panjarasida hamon yo'q.
-4. **§14.4 ning havolasi ATAYLAB yopilmaydi, va bu qarz ko'rinadigan
-   qoladi.** §17.8 va §18.9 shunday shart qo'ygan edi: *"§17.5 ning
-   O1–O4 qarori muzlatilgan matnga baribir tegadi … shu amendment bu
-   havolani tuzatish uchun to'g'ri joy."* **v1.11 — o'sha amendment, va
-   shart bajarildi.** Lekin havola tuzatishi **delegatsiya qilingan
-   qarorning qismi emas**, shuning uchun u bu yerda **qilinmaydi**.
-   **Talab to'liq kuchda:** `units_show` unit **TIRIK** paytida olinadi
-   (to'g'ri havola: `docs/architecture/01-muhit-tekshiruvlari.md` §4;
-   `04-driver-va-analiz-shartnomasi.md` §1.1 unga to'g'ri havola qiladi).
-   Bu **beshinchi** amendment bo'ylab ochiq.
+4. **✅ §14.4 ning havolasi SHU AMENDMENT'DA YOPILDI (v1.11,
+   2026-10-03) — ilmiy o'zgarish EMAS.** §14.4 ning `run_meta` qatori
+   *"§7 tirik unit shartini ko'ring"* der edi; §7 — *Pressure o'lchovi*,
+   unda bunday shart yo'q (§15.6(2), v1.4 dan beri ochiq). Havola endi
+   **`docs/architecture/01-muhit-tekshiruvlari.md` §4** ga ko'rsatadi —
+   talab o'sha yerda so'zma-so'z turadi (*"Har unit'ning property'lari u
+   TIRIK paytida dump qilinishi shart"*), va
+   `04-driver-va-analiz-shartnomasi.md` §1.1 ham aynan unga havola qiladi
+   (ikkalasi tekshirildi).
+   **Qaysi shart ostida:** §17.8 — *"17.5 ning O1–O4 qarori muzlatilgan
+   matnga baribir tegadi … shu amendment bu havolani tuzatish uchun
+   to'g'ri joy"*; §18.9 — *"Tuzatish vositasi — §17.5 qarorini amalga
+   oshiradigan amendment."* v1.11 — **aynan o'sha amendment**: u §17.5
+   qarorini amalga oshiradi va muzlatilgan matnni (§0, §4, §9.4, §11)
+   **ochadi**. Demak o'sha ikki bo'lim qo'ygan shart **bajarildi**, va
+   §18.9 ning *"o'z mezonimni jimgina yumshatmayman"* qoidasi buzilmaydi:
+   mezon yumshatilmadi, u **qanoatlantirildi**.
+   **Tarix, ochiq:** bu yozuvning birinchi tahriri havolani *"ATAYLAB
+   yopilmaydi"* deb qoldirgan edi, sabab sifatida *"havola tuzatishi
+   delegatsiya qilingan qarorning qismi emas"* ni keltirib. **Bu sabab
+   qaytarib olinadi:** ichki ko'rsatkichning to'g'riligini tiklash hech
+   bir delegatsiya qilingan qarorga (O1–O4, F1–F4) **tegmaydi**, demak u
+   delegatsiyani talab qilmaydi — yagona shart §17.8/§18.9 niki edi.
+   Havola v1.4 dan v1.10 gacha, **besh** amendment bo'ylab ochiq qoldi.
+   **Talabning o'zi o'zgarmadi:** `units_show` unit **TIRIK** paytida
+   olinadi.
 5. **`window_past_pressure` yo'q qilinmadi** — 1.9-band: `1/24` epizod
    hamon ruxsatdan oshadi, va §17.4(4) ning yacheyka bo'yicha hisobot
    talabi **majburiy** bo'lib qoladi.
-6. **Pilot hali ishga tushirilishi mumkin emas** — `10` §12.5 ning
-   qolgan blokerlari **kod** tomonda (OQ-2: `driver.py` generatorga
-   dozalash parametrlarini bermaydi ⇒ o'lchangan **nol doza**;
-   `PRESSURE_TARGET_RATE["P2"] = 0.70` over-doza beradi, o'lchangan
-   to'g'ri qiymat **0.60**), ustiga 3-bandning `schedule.py` dagi ikki
-   konstantasi. **Bular pre-registration masalasi emas.**
-7. **Ikki kod nuqsoni — ular bu amendment'ning ma'lumot holati
-   bayonotiga TEGADI, lekin bu yerda tuzatilmaydi** (boshqa agentga
-   topshirilgan): `revix/driver.py` `ramp_above_threshold_s` ni hamon
-   **`"calibration_required": true`** bilan beradi, holbuki
-   kalibratsiya **bajarilgan** (3-band), va bir test shu nosaholiq
-   qiymatni **tasdiqlaydi**; shuningdek `tests/unit/test_driver.py`
-   hamon `13.0 s` li hold **rad etilishini** tasdiqlaydi. **Ya'ni
-   harness hozir kalibratsiyani ham, yangi cap'ni ham to'g'ri
-   ifodalamaydi**, va bu holat bu hujjatning 0-bandidagi ma'lumot
-   holati bilan **birga o'qilishi** kerak: o'lchov bor, lekin kod uni
-   hali aks ettirmagan.
+6. **✅ YOPILGAN — va bu band YOZILGAN PAYTDAYOQ ESKIRGAN edi.**
+   Birinchi tahrir `10` §12.5 dan ikki kod blokerini ko'chirgan edi:
+   OQ-2 (`driver.py` generatorga dozalash parametrlarini bermaydi ⇒
+   o'lchangan **nol doza**) va `PRESSURE_TARGET_RATE["P2"] = 0.70`
+   (over-doza; o'lchangan to'g'ri qiymat **0.60**). **Ikkalasi ham bu
+   yozuv tahrir qilinishidan OLDIN tuzatilgan edi** — uchala commit
+   v1.11 tahriri `744ef93` ning **ajdodi**
+   (`git merge-base --is-ancestor`): `821a6a0` (merge,
+   `experiment/pressure-dose` — kalibratsiyaning o'zi), `042631b`
+   (merge, `fix/driver-dose` — `a02cea9`: kalibrlangan dial generatorga
+   beriladi, `P2` nishoni 0.60) va `31ebd4a` (merge, `fix/driver-dose`
+   — `663ff8d`: nol doza bilan start rad etiladi). Ya'ni band
+   `10` §12.5 ning holatini ko'chirgan, `main` niki emas. `main` da
+   hozir: `PRESSURE_TARGET_RATE = {"P0": 0.0, "P1": 0.30, "P2": 0.60}`,
+   `PRESSURE_STEP_MB = 4`, `PRESSURE_BASE_MB = {"P0": 160, "P1": 184,
+   "P2": 184}`, dial `_pressure_argv()` da **oshkora** argv sifatida
+   beriladi, va `setup_run()` ning `_require_nonzero_dose()`
+   pre-flight'i nol doza bilan run'ni **boshlatmaydi**.
+   Band qo'shimcha ravishda 3-bandning `schedule.py` dagi ikki
+   konstantasini ham sanagan edi — u esa tahrir paytida **haqiqatan
+   ochiq** edi va keyin `437c699` bilan (merge `fe0cd1d`,
+   `agent/holdcap`) yopildi: `HOLD_CAP_S = 13.0`,
+   `RAMP_ABOVE_THRESHOLD_S = 0.0`. **Bular pre-registration masalasi
+   emas edi** — va endi kod masalasi ham emas.
+7. **✅ YOPILGAN — bu band yozilgan paytda TO'G'RI edi.** Birinchi
+   tahrir shunday yozgan: `revix/driver.py` `ramp_above_threshold_s` ni
+   hamon **`"calibration_required": true`** bilan beradi, holbuki
+   kalibratsiya bajarilgan (3-band), va bir test shuni tasdiqlaydi;
+   `tests/unit/test_driver.py` esa `13.0 s` li hold **rad etilishini**
+   tasdiqlaydi. Tahrir paytida bu **haqiqat** edi (tuzatuvchi commit
+   `744ef93` ning ajdodi emas). **Yopildi:** `ccaa53b` (merge `2a80443`,
+   `agent/driver-cap`). `main` da hozir `open_parameters` ning
+   `ramp_above_threshold_s` yozuvi `calibration_required: false` va
+   o'lchov, manba, reja va invariant 2 zaxirasini olib yuradigan
+   `calibration` bloki bilan keladi; test `HOLD_CAP_S == 13.0` va
+   `hold_s == hold_cap_s` ning **qonuniyligini** tasdiqlaydi. **Ya'ni
+   harness endi kalibratsiyani ham, yangi cap'ni ham to'g'ri
+   ifodalaydi.** 3-bandning CHEKLOV 2 si (invariant **reja** ustida,
+   o'lchov ustida emas) **o'z kuchida** — u tuzatilgan nuqson emas,
+   e'lon qilingan cheklov.
+8. **PILOTNI HOZIR NIMA TO'XTATADI — `main` va muzlatilgan matn
+   bo'yicha.** Javob *"hech narsa"* **EMAS**: muzlatilgan hujjatning
+   **o'zi** ikki preshart qo'yadi va ular bajarilmagan.
+   1. **§21.7 ning ⛔ GATE'i rasman ochiq** (9.1-band; sarlavhaning
+      Gate qatori): *"Generator §9.4 ning ikki invariantini
+      majburlamaguncha hech qanday pilot trial o'tkazilmaydi."* `10`
+      §12.2 shart **o'lchov bo'yicha bajarilgan**, deydi, lekin rasman
+      yopish — frozen matn egasining qarori, va bu amendment uni
+      **qilmaydi**.
+   2. **§16.10 QAROR 1 va 4:** muzlatilmagan parametrlarning hammasi
+      *"birinchi pilot trial'idan OLDIN"* kalibratsiya bilan belgilanadi
+      va `run_meta.open_parameters` ga **kalibratsiya run'ining `run_id`
+      si bilan** yoziladi; `T_trial` ning aniq qiymati *"ochiq qaror
+      bilan muzlatiladi"*. `main` da: `WatchdogSec` **o'lchanmagan**
+      (`10` §10.2, OQ-8); `driver.py` ning `open_parameters` ida
+      `watchdog_sec`, `timeout_start_sec` va `memory_high` hamon
+      `calibration_required: true` (`TimeoutStartSec = 10 s` uchun
+      o'lchangan asos `10` §10.1 da bor, lekin belgi va qaror yo'q);
+      `open_parameters` da kalibratsiya run'ining `run_id` siga havola
+      **yo'q**; `T_trial = 41.1 s` — **default**, ochiq qaror bilan
+      muzlatilmagan (4.1-band).
+   **To'xtatmaydigan narsalar:** 3-bandning CHEKLOV 2 si (e'lon qilingan
+   cheklov); validator 40.1 s ni rad etadigan ikki `T_trial` test
+   fixture'i (kod/test ishi, pre-registration emas); `P2` ning ushlab
+   turilmasligi (`10` §12.5(4) — §9.4 ning uzluksiz analizi qoplaydi);
+   9.2, 9.3, 9.5 bandlar — ochiq qoladi, lekin matn ularni trial
+   preshartiga **aylantirmaydi** (§17.7 o'zi *"P1 ni bloklamaydi"*
+   deydi).
 
 ### v1.9 → v1.10 (2026-10-03)
 
@@ -2284,7 +2467,7 @@ trial_id  block_index  seq  mono_us  real_us  emitter
 
 | record | maydon | nega majburiy |
 |---|---|---|
-| `run_meta` | `preregistration_sha256`, `git_commit`, `git_dirty`, `rng_seed`, `boot_id`, har unit'ning **tirik** `systemctl show` dump'i | reproducibility; §7 tirik unit shartini ko'ring |
+| `run_meta` | `preregistration_sha256`, `git_commit`, `git_dirty`, `rng_seed`, `boot_id`, har unit'ning **tirik** `systemctl show` dump'i | reproducibility; `docs/architecture/01-muhit-tekshiruvlari.md` §4 ning tirik unit shartini ko'ring (**v1.11**: havola tuzatildi — avval xato ravishda §7 ga ko'rsatardi; Amendment log, v1.10 → v1.11, 9.4-band) |
 | `trial_end` | **`disposition`** (§12 yopiq enum, aynan bitta) | jimgina eksklyuziyani oldini oladi |
 | `probe_sample` | `mono_us_send`, `outcome`, `progress_counter`, **`invocation_id_seen`** | invocation echo yangi invocation race'ini yopadi |
 | `unit_state` | systemd'ning **o'z** monotonic timestamp'lari **va** harness'ning qabul `mono_us`i **alohida** | D-Bus delivery latency ko'rinadi, o'lchov ichida yashirinmaydi |
@@ -2579,6 +2762,8 @@ tegmaydi.
    ichida va v1.2 aynan shunday noto'g'ri havolani tuzatish uchun yaratilgan —
    demak u o'z amendment'ini talab qiladi. **Talabning o'zi to'liq kuchda:
    `units_show` unit tirik paytida olinadi.**
+   > **✅ v1.11 — havola tuzatildi** (§14.4 endi `01-muhit-tekshiruvlari.md`
+   > §4 ga ko'rsatadi). Amendment log, v1.10 → v1.11, 9.4-band.
 3. **systemd 257 ≥ 254**, demak `RestartSteps=` mavjud. Lekin
    `01-muhit-tekshiruvlari.md` §4 dagi transient-unit qabul qilinishi
    **eski mashinada** o'lchangan; bu mashinada **qayta tasdiqlanishi kerak**.
@@ -2894,7 +3079,7 @@ masalan `Result=timeout`"*) uchun to'g'ridan-to'g'ri xavf.
 | 2 | `WatchdogSec` | 5 s | §9.2 mexanizm **(iv)** *"watchdog miss"* **shu qiymat bilan belgilanadi**. `00-pilot-topologiya.md` §1 da `WatchdogSec=` — **qiymatsiz dial** |
 | 3 | slice `MemoryHigh` dial | 192 M | kalibratsiya **`MemoryMax=1G`** ostida o'lchangan (`02-guard-kalibratsiyasi.md` sarlavhasi), lekin `00-pilot-topologiya.md` §1 va §2 **`MemoryMax=2G`** ni muzlatadi — **qiymat ko'chirilmaydi** |
 | 4 | `P2` nishon stall tezligi | 0.70 | §9.3 ning `~60–80%` bandi **ichida**, demak buzilish emas; lekin kalibratsiya faqat 0.60 ni nishonga olgan va **0.558** ga erishgan — band'ning pastki chekkasidan **past** |
-| 5 | **`T_trial`** (horizon) | shartnoma formulasi: `t_pressure_off + w_stab_s + P` = **40.1 s** | §6.2, §6.4 unga tayanadi, lekin **hech qayerda raqamlanmagan**. 16.2(B) dan keyin u binar endpoint'ning **maxrajini to'g'ridan-to'g'ri belgilaydi**: qisqa horizon qaytmaslikni yaratadi, uzun horizon qaytishni |
+| 5 | **`T_trial`** (horizon) | shartnoma formulasi: `t_pressure_off + w_stab_s + P` = **40.1 s** (**⚠️ v1.11**: `hold_cap_s` 12 → 13 s bilan formula o'zgarmagan holda **41.1 s**; pastdagi 4-QAROR bandining `≥ 26 s` chegarasi pre-flight'ni tashlab ketgan — to'g'risi **`≥ 31 s`** (`t_verify_end_earliest`), xulosa o'zgarmaydi. Amendment log, v1.10 → v1.11, **4-band**) | §6.2, §6.4 unga tayanadi, lekin **hech qayerda raqamlanmagan**. 16.2(B) dan keyin u binar endpoint'ning **maxrajini to'g'ridan-to'g'ri belgilaydi**: qisqa horizon qaytmaslikni yaratadi, uzun horizon qaytishni |
 | 6 | `τ` va horizon munosabati | `τ = 8 s` muzlatilgan (§10.2) | `T_trial` muzlatilmagani uchun `τ ≤ T_trial` invarianti **tekshirilmaydi** |
 
 **`T_trial` haqida aniq:** 40.1 s — `driver-contract/v1.2` ning formulasi,
@@ -3152,6 +3337,16 @@ taqsimotiga (o'lchanmagan) bog'liq.
 > qanday start'da. §16.8 ning *"yana H1 foydasiga"* bahosi **xato edi**:
 > u faqat (b) ni ko'rgan.
 
+> **⚠️ v1.11 — yuqoridagi (b) hisobi IKKI VAQT BOSHINI aralashtirgan.**
+> `t_h = 15 s` / injeksiya `18 s` pre-flight'siz boshdan, `T_trial =
+> 40.1 s` esa `trial_begin` dan (pre-flight 5 s **bilan**) o'lchanadi.
+> Bir xil boshda (`trial_begin`; injeksiya **23 s**): (b) ⇔ `t_up >
+> t_pressure_off + P` ⇒ `t_start > hold_cap_s − 3.1`, ya'ni 12 s da
+> **`t_start > ~8.9 s`** (`~14 s` emas), v1.11 ning 13 s cap'i va
+> `T_trial = 41.1 s` da **`t_start > ~9.9 s`**. **Xulosa o'zgarmaydi:**
+> (a) `t_start > 1.8 s` da (v1.11), (b) `~9.9 s` da — (a) ustun.
+> Amendment log, v1.10 → v1.11, **4-band** (4.3, 4.4).
+
 **Nega bu (a) ni "konservativ, demak xavfsiz" qilmaydi:** §11 ning
 falsifikatsiya qoidasi — *"trend p > 0.05 **VA** Newcombe CI yuqori
 chegarasi < 0.15"* — susaytirilgan trend ustida qo'llanadi, demak (a)
@@ -3383,6 +3578,11 @@ qiladi.
 > chunki u mustaqil holda muzlatilgan hujjatni ochishga arzimaydi.
 > Talabning o'zi to'liq kuchda: `units_show` unit **tirik** paytida
 > olinadi.
+
+> **✅ v1.11 — YOPILDI.** Tavsiyaning sharti bajarildi: v1.11 §17.5
+> qarorini amalga oshiradi va muzlatilgan matnni ochadi; §14.4 endi
+> `01-muhit-tekshiruvlari.md` §4 ga ko'rsatadi. Amendment log,
+> v1.10 → v1.11, **9.4-band**.
 
 ### 17.9 NIMA O'ZGARMAYDI
 
@@ -3873,6 +4073,12 @@ havola `04-driver-va-analiz-shartnomasi.md` §1.1 da mavjud, demak
 amaliy xavf past va hujjatlashtirilgan. **Talab to'liq kuchda:
 `units_show` unit TIRIK paytida olinadi.** Tuzatish vositasi — §17.5
 qarorini amalga oshiradigan amendment.
+
+> **✅ v1.11 — YOPILDI, aynan shu shart ostida.** v1.11 — §17.5 qarorini
+> amalga oshiradigan amendment, va u muzlatilgan matnni ochadi; mezon
+> yumshatilmadi, **qanoatlantirildi**. §14.4 endi
+> `01-muhit-tekshiruvlari.md` §4 ga ko'rsatadi. Amendment log,
+> v1.10 → v1.11, **9.4-band**.
 
 ### 18.10 NIMA O'ZGARMAYDI
 
