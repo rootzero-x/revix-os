@@ -144,6 +144,10 @@ nishonlari: pre-registration ularni RAQAM bilan muzlatmagan. Hammasi
 `run_meta.open_parameters` da `calibration_required` belgisi bilan yoziladi.
 `step_mb` / `base_mb` ham o'sha yerda, lekin ular 10-pressure-dozalash.md
 §2.6 da O'LCHANGAN, demak `calibration_required: false`.
+`ramp_above_threshold_s` ham ENDI o'lchangan (§4.1, 29/29 epizodda 0.000 s),
+demak uning belgisi ham `false` -- va u YANGI `calibration` bloki bilan
+keladi, chunki "o'lchandi" da'vosi o'lchov, uning manbasi va rejaning
+zaxirasini KO'RSATISHI kerak, boolean'ni aylantirish YETARLI EMAS.
 """
 
 from __future__ import annotations
@@ -296,6 +300,19 @@ PRESSURE_BASE_MB: dict[str, int] = {"P0": 160, "P1": 184, "P2": 184}
 # faqat ko'chiriladi; `base_mb + overhead > MemoryHigh_MiB` breach shartini
 # AUDIT QILINADIGAN qiladi (regressiya qulfi shu munosabatni tekshiradi).
 PRESSURE_OVERHEAD_MB = 25.3
+# `ramp_above_threshold_s` ning O'LCHANGAN qiymati, 10-pressure-dozalash.md
+# §4.1 dan KO'CHIRILADI (`PRESSURE_OVERHEAD_MB` bilan bir xil uslub: bu yerda
+# QAYTA ta'riflanmaydi, faqat ko'chiriladi). Kalibrlangan dial'da
+# (`base_mb=184`, `step_mb=4`, `MemoryHigh=192M`, `MemoryMax=2G`) 29
+# epizoddan 29 tasida AYNAN 0.000 s: ramp tezligi min = p50 = max = 0.0000,
+# ya'ni §8.4 ning quiescence chegarasi 0.05 dan yuqori birorta namuna YO'Q.
+# NEGA bu alohida konstanta va NEGA `schedule.RAMP_ABOVE_THRESHOLD_S` ning
+# o'zi yetarli emas: o'sha konstanta REJA, bu esa O'LCHOV. Ikkisini alohida
+# saqlab, ularning AYIRMASI (`run_meta` da `plan_slack_s`) hisoblanadi --
+# reja o'lchovdan qancha yuqori turgani JIMGINA emas, OSHKORA bo'ladi.
+# Bu qiymat ZAXIRA YARATISH uchun kattalashtirilmaydi: avvalgi `3.0` aynan
+# shunday (TAXMIN) paydo bo'lgan va §21.7 uni rad etgan.
+RAMP_ABOVE_THRESHOLD_MEASURED_S = 0.000
 # Control tik'i. §2.6 ning kalibrlangan qiymati 250 ms va u `pressure.py`
 # ning hozirgi modul default'i bilan TASODIFAN bir xil -- shuning uchun u
 # ham OSHKORA beriladi (dizayn qoidasi 17). NEGA: `step_mb` ning merosi
@@ -1962,7 +1979,42 @@ class Driver:
     def run_meta_payload(self, setup: dict[str, Any],
                          guard: dict[str, Any] | None,
                          psi: dict[str, Any] | None) -> dict[str, Any]:
-        """`run_meta` -- shartnoma §1.1 ning MAJBURIY maydonlari."""
+        """`run_meta` -- shartnoma §1.1 ning MAJBURIY maydonlari.
+
+        CHEKLOV -- `ramp_above_threshold_s` faqat REJA sifatida tekshiriladi,
+        O'LCHOV sifatida EMAS, va reja endi NOL:
+
+          * `validate.check_planned_timeline` (`revix/validate.py:1602`)
+            har `trial_begin.planned_timeline` dan `hold_s +
+            ramp_above_threshold_s <= GUARD_SUSTAIN_WINDOW_S` ni
+            tekshiradi. Bu REJALASHTIRILGAN qiymat, ya'ni
+            `schedule.RAMP_ABOVE_THRESHOLD_S` ning ko'chirmasi.
+          * Driver har trial uchun HAQIQIY ramp'ning quiescence
+            chegarasidan yuqori qismini (10-pressure-dozalash.md §4 ning
+            o'lchov usuli: `pressure_start` .. oxirgi `pressure_ramp`
+            oynasida `psi.csv` ning 2 s oynali `full` tezligi > 0.05
+            bo'lgan namunalari) HECH QAYERGA yozmaydi.
+          * Demak reja 0.000 s bo'lganda `plan_slack_s = 0.0`: biror
+            trial'da ramp chegaradan yuqoriga chiqsa, validator buni
+            KO'RMAYDI -- taqqoslash uchun o'lchangan qiymat yo'q. Xavf
+            gipotetik emas: §3.6 da `base_mb=196` ramp'ni 12.217 s cho'zib
+            `ramp_above_threshold_s = 9.500 s` bergan, ya'ni §9.4
+            invariant 2 ni buzgan konfiguratsiya O'LCHANGAN.
+
+        TO'G'RI tuzatish -- driver per-trial O'LCHANGAN ramp qiymatini
+        record'ga yozsin (masalan `trial_end` yoki `pressure_summary` da),
+        va `validate` uni REJAGA qarshi solishtirsin. Bu ALOHIDA ish
+        bandi: yangi o'lchov yo'li, yangi payload maydoni va validator
+        tekshiruvi kerak, demak bu funksiyaning qamrovidan TASHQARIDA va
+        bu yerda BAJARILMADI (hisobotda qayd etilgan).
+
+        NIMA QILINMADI va NEGA: `RAMP_ABOVE_THRESHOLD_S` ni zaxira uchun
+        0.000 dan YUQORI qo'yish bu bo'shliqni YOPMAYDI -- u faqat
+        validatorning chegarasini o'lchanmagan taxmin bilan surardi.
+        Avvalgi `3.0` AYNAN shunday paydo bo'lgan (o'z izohida `TAXMIN`)
+        va `PREREGISTRATION.md` §21.7 uni rad etgan. Bir xil nuqsonni
+        takrorlash tuzatish emas.
+        """
         facts = self.pf.environment_facts()
         prereg = preregistration_info(self.cfg.repo_root)
         est = sch.estimate_campaign(
@@ -2137,8 +2189,50 @@ class Driver:
                 "ramp_above_threshold_s": {
                     "value": self.timeline.ramp_above_threshold_s,
                     "source": "schedule.RAMP_ABOVE_THRESHOLD_S -- §9.4 bu qiymatni "
-                              "dosing kalibratsiyasidan olishni talab qiladi",
-                    "calibration_required": True,
+                              "dosing kalibratsiyasidan olishni talab qiladi va "
+                              "u ENDI OLINDI: docs/architecture/"
+                              "10-pressure-dozalash.md §4.1 kalibrlangan dial'da "
+                              "(base_mb=184, step_mb=4, MemoryHigh=192M, "
+                              "MemoryMax=2G) 29 epizoddan 29 tasida AYNAN "
+                              "0.000 s O'LCHADI (ramp tezligi "
+                              "min=p50=max=0.0000, §8.4 ning quiescence "
+                              "chegarasi 0.05 dan yuqori namuna YO'Q), §4.2 esa "
+                              "§9.4 invariant 2 ni son bilan yozadi; bu "
+                              "PREREGISTRATION.md §21.7 ning \"nol dozadagi "
+                              "qiymat kalibratsiya EMAS\" e'tirozini YOPADI, "
+                              "chunki o'lchov HAQIQIY doza ostida "
+                              "(erishilgan p50 0.223..0.921) bajarilgan; "
+                              "avvalgi 3.0 esa o'z izohida TAXMIN deb "
+                              "belgilangan edi",
+                    # O'LCHANDI, demak belgi YECHILADI. Boolean'ning O'ZI
+                    # yetarli emas -- `base_mb.dose_arithmetic` bilan bir xil
+                    # uslubda, da'vo SHU RUN ning timeline'idan HISOBLANADI.
+                    "calibration_required": False,
+                    "calibration": {
+                        "measured_s": RAMP_ABOVE_THRESHOLD_MEASURED_S,
+                        "measured_in": "docs/architecture/"
+                                       "10-pressure-dozalash.md §4.1",
+                        "measured_episodes": 29,
+                        "measured_episodes_at_value": 29,
+                        "measured_dial": {
+                            "base_mb": PRESSURE_BASE_MB["P2"],
+                            "step_mb": PRESSURE_STEP_MB,
+                            "memory_high": self.cfg.memory_high,
+                        },
+                        "planned_s": self.timeline.ramp_above_threshold_s,
+                        # REJA MINUS O'LCHOV. 0.0 = rejada zaxira YO'Q, ya'ni
+                        # o'lchangan ramp 0.000 s dan OSHSA reja buziladi --
+                        # pastdagi CHEKLOV (`run_meta_payload`) aynan shu
+                        # haqida. Zaxira YARATISH uchun konstanta
+                        # kattalashtirilmaydi.
+                        "plan_slack_s": (self.timeline.ramp_above_threshold_s
+                                         - RAMP_ABOVE_THRESHOLD_MEASURED_S),
+                        # §9.4 invariant 2 ning zaxirasi -- SHU timeline'dan.
+                        "guard_sustain_headroom_s": (
+                            self.timeline.guard_sustain_window_s
+                            - (self.timeline.hold_s
+                               + self.timeline.ramp_above_threshold_s)),
+                    },
                 },
             },
         }
