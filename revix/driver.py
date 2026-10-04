@@ -1607,6 +1607,14 @@ class Driver:
             block_index=trial.block_index if trial is not None else None,
             mono=mono if mono is not None else self.pf.mono_us(),
         )
+        # `real_us` ham PLATFORMADAN (yuqoridagi mono bilan bir xil sabab):
+        # envelope uni `schema.real_us()` dan oladi. Ishlab chiqarishda
+        # `Platform.real_us()` aynan o'sha funksiya (bir necha us keyin
+        # o'qiladi), lekin fake soat ostida envelope real soati fake mono
+        # bilan aralashib `validate.check_host_clock_discontinuity` ni
+        # yolg'on yiqitardi. Bu maydon envelope'da QOLADI, faqat manbasi
+        # yagona bo'ladi.
+        rec["real_us"] = self.pf.real_us()
         self.writer.write(rec)
         return rec
 
@@ -1778,10 +1786,27 @@ class Driver:
         ]
 
     def _pressure_properties(self, max_seconds: float) -> dict[str, Any]:
+        """Generator unit'i (`revixlab.slice`).
+
+        `WorkingDirectory` -- `_mon_unit_properties` va `_sut_properties`
+        bilan BIR XIL (`self.cfg.repo_root`). NEGA SHART: ExecStart
+        `python3 -m revix.pressure`, va `-m` paketni `sys.path[0]` = joriy
+        katalogdan qidiradi. Repo `pip install` qilinmaydi (INSTALLATION.md
+        §3) va user manager muhitida `PYTHON*` o'zgaruvchisi YO'Q, demak
+        `WorkingDirectory` bo'lmasa systemd user unit'i `$HOME` da boshlanadi
+        va modul TOPILMAYDI. Bu guest'da O'LCHANGAN (agent/pilot-ready,
+        `systemd-run --user --slice=revixlab.slice ... python3 -m
+        revix.pressure --help`): `WorkingDirectory` siz -> `No module named
+        'revix'`, `status=1/FAILURE`, cwd=`/home/snowden`; bilan -> rc=0.
+        Driver `start_transient` job'i `done` bo'ladi (jarayon ishga tushadi
+        va o'ladi), ya'ni bu nuqson trial ichida JIMGINA "pressure yo'q"
+        bo'lardi. `docs/architecture/13-...` §8(3), `14-...` §1.
+        """
         return {
             "Description": "REVIX pressure generator",
             "Slice": LAB_SLICE,
             "ExecStart": self._pressure_argv("P0", max_seconds),  # o'rniga qo'yiladi
+            "WorkingDirectory": self.cfg.repo_root,
             "MemoryMax": PRESS_MEMORY_MAX,
             "MemorySwapMax": 0,
             # Generator trial'dan UZOQ YASHAMAYDI (00-pilot-topologiya.md §2).
@@ -3292,6 +3317,22 @@ class Driver:
 
         Guard OXIRGI to'xtatiladi (majburiyat 1): undan oldin to'xtatilsa,
         yig'ishtirish davomidagi qoldiq pressure kuzatuvsiz qolardi.
+
+        UCH BOSQICH, va NEGA (smoke-01 da O'LCHANGAN nuqson, 14 §3.1):
+        avval bu yerda `self.pf.teardown()` DEFAULT'lari bilan guard'dan
+        OLDIN chaqirilardi. `units.teardown` ning default'i `cgroup.kill`
+        ni IKKALA slice'ga -- `revixmon.slice` ga ham -- qo'llaydi, guard
+        esa aynan o'sha slice'da. Natija (journal): `revix-guard.service:
+        Main process exited, code=killed, status=9/KILL`, `guard_stop`
+        yozilmadi va HAR run `validate` da `guard_stop_missing` ERROR
+        bilan rad etildi; "guard OXIRGI" esa amalda "guard lab bilan BIR
+        VAQTDA SIGKILL" edi. Endi:
+          1. lab slice va guard'dan boshqa unit'lar (`kill` faqat
+             `revixlab.slice` ga), guard TIRIK;
+          2. guard SIGTERM bilan (`guard_stop` yoziladi) -- OXIRGI;
+          3. qolgan hamma narsa default'lar bilan (mon slice, `revix-*`
+             qoldiqlari) -- guard to'xtamagan bo'lsa, u shu yerda
+             o'ldiriladi (fail-safe).
         """
         for unit in (PRESS_UNIT, SUT_UNIT, BYSTANDER_UNIT, PROBER_UNIT,
                      PSI_UNIT):
@@ -3300,14 +3341,22 @@ class Driver:
             except Exception as exc:  # noqa: BLE001
                 self._harness_error(f"teardown:{unit}", exc)
         try:
-            self.pf.teardown()
+            self.pf.teardown(
+                units=[PRESS_UNIT, SUT_UNIT, BYSTANDER_UNIT, PROBER_UNIT,
+                       PSI_UNIT],
+                unit_patterns=(), slices=(LAB_SLICE,), kill=True,
+                reset_failed=True)
         except Exception as exc:  # noqa: BLE001
-            self._harness_error("teardown:slices", exc)
+            self._harness_error("teardown:lab", exc)
         if self._guard_started:
             try:
                 self.pf.stop(GUARD_UNIT)        # OXIRGI
             except Exception as exc:  # noqa: BLE001
                 self._harness_error("teardown:guard", exc)
+        try:
+            self.pf.teardown()
+        except Exception as exc:  # noqa: BLE001
+            self._harness_error("teardown:slices", exc)
         try:
             self.pf.clear_runtime_drop_ins()
         except Exception as exc:  # noqa: BLE001

@@ -1,0 +1,23 @@
+{
+  "dispositions": {
+    "censored": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 3.2563460000000006,
+    "mean": 3.2563460000000006,
+    "min": 3.2563460000000006,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-04-noaction-P1",
+  "run_id": "5a00ab36035d45fbb32c3bd2c99d61c7",
+  "trials": [
+    {
+      "disposition": "censored",
+      "overhead_s": 3.2563460000000006,
+      "rule": "horizon_ended_down",
+      "trial_id": "b000t004"
+    }
+  ]
+}

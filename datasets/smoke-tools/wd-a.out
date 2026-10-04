@@ -1,0 +1,7 @@
+Running as unit: revix-wdcheck-a.service; invocation ID: 42f47037e7d54f5aa76b644bb729f58a
+/usr/bin/python3: Error while finding module specification for 'revix.pressure' (ModuleNotFoundError: No module named 'revix')
+Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+Service runtime: 66ms
+CPU time consumed: 22ms
+Memory peak: 3.4M (swap: 0B)

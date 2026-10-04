@@ -1,0 +1,33 @@
+Running as unit: revix-wdcheck-b.service; invocation ID: 349e979aaddd4fd19b41a92035ada148
+usage: python3 -m revix.pressure [-h] [--mode {ramp,pi}] [--cgroup CGROUP]
+                                 [--target-rate TARGET_RATE]
+                                 [--chunk-mb CHUNK_MB] [--step-mb STEP_MB]
+                                 [--interval-ms INTERVAL_MS] [--cap-mb CAP_MB]
+                                 [--base-mb BASE_MB] --max-seconds MAX_SECONDS
+                                 [--log LOG] [--run-id RUN_ID]
+                                 [--session-id SESSION_ID]
+
+REVIX memory pressure generatori
+
+options:
+  -h, --help            show this help message and exit
+  --mode {ramp,pi}
+  --cgroup CGROUP       PSI o'qiladigan cgroup (default: o'zining cgroup'i)
+  --target-rate TARGET_RATE
+                        pi rejimi uchun
+  --chunk-mb CHUNK_MB
+  --step-mb STEP_MB
+  --interval-ms INTERVAL_MS
+  --cap-mb CAP_MB       ajratish shifti
+  --base-mb BASE_MB     pi rejimi uchun rezident baza (memory.high dan yuqori
+                        bo'lishi kerak)
+  --max-seconds MAX_SECONDS
+                        QATTIQ chegara; systemd RuntimeMaxSec= ga qo'shimcha
+  --log LOG
+  --run-id RUN_ID
+  --session-id SESSION_ID
+Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+Service runtime: 82ms
+CPU time consumed: 55ms
+Memory peak: 8.2M (swap: 0B)
