@@ -94,7 +94,7 @@ LABEL revix
 
 # NEGA ikkinchi band: panel (revix-dashboard.service) default'da faqat LOOPBACK'da tinglaydi,
 # image esa headless -- ya'ni host brauzeridan ochib bo'lmaydi. Remote rejim kernel cmdline
-# `revix.dashboard=remote` bilan yoqiladi (11-iso-qurilish-jurnali.md section 10). Bu band shu
+# revix.dashboard=remote bilan yoqiladi (11-iso-qurilish-jurnali.md section 10). Bu band shu
 # parametrni Tab bilan qo'lda yozish zaruratini olib tashlaydi. DEFAULT bo'lmaydi: u
 # autentifikatsiyasiz va TLS'siz, image esa ishonchsiz tarmoq uchun YAROQSIZ -- shuning uchun
 # foydalanuvchi uni onglik bilan tanlaydi.
@@ -106,6 +106,16 @@ LABEL revix-dash
   LINUX /live/vmlinuz
   INITRD /live/initrd.img
   APPEND ${KCMDLINE} revix.dashboard=remote
+
+# NEGA uchinchi band: foydalanuvchi dashboard'ni VirtualBox oynasining O'ZIDA ko'rishni so'radi.
+# revix.gui=1 -> packaging/systemd/revix-gui.service (cage + Firefox kiosk, loopback).
+# Dashboard loopback'da qoladi, NO AUTH kerak EMAS. Bu band TEKSHIRUV uchun, O'LCHOV uchun
+# emas (Firefox MemAvailable'dan ~0.4 GiB oladi; 4096 MB da doctor memory_headroom FAIL): yorliq buni aytadi va ~48 belgidan ichkarida turadi.
+LABEL revix-gui
+  MENU LABEL REVIX live - GUI window (inspection only)
+  LINUX /live/vmlinuz
+  INITRD /live/initrd.img
+  APPEND ${KCMDLINE} revix.gui=1
 EOF
 
 # --- UEFI: grub -------------------------------------------------------------
@@ -124,6 +134,11 @@ menuentry "REVIX research appliance (live)" {
 
 menuentry "REVIX live - dashboard on network [NO AUTH]" {
     linux /live/vmlinuz ${KCMDLINE} revix.dashboard=remote
+    initrd /live/initrd.img
+}
+
+menuentry "REVIX live - GUI window (inspection only)" {
+    linux /live/vmlinuz ${KCMDLINE} revix.gui=1
     initrd /live/initrd.img
 }
 EOF

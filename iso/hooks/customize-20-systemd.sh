@@ -148,6 +148,39 @@ if [ -e "$ROOTFS/etc/systemd/user/revix-dashboard.service" ]; then
   exit 1
 fi
 
+# --- (4c) grafik sessiya (revix.gui=1) -- uchinchi boot bandi ----------------
+#
+# NEGA: foydalanuvchi dashboard'ni VirtualBox oynasining ichida ko'rishni
+# so'radi. Asoslash va barcha qarorlar unit faylining o'z izohida
+# (`packaging/systemd/revix-gui.service`). Bu YERDA muhimi: ikkita mavjud band
+# (default va `revix.dashboard=remote`) O'ZGARMASLIGI shart.
+#   * unit YOQILADI (`enable`), lekin `ConditionKernelCommandLine=revix.gui=1`
+#     uni faqat uchinchi bandda ishga tushiradi; boshqa bandlarda `skipped`.
+#   * `seatd` paketi postinst'da o'zini `multi-user.target` ga YOQIB qo'yadi --
+#     bu default bandlarda yangi ishlayotgan servis bo'lardi. Shuning uchun
+#     uni `disable` qilamiz va u FAQAT `revix-gui.service` ning `Wants=` i
+#     orqali ishga tushadi. Quyida tekshiriladi (fail-closed).
+install -D -m 0644 "${REVIX_PACKAGING_DIR}/systemd/revix-gui.service" \
+  "$ROOTFS/etc/systemd/system/revix-gui.service"
+chroot "$ROOTFS" /usr/bin/systemctl enable revix-gui.service
+chroot "$ROOTFS" /usr/bin/systemctl disable seatd.service
+# `Wants=` Condition'dan OLDIN bajariladi: faqat `disable` YETARLI EMAS edi -- default bandda seatd
+# baribir ishga tushdi (o'lchandi). Drop-in uni ham kernel buyruq satriga bog'laydi.
+install -D -m 0644 "${REVIX_PACKAGING_DIR}/systemd/seatd.service.d/10-revix-gui.conf" \
+  "$ROOTFS/etc/systemd/system/seatd.service.d/10-revix-gui.conf"
+# `Conflicts=getty@tty1.service` ham Condition'dan OLDIN ishlaydi (default bandda tty1 login yo'qoldi --
+# o'lchandi); shuning uchun getty@tty1'ga teskari Condition drop-in'i qo'yiladi.
+install -D -m 0644 "${REVIX_PACKAGING_DIR}/systemd/getty@tty1.service.d/10-revix-gui.conf" \
+  "$ROOTFS/etc/systemd/system/getty@tty1.service.d/10-revix-gui.conf"
+if [ -e "$ROOTFS/etc/systemd/system/multi-user.target.wants/seatd.service" ]; then
+  echo "[hook-20] XATO: seatd.service multi-user.target'ga yoqilgan -- default bandlar o'zgarardi" >&2
+  exit 1
+fi
+if [ -e "$ROOTFS/etc/systemd/user/revix-gui.service" ]; then
+  echo "[hook-20] XATO: revix-gui.service user manager papkasida (revix-* glob'iga tushadi)" >&2
+  exit 1
+fi
+
 # --- (5) systemd-oomd ATAYLAB YO'Q ------------------------------------------
 #
 # 09 §4.4 ni to'liq o'qing. Qisqasi: (a) image'da desktop sessiyasi yo'q --
