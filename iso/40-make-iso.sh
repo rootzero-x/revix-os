@@ -99,7 +99,10 @@ LABEL revix
 # autentifikatsiyasiz va TLS'siz, image esa ishonchsiz tarmoq uchun YAROQSIZ -- shuning uchun
 # foydalanuvchi uni onglik bilan tanlaydi.
 LABEL revix-dash
-  MENU LABEL REVIX research appliance (live) - dashboard reachable from host [NO AUTH]
+  # NEGA qisqa yorliq: ISOLINUX menyusi 80 ustunli serial konsolda ~54 belgida kesadi (11-iso-qurilish-
+  # jurnali 10.7). Uzun yorliqda [NO AUTH] ogohlantirishi AYNAN shu bandda ko'rinmay qolardi.
+  # Ogohlantirish yorliqning boshiga yaqin va 48 belgidan ichkarida turishi SHART.
+  MENU LABEL REVIX live - dashboard on network [NO AUTH]
   LINUX /live/vmlinuz
   INITRD /live/initrd.img
   APPEND ${KCMDLINE} revix.dashboard=remote
@@ -119,7 +122,7 @@ menuentry "REVIX research appliance (live)" {
     initrd /live/initrd.img
 }
 
-menuentry "REVIX research appliance (live) - dashboard reachable from host [NO AUTH]" {
+menuentry "REVIX live - dashboard on network [NO AUTH]" {
     linux /live/vmlinuz ${KCMDLINE} revix.dashboard=remote
     initrd /live/initrd.img
 }
