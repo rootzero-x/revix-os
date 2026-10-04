@@ -1,0 +1,23 @@
+{
+  "dispositions": {
+    "complete": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 3.2562399999999982,
+    "mean": 3.2562399999999982,
+    "min": 3.2562399999999982,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-08-A-P2",
+  "run_id": "a44e50ba40f24bbe985d977420897bc4",
+  "trials": [
+    {
+      "disposition": "complete",
+      "overhead_s": 3.2562399999999982,
+      "rule": "measured",
+      "trial_id": "b000t005"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "dispositions": {
+    "harness_error": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-13-noaction-P2",
+  "run_id": "9ed7cbe832fd4c43beb48426335d0e89",
+  "trials": [
+    {
+      "disposition": "harness_error",
+      "overhead_s": 0.0,
+      "rule": "harness_error",
+      "trial_id": "b000t004"
+    }
+  ]
+}

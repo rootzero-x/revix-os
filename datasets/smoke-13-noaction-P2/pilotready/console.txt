@@ -1,0 +1,48 @@
+== pre
+{"phase": "pre", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 11912472817, "real_us": 1791107782682964, "real_minus_mono_us": 1791095870210147, "oom_kill": 0, "loadavg": "0.30 0.34 0.34 1/225 6569", "uptime_s": 11912.47}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+== run smoke-13-noaction-P2 arm=no_action level=P2 seed=20261016
+driver rc=0 wall_s=23.829
+{
+  "dispositions": {
+    "harness_error": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-13-noaction-P2",
+  "run_id": "9ed7cbe832fd4c43beb48426335d0e89",
+  "trials": [
+    {
+      "disposition": "harness_error",
+      "overhead_s": 0.0,
+      "rule": "harness_error",
+      "trial_id": "b000t004"
+    }
+  ]
+}
+
+== post
+{"phase": "post", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 11936521358, "real_us": 1791107806731506, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.41 0.36 0.34 1/227 6632", "uptime_s": 11936.52}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+validate rc=0
+WARNING run_filtered: run --only ['no_action', 'P2'] bilan filtrlangan: 1/6 trial -- to'liq blok dizayni EMAS (§8.4)  [/home/snowden/revix-runs/smoke-13-noaction-P2/events.jsonl:2]
+WARNING disposition_cross_check: driver disposition='harness_error', reducer hosilasi='aborted_guard' (manba: guard_event) -- ikkisi farq qiladi (driver avtoritet, §12)  [trial=b000t004]
+xato: 0  ogohlantirish: 2
+NATIJA: O'TDI -- analiz qilinishi mumkin
+analysis rc=0
+total 384
+drwxr-xr-x  2 snowden snowden   4096 Oct  4 14:56 .
+drwxr-xr-x 60 snowden snowden   4096 Oct  4 14:56 ..
+-rw-r--r--  1 snowden snowden  91451 Oct  4 14:56 events.jsonl
+-rw-r--r--  1 snowden snowden   1924 Oct  4 14:56 guard.jsonl
+-rw-rw-r--  1 snowden snowden    139 Oct  4 14:56 guard.trip
+-rw-r--r--  1 snowden snowden  18535 Oct  4 14:56 pressure.jsonl
+-rw-rw-r--  1 snowden snowden  75910 Oct  4 14:56 probe.csv
+-rw-rw-r--  1 snowden snowden 137201 Oct  4 14:56 psi.csv
+-rw-r--r--  1 snowden snowden  41584 Oct  4 14:56 run_meta.json

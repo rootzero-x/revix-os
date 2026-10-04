@@ -523,3 +523,111 @@ uchun boshqa seed:
 `P1`/`P0` — regressiya tekshiruvi (mezonga kirmaydi, lekin ular ham trip
 qilsa yoki validate'dan o'tmasa — to'xtatiladi va yoziladi). VR, FR,
 downtime yoki birlamchi kattalik **hisoblanmaydi**.
+
+---
+
+## 11. V2 natijasi — mezon BAJARILMADI, ketma-ketlik to'xtatildi
+
+> §10 o'zgartirilmadi. Kod: `11fca44` (V2 + `revix run` bayroqlari).
+> Qulf `2026-10-04T09:50:49Z` — `09:57:15Z`. Trial'lar `revix run ...
+> --allow-pressure` orqali (yangi uzatish ishladi). Har trial oldidan/keyin
+> `boot_id`, pid1 `653523`, `real − mono` siljishi (o'zgarish −1…+1 µs) va
+> `oom_kill` (0 → 0) o'zgarmadi; lab swap max 0; `leftover_state` PASS.
+
+### 11.1 FAKT — `P2` trial'lari (tartib §10 dagidek)
+
+| # | run | disposition (driver) | guard | eng uzun `≥ 0.35` | `≥ 0.35` ning ≥ 1 s oraliqlari | eng uzun `≥ 0.05` | max tezlik | validate |
+|---|---|---|---|---|---|---|---|---|
+| 1 | smoke-08-A-P2 | `complete` | trip yo'q | **6.1 s** | 21.04–25.54, 27.24–33.34 | 14.7 s | 0.9364 | O'TDI |
+| 2 | smoke-09-noaction-P2 | `censored` (`horizon_ended_down`) | trip yo'q | **7.4 s** | 21.04–25.54, 27.04–34.44 | 8.5 s | 0.9622 | O'TDI |
+| 3 | smoke-10-A-P2 | `complete` | trip yo'q | **5.0 s** | 21.05–26.05, 27.25–29.55, 30.35–32.25 | 14.6 s | 0.9004 | O'TDI |
+| 4 | smoke-11-noaction-P2 | `censored` (`horizon_ended_down`) | trip yo'q | **13.0 s** | 20.95–33.95 | 14.3 s | 0.9697 | O'TDI |
+| 5 | smoke-12-A-P2 | `complete` | trip yo'q | **5.1 s** | 20.97–26.07, 27.17–28.77, 29.87–34.17 | 14.7 s | 0.8790 | O'TDI |
+| 6 | **smoke-13-noaction-P2** | **`harness_error`** (reducer: `aborted_guard`) | **`user_full_rate2s_runaway`**, `rate 0.9817`, `limit 0.98`, `window_us 2099975`, `kill_ok true`, trial boshidan **22.526 s** | 2.1 s (kill bilan kesildi) | 20.95–23.05 | 2.7 s | 0.9814 | O'TDI (2 ogohl.) |
+
+`trial_end` har run'da **1** ta. `smoke-11` ning tahlili birinchi urinishda
+**tahlil skriptining** xatosi bilan yiqildi (`smoke_analyze.py`: PI
+namunalarining bir qismida `slice_full_rate2s = None`, filtrlangan ro'yxat
+filtrlanmagan uzunlik bilan indekslangan) — ketma-ketlik oldindan yozilgan
+qoida bo'yicha to'xtadi; trial ma'lumotiga tegilmadi, skript tuzatildi
+(`_median`), 08–11 qayta tahlil qilindi va qolgan trial'lar o'sha tartib
+va seed'lar bilan davom ettirildi. Bu tuzatish o'lchov yoki dial'ni
+o'zgartirmaydi.
+
+### 11.2 FAKT — V2 oynasi ishladi
+
+| kattalik | 6 trial (min–max) | reja |
+|---|---|---|
+| generator `pressure_start` | 17.494–17.547 s | 17.43 s |
+| generator o'z ramp'i tugadi | 20.056–20.115 s | 20.0 s (hold boshi) |
+| user `≥ 0.35` birinchi marta | 20.946–21.051 s | hold ichida |
+| `ramp_above_threshold_s`, rejalashtirilgan ramp oynasi `[15, 20] s` (lab va user) | **0.0** (6/6) | 0.0 |
+| generator chiqishi (`pressure_stop`, 5 tugagan trial) | 33.075–33.245 s (`elapsed` 15.568–15.697 s, `overrun` 0.000–0.127 s) | 33.0 s |
+| `trial_end.overhead_s` (5 tugagan trial) | 3.242–3.278 s | — |
+
+Ya'ni v1.11 (1.5) ning premisasi — *"sustain taymeri faqat hold ichida
+boshlanishi mumkin"* — bu 6 trial'da **bajarildi**, va
+`validate.check_planned_timeline` o'tdi (reja o'zgarmagan:
+`13 + 0.0 ≤ 15`; u o'lchovni emas, rejani tekshiradi — §4.3 CHEKLOVI o'z
+kuchida).
+
+### 11.3 NATIJA — §10 mezoni
+
+- **(b) eng uzun `≥ 0.35` oraliq ≤ 14 s: 6/6 da bajarildi** (5.0–13.0 s;
+  `smoke-13` kill bilan 2.1 s da kesilgan). `sustained_pressure` trip'i
+  **0/6** (V2 dan oldin 2/2).
+- **(a) "birorta `P2` trial'i `aborted_guard` bilan tugamaydi" va to'xtash
+  qoidasi "birorta `P2` trial'i trip qilsa": BAJARILMADI.** `smoke-13` da
+  guard **runaway** chegarasi (`user_full_rate2s_max = 0.98`) bo'yicha trip
+  qildi. Driver bu trial'ga `harness_error` yozdi (§11.4), reducer
+  hosilasi `aborted_guard` — har ikkala o'qishda ham bu trial `P2`
+  ma'lumotini bermaydi va guard ishga tushdi.
+- **To'xtash qoidasi qo'llandi:** 6-trial'dan keyin ketma-ketlik
+  to'xtatildi; `P1` (14, 15) va `P0` (16, 17) regressiya trial'lari
+  **bajarilmadi**. `R`, dial va boshqa hech narsa o'zgartirilmadi va qayta
+  urinilmadi.
+
+### 11.4 FAKT — `smoke-13` timeline va driver nuqsoni
+
+`trial_begin` dan: generator 17.525 s, o'z ramp'i 20.105 s da tugadi, user
+`≥ 0.05` 20.351 s, `≥ 0.35` 20.951 s, **guard trip 22.526 s**
+(`user_full_rate2s_runaway`, 0.9817 / 0.98, oyna 2.1 s), SUT `failed /
+signal` 22.528 s (guard'ning `kill_subtree` i), driver injeksiyasi 23.001 s
+da — SUT allaqachon o'lik: `FAULT exit code=1` → `ConnectionRefusedError
+(111)` → `DriverError("SUT fault ack bermadi ...")`. Driver run'ni
+`trial_end` (horizon 23.004 s), washout'**siz** yopdi (`washout.state =
+null`), driver run wall 23.8 s.
+
+**Driver nuqsoni (mening faylim, TUZATILMADI — to'xtash qoidasi):**
+`run_trial` ning istisno yo'li `_collect_facts` ni chaqirmaydi, demak
+`guard_fired` hech qachon tekshirilmaydi va §12 ning ustuvorligi
+(`aborted_guard` > `harness_error`) o'rniga `harness_error` yoziladi;
+validator buni faqat **ogohlantirish** (`disposition_cross_check`) sifatida
+ko'rsatadi. Shu yo'lda washout ham o'tkazib yuboriladi — ko'p trial'lik
+run'da keyingi trial washout'siz boshlanardi (bu yerda run bitta trial'lik
+edi, post-flight toza). Taklif: istisno yo'lida ham guard oqimini
+(`guard_events_in_window`) o'qib `guard_fired` ni faktga qo'shish va
+washout'ni `finally` ga o'tkazish — orkestrator ruxsati bilan.
+
+### 11.5 TALQIN (o'lchov emas)
+
+- V2 **o'zi maqsad qilgan mexanizmni** (sustain, 15 s) yo'q qildi: 0/6
+  trip, eng uzun oraliq 5.0–13.0 s. Lekin `smoke-11` ning 13.0 s i
+  mezondan atigi 1.0 s past — PI nazorati tebranmagan trial'larda oraliq
+  `≈ 33.9 − 20.95 ≈ 13 s` ga yaqinlashadi, ya'ni zaxira tor.
+- Trip qilgan mexanizm **boshqa**: runaway (0.98), PI fazasining birinchi
+  ~2.4 s ida (hold boshidan 2.5 s keyin), `no_action` arm'ida, restart'siz.
+  `P2` dagi max tezlik: V2 dan oldin 0.96 / 0.93, V2 da 0.879–0.981 —
+  ya'ni kalibrlangan `P2` dial'i pilot topologiyasida runaway chegarasiga
+  **yaqin** ishlaydi (`13` §6.3 ham B-`P2` da 2/7 trip ko'rgan). V2 buni
+  keltirib chiqardimi yoki yo'qmi — **o'lchanmagan** (n kichik, V2 dan
+  oldin faqat 2 trial).
+- Kutiladigan stavka bahosi (taxmin, CHEKLOV: n = 6): `P2` trial'larining
+  1/6 i runaway bilan yo'qoladi.
+
+### 11.6 CHEKLOV
+
+- `P2`: 6 trial (3 + 3), `P1`/`P0` regressiyasi bajarilmagan.
+- Guard tezligi `psi.csv` dan qayta qurilgan (10 Hz); runaway guard'ning
+  o'z namunasida 0.9817, `psi.csv` da max 0.9814.
+- `smoke-13` ning disposition'i driver nuqsoni tufayli `harness_error`.

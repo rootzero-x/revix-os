@@ -1,0 +1,46 @@
+== pre
+{"phase": "pre", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 11641370041, "real_us": 1791107511580189, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.22 0.36 0.33 1/223 6027", "uptime_s": 11641.37}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+== run smoke-09-noaction-P2 arm=no_action level=P2 seed=20261012
+driver rc=0 wall_s=57.05
+{
+  "dispositions": {
+    "censored": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 3.247791999999997,
+    "mean": 3.247791999999997,
+    "min": 3.247791999999997,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-09-noaction-P2",
+  "run_id": "b25084b972a1474c850aa9fe55bf9394",
+  "trials": [
+    {
+      "disposition": "censored",
+      "overhead_s": 3.247791999999997,
+      "rule": "horizon_ended_down",
+      "trial_id": "b000t001"
+    }
+  ]
+}
+
+== post
+{"phase": "post", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 11698650036, "real_us": 1791107568860184, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.30 0.36 0.33 1/224 6095", "uptime_s": 11698.65}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+validate rc=0
+WARNING run_filtered: run --only ['no_action', 'P2'] bilan filtrlangan: 1/6 trial -- to'liq blok dizayni EMAS (§8.4)  [/home/snowden/revix-runs/smoke-09-noaction-P2/events.jsonl:2]
+xato: 0  ogohlantirish: 1
+NATIJA: O'TDI -- analiz qilinishi mumkin
+analysis rc=0
+total 644
+drwxr-xr-x  2 snowden snowden   4096 Oct  4 14:52 .
+drwxr-xr-x 52 snowden snowden   4096 Oct  4 14:51 ..
+-rw-r--r--  1 snowden snowden 104426 Oct  4 14:52 events.jsonl
+-rw-r--r--  1 snowden snowden   1268 Oct  4 14:52 guard.jsonl
+-rw-r--r--  1 snowden snowden  23761 Oct  4 14:52 pressure.jsonl
+-rw-rw-r--  1 snowden snowden 125157 Oct  4 14:52 probe.csv
+-rw-rw-r--  1 snowden snowden 342332 Oct  4 14:52 psi.csv
+-rw-r--r--  1 snowden snowden  41585 Oct  4 14:51 run_meta.json
