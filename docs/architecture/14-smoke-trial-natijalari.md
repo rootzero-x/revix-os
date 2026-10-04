@@ -631,3 +631,65 @@ washout'ni `finally` ga o'tkazish — orkestrator ruxsati bilan.
 - Guard tezligi `psi.csv` dan qayta qurilgan (10 Hz); runaway guard'ning
   o'z namunasida 0.9817, `psi.csv` da max 0.9814.
 - `smoke-13` ning disposition'i driver nuqsoni tufayli `harness_error`.
+
+### 11.7 Mezon bo'yicha yakuniy bayonot (orkestrator so'rovi bilan qo'shildi)
+
+- **§10 mezoni o'zining so'zma-so'z matni bo'yicha** (*"birorta `P2`
+  trial'i `aborted_guard` bilan tugamaydi"*, to'xtash qoidasi *"birorta
+  `P2` trial'i trip qilsa"*) **BAJARILMADI**: `smoke-13` da guard ishga
+  tushdi.
+- **Mezonning maqsadi** — V2 nishonga olgan **sustain** mexanizmi
+  (`0.35 / 15 s`) — **bajarildi**: `sustained_pressure` trip'i 0/6 (V2 dan
+  oldin 2/2), eng uzun oraliq 13.0 s.
+- Yagona muvaffaqiyatsizlik **boshqa mexanizm**: runaway chegarasi
+  (`user_full_rate2s_max = 0.98`, rate 0.9817). Xuddi shu qoida
+  kalibratsiyada ham ikki marta ishlagan (`13` §6.3: 0.9802 va 0.9889).
+- §10 matni o'zgartirilmadi va qayta ta'riflanmaydi. Orkestrator qarori:
+  V2 saqlanadi, dial va guard'ga tegilmaydi, `P2` dagi kutiladigan yo'qotish
+  keyingi amendment'da exclusion rate sifatida oldindan e'lon qilinadi.
+
+## 12. Driver istisno yo'li tuzatildi (orkestrator ruxsati bilan)
+
+**Tuzatish (`revix/driver.py`):**
+
+1. Injeksiyadan oldin guard oqimi o'qiladi (`trial_begin` .. hozir); guard
+   allaqachon ishlagan bo'lsa injeksiya **qilinmaydi**,
+   `trial_end.detail.fault = {"skipped": true, "reason":
+   "guard_fired_before_injection", "guard_events": [...]}`, trial oddiy
+   yo'ldan davom etadi va `_collect_facts` -> `guard_fired` -> §12 bo'yicha
+   `aborted_guard`.
+2. Trial ichidagi istisnoda guard oqimi o'qiladi: guard ishlagan bo'lsa
+   (poyga — guard tekshiruvdan keyin, `FAULT` dan oldin) trial **xuddi shu
+   `_collect_facts` yo'lidan** tasniflanadi (`aborted_guard`), istisno
+   `trial_end.detail.exception_after_guard_trip` da yoziladi va
+   `harness_error` record'i yozilmaydi (u validator'da disposition'ni
+   `harness_error` ga majburlardi). Guard ishlamagan bo'lsa — `harness_error`
+   (avvalgidek).
+3. Washout **`finally` da, har yo'lda**. Istisno yo'lida avval prober
+   to'xtatiladi va trial oynasi shu lahzada yopiladi (washout oynadan
+   tashqarida — oddiy yo'l bilan bir xil ma'no). Washout'ning o'zi
+   yiqilsa — `washout_timeout` (`washout.reason = "washout_exception: ..."`).
+   Har trial'da aynan bitta `trial_end` saqlanadi.
+
+**Testlar (fake):** guard injeksiyadan oldin, guard injeksiya paytida
+(istisno), guard injeksiyadan keyin, guard'siz haqiqiy harness xatosi,
+istisnodan keyin ikkinchi trial toza boshlanishi, washout'ning o'zi
+yiqilishi — har birida washout bajarilgani (`trial_end.washout`, lab
+`cgroup.kill`) tekshiriladi. Tuzatishsiz 5 tasi yiqiladi.
+
+### 12.1 Empirik tekshiruv — OLDINDAN yozilgan reja va kutilgan natija
+
+- Run `smoke-18-noaction-P0-x2`: `revix run --blocks 2 --only no_action,P0
+  --allow-pressure --seed 20261021` (ikki trial).
+- Birinchi trial'ning `trial_begin` idan **~22.0 s** keyin SUT unit'i
+  **harness TASHQARISIDAN** o'ldiriladi:
+  `systemctl --user kill --signal=SIGKILL revix-sut.service`. Bu smoke-13
+  ning yo'lini (injeksiya o'lik SUT'ga, `ConnectionRefused`) **simulyatsiya
+  qiladi; bu guard trip EMAS** — guard oqimida `guard_event` bo'lmasligi
+  kerak.
+- **Kutilgan:** 1-trial `harness_error` (guard ishlamagan, istisno —
+  haqiqiy harness yo'li), `trial_end` 1 ta, `washout.state = complete`,
+  prober to'xtatilgan; 2-trial toza boshlanadi (setup xatosiz) va
+  injeksiya bilan oxiriga yetadi (`no_action` P0 da odatdagi natija
+  `censored` / `horizon_ended_down`); run `validate` dan o'tadi;
+  post-flight toza.

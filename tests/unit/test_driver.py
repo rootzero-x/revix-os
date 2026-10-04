@@ -95,6 +95,17 @@ class FakePlatform:
         # CLOCK_REALTIME `real_jump_us` ga oldinga sakraydi, mono esa YO'Q.
         self.real_jump_at_us = real_jump_at_us
         self.real_jump_us = real_jump_us
+        # Guard trip modeli (14 §11.4): `guard_trip_at_us` dan o'tganda (yoki
+        # `guard_trip_on_probe` da driver'ning injeksiya oldidan PROBE
+        # buyrug'ida) guard_event yoziladi va lab o'ldiriladi -- SUT o'lik,
+        # socket ConnectionRefused beradi. `sut_dead_no_guard`: SUT guard'siz
+        # o'lik (haqiqiy harness xatosi modeli).
+        self.guard_trip_at_us = None
+        self.guard_trip_on_probe = False
+        self.guard_tripped = False
+        self.sut_dead = False
+        self.sut_dead_no_guard = False
+        self.washouts = 0
         self.calls = []
         self.state_queue = {}
         self.guard_ok = guard_ok
@@ -155,6 +166,25 @@ class FakePlatform:
     def sleep(self, seconds):
         if seconds > 0:
             self.t += int(seconds * 1e6)
+        if (self.guard_trip_at_us is not None and not self.guard_tripped
+                and self.t >= self.guard_trip_at_us):
+            self.trip_guard(self.guard_trip_at_us)
+
+    def trip_guard(self, mono):
+        self.guard_tripped = True
+        _append_jsonl(self.guard_log_path, dict(_guard_rec(
+            "guard_event", mono, self._gseq("guard_event"), self.run_id,
+            self.session_id, reason="user_full_rate2s_runaway",
+            detail={"rate": 0.9817, "limit": 0.98, "window_us": 2_099_975},
+            action="kill_subtree", lab_cgroup=self.cgroup_path(D.LAB_SLICE),
+            kill_ok=True, trip_index=1, suppressed_records=0),
+            real_us=self.real_at(mono)))
+        self.sut_dead = True
+        if self.active.get(D.SUT_UNIT) == "active":
+            self._push_state(D.SUT_UNIT, "failed", f"inv{self._inv}",
+                             self._restarts.get(D.SUT_UNIT, 0),
+                             active_exit=mono)
+            self.active[D.SUT_UNIT] = "failed"
 
     def guest_generation(self):
         self._gen_reads += 1
@@ -187,6 +217,7 @@ class FakePlatform:
         self.start_mono[name] = t0
         if name == D.SUT_UNIT:
             self.sut_arm = props.get("Restart")
+            self.sut_dead = False
             self._restarts[name] = 0
             self._inv += 1
             self._push_state(name, "active", f"inv{self._inv}", 0)
@@ -325,6 +356,12 @@ class FakePlatform:
 
     # --- SUT socket ---
     def sut_command(self, socket_path, command, timeout_s=0.5):
+        if command == "PROBE" and self.guard_trip_on_probe and not self.guard_tripped:
+            self.trip_guard(self.t)
+        if self.sut_dead or self.sut_dead_no_guard:
+            self.calls.append(("refused", command))
+            return {"command": command, "reply": None, "errno": 111,
+                    "error": "ConnectionRefusedError(111, 'Connection refused')"}
         if command == "PROBE":
             # Protokol §3: `OK progress=.. pid=.. invocation=.. mono_us=..`.
             # §4.5: probe'ga javob `progress` ni OSHIRMAYDI.
@@ -2734,3 +2771,145 @@ def test_action_chiqish_dalilisiz_yozilmaydi(tmp_path):
     drv._note_unit_state(trial, D.SCOPE_SUT, payload)
     assert of_type(events(run_dir), "action") == []
     assert "invocation_changed_without_observed_exit" in state["anomalies"]
+
+
+# ===========================================================================
+# Istisno yo'li: guard trip -> aborted_guard, washout HAR yo'lda (14 §11.4)
+# ===========================================================================
+
+
+def _trip_guard_at_rel(drv, pf, rel_s):
+    """Birinchi trial boshidan `rel_s` s da guard trip qiladi (fake)."""
+    orig = drv._emit_trial_begin
+    seen = []
+
+    def _begin(trial, index, arm, level, mono):
+        if not seen:
+            pf.guard_trip_at_us = mono + round(rel_s * 1e6)
+        seen.append(trial.trial_id)
+        return orig(trial, index, arm, level, mono)
+
+    drv._emit_trial_begin = _begin
+
+
+def _assert_washout_ran(pf, run_dir, n_trials):
+    ends = of_type(events(run_dir), "trial_end")
+    assert len(ends) == n_trials
+    for te in ends:
+        assert te["washout"]["state"] is not None, te["washout"]
+        assert te["timing"]["washout_us"] > 0
+    lab = pf.cgroup_path(D.LAB_SLICE)
+    assert pf.killed.count(lab) >= n_trials        # har trial'da cgroup.kill
+
+
+def test_guard_injeksiyadan_OLDIN_trip_injeksiya_qilinmaydi_aborted_guard(
+        tmp_path):
+    """smoke-13 holati: guard 22.5 s da, injeksiya 23.0 s da edi."""
+    V = _require_strict_validator()
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "no_action"),
+                                   allow_pressure=True)
+    _trip_guard_at_rel(drv, pf, 22.5)
+    summary = drv.run()
+    assert [t["disposition"] for t in summary["trials"]] == ["aborted_guard"]
+    recs = events(run_dir)
+    assert of_type(recs, "fault_inject") == []           # injeksiya YO'Q
+    assert not any(c == ("fault", "FAULT exit code=1") for c in pf.calls)
+    te = of_type(recs, "trial_end")[0]
+    f = te["detail"]["fault"]
+    assert f["skipped"] is True
+    assert f["reason"] == "guard_fired_before_injection"
+    assert f["guard_events"][0]["reason"] == "user_full_rate2s_runaway"
+    assert of_type(recs, "harness_error") == []
+    _assert_washout_ran(pf, run_dir, 1)
+    rep = V.validate_run_dir(run_dir, run_mode="pilot",
+                             sut_unit=D.SUT_UNIT, sut_target="sut")
+    assert not rep.errors, [str(x) for x in rep.errors]
+
+
+def test_guard_injeksiya_paytida_trip_istisno_aborted_guard_bolib_qoladi(
+        tmp_path):
+    """Poyga: guard oldindan tekshiruvdan KEYIN, FAULT dan OLDIN ishlaydi
+    -> FAULT ConnectionRefused -> DriverError. Disposition `aborted_guard`
+    (§12), `harness_error` emas; istisno trial_end'da yoziladi."""
+    V = _require_strict_validator()
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "no_action"),
+                                   allow_pressure=True)
+    pf.guard_trip_on_probe = True
+    summary = drv.run()
+    assert [t["disposition"] for t in summary["trials"]] == ["aborted_guard"]
+    recs = events(run_dir)
+    te = of_type(recs, "trial_end")[0]
+    x = te["detail"]["exception_after_guard_trip"]
+    assert x["classified_as"] == "consequence_of_guard_trip"
+    assert "fault ack" in x["error"]
+    assert te["facts"]["guard_fired"] is True
+    assert te["facts"]["harness_error"] is False
+    assert of_type(recs, "harness_error") == []
+    _assert_washout_ran(pf, run_dir, 1)
+    rep = V.validate_run_dir(run_dir, run_mode="pilot",
+                             sut_unit=D.SUT_UNIT, sut_target="sut")
+    assert not rep.errors, [str(x) for x in rep.errors]
+
+
+def test_guard_injeksiyadan_KEYIN_trip_aborted_guard_va_washout(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "A"),
+                                   allow_pressure=True)
+    _trip_guard_at_rel(drv, pf, 30.0)
+    summary = drv.run()
+    assert [t["disposition"] for t in summary["trials"]] == ["aborted_guard"]
+    recs = events(run_dir)
+    assert len(of_type(recs, "fault_inject")) == 1        # injeksiya bo'ldi
+    _assert_washout_ran(pf, run_dir, 1)
+
+
+def test_haqiqiy_harness_xatosi_guardsiz_harness_error_qoladi_washout_bilan(
+        tmp_path):
+    """Guard ishlamagan: SUT o'zi javob bermaydi -> `harness_error`."""
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "no_action"),
+                                   allow_pressure=True)
+    pf.sut_dead_no_guard = True
+    summary = drv.run()
+    assert [t["disposition"] for t in summary["trials"]] == ["harness_error"]
+    recs = events(run_dir)
+    assert len(of_type(recs, "harness_error")) == 1
+    te = of_type(recs, "trial_end")[0]
+    assert "exception_after_guard_trip" not in te["detail"]
+    _assert_washout_ran(pf, run_dir, 1)
+
+
+def test_istisnodan_keyin_keyingi_trial_toza_boshlanadi(tmp_path):
+    """Ikki trial: birinchisida guard injeksiyadan oldin; ikkinchisi
+    oldingisining washout'i va prober to'xtatilishidan KEYIN boshlanadi."""
+    V = _require_strict_validator()
+    drv, pf, run_dir = make_driver(tmp_path, only=("P0", "no_action"),
+                                   blocks=2, allow_pressure=True)
+    _trip_guard_at_rel(drv, pf, 22.5)
+    summary = drv.run()
+    disp = [t["disposition"] for t in summary["trials"]]
+    assert disp[0] == "aborted_guard" and disp[1] != "aborted_guard", disp
+    assert disp[1] in ("censored", "complete")
+    _assert_washout_ran(pf, run_dir, 2)
+    # Ikkinchi prober start'idan oldin birinchisi to'xtatilgan va lab kill.
+    starts = [i for i, c in enumerate(pf.calls) if c == ("start", D.PROBER_UNIT)]
+    stops = [i for i, c in enumerate(pf.calls) if c == ("stop", D.PROBER_UNIT)]
+    kills = [i for i, c in enumerate(pf.calls)
+             if c == ("kill", pf.cgroup_path(D.LAB_SLICE))]
+    assert len(starts) == 2
+    assert any(starts[0] < s < starts[1] for s in stops)
+    assert any(starts[0] < k < starts[1] for k in kills)
+    rep = V.validate_run_dir(run_dir, run_mode="pilot",
+                             sut_unit=D.SUT_UNIT, sut_target="sut")
+    assert not rep.errors, [str(x) for x in rep.errors]
+
+
+def test_washout_ozi_yiqilsa_washout_timeout(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+
+    def boom(path):
+        raise OSError("memory.current o'qilmadi")
+    pf.memory_current = boom
+    summary = drv.run()
+    assert [t["disposition"] for t in summary["trials"]] == ["washout_timeout"]
+    te = of_type(events(run_dir), "trial_end")[0]
+    assert te["washout"]["timed_out"] is True
+    assert "washout_exception" in te["washout"]["reason"]

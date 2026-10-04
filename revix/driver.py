@@ -2413,6 +2413,7 @@ class Driver:
         ev_before: dict[str, dict[str, int]] = {}
         host_before: dict[str, Any] = {}
         setup_error: BaseException | None = None
+        prober_stopped = False
 
         # --- SETUP: record oynasidan TASHQARIDA ---------------------------
         try:
@@ -2518,7 +2519,23 @@ class Driver:
                 watchers, trial)
 
             # --- injeksiya (§3, 03-sut-protokoli.md §5) --------------------
-            detail["fault"] = self._inject_fault(trial)
+            # Guard shu trial'da ALLAQACHON ishga tushgan bo'lsa (14 §11.4,
+            # smoke-13: runaway kill 22.526 s, injeksiya 23.001 s), lab
+            # o'ldirilgan va injeksiya o'lik SUT'ga ketardi -> DriverError ->
+            # §12 da `aborted_guard` o'rniga `harness_error`. Injeksiya
+            # QILINMAYDI va sababi yoziladi; trial oddiy yo'ldan davom etadi,
+            # disposition `_collect_facts` dan (`guard_fired`).
+            pre_guard = guard_events_in_window(
+                self.guard_path, timing.begin_mono_us, self.pf.mono_us())
+            if pre_guard:
+                detail["fault"] = {
+                    "skipped": True,
+                    "reason": "guard_fired_before_injection",
+                    "mono_us_checked": self.pf.mono_us(),
+                    "guard_events": pre_guard,
+                }
+            else:
+                detail["fault"] = self._inject_fault(trial)
 
             # --- hold oxiri: pressure o'chadi ------------------------------
             self._wait_until(pressure_off, watchers, trial)
@@ -2550,6 +2567,7 @@ class Driver:
             # Prober horizon'dan KEYIN to'xtatiladi -> OXIRGI bo'shliq
             # bo'lmaydi (validator uni rad etadi).
             self.pf.stop(PROBER_UNIT)
+            prober_stopped = True
             self._drain_watchers(watchers, trial)
             self._emit_env_snapshot(trial, "trial_end", index,
                                     mono=horizon_end)
@@ -2570,17 +2588,45 @@ class Driver:
             detail["units_show"] = self._dump_live_units()
             timing.dump_us = self.pf.mono_us() - t_dump0
 
-            # --- washout (§8.4) --------------------------------------------
+        except Exception as exc:  # noqa: BLE001 -- qoida 13
+            facts_kw = self._classify_exception(
+                trial, timing, watchers, host_before, ev_before, exc, detail,
+                anomalies)
+        finally:
+            # --- washout (§8.4) -- HAR yo'lda, istisnoda HAM ---------------
+            # NEGA `finally` da (14 §11.4): avval washout `try` ichida edi va
+            # istisno uni o'tkazib yuborardi -- smoke-13 `washout.state =
+            # null` bilan yopildi; ko'p trial'lik run'da keyingi trial
+            # oldingisining qoldig'i ustida boshlanardi. Endi har trial
+            # washout'ni YAKUNLAYDI yoki u OSHKORA yiqiladi (`washout_timeout`).
+            if not prober_stopped:
+                # Istisno yo'li: prober hali tirik. Keyingi trial o'z
+                # prober'ini AYNI nom bilan yaratadi, demak bu to'xtatilmasa
+                # keyingi setup yiqiladi.
+                #
+                # Trial oynasi SHU YERDA yopiladi (horizon = kuzatuv to'xtagan
+                # lahza), washout'dan OLDIN -- oddiy yo'ldagi bilan bir xil
+                # ma'no: washout oynadan TASHQARIDA. Aks holda trial_end
+                # washout'dan keyin bo'lib, prober'siz oraliq `probe_coverage`
+                # ni buzardi va bizning o'z `cgroup.kill` imiz oynaga tushardi.
+                if not timing.horizon_end_mono_us:
+                    timing.horizon_end_mono_us = self.pf.mono_us()
+                try:
+                    self.pf.stop(PROBER_UNIT)
+                except Exception as exc:  # noqa: BLE001
+                    self._harness_error("prober_stop", exc, trial=trial)
+                    facts_kw["harness_error"] = True
             t_w0 = self.pf.mono_us()
-            washout = self._washout(trial)
+            try:
+                washout = self._washout(trial)
+            except Exception as exc:  # noqa: BLE001
+                # Washout'ning O'ZI yiqildi -> `washout_timeout` (§12), jim
+                # emas: sabab trial_end'da.
+                washout = {"state": sch.WASHOUT_TIMEOUT, "timed_out": True,
+                           "reason": f"washout_exception: {exc!r}",
+                           "observations": 0}
             timing.washout_us = self.pf.mono_us() - t_w0
             facts_kw["washout_timed_out"] = bool(washout.get("timed_out"))
-
-        except Exception as exc:  # noqa: BLE001 -- qoida 13
-            self._harness_error(f"trial:{trial.trial_id}", exc, trial=trial)
-            facts_kw["harness_error"] = True
-            detail["exception"] = repr(exc)
-        finally:
             t_t0 = self.pf.mono_us()
             try:
                 # HORIZON'DAN KEYINGI record'lar `trial_id=None` bilan
@@ -2607,6 +2653,71 @@ class Driver:
             verdict = self._emit_trial_end(
                 trial, timing, facts_kw, washout, anomalies, detail)
         return verdict
+
+    def _classify_exception(
+        self,
+        trial: sch.Trial,
+        timing: TrialTiming,
+        watchers: dict[str, Any],
+        host_before: dict[str, Any],
+        ev_before: dict[str, dict[str, int]],
+        exc: BaseException,
+        detail: dict[str, Any],
+        anomalies: list[str],
+    ) -> dict[str, bool]:
+        """Trial ichidagi istisno -> §12 faktlari.
+
+        IKKI HOL, va farqi guard oqimida (monotonic vaqt, `trial_begin`
+        dan hozirgacha):
+
+          * Guard shu trial'da ISHGA TUSHGAN: istisno guard'ning kill'i
+            OQIBATI (14 §11.4, smoke-13: `FAULT` -> ConnectionRefused). Trial
+            oddiy trial bilan BIR XIL `_collect_facts` yo'lidan tasniflanadi
+            -> `guard_fired` -> §12 ustuvorligi bo'yicha `aborted_guard`.
+            `harness_error` record'i YOZILMAYDI (u `validate` da
+            disposition'ni `harness_error` ga majburlaydi); istisno jim
+            emas -- `trial_end.detail.exception_after_guard_trip` da.
+          * Guard ishlamagan: haqiqiy harness xatosi -> `harness_error`
+            (avvalgidek, qoida 13).
+
+        Faktlarni yig'ishning o'zi yiqilsa -- `harness_error` (fail-closed).
+        """
+        detail["exception"] = repr(exc)
+        try:
+            fired = guard_events_in_window(
+                self.guard_path, timing.begin_mono_us, self.pf.mono_us())
+        except Exception:  # noqa: BLE001 -- o'qilmasa: guard yo'q deb EMAS
+            fired = []
+        if fired:
+            try:
+                state = self._sut_state
+                for key, unit in (("sut_state_at_horizon", SUT_UNIT),
+                                  ("prober_state_at_horizon", PROBER_UNIT),
+                                  ("bystander_state_at_horizon",
+                                   BYSTANDER_UNIT)):
+                    if state.get(key) is None:
+                        state[key] = self.pf.active_state(unit)
+                self._drain_watchers(watchers, trial)
+                ev_after = self._memory_events_snapshot()
+                host_after = {"vmstat": self.pf.vmstat(),
+                              "meminfo": self.pf.meminfo()}
+                facts_kw, fact_detail = self._collect_facts(
+                    trial, timing, watchers, host_before, host_after,
+                    ev_before, ev_after)
+                detail["facts"] = fact_detail
+                anomalies.extend(fact_detail.get("anomalies", []))
+                detail["exception_after_guard_trip"] = {
+                    "error": repr(exc),
+                    "error_type": type(exc).__name__,
+                    "classified_as": "consequence_of_guard_trip",
+                    "guard_events": fired,
+                }
+                if facts_kw.get("guard_fired"):
+                    return facts_kw
+            except Exception as exc2:  # noqa: BLE001
+                detail["classify_error"] = repr(exc2)
+        self._harness_error(f"trial:{trial.trial_id}", exc, trial=trial)
+        return {"harness_error": True}
 
     def _emit_trial_begin(self, trial: sch.Trial, index: int, arm: str,
                           level: str, mono: int) -> None:
@@ -3221,7 +3332,9 @@ class Driver:
         dan keladi. Bu ataylab: VR ta'rifi `reduce.py` da, o'lchovdan KEYIN
         va o'lchovdan TASHQARIDA (CONTRIBUTING.md §1.5).
         """
-        lo, hi = timing.begin_mono_us, timing.horizon_end_mono_us
+        # Istisno yo'lida horizon hali yo'q: oyna HOZIRGACHA (_classify_exception).
+        lo = timing.begin_mono_us
+        hi = timing.horizon_end_mono_us or self.pf.mono_us()
         state = self._sut_state
         detail: dict[str, Any] = {"anomalies": list(state["anomalies"])}
 
