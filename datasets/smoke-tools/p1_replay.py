@@ -18,12 +18,17 @@ for t in R.split_trials(rv):
     b = t.begin or {}; e = t.end or {}
     cell = f'{b.get("arm")}/{b.get("pressure_band")}'
     rec_f = dict(e.get("facts") or {})
-    gaps = R.probe_gaps(t, prm)
-    t_f, _ = R.fault_effective_us(t)
-    r_ref, r_st, _d = R.reference_throughput(t, t_f)
-    eps = R.build_episodes(t, prm, r_ref, r_st)
-    w = R.classify_window_containment(eps[0].t_up_us if eps else None, prm,
-                                      hold_end_us=t.hold_end_us, horizon_end_us=t.horizon_end_us)
+    # YAKUNIY driver kodi: D.measured_trial_facts, faqat shu trial record'lari.
+    tid = t.trial_id
+    m = D.measured_trial_facts(
+        [r for r in run.records if r.get("trial_id") == tid
+         or r.get("record_type") in ("guard_event", "guard_start", "guard_stop")],
+        [p for p in run.probes if p.get("trial_id") == tid], tid,
+        pressure_off_mono_us=t.hold_end_us, horizon_end_mono_us=t.horizon_end_us,
+        probe_period_us=R.P_US, w_stab_us=prm.w_stab_us)
+    gaps = m["probe_gaps"]
+    class _W: pass
+    w = _W(); w.status = m["window_containment"]
     new_f = dict(rec_f)
     new_f["probe_gap_exceeded"] = bool(rec_f.get("probe_gap_exceeded")) or bool(gaps)
     new_f["window_outside_hold"] = w.status in outside
