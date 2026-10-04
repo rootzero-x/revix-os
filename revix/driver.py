@@ -3317,6 +3317,22 @@ class Driver:
 
         Guard OXIRGI to'xtatiladi (majburiyat 1): undan oldin to'xtatilsa,
         yig'ishtirish davomidagi qoldiq pressure kuzatuvsiz qolardi.
+
+        UCH BOSQICH, va NEGA (smoke-01 da O'LCHANGAN nuqson, 14 §3.1):
+        avval bu yerda `self.pf.teardown()` DEFAULT'lari bilan guard'dan
+        OLDIN chaqirilardi. `units.teardown` ning default'i `cgroup.kill`
+        ni IKKALA slice'ga -- `revixmon.slice` ga ham -- qo'llaydi, guard
+        esa aynan o'sha slice'da. Natija (journal): `revix-guard.service:
+        Main process exited, code=killed, status=9/KILL`, `guard_stop`
+        yozilmadi va HAR run `validate` da `guard_stop_missing` ERROR
+        bilan rad etildi; "guard OXIRGI" esa amalda "guard lab bilan BIR
+        VAQTDA SIGKILL" edi. Endi:
+          1. lab slice va guard'dan boshqa unit'lar (`kill` faqat
+             `revixlab.slice` ga), guard TIRIK;
+          2. guard SIGTERM bilan (`guard_stop` yoziladi) -- OXIRGI;
+          3. qolgan hamma narsa default'lar bilan (mon slice, `revix-*`
+             qoldiqlari) -- guard to'xtamagan bo'lsa, u shu yerda
+             o'ldiriladi (fail-safe).
         """
         for unit in (PRESS_UNIT, SUT_UNIT, BYSTANDER_UNIT, PROBER_UNIT,
                      PSI_UNIT):
@@ -3325,14 +3341,22 @@ class Driver:
             except Exception as exc:  # noqa: BLE001
                 self._harness_error(f"teardown:{unit}", exc)
         try:
-            self.pf.teardown()
+            self.pf.teardown(
+                units=[PRESS_UNIT, SUT_UNIT, BYSTANDER_UNIT, PROBER_UNIT,
+                       PSI_UNIT],
+                unit_patterns=(), slices=(LAB_SLICE,), kill=True,
+                reset_failed=True)
         except Exception as exc:  # noqa: BLE001
-            self._harness_error("teardown:slices", exc)
+            self._harness_error("teardown:lab", exc)
         if self._guard_started:
             try:
                 self.pf.stop(GUARD_UNIT)        # OXIRGI
             except Exception as exc:  # noqa: BLE001
                 self._harness_error("teardown:guard", exc)
+        try:
+            self.pf.teardown()
+        except Exception as exc:  # noqa: BLE001
+            self._harness_error("teardown:slices", exc)
         try:
             self.pf.clear_runtime_drop_ins()
         except Exception as exc:  # noqa: BLE001

@@ -111,6 +111,7 @@ class FakePlatform:
         self.slice_props = {}
         self.drop_ins_cleared = 0
         self.teardowns = 0
+        self.guard_sigkilled = False
         self.killed = []
         self.kill_mono_us = []
         self.sut_arm = None
@@ -229,7 +230,8 @@ class FakePlatform:
         self.active[name] = "inactive"
         if name == D.PROBER_UNIT:
             self._flush_probes()
-        if name == D.GUARD_UNIT and self.guard_ok and self.guard_log_path:
+        if (name == D.GUARD_UNIT and self.guard_ok and self.guard_log_path
+                and not self.guard_sigkilled):
             # Guard `finally` da `guard_stop` yozadi -- u guard to'g'ri
             # to'xtaganining yagona dalili (kontrakt §1.3-1).
             _append_jsonl(self.guard_log_path, dict(_guard_rec(
@@ -264,8 +266,23 @@ class FakePlatform:
                 "property_count": 287, "properties": {"LoadState": "loaded"}}
 
     def teardown(self, units=(), **kw):
+        """`units.teardown` ning default'lari MODELLANADI (smoke-01 nuqsoni).
+
+        Haqiqiy funksiya default'da `cgroup.kill` ni `revixlab.slice` VA
+        `revixmon.slice` ga qo'llaydi, keyin `revix-*` ni to'xtatadi. Guard
+        `revixmon.slice` da, demak tirik guard SIGKILL oladi va
+        `guard_stop` YOZILMAYDI. Avvalgi fake buni e'tiborsiz qoldirgani
+        uchun `test_guard_birinchi_start_oxirgi_stop` nuqsonni ko'rmadi.
+        """
         self.teardowns += 1
-        self.calls.append(("teardown", tuple(units)))
+        slices = tuple(kw.get("slices", (D.LAB_SLICE, D.MON_SLICE)))
+        kill = kw.get("kill", True)
+        self.calls.append(("teardown", (tuple(units), slices, kill)))
+        if (kill and D.MON_SLICE in slices
+                and self.active.get(D.GUARD_UNIT) == "active"):
+            self.calls.append(("kill", D.MON_SLICE))
+            self.active[D.GUARD_UNIT] = "failed"
+            self.guard_sigkilled = True
         return {"stopped": list(units), "errors": []}
 
     # --- cgroup ---
@@ -772,6 +789,30 @@ def test_guard_birinchi_start_oxirgi_stop(tmp_path):
     assert stops[-1] == D.GUARD_UNIT, stops
     # psi_sampler guard'dan KEYIN (majburiyat 7 tartibi).
     assert starts.index(D.PSI_UNIT) > starts.index(D.GUARD_UNIT)
+
+
+def test_guard_teardown_kill_ostida_qolmaydi_va_guard_stop_yozadi(tmp_path):
+    """REGRESSIYA (smoke-01, 14 §3.1): guard SIGTERM bilan OXIRGI to'xtaydi.
+
+    Haqiqiy run'da `_teardown_run` `units.teardown()` ni default'lari bilan
+    guard'dan OLDIN chaqirib `revixmon.slice` ni `cgroup.kill` qilardi:
+    journal `revix-guard.service: ... status=9/KILL`, `guard_stop` yo'q,
+    `validate` -> `guard_stop_missing` ERROR -- har run'da.
+    """
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    assert pf.guard_sigkilled is False
+    i_guard = pf.calls.index(("stop", D.GUARD_UNIT))
+    # Guard to'xtatilishidan OLDINGI har teardown mon slice'ga TEGMAYDI.
+    for c in pf.calls[:i_guard]:
+        if c[0] == "teardown" and c[1][2]:
+            assert D.MON_SLICE not in c[1][1], c
+    # ...va guard'dan KEYIN mon slice baribir yig'ishtiriladi.
+    assert any(c[0] == "teardown" and D.MON_SLICE in c[1][1] and c[1][2]
+               for c in pf.calls[i_guard:]), pf.calls[i_guard:]
+    guard_recs = [json.loads(x) for x in
+                  open(os.path.join(run_dir, D.GUARD_FILE), encoding="utf-8")]
+    assert guard_recs[-1]["record_type"] == "guard_stop"
 
 
 def test_guard_driverning_childi_emas_balki_systemd_uniti(tmp_path):
