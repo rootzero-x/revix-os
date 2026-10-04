@@ -221,13 +221,23 @@ ko'rinishini bu amendment muallifi ko'rmagan).
 probe_gap_exceeded, horizon_ended_down, measured]`. Uzilish injeksiyadan
 **18 s**, guard'dan **22 s** oldin.
 
-**Fayl bilan tekshirilMAGAN bayonotlar** (orkestratorning topshirig'idan;
-`17`, `15`, `16` va commit xabarlarida yo'q; guest'ga kirilmadi):
-run **2026-10-04 13:50:38Z** da boshlangan; seed **20261006**; run
-katalogi **sha256 yig'indisi bilan arxivlangan**. Katalogning faqat-o'qish
-holati `17` da bor. Ikkalasi ham bu qarorga **asos emas**; seed va jadval
-digest'ining v1.13 (8-band, 5-preshart) bilan mosligi bu amendment
-tomonidan **tekshirilmadi**.
+**Orkestrator guest'da o'lchagan faktlar** (`17`, `15`, `16` ularni qayd
+etmaydi; amendment muallifi guest'ga kirmagan, shuning uchun ularni
+orkestrator o'zi o'lchab bergan, 2026-10-04, `p1-pilot-002.pilot/launcher.log`
+va `run_meta.json` dan):
+
+| fakt | o'lchangan qiymat |
+|---|---|
+| boshlanish | `2026-10-04 13:50:38Z` (`launcher.log`: `PILOT BOSHLANDI seed=20261006`) |
+| `rng_seed` | `20261006` |
+| `git_commit` / `git_dirty` | `8deaaf0aab33c51074ea69365a7b368830eaa332` / `False` |
+| `preregistration_sha256` | `f0c45722b231687c5e73a4a41e52517a6bd0ae96669c1d244211d18d8ac7b117` (v1.13) |
+| `schedule_digest` | `69ae399edbb20b5a0271d4b6657a3b5c1ec45b61b19a04a2bf9e0b6e8decb2dc` — v1.13 8-band va 5-preshart bilan **mos** |
+| `run_mode` / `disposition_facts` | `pilot` / `post_window_reducer_facts` (pilot-001 da bu maydon yo'q) |
+| arxiv | `~/revix-runs/_backup/p1-pilot-002.SHA256SUMS` (7 fayl) va `p1-pilot-002.tar.zst` (5 460 313 bayt) |
+| katalog | `dr-xr-xr-x` (faqat-o'qish); `events.jsonl` sha256 `686014f93e8e437c69a7356903cdf2256f41ec7473cef504e53de4f1d17022b7` |
+
+Bular bu qarorga asos emas, lekin run'ning kimligini qayd etadi.
 
 **2. QAROR — validator tuzatishi, SIMMETRIK (`17` §6.2 (a)).**
 
