@@ -2247,6 +2247,10 @@ def cmd_run(args: argparse.Namespace, want_json: bool) -> int:
         argv += ["--blocks", str(args.blocks)]
     if args.only is not None:
         argv += ["--only", args.only]
+    if args.allow_pressure:
+        argv.append("--allow-pressure")
+    if args.run_mode is not None:
+        argv += ["--run-mode", args.run_mode]
     if args.dry_run:
         argv.append("--dry-run")
     if want_json:
@@ -2347,6 +2351,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--only", default=None, metavar="SPEC",
                    help="jadvalning bir qismi (SPEC sintaksisi driver'niki, "
                         "o'zgartirilmay uzatiladi)")
+    # Driver'ning o'z bayroqlari -- O'ZGARTIRILMAY uzatiladi, bu yerda
+    # talqin qilinmaydi (14 §7(1): avval uzatilmasdi, `revix run` bilan
+    # P1/P2 PressureNotAllowedError berardi va P0 generatorsiz ishlardi).
+    p.add_argument("--allow-pressure", action="store_true",
+                   help="pressure generatorini yoqadi (driver'ga o'zgartirilmay "
+                        "uzatiladi; 00-pilot-topologiya.md §6)")
+    p.add_argument("--run-mode", default=None, metavar="MODE",
+                   help="run rejimi (driver'ga o'zgartirilmay uzatiladi; "
+                        "qiymatlarni driver tekshiradi)")
     p.add_argument("--dry-run", action="store_true",
                    help="hech narsa ishga tushirmaydi, faqat jadvalni chiqaradi")
     p.set_defaults(func=cmd_run)

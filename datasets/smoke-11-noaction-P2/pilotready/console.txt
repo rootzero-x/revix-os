@@ -1,0 +1,46 @@
+== pre
+{"phase": "pre", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 11756708121, "real_us": 1791107626918269, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.31 0.35 0.33 1/224 6249", "uptime_s": 11756.7}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+== run smoke-11-noaction-P2 arm=no_action level=P2 seed=20261014
+driver rc=0 wall_s=57.065
+{
+  "dispositions": {
+    "censored": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 3.2775099999999995,
+    "mean": 3.2775099999999995,
+    "min": 3.2775099999999995,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-11-noaction-P2",
+  "run_id": "3635d798ead447ea9fc8499b7bfb375c",
+  "trials": [
+    {
+      "disposition": "censored",
+      "overhead_s": 3.2775099999999995,
+      "rule": "horizon_ended_down",
+      "trial_id": "b000t004"
+    }
+  ]
+}
+
+== post
+{"phase": "post", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 11814000596, "real_us": 1791107684210744, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.41 0.38 0.35 1/224 6318", "uptime_s": 11814.0}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+validate rc=0
+WARNING run_filtered: run --only ['no_action', 'P2'] bilan filtrlangan: 1/6 trial -- to'liq blok dizayni EMAS (§8.4)  [/home/snowden/revix-runs/smoke-11-noaction-P2/events.jsonl:2]
+xato: 0  ogohlantirish: 1
+NATIJA: O'TDI -- analiz qilinishi mumkin
+analysis rc=1
+total 648
+drwxr-xr-x  2 snowden snowden   4096 Oct  4 14:54 .
+drwxr-xr-x 56 snowden snowden   4096 Oct  4 14:53 ..
+-rw-r--r--  1 snowden snowden 101062 Oct  4 14:54 events.jsonl
+-rw-r--r--  1 snowden snowden   1269 Oct  4 14:54 guard.jsonl
+-rw-r--r--  1 snowden snowden  20790 Oct  4 14:54 pressure.jsonl
+-rw-rw-r--  1 snowden snowden 125300 Oct  4 14:54 probe.csv
+-rw-rw-r--  1 snowden snowden 348803 Oct  4 14:54 psi.csv
+-rw-r--r--  1 snowden snowden  41582 Oct  4 14:53 run_meta.json

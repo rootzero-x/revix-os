@@ -53,6 +53,13 @@ def rates(samples):
     return [(t, r) for t, r in out if r is not None]
 
 
+def _median(xs):
+    # FIX (smoke-11): PI namunalarining bir qismida slice_full_rate2s = None;
+    # avval filtrlangan ro'yxat FILTRLANMAGAN uzunlik bilan indekslanardi.
+    xs = sorted(xs)
+    return xs[len(xs) // 2] if xs else None
+
+
 def spans(rs, thr, lo, hi):
     """Contiguous runs of rate >= thr inside [lo, hi]; guard-style length
     (t_last - t_first, the value guard compares to sustain_max_seconds)."""
@@ -186,7 +193,7 @@ def main(run_dir, json_out=None):
             "ramp_above_threshold_s_planned_ramp_window_user": ramp_plan_user,
             "generator_stop": {k: (g_stop or {}).get(k) for k in ("elapsed_s", "max_seconds", "overrun_s", "touched_mb_at_stop")},
             "generator_pi_samples": len(g_pi),
-            "generator_pi_rate_median": (sorted(x["slice_full_rate2s"] for x in g_pi if x.get("slice_full_rate2s") is not None)[len(g_pi)//2] if g_pi else None),
+            "generator_pi_rate_median": _median([x["slice_full_rate2s"] for x in g_pi if x.get("slice_full_rate2s") is not None]),
         }
         report["trials"].append(tr)
     txt = json.dumps(report, indent=1, ensure_ascii=False, default=str)

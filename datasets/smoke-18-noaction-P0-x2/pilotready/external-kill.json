@@ -1,0 +1,1 @@
+{"trial_id": "b000t004", "trial_begin_mono_us": 12651373442, "kill_mono_us": 12673377638, "kill_rel_s": 22.004196, "systemctl_rc": 0, "note": "external SIGKILL, simulates smoke-13 path, NOT a guard trip"}

@@ -321,6 +321,63 @@ RAMP_ABOVE_THRESHOLD_MEASURED_S = 0.000
 # ko'chardi va §3.5 ning duty cycle granularligi (250 ms tik, 2 s PSI
 # oynasi, 4 MiB blok) boshqa bo'lib qolardi. Bir xil nuqson klassi.
 PRESSURE_INTERVAL_MS = 250
+# Generatorning O'Z ramp'i (`pressure_start` -> oxirgi `pressure_ramp`),
+# O'LCHANGAN: docs/architecture/14-smoke-trial-natijalari.md §5.1 --
+# 17.646 - 15.076 = 2.570 s (smoke-05) va 17.646 - 15.078 = 2.568 s
+# (smoke-07), kalibrlangan P2 dial'ida. SOZLANMAYDI (14 §10: mezon
+# o'tmasa R o'zgartirilib qayta urinilmaydi).
+#
+# NEGA (orkestrator qarori V2, 14 §6/§10): generator avval trial timeline
+# ramp'ining BOSHIDA (15 s) ishga tushardi va `ramp_s + hold_s = 18 s`
+# yashardi. O'z ramp'i 2.57 s da tugab PI fazasi rejadagi hold'dan OLDIN
+# boshlangani uchun guard tezligi hold boshidan 1.35-1.46 s oldin 0.35 dan
+# oshdi va 15 s dan uzoq turdi: 2/2 `P2` trial `aborted_guard` (14 §5).
+# Endi generator `hold_start - R` da boshlanadi va `hold_s + R` ishlaydi,
+# ya'ni o'z ramp'i hold boshida tugaydi va u `pressure_off` da chiqadi.
+# Barcha frozen raqamlar (baseline 10, ramp 5, hold 13, injeksiya hold+3,
+# pressure_off 33.0) o'zgarmaydi; v1.11 amendment'ining (1.5) premisasi --
+# "sustain taymeri faqat hold ichida boshlanishi mumkin" -- qayta bajariladi.
+# Bir xil R barcha band va arm uchun (§16.10(2) ruhida).
+GENERATOR_OWN_RAMP_S = 2.57
+GENERATOR_OWN_RAMP_SOURCE = (
+    "docs/architecture/14-smoke-trial-natijalari.md §5.1 (pressure_start -> "
+    "oxirgi pressure_ramp: 2.570 s smoke-05, 2.568 s smoke-07; P2 dial); "
+    "V2 qarori 14 §10")
+
+
+def generator_window(timeline: sch.TrialTimeline,
+                     lead_s: float = GENERATOR_OWN_RAMP_S) -> dict[str, Any]:
+    """Generatorning REJALASHTIRILGAN oynasi, `trial_begin` dan sekundlarda.
+
+    `TrialTimeline` (frozen) o'zgarmaydi: uning `pressure_on_s` i (ramp +
+    hold = 18 s) REJA sifatida qoladi; bu esa generatorning HAQIQIY ishlash
+    oynasi (V2). Ikkalasi ham `run_meta` ga yoziladi, shunda o'quvchi reja
+    18 s ni amaldagi 15.57 s bilan solishtira oladi.
+
+    FAIL-CLOSED: `lead_s` ramp fazasidan uzun bo'lsa generator baseline
+    (R_ref) oynasiga kirib qolardi -- timeline'ni jimgina buzish o'rniga
+    `DriverError`.
+    """
+    if not (0.0 <= lead_s <= timeline.ramp_s):
+        raise DriverError(
+            f"generator lead {lead_s} s ramp fazasi [0, {timeline.ramp_s}] s "
+            "dan tashqarida -- generator R_ref baseline'iga kirardi")
+    start = timeline.t_hold_start - lead_s
+    stop = timeline.t_pressure_off
+    return {
+        "lead_s": lead_s,
+        "lead_source": GENERATOR_OWN_RAMP_SOURCE,
+        "start_s": start,
+        "stop_s": stop,
+        "max_seconds": stop - start,
+        "generator_on_s": stop - start,
+        "planned_pressure_on_s": timeline.ramp_s + timeline.hold_s,
+        "planned_ramp_start_s": timeline.t_ramp_start,
+        "planned_hold_start_s": timeline.t_hold_start,
+        "note": ("TrialTimeline frozen reja (pressure_on_s = ramp_s + hold_s) "
+                 "o'zgarmagan; generator hold_start - lead_s da boshlanadi va "
+                 "pressure_off da chiqadi (V2, 14 §10)"),
+    }
 
 # --- slice dial'lari (00-pilot-topologiya.md §1) ---------------------------
 LAB_SLICE_PROPERTIES: dict[str, Any] = {
@@ -1160,6 +1217,7 @@ def dry_run_report(
         "cell_counts": {"/".join(map(str, c)): n
                         for c, n in schedule.cell_counts().items()},
         "timeline": timeline.as_dict(),
+        "generator_window": generator_window(timeline),
         "t_trial_us": t_trial_us(timeline, probe_period_us),
         "t_trial_formula": T_TRIAL_FORMULA,
         "t_recovery_window_us": t_recovery_window_us(timeline, probe_period_us),
@@ -1543,6 +1601,9 @@ class Driver:
         self.probe_period_us = probe_period_us
         # `t_trial_us()` invariant buzilsa ISTISNO tashlaydi -> run boshlanmaydi.
         self.t_trial_us = t_trial_us(timeline, probe_period_us)
+        # V2 (14 §10): generatorning HAQIQIY oynasi; `timeline` (frozen reja)
+        # o'zgarmaydi. Noto'g'ri lead -> DriverError (run boshlanmaydi).
+        self.gen_window = generator_window(timeline)
         self.washout_policy = washout_policy
         self.selected = select_trials(schedule, config.only)
 
@@ -2097,6 +2158,10 @@ class Driver:
             "module_versions": facts.get("modules"),
             "repo_version": facts.get("repo_version"),
             "timeline": self.timeline.as_dict(),
+            # Reja (`timeline.pressure_on_s`) va generatorning HAQIQIY oynasi
+            # yonma-yon: o'quvchi 18 s rejani 15.57 s amaliy oyna bilan
+            # solishtira oladi (V2, 14 §10).
+            "generator_window": dict(self.gen_window),
             # T_trial HISOBLANADI, hech qachon jimgina konstanta emas.
             "t_trial_us": self.t_trial_us,
             "t_trial_formula": T_TRIAL_FORMULA,
@@ -2348,6 +2413,8 @@ class Driver:
         ev_before: dict[str, dict[str, int]] = {}
         host_before: dict[str, Any] = {}
         setup_error: BaseException | None = None
+        prober_stopped = False
+        pressure_stopped = False
 
         # --- SETUP: record oynasidan TASHQARIDA ---------------------------
         try:
@@ -2428,9 +2495,21 @@ class Driver:
             ramp_start = baseline_end
             hold_start = ramp_start + round(self.timeline.ramp_s * 1e6)
             pressure_off = hold_start + round(self.timeline.hold_s * 1e6)
+            # V2 (14 §10): generator ramp fazasining BOSHIDA emas, balki
+            # `hold_start - R` da boshlanadi, `pressure_off` gacha ishlaydi.
+            gen_start = hold_start - round(self.gen_window["lead_s"] * 1e6)
+            self._wait_until(gen_start, watchers, trial)
             if self.cfg.allow_pressure:
+                t_gen0 = self.pf.mono_us()
                 detail["pressure"] = self._start_pressure(
-                    trial, level, (pressure_off - ramp_start) / 1e6)
+                    trial, level, (pressure_off - gen_start) / 1e6)
+                detail["pressure"]["window"] = {
+                    "planned_start_mono_us": gen_start,
+                    "start_call_mono_us": t_gen0,
+                    "start_offset_s": (t_gen0 - timing.begin_mono_us) / 1e6,
+                    "planned_stop_mono_us": pressure_off,
+                    "lead_s": self.gen_window["lead_s"],
+                }
             else:
                 detail["pressure"] = {
                     "started": False,
@@ -2441,13 +2520,30 @@ class Driver:
                 watchers, trial)
 
             # --- injeksiya (§3, 03-sut-protokoli.md §5) --------------------
-            detail["fault"] = self._inject_fault(trial)
+            # Guard shu trial'da ALLAQACHON ishga tushgan bo'lsa (14 §11.4,
+            # smoke-13: runaway kill 22.526 s, injeksiya 23.001 s), lab
+            # o'ldirilgan va injeksiya o'lik SUT'ga ketardi -> DriverError ->
+            # §12 da `aborted_guard` o'rniga `harness_error`. Injeksiya
+            # QILINMAYDI va sababi yoziladi; trial oddiy yo'ldan davom etadi,
+            # disposition `_collect_facts` dan (`guard_fired`).
+            pre_guard = guard_events_in_window(
+                self.guard_path, timing.begin_mono_us, self.pf.mono_us())
+            if pre_guard:
+                detail["fault"] = {
+                    "skipped": True,
+                    "reason": "guard_fired_before_injection",
+                    "mono_us_checked": self.pf.mono_us(),
+                    "guard_events": pre_guard,
+                }
+            else:
+                detail["fault"] = self._inject_fault(trial)
 
             # --- hold oxiri: pressure o'chadi ------------------------------
             self._wait_until(pressure_off, watchers, trial)
             timing.pressure_off_mono_us = pressure_off
             if self.cfg.allow_pressure:
                 self.pf.stop(PRESS_UNIT)
+            pressure_stopped = True
 
             # --- horizon: T_trial gacha kuzatuv davom etadi ----------------
             # `pressure_off` dan keyin yana `w_stab_s + P`: §4 VR oynasining
@@ -2473,6 +2569,7 @@ class Driver:
             # Prober horizon'dan KEYIN to'xtatiladi -> OXIRGI bo'shliq
             # bo'lmaydi (validator uni rad etadi).
             self.pf.stop(PROBER_UNIT)
+            prober_stopped = True
             self._drain_watchers(watchers, trial)
             self._emit_env_snapshot(trial, "trial_end", index,
                                     mono=horizon_end)
@@ -2493,17 +2590,60 @@ class Driver:
             detail["units_show"] = self._dump_live_units()
             timing.dump_us = self.pf.mono_us() - t_dump0
 
-            # --- washout (§8.4) --------------------------------------------
+        except Exception as exc:  # noqa: BLE001 -- qoida 13
+            facts_kw = self._classify_exception(
+                trial, timing, watchers, host_before, ev_before, exc, detail,
+                anomalies)
+        finally:
+            # --- washout (§8.4) -- HAR yo'lda, istisnoda HAM ---------------
+            # NEGA `finally` da (14 §11.4): avval washout `try` ichida edi va
+            # istisno uni o'tkazib yuborardi -- smoke-13 `washout.state =
+            # null` bilan yopildi; ko'p trial'lik run'da keyingi trial
+            # oldingisining qoldig'i ustida boshlanardi. Endi har trial
+            # washout'ni YAKUNLAYDI yoki u OSHKORA yiqiladi (`washout_timeout`).
+            if not prober_stopped:
+                # Istisno yo'li: prober hali tirik. Keyingi trial o'z
+                # prober'ini AYNI nom bilan yaratadi, demak bu to'xtatilmasa
+                # keyingi setup yiqiladi.
+                #
+                # Trial oynasi SHU YERDA yopiladi (horizon = kuzatuv to'xtagan
+                # lahza), washout'dan OLDIN -- oddiy yo'ldagi bilan bir xil
+                # ma'no: washout oynadan TASHQARIDA. Aks holda trial_end
+                # washout'dan keyin bo'lib, prober'siz oraliq `probe_coverage`
+                # ni buzardi va bizning o'z `cgroup.kill` imiz oynaga tushardi.
+                if not timing.horizon_end_mono_us:
+                    timing.horizon_end_mono_us = self.pf.mono_us()
+                try:
+                    self.pf.stop(PROBER_UNIT)
+                except Exception as exc:  # noqa: BLE001
+                    self._harness_error("prober_stop", exc, trial=trial)
+                    facts_kw["harness_error"] = True
+            if self.cfg.allow_pressure and not pressure_stopped:
+                # Istisno pressure_off DAN OLDIN: generator hali tirik. U
+                # oddiy yo'ldagidek washout'dan OLDIN to'xtatiladi. NEGA
+                # (14 §12.2, smoke-18 O'LCHADI): washout `memory.current`
+                # baseline'ini o'z boshida o'qiydi; tirik generator bilan
+                # baseline 169.4 MiB bo'ldi, kill'dan keyin 0.1 MiB -- ±32 MiB
+                # sharti hech qachon bajarilmadi va washout 120 s cap'da
+                # `washout_timeout` bilan tugadi.
+                try:
+                    self.pf.stop(PRESS_UNIT)
+                    detail.setdefault("pressure", {})["stopped_early_mono_us"] = (
+                        self.pf.mono_us())
+                except Exception as exc:  # noqa: BLE001
+                    self._harness_error("pressure_stop", exc, trial=trial)
+                    facts_kw["harness_error"] = True
             t_w0 = self.pf.mono_us()
-            washout = self._washout(trial)
+            try:
+                washout = self._washout(trial)
+            except Exception as exc:  # noqa: BLE001
+                # Washout'ning O'ZI yiqildi -> `washout_timeout` (§12), jim
+                # emas: sabab trial_end'da.
+                washout = {"state": sch.WASHOUT_TIMEOUT, "timed_out": True,
+                           "reason": f"washout_exception: {exc!r}",
+                           "observations": 0}
             timing.washout_us = self.pf.mono_us() - t_w0
             facts_kw["washout_timed_out"] = bool(washout.get("timed_out"))
-
-        except Exception as exc:  # noqa: BLE001 -- qoida 13
-            self._harness_error(f"trial:{trial.trial_id}", exc, trial=trial)
-            facts_kw["harness_error"] = True
-            detail["exception"] = repr(exc)
-        finally:
             t_t0 = self.pf.mono_us()
             try:
                 # HORIZON'DAN KEYINGI record'lar `trial_id=None` bilan
@@ -2530,6 +2670,71 @@ class Driver:
             verdict = self._emit_trial_end(
                 trial, timing, facts_kw, washout, anomalies, detail)
         return verdict
+
+    def _classify_exception(
+        self,
+        trial: sch.Trial,
+        timing: TrialTiming,
+        watchers: dict[str, Any],
+        host_before: dict[str, Any],
+        ev_before: dict[str, dict[str, int]],
+        exc: BaseException,
+        detail: dict[str, Any],
+        anomalies: list[str],
+    ) -> dict[str, bool]:
+        """Trial ichidagi istisno -> §12 faktlari.
+
+        IKKI HOL, va farqi guard oqimida (monotonic vaqt, `trial_begin`
+        dan hozirgacha):
+
+          * Guard shu trial'da ISHGA TUSHGAN: istisno guard'ning kill'i
+            OQIBATI (14 §11.4, smoke-13: `FAULT` -> ConnectionRefused). Trial
+            oddiy trial bilan BIR XIL `_collect_facts` yo'lidan tasniflanadi
+            -> `guard_fired` -> §12 ustuvorligi bo'yicha `aborted_guard`.
+            `harness_error` record'i YOZILMAYDI (u `validate` da
+            disposition'ni `harness_error` ga majburlaydi); istisno jim
+            emas -- `trial_end.detail.exception_after_guard_trip` da.
+          * Guard ishlamagan: haqiqiy harness xatosi -> `harness_error`
+            (avvalgidek, qoida 13).
+
+        Faktlarni yig'ishning o'zi yiqilsa -- `harness_error` (fail-closed).
+        """
+        detail["exception"] = repr(exc)
+        try:
+            fired = guard_events_in_window(
+                self.guard_path, timing.begin_mono_us, self.pf.mono_us())
+        except Exception:  # noqa: BLE001 -- o'qilmasa: guard yo'q deb EMAS
+            fired = []
+        if fired:
+            try:
+                state = self._sut_state
+                for key, unit in (("sut_state_at_horizon", SUT_UNIT),
+                                  ("prober_state_at_horizon", PROBER_UNIT),
+                                  ("bystander_state_at_horizon",
+                                   BYSTANDER_UNIT)):
+                    if state.get(key) is None:
+                        state[key] = self.pf.active_state(unit)
+                self._drain_watchers(watchers, trial)
+                ev_after = self._memory_events_snapshot()
+                host_after = {"vmstat": self.pf.vmstat(),
+                              "meminfo": self.pf.meminfo()}
+                facts_kw, fact_detail = self._collect_facts(
+                    trial, timing, watchers, host_before, host_after,
+                    ev_before, ev_after)
+                detail["facts"] = fact_detail
+                anomalies.extend(fact_detail.get("anomalies", []))
+                detail["exception_after_guard_trip"] = {
+                    "error": repr(exc),
+                    "error_type": type(exc).__name__,
+                    "classified_as": "consequence_of_guard_trip",
+                    "guard_events": fired,
+                }
+                if facts_kw.get("guard_fired"):
+                    return facts_kw
+            except Exception as exc2:  # noqa: BLE001
+                detail["classify_error"] = repr(exc2)
+        self._harness_error(f"trial:{trial.trial_id}", exc, trial=trial)
+        return {"harness_error": True}
 
     def _emit_trial_begin(self, trial: sch.Trial, index: int, arm: str,
                           level: str, mono: int) -> None:
@@ -3144,7 +3349,9 @@ class Driver:
         dan keladi. Bu ataylab: VR ta'rifi `reduce.py` da, o'lchovdan KEYIN
         va o'lchovdan TASHQARIDA (CONTRIBUTING.md §1.5).
         """
-        lo, hi = timing.begin_mono_us, timing.horizon_end_mono_us
+        # Istisno yo'lida horizon hali yo'q: oyna HOZIRGACHA (_classify_exception).
+        lo = timing.begin_mono_us
+        hi = timing.horizon_end_mono_us or self.pf.mono_us()
         state = self._sut_state
         detail: dict[str, Any] = {"anomalies": list(state["anomalies"])}
 
@@ -3519,6 +3726,11 @@ def render_dry_run(report: dict[str, Any]) -> str:
         f"  T_trial={report['t_trial_us'] / 1e6:.3f} s   "
         f"(fault'dan keyin {report['t_recovery_window_us'] / 1e6:.3f} s)",
         f"  formula: {report['t_trial_formula']}",
+        f"  generator: {report['generator_window']['start_s']:.2f}"
+        f"..{report['generator_window']['stop_s']:.2f} s "
+        f"({report['generator_window']['generator_on_s']:.2f} s; reja "
+        f"pressure_on_s={report['generator_window']['planned_pressure_on_s']:.1f} s, "
+        f"lead R={report['generator_window']['lead_s']} s)",
         f"  baho: {est['total_hours']:.2f} soat "
         f"(eng yomon {est['worst_case_hours']:.2f} soat); "
         f"qo'shimcha vaqt: {report['per_trial_overhead_source']}",

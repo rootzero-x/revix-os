@@ -1,0 +1,6 @@
+WARNING run_filtered: run --only ['no_action', 'P0'] bilan filtrlangan: 2/12 trial -- to'liq blok dizayni EMAS (§8.4)  [/home/snowden/revix-runs/smoke-18-noaction-P0-x2/events.jsonl:2]
+
+record: 224  probe: 1282  trial: 2  run_mode: pilot
+xato: 0  ogohlantirish: 1
+NATIJA: O'TDI -- analiz qilinishi mumkin
+validate rc=0

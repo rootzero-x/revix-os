@@ -1,0 +1,30 @@
+{
+  "dispositions": {
+    "censored": 1,
+    "harness_error": 1
+  },
+  "n_trials": 2,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 90.22434000000001,
+    "mean": 46.73675800000001,
+    "min": 3.2491759999999985,
+    "n": 2
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-18-noaction-P0-x2",
+  "run_id": "cc040b2b0c7f4ed7ad2ae381dd7c5b07",
+  "trials": [
+    {
+      "disposition": "harness_error",
+      "overhead_s": 90.22434000000001,
+      "rule": "harness_error",
+      "trial_id": "b000t004"
+    },
+    {
+      "disposition": "censored",
+      "overhead_s": 3.2491759999999985,
+      "rule": "horizon_ended_down",
+      "trial_id": "b001t000"
+    }
+  ]
+}

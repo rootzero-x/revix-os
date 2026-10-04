@@ -467,3 +467,295 @@ Har qanday variantdan keyin `P2` smoke'i qayta bajarilishi kerak.
 - Qayta tekshirish: `zstd -d` bilan ochib,
   `python3 -m revix.validate --run-dir <dir> --sut-unit revix-sut.service --sut-target sut`;
   `python3 datasets/smoke-tools/smoke_analyze.py <dir>`.
+
+---
+
+## 10. V2 — OLDINDAN qayd etilgan mezon (yangi trial'lardan OLDIN commit qilindi)
+
+> Bu bo'lim V2 kodi yozilishidan va birorta yangi trial ishga
+> tushirilishidan **OLDIN** yozildi va o'z commit'ida qayd etildi. Keyingi
+> commit'larda **o'zgartirilmaydi**; natija §11 da alohida yoziladi.
+
+**Qaror (orkestrator, 2026-10-04):** §6 ning **V2** varianti. Generator
+`hold_start − R` da boshlanadi va `hold_s + R` ishlaydi, ya'ni
+`pressure_off` da (33.0 s) chiqadi. `R` — generatorning **o'z o'lchangan
+ramp'i**, **2.57 s** (§5.1: `pressure_start` → oxirgi `pressure_ramp`
+17.646 − 15.076 = 2.570 s va 17.646 − 15.078 = 2.568 s). `R` nomli
+konstanta, sozlanmaydi. Barcha band'lar (P0/P1/P2) va arm'lar uchun bir xil.
+`schedule.py` va frozen matn o'zgarmaydi; faqat `revix/driver.py`.
+
+**Muvaffaqiyat mezoni (orkestrator bergan, aynan):** yangi smoke
+trial'larning **`P2`** dagilarida (a) **birorta ham trial `aborted_guard`
+bilan tugamaydi** va (b) guard tezligi `≥ 0.35` bo'lgan **eng uzun uzluksiz
+oraliq ≤ 14 s**.
+
+- (b) ning o'lchovi — §4.2 dagi bilan aynan bir xil:
+  `datasets/smoke-tools/smoke_analyze.py` ning
+  `longest_user_span_ge_0.35_s` maydoni (`psi.csv` `user` scope,
+  guard algoritmi: eng tor `≥ 2 s` oyna, uzunlik = oxirgi − birinchi
+  namuna, oyna `[trial_begin, horizon + 30 s]`).
+- **To'xtash qoidasi:** birorta `P2` trial'i trip qilsa YOKI biror oraliq
+  14 s dan oshsa — **qolgan barcha trial'lar to'xtatiladi** va hisobot
+  yoziladi. `R`, dial yoki boshqa hech narsa o'zgartirilib qayta
+  urinilmaydi.
+- Mashina talablari (avvalgidek, mezonga qo'shimcha): har trial'da
+  `trial_end` = 1, `validate` O'TDI, `boot_id`/pid1/`real − mono` siljishi
+  o'zgarmagan (aks holda trial tashlanadi va yoziladi), post-flight
+  (`oom_kill` o'zgarmagan, lab swap 0, `leftover_state` PASS).
+
+**Trial'lar va tartib (oldindan qotirilgan):** har biri alohida run,
+`--blocks 1`, `--allow-pressure`, default `--run-mode pilot`, har trial
+uchun boshqa seed:
+
+| # | run | arm, band | seed |
+|---|---|---|---|
+| 1 | `smoke-08-A-P2` | A, P2 | 20261011 |
+| 2 | `smoke-09-noaction-P2` | no_action, P2 | 20261012 |
+| 3 | `smoke-10-A-P2` | A, P2 | 20261013 |
+| 4 | `smoke-11-noaction-P2` | no_action, P2 | 20261014 |
+| 5 | `smoke-12-A-P2` | A, P2 | 20261015 |
+| 6 | `smoke-13-noaction-P2` | no_action, P2 | 20261016 |
+| 7 | `smoke-14-noaction-P1` | no_action, P1 | 20261017 |
+| 8 | `smoke-15-A-P1` | A, P1 | 20261018 |
+| 9 | `smoke-16-A-P0` | A, P0 | 20261019 |
+| 10 | `smoke-17-noaction-P0` | no_action, P0 | 20261020 |
+
+`P1`/`P0` — regressiya tekshiruvi (mezonga kirmaydi, lekin ular ham trip
+qilsa yoki validate'dan o'tmasa — to'xtatiladi va yoziladi). VR, FR,
+downtime yoki birlamchi kattalik **hisoblanmaydi**.
+
+---
+
+## 11. V2 natijasi — mezon BAJARILMADI, ketma-ketlik to'xtatildi
+
+> §10 o'zgartirilmadi. Kod: `11fca44` (V2 + `revix run` bayroqlari).
+> Qulf `2026-10-04T09:50:49Z` — `09:57:15Z`. Trial'lar `revix run ...
+> --allow-pressure` orqali (yangi uzatish ishladi). Har trial oldidan/keyin
+> `boot_id`, pid1 `653523`, `real − mono` siljishi (o'zgarish −1…+1 µs) va
+> `oom_kill` (0 → 0) o'zgarmadi; lab swap max 0; `leftover_state` PASS.
+
+### 11.1 FAKT — `P2` trial'lari (tartib §10 dagidek)
+
+| # | run | disposition (driver) | guard | eng uzun `≥ 0.35` | `≥ 0.35` ning ≥ 1 s oraliqlari | eng uzun `≥ 0.05` | max tezlik | validate |
+|---|---|---|---|---|---|---|---|---|
+| 1 | smoke-08-A-P2 | `complete` | trip yo'q | **6.1 s** | 21.04–25.54, 27.24–33.34 | 14.7 s | 0.9364 | O'TDI |
+| 2 | smoke-09-noaction-P2 | `censored` (`horizon_ended_down`) | trip yo'q | **7.4 s** | 21.04–25.54, 27.04–34.44 | 8.5 s | 0.9622 | O'TDI |
+| 3 | smoke-10-A-P2 | `complete` | trip yo'q | **5.0 s** | 21.05–26.05, 27.25–29.55, 30.35–32.25 | 14.6 s | 0.9004 | O'TDI |
+| 4 | smoke-11-noaction-P2 | `censored` (`horizon_ended_down`) | trip yo'q | **13.0 s** | 20.95–33.95 | 14.3 s | 0.9697 | O'TDI |
+| 5 | smoke-12-A-P2 | `complete` | trip yo'q | **5.1 s** | 20.97–26.07, 27.17–28.77, 29.87–34.17 | 14.7 s | 0.8790 | O'TDI |
+| 6 | **smoke-13-noaction-P2** | **`harness_error`** (reducer: `aborted_guard`) | **`user_full_rate2s_runaway`**, `rate 0.9817`, `limit 0.98`, `window_us 2099975`, `kill_ok true`, trial boshidan **22.526 s** | 2.1 s (kill bilan kesildi) | 20.95–23.05 | 2.7 s | 0.9814 | O'TDI (2 ogohl.) |
+
+`trial_end` har run'da **1** ta. `smoke-11` ning tahlili birinchi urinishda
+**tahlil skriptining** xatosi bilan yiqildi (`smoke_analyze.py`: PI
+namunalarining bir qismida `slice_full_rate2s = None`, filtrlangan ro'yxat
+filtrlanmagan uzunlik bilan indekslangan) — ketma-ketlik oldindan yozilgan
+qoida bo'yicha to'xtadi; trial ma'lumotiga tegilmadi, skript tuzatildi
+(`_median`), 08–11 qayta tahlil qilindi va qolgan trial'lar o'sha tartib
+va seed'lar bilan davom ettirildi. Bu tuzatish o'lchov yoki dial'ni
+o'zgartirmaydi.
+
+### 11.2 FAKT — V2 oynasi ishladi
+
+| kattalik | 6 trial (min–max) | reja |
+|---|---|---|
+| generator `pressure_start` | 17.494–17.547 s | 17.43 s |
+| generator o'z ramp'i tugadi | 20.056–20.115 s | 20.0 s (hold boshi) |
+| user `≥ 0.35` birinchi marta | 20.946–21.051 s | hold ichida |
+| `ramp_above_threshold_s`, rejalashtirilgan ramp oynasi `[15, 20] s` (lab va user) | **0.0** (6/6) | 0.0 |
+| generator chiqishi (`pressure_stop`, 5 tugagan trial) | 33.075–33.245 s (`elapsed` 15.568–15.697 s, `overrun` 0.000–0.127 s) | 33.0 s |
+| `trial_end.overhead_s` (5 tugagan trial) | 3.242–3.278 s | — |
+
+Ya'ni v1.11 (1.5) ning premisasi — *"sustain taymeri faqat hold ichida
+boshlanishi mumkin"* — bu 6 trial'da **bajarildi**, va
+`validate.check_planned_timeline` o'tdi (reja o'zgarmagan:
+`13 + 0.0 ≤ 15`; u o'lchovni emas, rejani tekshiradi — §4.3 CHEKLOVI o'z
+kuchida).
+
+### 11.3 NATIJA — §10 mezoni
+
+- **(b) eng uzun `≥ 0.35` oraliq ≤ 14 s: 6/6 da bajarildi** (5.0–13.0 s;
+  `smoke-13` kill bilan 2.1 s da kesilgan). `sustained_pressure` trip'i
+  **0/6** (V2 dan oldin 2/2).
+- **(a) "birorta `P2` trial'i `aborted_guard` bilan tugamaydi" va to'xtash
+  qoidasi "birorta `P2` trial'i trip qilsa": BAJARILMADI.** `smoke-13` da
+  guard **runaway** chegarasi (`user_full_rate2s_max = 0.98`) bo'yicha trip
+  qildi. Driver bu trial'ga `harness_error` yozdi (§11.4), reducer
+  hosilasi `aborted_guard` — har ikkala o'qishda ham bu trial `P2`
+  ma'lumotini bermaydi va guard ishga tushdi.
+- **To'xtash qoidasi qo'llandi:** 6-trial'dan keyin ketma-ketlik
+  to'xtatildi; `P1` (14, 15) va `P0` (16, 17) regressiya trial'lari
+  **bajarilmadi**. `R`, dial va boshqa hech narsa o'zgartirilmadi va qayta
+  urinilmadi.
+
+### 11.4 FAKT — `smoke-13` timeline va driver nuqsoni
+
+`trial_begin` dan: generator 17.525 s, o'z ramp'i 20.105 s da tugadi, user
+`≥ 0.05` 20.351 s, `≥ 0.35` 20.951 s, **guard trip 22.526 s**
+(`user_full_rate2s_runaway`, 0.9817 / 0.98, oyna 2.1 s), SUT `failed /
+signal` 22.528 s (guard'ning `kill_subtree` i), driver injeksiyasi 23.001 s
+da — SUT allaqachon o'lik: `FAULT exit code=1` → `ConnectionRefusedError
+(111)` → `DriverError("SUT fault ack bermadi ...")`. Driver run'ni
+`trial_end` (horizon 23.004 s), washout'**siz** yopdi (`washout.state =
+null`), driver run wall 23.8 s.
+
+**Driver nuqsoni (mening faylim, TUZATILMADI — to'xtash qoidasi):**
+`run_trial` ning istisno yo'li `_collect_facts` ni chaqirmaydi, demak
+`guard_fired` hech qachon tekshirilmaydi va §12 ning ustuvorligi
+(`aborted_guard` > `harness_error`) o'rniga `harness_error` yoziladi;
+validator buni faqat **ogohlantirish** (`disposition_cross_check`) sifatida
+ko'rsatadi. Shu yo'lda washout ham o'tkazib yuboriladi — ko'p trial'lik
+run'da keyingi trial washout'siz boshlanardi (bu yerda run bitta trial'lik
+edi, post-flight toza). Taklif: istisno yo'lida ham guard oqimini
+(`guard_events_in_window`) o'qib `guard_fired` ni faktga qo'shish va
+washout'ni `finally` ga o'tkazish — orkestrator ruxsati bilan.
+
+### 11.5 TALQIN (o'lchov emas)
+
+- V2 **o'zi maqsad qilgan mexanizmni** (sustain, 15 s) yo'q qildi: 0/6
+  trip, eng uzun oraliq 5.0–13.0 s. Lekin `smoke-11` ning 13.0 s i
+  mezondan atigi 1.0 s past — PI nazorati tebranmagan trial'larda oraliq
+  `≈ 33.9 − 20.95 ≈ 13 s` ga yaqinlashadi, ya'ni zaxira tor.
+- Trip qilgan mexanizm **boshqa**: runaway (0.98), PI fazasining birinchi
+  ~2.4 s ida (hold boshidan 2.5 s keyin), `no_action` arm'ida, restart'siz.
+  `P2` dagi max tezlik: V2 dan oldin 0.96 / 0.93, V2 da 0.879–0.981 —
+  ya'ni kalibrlangan `P2` dial'i pilot topologiyasida runaway chegarasiga
+  **yaqin** ishlaydi (`13` §6.3 ham B-`P2` da 2/7 trip ko'rgan). V2 buni
+  keltirib chiqardimi yoki yo'qmi — **o'lchanmagan** (n kichik, V2 dan
+  oldin faqat 2 trial).
+- Kutiladigan stavka bahosi (taxmin, CHEKLOV: n = 6): `P2` trial'larining
+  1/6 i runaway bilan yo'qoladi.
+
+### 11.6 CHEKLOV
+
+- `P2`: 6 trial (3 + 3), `P1`/`P0` regressiyasi bajarilmagan.
+- Guard tezligi `psi.csv` dan qayta qurilgan (10 Hz); runaway guard'ning
+  o'z namunasida 0.9817, `psi.csv` da max 0.9814.
+- `smoke-13` ning disposition'i driver nuqsoni tufayli `harness_error`.
+
+### 11.7 Mezon bo'yicha yakuniy bayonot (orkestrator so'rovi bilan qo'shildi)
+
+- **§10 mezoni o'zining so'zma-so'z matni bo'yicha** (*"birorta `P2`
+  trial'i `aborted_guard` bilan tugamaydi"*, to'xtash qoidasi *"birorta
+  `P2` trial'i trip qilsa"*) **BAJARILMADI**: `smoke-13` da guard ishga
+  tushdi.
+- **Mezonning maqsadi** — V2 nishonga olgan **sustain** mexanizmi
+  (`0.35 / 15 s`) — **bajarildi**: `sustained_pressure` trip'i 0/6 (V2 dan
+  oldin 2/2), eng uzun oraliq 13.0 s.
+- Yagona muvaffaqiyatsizlik **boshqa mexanizm**: runaway chegarasi
+  (`user_full_rate2s_max = 0.98`, rate 0.9817). Xuddi shu qoida
+  kalibratsiyada ham ikki marta ishlagan (`13` §6.3: 0.9802 va 0.9889).
+- §10 matni o'zgartirilmadi va qayta ta'riflanmaydi. Orkestrator qarori:
+  V2 saqlanadi, dial va guard'ga tegilmaydi, `P2` dagi kutiladigan yo'qotish
+  keyingi amendment'da exclusion rate sifatida oldindan e'lon qilinadi.
+
+## 12. Driver istisno yo'li tuzatildi (orkestrator ruxsati bilan)
+
+**Tuzatish (`revix/driver.py`):**
+
+1. Injeksiyadan oldin guard oqimi o'qiladi (`trial_begin` .. hozir); guard
+   allaqachon ishlagan bo'lsa injeksiya **qilinmaydi**,
+   `trial_end.detail.fault = {"skipped": true, "reason":
+   "guard_fired_before_injection", "guard_events": [...]}`, trial oddiy
+   yo'ldan davom etadi va `_collect_facts` -> `guard_fired` -> §12 bo'yicha
+   `aborted_guard`.
+2. Trial ichidagi istisnoda guard oqimi o'qiladi: guard ishlagan bo'lsa
+   (poyga — guard tekshiruvdan keyin, `FAULT` dan oldin) trial **xuddi shu
+   `_collect_facts` yo'lidan** tasniflanadi (`aborted_guard`), istisno
+   `trial_end.detail.exception_after_guard_trip` da yoziladi va
+   `harness_error` record'i yozilmaydi (u validator'da disposition'ni
+   `harness_error` ga majburlardi). Guard ishlamagan bo'lsa — `harness_error`
+   (avvalgidek).
+3. Washout **`finally` da, har yo'lda**. Istisno yo'lida avval prober
+   to'xtatiladi va trial oynasi shu lahzada yopiladi (washout oynadan
+   tashqarida — oddiy yo'l bilan bir xil ma'no). Washout'ning o'zi
+   yiqilsa — `washout_timeout` (`washout.reason = "washout_exception: ..."`).
+   Har trial'da aynan bitta `trial_end` saqlanadi.
+
+**Testlar (fake):** guard injeksiyadan oldin, guard injeksiya paytida
+(istisno), guard injeksiyadan keyin, guard'siz haqiqiy harness xatosi,
+istisnodan keyin ikkinchi trial toza boshlanishi, washout'ning o'zi
+yiqilishi — har birida washout bajarilgani (`trial_end.washout`, lab
+`cgroup.kill`) tekshiriladi. Tuzatishsiz 5 tasi yiqiladi.
+
+### 12.1 Empirik tekshiruv — OLDINDAN yozilgan reja va kutilgan natija
+
+- Run `smoke-18-noaction-P0-x2`: `revix run --blocks 2 --only no_action,P0
+  --allow-pressure --seed 20261021` (ikki trial).
+- Birinchi trial'ning `trial_begin` idan **~22.0 s** keyin SUT unit'i
+  **harness TASHQARISIDAN** o'ldiriladi:
+  `systemctl --user kill --signal=SIGKILL revix-sut.service`. Bu smoke-13
+  ning yo'lini (injeksiya o'lik SUT'ga, `ConnectionRefused`) **simulyatsiya
+  qiladi; bu guard trip EMAS** — guard oqimida `guard_event` bo'lmasligi
+  kerak.
+- **Kutilgan:** 1-trial `harness_error` (guard ishlamagan, istisno —
+  haqiqiy harness yo'li), `trial_end` 1 ta, `washout.state = complete`,
+  prober to'xtatilgan; 2-trial toza boshlanadi (setup xatosiz) va
+  injeksiya bilan oxiriga yetadi (`no_action` P0 da odatdagi natija
+  `censored` / `horizon_ended_down`); run `validate` dan o'tadi;
+  post-flight toza.
+
+### 12.2 FAKT — `smoke-18-noaction-P0-x2` (commit `9c98e7f`): kutilganidan FARQ
+
+Qulf ~`10:09Z` (pre-marker real_us 1791108520641943) — `10:12:28Z` (olishda `loadavg1` 0.30). Tashqi kill
+1-trial boshidan **22.004 s** da (`systemctl --user kill --signal=SIGKILL
+revix-sut.service`, rc 0; journal: `status=9/KILL`). `guard.jsonl`:
+faqat `guard_start`, `guard_stop` — **guard trip yo'q** (kutilgandek).
+
+| | kutilgan (§12.1) | o'lchangan |
+|---|---|---|
+| 1-trial disposition | `harness_error` | **`harness_error`** (matched: `harness_error, washout_timed_out, measured`) |
+| injeksiya | `ConnectionRefused` | `fault_inject` 23.001 s, `error ConnectionRefusedError(111)` |
+| `trial_end` soni | 1 + 1 | **1 + 1** |
+| prober to'xtatildi | ha | ha, 23.054 s (trial oynasi 23.001 s da yopildi) |
+| **1-trial washout** | `complete` | **`washout_timeout`**, `reason t_w_max`, 120.118 s, `memory_baseline 177651712` (169.4 MiB) |
+| 2-trial | toza boshlanadi va tugaydi | setup xatosiz, injeksiya 23.001 s, `censored` (`horizon_ended_down`), washout `complete` 15.014 s |
+| validate | O'TDI | **O'TDI** (0 xato, faqat `run_filtered`) |
+| post-flight | toza | `boot_id`/pid1 o'zgarmagan, `real − mono` −1 µs, `oom_kill` 0, lab swap 0, `leftover_state` PASS |
+
+**Sabab (FAKT):** istisno `pressure_off` dan (33 s) OLDIN — generator
+(P0, 160 MiB) hali tirik edi. `_washout` `memory.current` baseline'ini o'z
+boshida o'qiydi: 169.4 MiB; `cgroup.kill` dan keyin lab 0.1 MiB, ya'ni §8.4
+ning "baseline ±32 MiB" sharti hech qachon bajarilmadi va washout 120 s
+cap'da `washout_timeout` bilan tugadi. Talab bajarildi ("washout
+yakunlangan YOKI oshkora yiqilgan"), lekin bu artefakt: har bunday trial
+120 s yo'qotardi. Oddiy yo'lda generator `pressure_off` da to'xtatiladi,
+shuning uchun bu u yerda ko'rinmaydi.
+
+**Tuzatish:** istisno yo'lida, generator hali to'xtatilmagan bo'lsa, u
+washout'dan OLDIN to'xtatiladi (`detail.pressure.stopped_early_mono_us`).
+Regressiya testi (fake, ikki holat) tuzatishsiz yiqiladi.
+
+### 12.3 Empirik qayta tekshiruv — OLDINDAN yozilgan
+
+`smoke-19-noaction-P0-x2`, xuddi shu protokol (seed 20261022). **Kutilgan:**
+1-trial `harness_error`, washout **`complete`**, generator kill'dan oldin
+to'xtatilgan; 2-trial toza va tugaydi; validate O'TDI; post-flight toza.
+Agar 1-trial washout yana `washout_timeout` bo'lsa — to'xtatiladi va
+yoziladi.
+
+### 12.4 FAKT — `smoke-19-noaction-P0-x2` (commit `1a40263`): kutilgandek
+
+Qulf `10:15:55Z` — `10:17:40Z` (`loadavg1` 0.34). Tashqi kill 1-trial
+boshidan **22.001 s** da (rc 0, journal `status=9/KILL`); `guard.jsonl`:
+faqat `guard_start`, `guard_stop` — guard trip yo'q. **Bu guard trip emas,
+smoke-13 yo'lining tashqi simulyatsiyasi.**
+
+| | kutilgan (§12.3) | o'lchangan |
+|---|---|---|
+| 1-trial disposition | `harness_error` | **`harness_error`** (matched: `harness_error, measured`) |
+| injeksiya | `ConnectionRefused` | 23.001 s, `ConnectionRefusedError(111)`, `sut_ack null` |
+| generator washout'dan oldin to'xtatildi | ha | **ha**, 23.341 s (`stopped_early_mono_us`) |
+| 1-trial washout | `complete` | **`complete`**, 15.013 s, baseline 0.67 MiB (700416 B) |
+| prober | to'xtatilgan | 23.056 s; trial oynasi 23.001 s da yopildi |
+| `trial_end` soni | 1 + 1 | **1 + 1** |
+| 2-trial | toza boshlanadi va tugaydi | setup 0.045 s xatosiz, injeksiya 23.001 s (`OK armed=exit`), `censored` (`horizon_ended_down`), washout `complete` 15.014 s |
+| validate | O'TDI | **O'TDI** (0 xato, faqat `run_filtered`; 225 record, 1282 probe) |
+| post-flight | toza | `boot_id`/pid1 `653523` o'zgarmagan, `real − mono` −1 µs, `oom_kill` 0, lab swap 0, `leftover_state` PASS, `revix*` unit 0 |
+
+**NATIJA:** istisno yo'li endi (a) guard'siz holatda `harness_error`
+beradi, (b) washout'ni yakunlaydi, (c) prober va generatorni to'xtatadi,
+(d) keyingi trial'ni toza boshlaydi. Guard sababli istisno yo'li
+(`aborted_guard`) faqat fake testlarda tekshirildi — real guard trip'ini
+qasddan yaratish uchun dial yoki guard'ga tegish kerak bo'lardi, bu esa
+taqiqlangan. **CHEKLOV:** 1-trial `overhead_s = 0.0` (wall 38.4 s <
+`total_s` 53) — ta'rif bo'yicha (`max(0, wall − total_s)`), o'lchov emas.
