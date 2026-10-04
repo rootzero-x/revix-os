@@ -156,7 +156,9 @@ zaxirasini KO'RSATISHI kerak, boolean'ni aylantirish YETARLI EMAS.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
+import io
 import json
 import os
 import re
@@ -1114,6 +1116,191 @@ def reducer_input(
                 continue
         out_records.append(rec)
     return out_records, out_probes
+
+
+# ---------------------------------------------------------------------------
+# §4 va §17.4 faktlari -- REDUCER'NING O'Z funksiyalari bilan (15 §2.4)
+# ---------------------------------------------------------------------------
+#
+# p1-pilot-001 (docs/architecture/15-pilot-001-validatsiya-xatolari.md):
+# driver ikki trial'ni `complete` deb yozdi, holbuki §4 va §17.4 ularni
+# `censored` qiladi -- `TrialFacts` da oyna fakti YO'Q edi va
+# `probe_gap_exceeded` §4 ning ta'rifini emas, prober jarayonining
+# horizon'dagi holatini o'lchardi. Bu funksiyalar o'sha IKKI faktni
+# validator va reducer ishlatadigan AYNI funksiyalar bilan (`reduce.
+# split_trials`, `reduce.probe_gaps`, `reduce.fault_effective_us`,
+# `reduce.reference_throughput`, `reduce.build_episodes`,
+# `reduce.classify_window_containment`) va AYNI ko'rinishda (validator'ning
+# `reducer_view` filtri: faqat SUT unit_state va `target == "sut"` probe)
+# hisoblaydi -- driver va reducer konstruksiya bo'yicha kelisha olmaydi.
+#
+# QACHON: faqat trial oynasi YOPILGANDAN keyin (prober to'xtagan, horizon
+# o'tgan), allaqachon yozilgan xom record'lardan. Natija faqat
+# `trial_end.facts` ga tushadi; trial ichidagi hech bir qaror (fault vaqti,
+# pressure, washout) unga bog'liq emas va keyingi trial'ning tartibi
+# jadvaldan keladi -- ya'ni qayta aloqa yo'q. Prober hech bir arm'ning qaror
+# yo'liga ulanmaydi (§5 kafolat 2): disposition arm qarori emas.
+
+DISPOSITION_FACTS_PROVENANCE: dict[str, Any] = {
+    "method": "post_window_reducer_facts",
+    "since": "preregistration/v1.13, Amendment log v1.12 -> v1.13, 3.1-band",
+    "driver_function": "revix.driver.measured_trial_facts",
+    "reducer_module": "revix.reduce",
+    "reducer_functions": ["split_trials", "probe_gaps", "fault_effective_us",
+                          "reference_throughput", "build_episodes",
+                          "classify_window_containment"],
+    "facts": {
+        "probe_gap_exceeded": ("prober horizon'da tirik emas OR "
+                               "reduce.probe_gaps (>2P, §4, §14.6(4))"),
+        "window_outside_hold": ("reduce.classify_window_containment holati "
+                                "window_past_pressure/_horizon (§17.4(2),(5))"),
+    },
+    "computed_when": ("trial oynasi yopilgandan keyin (prober to'xtagan, "
+                      "horizon o'tgan), washout'dan oldin; faqat trial_end ga"),
+    "t_issue_source": ("revix.driver.exit_ts_candidate (ActiveExit eskirgan "
+                       "bo'lsa ExecMainExit; 15 §3.2)"),
+    "analysis": "docs/architecture/16-pilot-002-tuzatishlar.md",
+}
+
+
+def read_jsonl_from(path: str, offset: int) -> list[dict[str, Any]]:
+    """`path` ning `offset` baytidan keyingi TO'LIQ qatorlari (o'qish xolos)."""
+    if not os.path.exists(path):
+        return []
+    with open(path, "rb") as fh:
+        fh.seek(offset)
+        data = fh.read()
+    out = []
+    for line in data.split(b"\n"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue          # qismli oxirgi qator: validator o'zi xato beradi
+        if isinstance(rec, dict):
+            out.append(rec)
+    return out
+
+
+def read_probe_rows_from(path: str, offset: int) -> list[dict[str, Any]]:
+    """`probe.csv` ning `offset` dan keyingi qatorlari, sarlavha bilan."""
+    if not os.path.exists(path):
+        return []
+    with open(path, "r", encoding="utf-8", newline="") as fh:
+        header = fh.readline()
+    with open(path, "rb") as fh:
+        fh.seek(max(offset, len(header.encode("utf-8"))))
+        body = fh.read().decode("utf-8", "replace")
+    fields = next(csv.reader([header.strip()]), [])
+    return [dict(r) for r in csv.DictReader(io.StringIO(body), fieldnames=fields)]
+
+
+def measured_trial_facts(
+    records: Iterable[dict[str, Any]],
+    probe_rows: Iterable[dict[str, Any]],
+    trial_id: str,
+    *,
+    pressure_off_mono_us: int,
+    horizon_end_mono_us: int,
+    probe_period_us: int = PROBE_PERIOD_US,
+    w_stab_us: int | None = None,
+) -> dict[str, Any]:
+    """§4 ning probe-uzilish fakti va §17.4 ning oyna fakti, bitta trial.
+
+    * `probe_gap_exceeded`: §4 -- *"Probe uzilishi > 2×P → trial
+      `censored`, `failed` emas."*; §14.6(4) -- *"trial ichida probe
+      uzilishi > 2×P yo'q (aks holda trial `censored`)"*. `reduce.
+      probe_gaps` (ketma-ket ikki probe orasi `> 2P`).
+    * `window_outside_hold`: §17.4(2) -- `window_past_pressure` /
+      `window_past_horizon` uchun *"`disposition` ikkalasida ham
+      `censored`"*; §17.4(5) -- *"har `complete` trial uchun `t_up +
+      W_stab_pilot ≤ T_h` bajarilgan bo'lishi shart"*.
+      `reduce.classify_window_containment` ning holati
+      `reduce.WINDOW_CONTAINMENT_SOURCE` dagi ikki qiymatdan biri bo'lsa.
+
+    `T_h` va horizon -- driver `trial_end.timing` ga yozadigan AYNI
+    qiymatlar (validator ularni o'sha yerdan o'qiydi); shuning uchun
+    vaqtinchalik `trial_end` record'i FAQAT shu ikki maydon bilan quriladi
+    (disposition yo'q -- u hisobga ta'sir qilmaydi). Hech qanday chegara
+    bu yerda yangidan ta'riflanmaydi.
+
+    `reduce` FAQAT SHU FUNKSIYA ICHIDA import qilinadi -- §1.5 qulfining
+    toraytirilishi (`test_driver_VR_va_FR_tariflarini_CHAQIRMAYDI` izohi;
+    v1.13 3.1; orkestrator qarori Q1). Zanjir `build_episodes` ->
+    `evaluate_vr` / `window_throughput` shu yerda -- trial oynasi
+    YOPILGANDAN keyin -- ISHLAYDI; bu OSHKORA tan olinadi (16 §6). Natija
+    faqat `trial_end` faktlariga va disposition chaqiruviga oqadi
+    (`test_measured_facts_faqat_trial_end_ga_oqadi`).
+    """
+    from . import reduce as R   # ataylab funksiya ichida -- yuqoridagi izoh
+
+    recs = [r for r in records
+            if not (r.get("record_type") == "unit_state"
+                    and R._as_str(r.get("unit")) != SUT_UNIT)]
+    recs.append({"record_type": "trial_end", "trial_id": trial_id,
+                 "mono_us": horizon_end_mono_us,
+                 "timing": {"pressure_off_mono_us": pressure_off_mono_us,
+                            "horizon_end_mono_us": horizon_end_mono_us}})
+    prbs = [normalise_probe_row(p) for p in probe_rows
+            if R._as_str(p.get("target")) == REDUCER_PROBE_TARGET]
+    run = R.RawRun(records=recs, probes=prbs, sources=["<driver>"])
+    trial = next((t for t in R.split_trials(run) if t.trial_id == trial_id),
+                 None)
+    if trial is None:
+        raise DriverError(f"trial {trial_id} xom record'larda topilmadi")
+    prm = R.Params(probe_period_us=probe_period_us,
+                   **({"w_stab_us": w_stab_us} if w_stab_us else {}))
+    gaps = R.probe_gaps(trial, prm)
+    t_fault, _src = R.fault_effective_us(trial)
+    r_ref, r_st, _d = R.reference_throughput(trial, t_fault)
+    eps = R.build_episodes(trial, prm, r_ref, r_st)
+    win = R.classify_window_containment(
+        eps[0].t_up_us if eps else None, prm,
+        hold_end_us=trial.hold_end_us, horizon_end_us=trial.horizon_end_us)
+    return {
+        "probe_gap_exceeded": bool(gaps),
+        "probe_gaps": gaps[:20],
+        "n_probes": len(trial.probes),
+        "window_outside_hold": win.status in tuple(R.WINDOW_CONTAINMENT_SOURCE),
+        "window_containment": win.status,
+        "window_slack_to_hold_us": win.slack_to_hold_us,
+        "source": ("reduce.probe_gaps + reduce.classify_window_containment "
+                   "(validator/reducer bilan AYNI funksiyalar; 15 §2.4)"),
+    }
+
+
+def exit_ts_candidate(payload: dict[str, Any]) -> int | None:
+    """`unit_state` dan chiqayotgan invocation'ning EXIT vaqti (`t_issue`).
+
+    systemd xatti-harakati (p1-pilot-001 `b010t001`, 15 §3.2):
+    `ActiveExitTimestamp` faqat unit `active` dan CHIQQANDA yangilanadi.
+    Restart qilingan invocation `active` ga yetmay o'lsa (u yerda guard
+    uni `activating/start` da o'ldirdi), maydon ESKI qiymatda qoladi. O'sha
+    record'da (`trial_begin` dan): `ActiveExitTimestampMonotonic` = 23.023 s
+    (oldingi invocation), `InactiveExitTimestampMonotonic` = 23.024 s,
+    `ExecMainStartTimestampMonotonic` = 23.144 s,
+    `ExecMainExitTimestampMonotonic` = 27.134 s, `ExecMainCode 2`,
+    `ExecMainStatus 9`. Ya'ni eng so'nggi asosiy jarayon ActiveExit'dan
+    KEYIN boshlangan VA chiqqan -- uning chiqishini `ActiveExit` qamramaydi,
+    va driver ikkinchi `action` ga birinchisining vaqtini (23.023 s) berdi.
+
+    Qoida (vaqt manbaini tuzatish, yangi qoida emas): odatda
+    `active_exit_ts_mono_us` (avvalgidek). FAQAT `exec_main_start >
+    active_exit` VA `exec_main_exit >= exec_main_start` bo'lsa (eng so'nggi
+    jarayon eskirgan ActiveExit'dan keyin boshlanib chiqqan) --
+    `exec_main_exit_ts_mono_us`. Yangi invocation'ning birinchi record'ida
+    `exec_main_exit < exec_main_start` (yangi jarayon hali chiqmagan), demak
+    oddiy restart'da qiymat O'ZGARMAYDI.
+    """
+    ae = payload.get("active_exit_ts_mono_us")
+    ems = payload.get("exec_main_start_ts_mono_us")
+    eme = payload.get("exec_main_exit_ts_mono_us")
+    if (isinstance(ae, int) and isinstance(ems, int) and isinstance(eme, int)
+            and ems > ae and eme >= ems):
+        return eme
+    return ae or eme or payload.get("recv_mono_us")
 
 
 def check_restart_steps_pairing(props: dict[str, Any]) -> None:
@@ -2214,6 +2401,11 @@ class Driver:
             # yonma-yon: o'quvchi 18 s rejani 15.57 s amaliy oyna bilan
             # solishtira oladi (V2, 14 §10).
             "generator_window": dict(self.gen_window),
+            # v1.13 3.1 (orkestrator qarori Q1): bu run'ning disposition'lari
+            # trial oynasi yopilgandan keyin REDUCER'NING faktlari bilan
+            # hisoblangan. p1-pilot-001 da bu maydon YO'Q -- ikki run'ni
+            # shu bilan ajratish mumkin (16 §5).
+            "disposition_facts": dict(DISPOSITION_FACTS_PROVENANCE),
             # T_trial HISOBLANADI, hech qachon jimgina konstanta emas.
             "t_trial_us": self.t_trial_us,
             "t_trial_formula": T_TRIAL_FORMULA,
@@ -2579,6 +2771,11 @@ class Driver:
             ev_before = self._memory_events_snapshot()
             host_before = {"vmstat": self.pf.vmstat(),
                            "meminfo": self.pf.meminfo()}
+            # Xom fayl ofsetlari -- trial OYNASI yopilgandan keyin §4/§17.4
+            # faktlari faqat SHU trial yozgan record'lardan o'qiladi.
+            offsets = {p: (os.path.getsize(p) if os.path.exists(p) else 0)
+                       for p in (self.events_path, self.probe_path,
+                                 self.guard_path)}
             t_setup0 = self.pf.mono_us()
             detail["lab"] = self._start_lab_units(arm)
             detail["prober"] = self._start_prober(trial)
@@ -2723,10 +2920,25 @@ class Driver:
             host_after = {"vmstat": self.pf.vmstat(),
                           "meminfo": self.pf.meminfo()}
 
+            # --- §4 / §17.4 faktlari: oyna YOPILGANDAN keyin, xom record'dan --
+            # Prober to'xtagan (yuqorida), horizon o'tgan; natija faqat
+            # trial_end.facts ga tushadi (`measured_trial_facts` izohi).
+            self.writer.flush()
+            measured = measured_trial_facts(
+                read_jsonl_from(self.events_path, offsets[self.events_path])
+                + read_jsonl_from(self.guard_path, offsets[self.guard_path]),
+                read_probe_rows_from(self.probe_path,
+                                     offsets[self.probe_path]),
+                trial.trial_id,
+                pressure_off_mono_us=timing.pressure_off_mono_us,
+                horizon_end_mono_us=timing.horizon_end_mono_us,
+                probe_period_us=self.probe_period_us,
+                w_stab_us=round(self.timeline.w_stab_s * 1e6))
+
             # --- faktlar (§12) ---------------------------------------------
             facts_kw, fact_detail = self._collect_facts(
                 trial, timing, watchers, host_before, host_after,
-                ev_before, ev_after)
+                ev_before, ev_after, measured=measured)
             detail["facts"] = fact_detail
             anomalies.extend(fact_detail.get("anomalies", []))
 
@@ -3291,10 +3503,18 @@ class Driver:
             # Chiqayotgan invocation'ning exit vaqti -- `action` ning
             # `t_issue` i uchun YAGONA to'g'ri manba (yangi invocation'ning
             # record'ida `ActiveExit` BO'SH bo'ladi).
-            state["last_exit_ts"] = (
-                payload.get("active_exit_ts_mono_us")
-                or payload.get("exec_main_exit_ts_mono_us")
-                or payload.get("recv_mono_us"))
+            #
+            # `exit_ts_candidate`: `ActiveExitTimestamp` eskirgan holatni
+            # (invocation `active` ga yetmay o'lgan) `ExecMainExit` bilan
+            # tuzatadi (15 §3.2, `b010t001`). `max`: exit vaqti faqat OLDINGA
+            # siljiydi -- yangi invocation'ning birinchi record'i hali eski
+            # `ActiveExit` ni olib yuradi va aniqroq qiymatni bosib
+            # o'tmasligi kerak. Eskirmagan holatda barcha record'lar bir xil
+            # qiymat beradi, ya'ni `max` = avvalgi "oxirgisi" (o'zgarishsiz).
+            cand = exit_ts_candidate(payload)
+            prev = state.get("last_exit_ts")
+            state["last_exit_ts"] = (cand if prev is None or cand is None
+                                     else max(prev, cand)) or prev
         if inv and state["invocation"] and inv != state["invocation"]:
             # `action` uchun CHIQISH DALILI SHART: restart ta'rifan unit
             # `active` dan chiqqanidan keyin bo'ladi. Dalil bo'lmasa bu
@@ -3486,8 +3706,14 @@ class Driver:
         host_after: dict[str, Any],
         ev_before: dict[str, dict[str, int]],
         ev_after: dict[str, dict[str, int]],
+        measured: dict[str, Any] | None = None,
     ) -> tuple[dict[str, bool], dict[str, Any]]:
         """Trial faktlari -- HAMMASI LOG'LANGAN KUZATUVDAN (§12).
+
+        `measured` -- `measured_trial_facts` natijasi (§4 probe uzilishi,
+        §17.4 oyna), trial oynasi YOPILGANDAN keyin xom record'lardan. U
+        `None` bo'lishi mumkin faqat istisno yo'lida (`_classify_exception`),
+        u yerda guard ishlagan va `aborted_guard` ustun turadi.
 
         Driver HECH QANDAY VR/FR qarorini qabul qilmaydi: u faqat §12 ning
         faktlarini to'playdi, disposition esa `schedule.explain_disposition`
@@ -3533,15 +3759,26 @@ class Driver:
                               "active_state_at_horizon": by_state,
                               "transitions_seen": state["bystander_broke"]}
 
-        # censored (a): instrumentatsiya yo'qolishi. Driver probe
-        # QATORLARINI KO'RMAYDI (ular prober'ning CSV'sida), shuning uchun u
-        # faqat KUZATADIGAN narsani aytadi: prober horizon oxirigacha tirik
-        # qolmadi. `reduce.probe_gaps` haqiqiy uzilishlarni AVTORITET
-        # ravishda topadi va `derive_disposition` ni `censored` ga olib keladi
-        # (reduce.py:1440) -- ikki yo'l bir-birini qoplaydi.
+        # censored (a): instrumentatsiya yo'qolishi. IKKI manba, OR bilan:
+        #   * prober horizon oxirigacha tirik qolmadi (avvalgidek -- u holda
+        #     trial oxirida > 2P bo'shliq qoladi);
+        #   * §4 ning O'Z ta'rifi -- *"Probe uzilishi > 2×P → trial
+        #     `censored`"*, §14.6(4) -- probe QATORLARI orasida, trial oynasi
+        #     yopilgandan keyin `reduce.probe_gaps` bilan (`measured`).
+        # AVVAL faqat birinchisi bor edi va driver "probe qatorlarini
+        # ko'rmaydi" deb reducer'ga tayanardi -- p1-pilot-001 da `b007t001`
+        # (baseline'da 492 256 us uzilish, prober tirik) shu sababli
+        # `complete` bo'ldi va run §14.6 dan o'tmadi (15 §2.4).
         prober_state = state["prober_state_at_horizon"]
         probe_gap = prober_state not in ("active",)
         detail["prober_active_state_at_horizon"] = prober_state
+        window_outside = False
+        if measured is not None:
+            probe_gap = probe_gap or bool(measured["probe_gap_exceeded"])
+            # §17.4(2): oyna hold'dan (yoki horizon'dan) chiqqan -> censored;
+            # §17.4(5): bunday trial `complete` bo'lishi mumkin emas.
+            window_outside = bool(measured["window_outside_hold"])
+            detail["measured"] = measured
 
         # censored (b): horizon xizmat DOWN holatda tugadi (§6.2). F_sd
         # detektori bo'yicha; `reduce` buni probe oqimidan mustaqil
@@ -3571,6 +3808,7 @@ class Driver:
             "foreign_oom_kill": foreign,
             "bystander_lost_contract": bystander_lost,
             "probe_gap_exceeded": probe_gap,
+            "window_outside_hold": window_outside,
             "horizon_ended_down": down,
         }
         return facts_kw, detail

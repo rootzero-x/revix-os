@@ -687,6 +687,11 @@ class TrialFacts:
     `bystander_lost_contract`  -- bystander xizmat buzildi (§12).
     `washout_timed_out`        -- washout `T_w_max` ichida yakunlanmadi (§8.4).
     `probe_gap_exceeded`       -- probe uzilishi > 2×P (§4, §12).
+    `window_outside_hold`      -- §17 oynasi (`t_up + W_stab_pilot`) pressure hold
+                                  (`T_h`) yoki horizon'dan chiqqan (§17.4(1)-(2):
+                                  "`disposition` ikkalasida ham `censored`";
+                                  §17.4(5)). Default `False` -- avvalgi har
+                                  qanday fakt to'plamining disposition'i O'ZGARMAYDI.
     `horizon_ended_down`       -- horizon xizmat down holatda tugadi (§6.2).
     """
 
@@ -697,6 +702,7 @@ class TrialFacts:
     bystander_lost_contract: bool = False
     washout_timed_out: bool = False
     probe_gap_exceeded: bool = False
+    window_outside_hold: bool = False
     horizon_ended_down: bool = False
 
     @property
@@ -719,6 +725,7 @@ FACT_FIELDS = (
     "bystander_lost_contract",
     "washout_timed_out",
     "probe_gap_exceeded",
+    "window_outside_hold",
     "horizon_ended_down",
 )
 
@@ -753,6 +760,10 @@ DISPOSITION_RULES: tuple[DispositionRule, ...] = (
     ("bystander_lost_contract", lambda f: f.bystander_lost_contract, "contaminated"),
     ("washout_timed_out", lambda f: f.washout_timed_out, "washout_timeout"),
     ("probe_gap_exceeded", lambda f: f.probe_gap_exceeded, "censored"),
+    # §17.4(2): oyna hold'dan chiqqan trial `censored` (p1-pilot-001 da bu
+    # fakt YO'Q edi -- `docs/architecture/15-...` §2.4). `probe_gap` dan KEYIN,
+    # `horizon_ended_down` dan OLDIN -- `reduce.derive_disposition` tartibi.
+    ("window_outside_hold", lambda f: f.window_outside_hold, "censored"),
     ("horizon_ended_down", lambda f: f.horizon_ended_down, "censored"),
     ("measured", lambda f: True, "complete"),
 )

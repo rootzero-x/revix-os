@@ -1,0 +1,190 @@
+{
+ "run_dir": "/home/snowden/revix-runs/smoke-32-A-P1",
+ "n_trial_begin": 1,
+ "n_trial_end": 1,
+ "guard_records": [
+  {
+   "record_type": "guard_start",
+   "mono_us": 25558781084,
+   "reason": null,
+   "detail": null,
+   "action": null,
+   "kill_ok": null,
+   "tripped": null,
+   "trip_summary": null,
+   "iterations": null,
+   "elapsed_s": null
+  },
+  {
+   "record_type": "guard_stop",
+   "mono_us": 25615481341,
+   "reason": null,
+   "detail": null,
+   "action": null,
+   "kill_ok": null,
+   "tripped": false,
+   "trip_summary": [],
+   "iterations": 567,
+   "elapsed_s": 56.700142494999454
+  }
+ ],
+ "harness_errors": [],
+ "psi_rows": 565,
+ "trials": [
+  {
+   "trial_id": "b000t004",
+   "arm": "A",
+   "pressure_level": "P1",
+   "disposition": "complete",
+   "reason": "measured",
+   "matched_rules": [
+    "measured"
+   ],
+   "facts": {
+    "harness_error": false,
+    "guard_fired": false,
+    "unsolicited_kill": false,
+    "foreign_oom_kill": false,
+    "bystander_lost_contract": false,
+    "washout_timed_out": false,
+    "probe_gap_exceeded": false,
+    "window_outside_hold": false,
+    "horizon_ended_down": false
+   },
+   "anomalies": [],
+   "overhead_s": 3.2665489999999977,
+   "timing": {
+    "begin_mono_us": 25559040578,
+    "setup_us": 65836,
+    "baseline_start_mono_us": 25564040578,
+    "pressure_off_mono_us": 25592040578,
+    "horizon_end_mono_us": 25600140578,
+    "washout_us": 15012784,
+    "teardown_us": 15759,
+    "dump_us": 53762,
+    "end_mono_us": 25615307127,
+    "wall_us": 56266549
+   },
+   "washout": {
+    "state": "complete",
+    "timed_out": false,
+    "done": true,
+    "reason": null,
+    "elapsed_s": 15.012147,
+    "quiet_for_s": 5.003966999999999,
+    "memory_baseline": 864256,
+    "kill_ok": true,
+    "observations": 30
+   },
+   "pressure_detail": {
+    "started": true,
+    "level": "P1",
+    "target_rate": 0.3,
+    "base_mb": 184,
+    "step_mb": 4,
+    "max_seconds": 15.57,
+    "units_show_valid": true,
+    "reason": null
+   },
+   "timeline_rel_s": {
+    "trial_begin": 0.0,
+    "planned_ramp_start": 15.0,
+    "planned_hold_start": 20.0,
+    "planned_pressure_off": 33.0,
+    "horizon(trial_end.mono_us)": 41.1,
+    "generator_pressure_start": 17.507,
+    "generator_last_ramp_record": 20.073,
+    "generator_first_pi_sample": 22.289,
+    "generator_pressure_stop": 33.113,
+    "fault_inject": 23.016,
+    "action_t_issue": [
+     23.017
+    ],
+    "actor_signal_active": [
+     23.43
+    ]
+   },
+   "user_rate_spans_ge_0.35": [
+    {
+     "from_s": 20.954,
+     "to_s": 23.554,
+     "len_s": 2.6,
+     "max_rate": 0.9195
+    },
+    {
+     "from_s": 27.854,
+     "to_s": 34.254,
+     "len_s": 6.4,
+     "max_rate": 0.9196
+    }
+   ],
+   "user_rate_spans_ge_0.05": [
+    {
+     "from_s": 20.254,
+     "to_s": 26.754,
+     "len_s": 6.5,
+     "max_rate": 0.9195
+    },
+    {
+     "from_s": 27.154,
+     "to_s": 34.854,
+     "len_s": 7.7,
+     "max_rate": 0.9196
+    }
+   ],
+   "lab_rate_spans_ge_0.35": [
+    {
+     "from_s": 20.954,
+     "to_s": 23.554,
+     "len_s": 2.6,
+     "max_rate": 0.9122
+    },
+    {
+     "from_s": 27.854,
+     "to_s": 34.254,
+     "len_s": 6.4,
+     "max_rate": 0.9152
+    }
+   ],
+   "lab_rate_spans_ge_0.05": [
+    {
+     "from_s": 20.254,
+     "to_s": 26.854,
+     "len_s": 6.6,
+     "max_rate": 0.9122
+    },
+    {
+     "from_s": 27.254,
+     "to_s": 34.954,
+     "len_s": 7.7,
+     "max_rate": 0.9152
+    }
+   ],
+   "user_rate_max": 0.9196,
+   "user_rate_n_ge_runaway_0.98": 0,
+   "longest_user_span_ge_0.35_s": 6.39998,
+   "guard_sustain_limit_s": 15.0,
+   "ramp_above_threshold_s_generator_ramp_window(10§4)": 0.0,
+   "ramp_above_threshold_s_planned_ramp_window_lab": 0.0,
+   "ramp_above_threshold_s_planned_ramp_window_user": 0.0,
+   "generator_stop": {
+    "elapsed_s": 15.605464262000169,
+    "max_seconds": 15.57,
+    "overrun_s": 0.03546426200016839,
+    "touched_mb_at_stop": 184
+   },
+   "generator_pi_samples": 19,
+   "generator_pi_rate_median": 0.25466851152167086
+  }
+ ],
+ "per_trial_overhead_preflight": {
+  "source": "measured_preflight_cycle",
+  "measured_setup_teardown_s": 0.075875,
+  "setup_us": 45387,
+  "dump_us": 25718,
+  "teardown_us": 4770,
+  "planned_preflight_s": 5.0,
+  "per_trial_overhead_s": 0.0,
+  "note": "o'lchov: fault YO'Q, pressure YO'Q; `estimate_campaign` ta'rifi bo'yicha fazalar yig'indisidan oshgan qism"
+ }
+}

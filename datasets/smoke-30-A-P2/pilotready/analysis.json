@@ -1,0 +1,166 @@
+{
+ "run_dir": "/home/snowden/revix-runs/smoke-30-A-P2",
+ "n_trial_begin": 1,
+ "n_trial_end": 1,
+ "guard_records": [
+  {
+   "record_type": "guard_start",
+   "mono_us": 25443420679,
+   "reason": null,
+   "detail": null,
+   "action": null,
+   "kill_ok": null,
+   "tripped": null,
+   "trip_summary": null,
+   "iterations": null,
+   "elapsed_s": null
+  },
+  {
+   "record_type": "guard_stop",
+   "mono_us": 25500120929,
+   "reason": null,
+   "detail": null,
+   "action": null,
+   "kill_ok": null,
+   "tripped": false,
+   "trip_summary": [],
+   "iterations": 567,
+   "elapsed_s": 56.700133842998184
+  }
+ ],
+ "harness_errors": [],
+ "psi_rows": 565,
+ "trials": [
+  {
+   "trial_id": "b000t005",
+   "arm": "A",
+   "pressure_level": "P2",
+   "disposition": "complete",
+   "reason": "measured",
+   "matched_rules": [
+    "measured"
+   ],
+   "facts": {
+    "harness_error": false,
+    "guard_fired": false,
+    "unsolicited_kill": false,
+    "foreign_oom_kill": false,
+    "bystander_lost_contract": false,
+    "washout_timed_out": false,
+    "probe_gap_exceeded": false,
+    "window_outside_hold": false,
+    "horizon_ended_down": false
+   },
+   "anomalies": [],
+   "overhead_s": 3.2660240000000016,
+   "timing": {
+    "begin_mono_us": 25443703939,
+    "setup_us": 57578,
+    "baseline_start_mono_us": 25448703939,
+    "pressure_off_mono_us": 25476703939,
+    "horizon_end_mono_us": 25484803939,
+    "washout_us": 15012248,
+    "teardown_us": 8560,
+    "dump_us": 52988,
+    "end_mono_us": 25499969963,
+    "wall_us": 56266024
+   },
+   "washout": {
+    "state": "complete",
+    "timed_out": false,
+    "done": true,
+    "reason": null,
+    "elapsed_s": 15.01173,
+    "quiet_for_s": 5.0041269999999995,
+    "memory_baseline": 1155072,
+    "kill_ok": true,
+    "observations": 30
+   },
+   "pressure_detail": {
+    "started": true,
+    "level": "P2",
+    "target_rate": 0.6,
+    "base_mb": 184,
+    "step_mb": 4,
+    "max_seconds": 15.57,
+    "units_show_valid": true,
+    "reason": null
+   },
+   "timeline_rel_s": {
+    "trial_begin": 0.0,
+    "planned_ramp_start": 15.0,
+    "planned_hold_start": 20.0,
+    "planned_pressure_off": 33.0,
+    "horizon(trial_end.mono_us)": 41.1,
+    "generator_pressure_start": 17.539,
+    "generator_last_ramp_record": 20.103,
+    "generator_first_pi_sample": 30.278,
+    "generator_pressure_stop": 33.227,
+    "fault_inject": 23.001,
+    "action_t_issue": [
+     23.002
+    ],
+    "actor_signal_active": [
+     24.069
+    ]
+   },
+   "user_rate_spans_ge_0.35": [
+    {
+     "from_s": 20.954,
+     "to_s": 34.454,
+     "len_s": 13.5,
+     "max_rate": 0.9666
+    }
+   ],
+   "user_rate_spans_ge_0.05": [
+    {
+     "from_s": 20.354,
+     "to_s": 35.154,
+     "len_s": 14.8,
+     "max_rate": 0.9666
+    }
+   ],
+   "lab_rate_spans_ge_0.35": [
+    {
+     "from_s": 21.154,
+     "to_s": 34.354,
+     "len_s": 13.2,
+     "max_rate": 0.9302
+    }
+   ],
+   "lab_rate_spans_ge_0.05": [
+    {
+     "from_s": 20.354,
+     "to_s": 35.154,
+     "len_s": 14.8,
+     "max_rate": 0.9302
+    }
+   ],
+   "user_rate_max": 0.9666,
+   "user_rate_n_ge_runaway_0.98": 0,
+   "longest_user_span_ge_0.35_s": 13.499965,
+   "guard_sustain_limit_s": 15.0,
+   "ramp_above_threshold_s_generator_ramp_window(10§4)": 0.0,
+   "ramp_above_threshold_s_planned_ramp_window_lab": 0.0,
+   "ramp_above_threshold_s_planned_ramp_window_user": 0.0,
+   "generator_stop": {
+    "elapsed_s": 15.687523237000278,
+    "max_seconds": 15.57,
+    "overrun_s": 0.11752323700027745,
+    "touched_mb_at_stop": 184
+   },
+   "generator_pi_samples": 3,
+   "generator_pi_rate_median": 0.0003447991728743597
+  }
+ ],
+ "per_trial_overhead_preflight": {
+  "source": "measured_preflight_cycle",
+  "measured_setup_teardown_s": 0.093693,
+  "setup_us": 63103,
+  "dump_us": 25884,
+  "teardown_us": 4706,
+  "planned_preflight_s": 5.0,
+  "per_trial_overhead_s": 0.0,
+  "note": "o'lchov: fault YO'Q, pressure YO'Q; `estimate_campaign` ta'rifi bo'yicha fazalar yig'indisidan oshgan qism"
+ }
+}

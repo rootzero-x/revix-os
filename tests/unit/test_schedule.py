@@ -417,7 +417,8 @@ def test_washout_default_parametrlari_muzlatilgan_qiymatlar():
 
 
 def all_fact_combinations():
-    """Fakt fazasining TO'LIQ sanog'i: 8 bool -> 256 kombinatsiya."""
+    """Fakt fazasining TO'LIQ sanog'i: 9 bool -> 512 kombinatsiya (v1.13:
+    `window_outside_hold` qo'shildi)."""
     for combo in itertools.product((False, True), repeat=len(FACT_FIELDS)):
         yield TrialFacts(**dict(zip(FACT_FIELDS, combo)))
 
@@ -436,7 +437,8 @@ def oracle(f):
         return "contaminated"
     if f.washout_timed_out:
         return "washout_timeout"
-    if f.probe_gap_exceeded or f.horizon_ended_down:
+    # v1.13 3.1: §17.4(2) -- oyna hold'dan chiqqan trial ham `censored`.
+    if f.probe_gap_exceeded or f.window_outside_hold or f.horizon_ended_down:
         return "censored"
     return "complete"
 
@@ -453,7 +455,7 @@ def test_disposition_total_butun_fakt_fazasi_boylab():
         assert d in DISPOSITIONS, f"yopiq enumdan tashqarida: {d}"
         assert d == oracle(facts), f"{facts.as_dict()} -> {d}"
         n += 1
-    assert n == 2 ** len(FACT_FIELDS) == 256
+    assert n == 2 ** len(FACT_FIELDS) == 512
 
 
 def test_har_disposition_erishiladigan():
@@ -504,9 +506,11 @@ def test_washout_timeout_censoring_dan_ustun():
     assert assign_disposition(f) == "washout_timeout"
 
 
-@pytest.mark.parametrize("field", ["probe_gap_exceeded", "horizon_ended_down"])
+@pytest.mark.parametrize("field", ["probe_gap_exceeded", "window_outside_hold",
+                                   "horizon_ended_down"])
 def test_censored_ikki_yoli(field):
-    """§6.2 va §12: probe uzilishi >2×P, yoki horizon down holatda tugadi."""
+    """§6.2 va §12: probe uzilishi >2×P, yoki horizon down holatda tugadi;
+    v1.13 3.1: §17.4(2) oyna hold'dan chiqqan trial ham `censored`."""
     assert assign_disposition(TrialFacts(**{field: True})) == "censored"
 
 
@@ -953,3 +957,32 @@ def test_analiz_toplami_binar_pvr_maxraji_SAVOLIGA_javob_bermaydi():
     # Binar maxraj: faqat `down_at_horizon` kiradi (§16.2(B)).
     assert enters_primary_denominator("censored", "down_at_horizon") is True
     assert enters_primary_denominator("censored", "probe_gap") is False
+
+
+def test_window_outside_hold_default_hech_bir_dispositionni_ozgartirmaydi():
+    """v1.13 3.1: yangi fakt default `False` -- uning qo'shilishidan oldingi
+    8 faktning har kombinatsiyasi AYNI disposition'ni beradi."""
+    old = [f for f in FACT_FIELDS if f != "window_outside_hold"]
+
+    def old_oracle(d):
+        if d["harness_error"]:
+            return "harness_error"
+        if d["guard_fired"]:
+            return "aborted_guard"
+        if d["unsolicited_kill"] or d["foreign_oom_kill"] \
+                or d["bystander_lost_contract"]:
+            return "contaminated"
+        if d["washout_timed_out"]:
+            return "washout_timeout"
+        if d["probe_gap_exceeded"] or d["horizon_ended_down"]:
+            return "censored"
+        return "complete"
+
+    for combo in itertools.product((False, True), repeat=len(old)):
+        d = dict(zip(old, combo))
+        assert assign_disposition(TrialFacts(**d)) == old_oracle(d)
+    # Qoida tartibi reduce.derive_disposition bilan bir xil: probe_gap ->
+    # window -> down_at_horizon.
+    names = [n for n, _, _ in DISPOSITION_RULES]
+    assert names.index("probe_gap_exceeded") < names.index(
+        "window_outside_hold") < names.index("horizon_ended_down")

@@ -2611,39 +2611,279 @@ def test_trial_hodisalari_ketma_ketligi_shartnoma_1_2_boyicha(tmp_path):
 # ===========================================================================
 
 
+# Post-oyna fakt funksiyasi -- §1.5 qulfi FAQAT shu yerda toraytirilgan.
+FACTS_FN = "measured_trial_facts"
+
+
+def _driver_ast():
+    import ast
+    src = open(os.path.join(os.path.dirname(D.__file__), "driver.py"),
+               encoding="utf-8").read()
+    return ast.parse(src)
+
+
+def _calls_in(node):
+    import ast
+    out = set()
+    for n in ast.walk(node):
+        if isinstance(n, ast.Call):
+            f = n.func
+            if isinstance(f, ast.Name):
+                out.add(f.id)
+            elif isinstance(f, ast.Attribute):
+                out.add(f.attr)
+    return out
+
+
 def test_driver_VR_va_FR_tariflarini_CHAQIRMAYDI():
     """PSI failure, VR yoki FR ta'rifiga KIRMAYDI (CONTRIBUTING.md §1.5).
 
     Tekshiruv AST ustida, MATN ustida emas: bu nomlar docstring'larda izoh
     sifatida uchraydi, va matn qidiruvi o'sha izohlarga yiqilardi -- ya'ni
     test o'zining hujjatidan qo'rqib yolg'on signal berardi.
+
+    TORAYTIRILDI (2026-10-04, orkestrator qarori "Q1", loyiha egasining
+    delegatsiyasi bo'yicha, p1-pilot-001 validatsiyadan o'tmagandan keyin;
+    preregistration/v1.13, Amendment log v1.12 -> v1.13, 3.1-band;
+    docs/architecture/16-pilot-002-tuzatishlar.md §2, §6):
+
+      * NIMA: `reduce` importi va `build_episodes`, `probe_gaps`,
+        `split_trials`, `fault_effective_us`, `reference_throughput`,
+        `classify_window_containment` chaqiruvlari FAQAT bitta funksiya --
+        `driver.measured_trial_facts` -- ichida ruxsat. Boshqa hamma joyda
+        avvalgidek taqiqlangan.
+      * NEGA: v1.13 3.1 driver'dan §4 ning probe faktini va §17.4(2),(5) ning
+        oyna faktini "reducer'ning o'z funksiyalari bilan" hisoblashni
+        talab qiladi; aks holda driver `complete` deb yozgan trial'ni
+        validator §14.6(4)/§17.4(5) bo'yicha rad etadi (p1-pilot-001).
+      * TAN OLINADI: `build_episodes` ichida `evaluate_vr` va
+        `window_throughput` ishlaydi -- ya'ni VR oynasi mantig'i driver'ning
+        POST-OYNA qadamida ishlaydi. Natija faqat `trial_end` ga oqadi
+        (`test_measured_facts_faqat_trial_end_ga_oqadi`), o'lchov unga
+        bog'liq emas.
+      * O'ZGARMADI: `evaluate_vr`, `fr_a`, `evaluate_fr_b`, `reduce_trial`,
+        `window_throughput` driver'da HECH QAYERDA to'g'ridan-to'g'ri
+        chaqirilmaydi; `reduce` modul darajasida import qilinmaydi;
+        `TrialFacts` da PSI fakti yo'q.
     """
     import ast
-    src = open(os.path.join(os.path.dirname(D.__file__), "driver.py"),
-               encoding="utf-8").read()
-    tree = ast.parse(src)
-    called = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            f = node.func
-            if isinstance(f, ast.Name):
-                called.add(f.id)
-            elif isinstance(f, ast.Attribute):
-                called.add(f.attr)
-    for forbidden in ("evaluate_vr", "fr_a", "evaluate_fr_b",
-                      "window_throughput", "reduce_trial", "build_episodes"):
-        assert forbidden not in called, forbidden
-    # `reduce` MODUL DARAJASIDA import QILINMAYDI: ta'riflar o'lchovdan
-    # KEYIN va o'lchovdan TASHQARIDA qolishi kerak.
-    imported = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.level == 1:
-            imported.add(node.module)
-        elif isinstance(node, ast.Import):
-            imported.update(a.name for a in node.names)
-    assert "reduce" not in imported
+    tree = _driver_ast()
+    fns = {n.name: n for n in ast.walk(tree)
+           if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    assert FACTS_FN in fns
+    allowed_only_in_fn = {"build_episodes", "probe_gaps", "split_trials",
+                          "fault_effective_us", "reference_throughput",
+                          "classify_window_containment"}
+    never = {"evaluate_vr", "fr_a", "evaluate_fr_b", "reduce_trial",
+             "window_throughput"}
+    called_all = _calls_in(tree)
+    for f in never:
+        assert f not in called_all, f
+    # Ruxsat etilganlar FAQAT `measured_trial_facts` ichida.
+    for name, fn in fns.items():
+        if name == FACTS_FN:
+            continue
+        bad = _calls_in(fn) & allowed_only_in_fn
+        assert not bad, (name, bad)
+    # `reduce` importi: modul darajasida YO'Q, faqat funksiya ichida.
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom):
+            assert node.module != "reduce", "reduce modul darajasida"
+            assert all(a.name != "reduce" for a in node.names)
+        if isinstance(node, ast.Import):
+            assert all(a.name != "reduce" and not a.name.endswith(".reduce")
+                       for a in node.names)
+    where = []
+    for name, fn in fns.items():
+        for n in ast.walk(fn):
+            if isinstance(n, ast.ImportFrom) and (
+                    n.module == "reduce"
+                    or any(a.name == "reduce" for a in n.names)):
+                where.append(name)
+    assert set(where) == {FACTS_FN}, where
     # `TrialFacts` da PSI ga tegishli fakt YO'Q.
     assert not any("psi" in f or "stall" in f for f in sch.FACT_FIELDS)
+
+
+def test_measured_facts_faqat_trial_end_ga_oqadi():
+    """Qayta aloqa YO'Q (v1.13 3.1, Q1 sharti 2): post-oyna faktlari
+    FAQAT `trial_end` ga va disposition chaqiruviga oqadi.
+
+    AST bo'yicha:
+      1. `measured_trial_facts` AYNAN BIR joyda -- `run_trial` da --
+         chaqiriladi, va chaqiruv `PROBER_UNIT` to'xtatilgandan va horizon
+         belgilangandan KEYIN turadi (trial oynasi yopilgan);
+      2. uning natijasi (`measured`) `run_trial` da faqat `_collect_facts`
+         ning `measured=` argumenti sifatida o'qiladi;
+      3. `_collect_facts` ichida `measured` faqat ikki fakt kalitidan
+         o'qiladi (va `detail["measured"]` ga yoziladi);
+      4. o'lchov va boshqaruv yo'llari -- washout, pressure, lab/SUT start,
+         prober start, injeksiya, guard, overhead, setup, teardown -- bu
+         nomlarning HECH BIRINI o'qimaydi;
+      5. `run()` `run_trial` natijasini faqat xulosa ro'yxatiga qo'shadi.
+    """
+    import ast
+    tree = _driver_ast()
+    fns = {n.name: n for n in ast.walk(tree)
+           if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    # 1. Yagona chaqiruv joyi va uning oyna yopilgandan keyinligi.
+    sites = [name for name, fn in fns.items()
+             for n in ast.walk(fn)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+             and n.func.id == FACTS_FN]
+    assert sites == ["run_trial"], sites
+    rt = fns["run_trial"]
+    call_line = next(n.lineno for n in ast.walk(rt)
+                     if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                     and n.func.id == FACTS_FN)
+    stop_prober = [n.lineno for n in ast.walk(rt)
+                   if isinstance(n, ast.Call)
+                   and isinstance(n.func, ast.Attribute)
+                   and n.func.attr == "stop" and n.args
+                   and isinstance(n.args[0], ast.Name)
+                   and n.args[0].id == "PROBER_UNIT"]
+    horizon_set = [n.lineno for n in ast.walk(rt)
+                   if isinstance(n, ast.Assign)
+                   and any(isinstance(t, ast.Attribute)
+                           and t.attr == "horizon_end_mono_us"
+                           for t in n.targets)]
+    assert stop_prober and min(stop_prober) < call_line, (stop_prober,
+                                                         call_line)
+    assert horizon_set and min(horizon_set) < call_line
+    # 2. `measured` run_trial da faqat `_collect_facts(measured=...)` da.
+    loads = [n for n in ast.walk(rt)
+             if isinstance(n, ast.Name) and n.id == "measured"
+             and isinstance(n.ctx, ast.Load)]
+    kw_uses = [k for n in ast.walk(rt) if isinstance(n, ast.Call)
+               and isinstance(n.func, ast.Attribute)
+               and n.func.attr == "_collect_facts"
+               for k in n.keywords
+               if k.arg == "measured" and isinstance(k.value, ast.Name)
+               and k.value.id == "measured"]
+    assert len(loads) == len(kw_uses) == 1, (len(loads), len(kw_uses))
+    # 3. `_collect_facts` ichida `measured[...]` faqat ikki kalit.
+    cf = fns["_collect_facts"]
+    subs = [n for n in ast.walk(cf) if isinstance(n, ast.Subscript)
+            and isinstance(n.value, ast.Name) and n.value.id == "measured"]
+    assert subs
+    for n in subs:
+        assert isinstance(n.slice, ast.Constant)
+        assert n.slice.value in ("probe_gap_exceeded",
+                                 "window_outside_hold"), n.slice.value
+    # 4. O'lchov/boshqaruv yo'llari bu nomlarni o'qimaydi.
+    taboo = {"measured", FACTS_FN, "window_outside_hold", "window_outside",
+             "probe_gap_exceeded", "facts_kw", "verdict",
+             "_disposition_counts", "DISPOSITION_FACTS_PROVENANCE"}
+    control = ("_washout", "_start_pressure", "_start_lab_units",
+               "_stop_lab_units", "_start_prober", "_inject_fault",
+               "start_guard", "start_psi_sampler", "measure_overhead",
+               "setup_run", "_pressure_argv", "_pressure_properties",
+               "_sut_properties", "_wait_until", "_note_unit_state",
+               "_emit_action", "_emit_actor_signal", "_teardown_run",
+               "guard_events_in_window", "generator_window")
+    for name in control:
+        fn = fns[name]
+        names = ({n.id for n in ast.walk(fn) if isinstance(n, ast.Name)}
+                 | {n.attr for n in ast.walk(fn)
+                    if isinstance(n, ast.Attribute)}
+                 | {n.value for n in ast.walk(fn)
+                    if isinstance(n, ast.Constant)
+                    and isinstance(n.value, str)})
+        assert not (names & taboo), (name, names & taboo)
+    # Washout chaqiruvi faqat `trial` ni oladi.
+    w_calls = [n for n in ast.walk(rt) if isinstance(n, ast.Call)
+               and isinstance(n.func, ast.Attribute)
+               and n.func.attr == "_washout"]
+    assert w_calls
+    for n in w_calls:
+        assert [getattr(a, "id", None) for a in n.args] == ["trial"]
+        assert not n.keywords
+    # 5. `run()` da `run_trial` natijasi faqat summary["trials"].append ga.
+    run = fns["run"]
+    rt_calls = [n for n in ast.walk(run) if isinstance(n, ast.Call)
+                and isinstance(n.func, ast.Attribute)
+                and n.func.attr == "run_trial"]
+    assert rt_calls
+    for n in rt_calls:
+        parents = [p for p in ast.walk(run) if isinstance(p, ast.Call)
+                   and isinstance(p.func, ast.Attribute)
+                   and p.func.attr == "append" and n in p.args]
+        assert len(parents) == 1
+
+
+_FX = os.path.dirname(__file__)
+
+
+def _fixture_gz(tid):
+    import gzip
+    with gzip.open(os.path.join(_FX, f"data_p1_pilot_001_{tid}.json.gz"),
+                   "rt", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+@pytest.mark.parametrize("tid,gap,win,want", [
+    ("b007t001", True, "past_pressure", "censored"),
+    ("b013t004", False, "past_pressure", "censored"),
+])
+def test_measured_trial_facts_p1_pilot_001_HAQIQIY_recordlari(
+        tid, gap, win, want):
+    """p1-pilot-001 da driver `complete` yozgan ikki trial (15 §2.2):
+    post-oyna faktlari ularni §4 / §17.4(2) bo'yicha `censored` qiladi."""
+    d = _fixture_gz(tid)
+    te = d["recorded_trial_end"]
+    assert te["disposition"] == "complete"
+    m = D.measured_trial_facts(
+        d["records"], d["probe_rows"], tid,
+        pressure_off_mono_us=te["timing"]["pressure_off_mono_us"],
+        horizon_end_mono_us=te["timing"]["horizon_end_mono_us"],
+        w_stab_us=8_000_000)
+    assert m["probe_gap_exceeded"] is gap
+    assert m["window_containment"] == win
+    assert m["window_outside_hold"] is True
+    facts = dict(te["facts"])
+    facts["probe_gap_exceeded"] = facts["probe_gap_exceeded"] or gap
+    facts["window_outside_hold"] = m["window_outside_hold"]
+    v = sch.explain_disposition(sch.TrialFacts(**facts))
+    assert v.disposition == want
+
+
+def test_measured_trial_facts_validator_bilan_bir_xil_javob():
+    """Driver fakti va validator'ning o'z tekshiruvi AYNI xom record'larda
+    bir xil (konstruksiya bo'yicha -- ikkalasi reduce funksiyalari)."""
+    from revix import reduce as R
+    from revix import validate as V
+    d = _fixture_gz("b007t001")
+    te = d["recorded_trial_end"]
+    end = {"record_type": "trial_end", "trial_id": "b007t001",
+           "mono_us": te["mono_us"], "timing": te["timing"],
+           "disposition": "complete"}
+    run = R.RawRun(records=d["records"] + [end],
+                   probes=[D.normalise_probe_row(p) for p in d["probe_rows"]])
+    rv = V.reducer_view(run, D.SUT_UNIT, "sut")
+    vf = {f.code for f in V.check_probe_gaps(rv)
+          + V.check_window_containment(rv)}
+    assert vf == {"probe_gap", "window_outside_hold_complete"}
+    m = D.measured_trial_facts(
+        d["records"], d["probe_rows"], "b007t001",
+        pressure_off_mono_us=te["timing"]["pressure_off_mono_us"],
+        horizon_end_mono_us=te["timing"]["horizon_end_mono_us"],
+        w_stab_us=8_000_000)
+    assert m["probe_gap_exceeded"] and m["window_outside_hold"]
+
+
+def test_run_meta_disposition_facts_manbasini_yozadi(tmp_path):
+    drv, pf, run_dir = make_driver(tmp_path)
+    drv.run()
+    meta = of_type(events(run_dir), "run_meta")[0]
+    df = meta["disposition_facts"]
+    assert df["method"] == "post_window_reducer_facts"
+    assert df["driver_function"] == "revix.driver.measured_trial_facts"
+    assert "build_episodes" in df["reducer_functions"]
+    assert "v1.13" in df["since"]
+    te = of_type(events(run_dir), "trial_end")[0]
+    assert "window_outside_hold" in te["facts"]
+    assert te["detail"]["facts"]["measured"]["source"].startswith(
+        "reduce.probe_gaps")
 
 
 def test_washout_tezligi_faqat_2s_dan_katta_oynadan():
@@ -3030,3 +3270,72 @@ def test_open_parameters_hech_qaysi_kalibrlangan_parametr_rule_satisfied_siz_ema
                 "t_trial_s"):
         assert isinstance(op[key]["rule_satisfied"], bool), key
         assert op[key]["frozen_in"] == D.PREREG_FROZEN_IN
+
+
+# ===========================================================================
+# t_issue: eskirgan ActiveExitTimestamp (p1-pilot-001 b010t001, 15 §3.2)
+# ===========================================================================
+
+_B010 = os.path.join(os.path.dirname(__file__),
+                     "data_p1_pilot_001_b010t001.json")
+
+
+def _replay_unit_states(tmp_path, records):
+    """Haqiqiy `_note_unit_state` ni record'lar ustida yuritadi."""
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "A"),
+                                   allow_pressure=True)
+    trial = drv.selected[0]
+    for r in records:
+        if r.get("record_type") == "unit_state":
+            drv._note_unit_state(trial, D.SCOPE_SUT, dict(r))
+    drv.writer.flush()
+    return [e for e in events(run_dir) if e["record_type"] == "action"]
+
+
+def test_t_issue_b010t001_HAQIQIY_recordlari_bilan_ikki_action_farqli(
+        tmp_path):
+    """p1-pilot-001 `b010t001`: ikkinchi restart'dan oldingi invocation
+    (`ca2a0c11`) `active` ga yetmay guard tomonidan o'ldirildi; uning
+    record'ida `ActiveExitTimestamp` eskirgan (23.023 s), `ExecMainExit`
+    27.134 s. Avval IKKALA action ham 19629521595 bilan yozildi va
+    `check_actions` oynasi bo'sh bo'lib run'ni yiqitdi."""
+    data = json.load(open(_B010, encoding="utf-8"))
+    recs = data["records"]
+    recorded = [r for r in recs if r["record_type"] == "action"]
+    assert [a["t_issue_mono_us"] for a in recorded] == [19629521595,
+                                                       19629521595]
+    acts = _replay_unit_states(tmp_path, recs)
+    assert [a["t_issue_mono_us"] for a in acts] == [19629521595,
+                                                   19633632690]
+    assert [a["invocation_id"] for a in acts] == [
+        "ca2a0c1128664dedb39579ad2c48f5e5",
+        "c50262b1b49740b6959d017a2c5c8b39"]
+    # Ikkinchi t_issue = o'lgan jarayonning ExecMainExit'i (record'dan).
+    killed = [r for r in recs if r["record_type"] == "unit_state"
+              and r.get("invocation_id") == "ca2a0c1128664dedb39579ad2c48f5e5"
+              and r.get("result") == "signal"][0]
+    assert killed["exec_main_exit_ts_mono_us"] == 19633632690
+    assert killed["active_exit_ts_mono_us"] == 19629521595
+
+
+def test_exit_ts_candidate_oddiy_restartda_active_exit_ozgarmaydi():
+    # Invocation active'ga yetgan: ExecMainStart ActiveExit'dan OLDIN.
+    assert D.exit_ts_candidate({
+        "active_exit_ts_mono_us": 23_000_000,
+        "exec_main_start_ts_mono_us": 1_000_000,
+        "exec_main_exit_ts_mono_us": 23_000_100,
+        "recv_mono_us": 23_001_000}) == 23_000_000
+    # Yangi invocation'ning birinchi record'i: yangi jarayon hali chiqmagan.
+    assert D.exit_ts_candidate({
+        "active_exit_ts_mono_us": 23_000_000,
+        "exec_main_start_ts_mono_us": 23_144_000,
+        "exec_main_exit_ts_mono_us": 23_000_100,
+        "recv_mono_us": 23_145_000}) == 23_000_000
+    # Eskirgan: jarayon ActiveExit'dan KEYIN boshlanib chiqqan.
+    assert D.exit_ts_candidate({
+        "active_exit_ts_mono_us": 23_000_000,
+        "exec_main_start_ts_mono_us": 23_144_000,
+        "exec_main_exit_ts_mono_us": 27_134_000,
+        "recv_mono_us": 27_135_000}) == 27_134_000
+    # Maydonlar yo'q: avvalgi zaxira tartibi.
+    assert D.exit_ts_candidate({"recv_mono_us": 5}) == 5
