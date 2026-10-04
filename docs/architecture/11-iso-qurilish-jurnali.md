@@ -1356,3 +1356,127 @@ host cheklovi (§6.1).
 6. Buyruqlar serial konsol orqali yuborildi; uzun satrlarning *aks-sadosi*
    buzilib ko'rinardi (kiritish emas, natija to'g'ri chiqdi). Skriptlar
    heredoc bilan guest'ga yozildi va bajarildi.
+
+### 10.7 Yakuniy image — `main` `8400c3c` dan qayta qurildi (FAKT / TALQIN / CHEKLOV)
+
+§10.2–§10.5 dagi image `main` `ea79af9` + shu uch fayldan edi. Undan keyin
+`main` ga 13 s cap, V2, `host_clock_discontinuity`, `open_parameters`,
+`preregistration/v1.12`, docs 13/14 va **boot menyusidagi ikkinchi band**
+(`iso/40-make-iso.sh`, ISOLINUX va GRUB uchun, commit `a847de9`) kirdi.
+Shu sababli image **qayta qurildi**; quyidagi raqamlar §10.2–§10.5 ning
+o'rnini egallaydi (eskilari tarixiy yozuv sifatida qoladi).
+
+**FAKT — build.** `/var/tmp/revix-src` (`origin` = Windows repo, `git fetch
+origin main`, `checkout --detach`, `git clean -fdx`), `git rev-parse HEAD` =
+`8400c3c660c6c9dcd08bb51656e445ad02e081ea`, `git status --porcelain` bo'sh.
+Ekskluziv lock (`~/.revix-exclusive`) butun build davomida ushlab turildi va
+chiqishda bo'shatildi. Har qadam oldidan `boot_id` + `/proc/1/stat` 22-maydon
+solishtirildi; boshida va oxirida bir xil:
+`boot_id=4ea15279-acba-44ff-a533-6d7cd11924e5 pid1_ticks=653523`.
+
+```
+10-build-rootfs.sh    RC=0  2m48s
+20-record-manifest.sh RC=0  0m00s
+30-make-squashfs.sh   RC=0  3m37s
+40-make-iso.sh        RC=0  0m02s
+50-fingerprint.sh     RC=0  0m02s
+JAMI                        6m30s
+
+iso        : revix-appliance-trixie-20261001T000000Z.iso
+hajm       : 573 571 072 bayt (547 MiB)
+sha256     : f086378f2b24728b3db02070738c245eed349be92aebdee06eedf5e6fcb59ee9
+manifest   : 61a8db3ac174a2a686c7898004c3d04875c97420abdac9200279c2dc5692933d
+fingerprint: a5bfbab4f086ac7416cbfe67d7d2d5335ed9823788eacaa07d6ccef4a175750a
+git_commit : 8400c3c660c6c9dcd08bb51656e445ad02e081ea   git_dirty_at_build: false
+paket soni : 354
+```
+
+`diff` oldingi image (`cc49ca27...`) manifest'i bilan: **IDENTICAL** (paket
+to'plami o'zgarmadi; faqat repo mazmuni va menyu o'zgardi).
+Nusxa `C:\Users\snowden\revix-iso-final\`; Windows tomonida
+`Get-FileHash` shu sha256 ni berdi.
+
+**FAKT — menyu** (ISOLINUX, serial capture, VirtualBox BIOS): ikki band bor:
+
+```
+REVIX research appliance (live)
+REVIX research appliance (live) - dashboard reachable fr      <- kesilgan
+Press [Tab] to edit options   Automatic boot in 5 seconds...
+```
+
+`Down` yuborilgach ikkinchi band teskari rangda (highlight) ko'rinadi
+(escape-sequence capture), `Enter` undan boot qiladi.
+
+**TALQIN / muammo (CHEKLOV).** ISOLINUX menyusi 80 ustunli serial'da bandni
+~54 belgida **kesadi**: ekranda `[NO AUTH]` ogohlantirishi **ko'rinmaydi**
+(`...reachable fr`). Ya'ni xavfsizlik ogohlantirishi aynan kerak joyda
+yo'qoladi. Yechim `iso/40-make-iso.sh` da (shu ishning qamrovida emas):
+yorliqni qisqartirish (masalan `REVIX live - dashboard on network [NO AUTH]`)
+yoki `MENU WIDTH` ni oshirish. GRUB bandi sinalmadi (pastga qarang).
+
+**FAKT — default band, 4096 MB** (o'z VM'im, `revix-os`/`snowden` ga
+tegilmadi):
+
+```
+cmdline: ... psi=1 initrd=/live/initrd.img            (revix.dashboard YO'Q)
+is-system-running: running ; systemctl --failed: bo'sh
+revix-dashboard: active / enabled ; LISTEN 127.0.0.1:8787
+curl -sS .../ : HTTP 200 8482 bytes ; <title>REVIX &mdash; Boshqaruv paneli</title>
+systemctl --user list-units "revix*" --all : bo'sh
+git -C /opt/revix log -1 -> 8400c3c660c6c9dcd08bb51656e445ad02e081ea ; status --porcelain: bo'sh
+cd /opt/revix && python3 -c "import revix"  -> OK
+revix doctor --json : rc=0  14 PASS  4 WARN  0 FAIL
+  WARN: memory_headroom, swap_headroom, cpu_governor, kvm_access
+  memory_headroom: MemAvailable 3 637 588 kB, talab 3 597 152 kB (+40 MB)
+```
+
+**FAKT — yangi band** ("dashboard reachable from host [NO AUTH]"):
+
+```
+cmdline: ... psi=1 revix.dashboard=remote initrd=/live/initrd.img
+is-system-running: running ; --failed: bo'sh ; LISTEN 0.0.0.0:8787
+journal: revix-dashboard: REMOTE rejim (kernel cmdline revix.dashboard=remote):
+         0.0.0.0:8787 -- autentifikatsiyasiz, ishonchsiz tarmoqda ISHLATMANG
+         OGOHLIK: loopback BO'LMAGAN manzil -- tirik tizim holati tashqariga ochilgan
+revix doctor --json : rc=0  14 PASS  4 WARN  0 FAIL   (MemAvailable 3 648 344 kB, +51 MB)
+PS> Invoke-WebRequest http://127.0.0.1:8788/    (NAT forward 8788 -> guest 8787)
+Windows -> NAT -> guest : HTTP 200, 8482 bytes, <title>REVIX &mdash; Boshqaruv paneli</title>
+```
+
+Bu foydalanuvchiga haqiqatan kerak bo'lgan yo'l: ISO ni boot qiladi, ikkinchi
+bandni tanlaydi, brauzerda ochadi.
+
+**FAKT — 6144 MB** (`modifyvm --memory 6144`; Windows commit limit bu safar
+yetarli bo'ldi, `revix-os` ishlamayotgan edi), default band:
+
+```
+MemTotal 6 074 252 kB ; MemAvailable 5 706 988 kB
+revix doctor --json : rc=0  15 PASS  3 WARN  0 FAIL
+  WARN: swap_headroom, cpu_governor, kvm_access        (memory_headroom endi PASS)
+  memory_headroom: avail_kb=5 695 240, talab 3 597 152
+is-system-running: running ; --failed: bo'sh ; dashboard active, HTTP 200 (8619 bytes)
+```
+
+**TALQIN.** 4096 MB da zaxira (+40...+51 MB) §10.5 dagidan (+60...+71 MB) ham
+**yupqaroq** chiqdi (repo va main kodi kattaroq). 0 FAIL saqlandi, lekin
+page-cache'ga sezgir; 6144 MB da `memory_headroom` PASS va WARN soni
+4 -> 3. Pilot/o'lchov uchun 6144 MB ni ishlating (host ruxsat bersa).
+
+**CHEKLOV — sinalmadi:**
+1. **GRUB/UEFI** (ikkala band) — faqat BIOS/ISOLINUX sinaldi; GRUB menyusi
+   kodda bor, lekin boot qilinmadi.
+2. 6144 MB da faqat **default** band boot qilindi (yangi band emas).
+3. `pytest` bu yakuniy image'da **qayta ishga tushirilmadi** (§10.4 natijasi
+   `ea79af9` image'iga tegishli).
+4. Trial yoki yuk ostida dashboard ta'siri o'lchanmadi (§10.6.4 o'zgarmaydi).
+5. Timing o'lchovi NEM ostida haqiqiy emas (§7).
+6. Image ishonchsiz tarmoq uchun YAROQSIZ (parolsiz autologin, NOPASSWD sudo),
+   yangi band esa autentifikatsiyasiz va TLS'siz tinglaydi.
+
+**FAKT — tozalash.** VM `revix-os-dash` o'chirildi; lock bo'shatildi
+(VM fazasi 10:45:12Z-10:50:57Z; `boot_id` fazaning boshida va oxirida
+`4ea15279...`). Eski nusxalar o'chirildi: `C:\Users\snowden\revix-iso-dash\`
+(butunlay) va `C:\Users\snowden\revix-iso\*.iso` (eski `ccb08016...` image).
+DIQQAT: `revix-os` VM (holati `aborted`) aynan shu o'chirilgan ISO'ni DVD
+sifatida ulagan edi — uni qayta ulash kerak
+(`C:\Users\snowden\revix-iso-final\...iso`).
