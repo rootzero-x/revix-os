@@ -1,0 +1,59 @@
+run: /home/snowden/revix-runs/open-params-cal-01,/home/snowden/revix-runs/open-params-cal-02,/home/snowden/revix-runs/open-params-cal-03  controller: [('open-params-cal-02', "abort: guard holati 'active', trip_file=True (B-P1-05) -- FAIL-CLOSED"), ('open-params-cal-03', "abort: guard holati 'active', trip_file=True (B-P0-03) -- FAIL-CLOSED")]
+aborts/errors: [('open-params-cal-02', 'guard_problem', 'None'), ('open-params-cal-02', 'abort', "guard holati 'active', trip_file=True (B-P1-05) -- FAIL-CLOSED"), ('open-params-cal-03', 'guard_problem', 'None'), ('open-params-cal-03', 'abort', "guard holati 'active', trip_file=True (B-P0-03) -- FAIL-CLOSED")]
+clock jumps: {'open-params-cal-01': [(6463779041, 6463878960, 0.099919, 1699.698213), (6468778980, 6468878977, 0.099997, 94.41166), (6469778986, 6469878993, 0.100007, 6371.221589), (6472478910, 6472578911, 0.100001, 42088.228791), (6472678906, 6472778893, 0.099987, 0.761058)], 'open-params-cal-02': [], 'open-params-cal-03': []}
+excluded episodes (spans_clock_jump): {'open-params-cal-01:A-P0-21': {'reason': 'spans_clock_jump', 'jump_real_s': 6371.221589}, 'open-params-cal-01:A-P2-22': {'reason': 'spans_clock_jump', 'jump_real_s': 0.761058}, 'open-params-cal-02:B-P2-05': {'reason': 'guard_trip', 'trip_mono_us': 7638741126}, 'open-params-cal-03:B-P2-02': {'reason': 'guard_trip', 'trip_mono_us': 7905046529}}
+poll: {'samples': 70218, 'max_interval_all_s': 0.057536, 'max_interval_A_unit_polls_s': 0.069858, 'errors': 0}
+
+A -- watchdog oraliqlari (ping, barcha fazalar)
+band  ep(valid) gaps  n_ping   p50     p90     p99     max   | during n  max   | W/maxg  maxdelta (W/2)/maxd  postmaxd
+P0    24(24)    360    336  2.5002 2.5005 2.5007 2.5012 |   144 2.5010 | 2.00   0.0012  2157.03  0.0007
+      final_results={'success': 24} quiescence={'complete': 24} arm->first=24/2.5006 post_last_stall_inc={'n': 24, 'min': 0.0, 'p50': 0.0, 'p90': 0.0, 'p99': 0.0, 'max': 0.0}
+P1    24(24)    360    336  2.5004 2.5006 2.5755 2.6061 |   144 2.6061 | 1.92   0.1061  23.57  0.0009
+      final_results={'success': 24} quiescence={'complete': 24} arm->first=24/2.5005 post_last_stall_inc={'n': 24, 'min': 0.0, 'p50': 0.0, 'p90': 0.0, 'p99': 0.0, 'max': 0.0}
+P2    24(24)    360    336  2.5002 2.5025 2.5868 2.6170 |   144 2.6170 | 1.91   0.1170  21.38  0.0011
+      final_results={'success': 24} quiescence={'complete': 24} arm->first=24/2.5007 post_last_stall_inc={'n': 24, 'min': 0.0, 'p50': 0.0, 'p90': 0.0, 'p99': 0.0, 'max': 0.0}
+watchdog Result yozuvlari: []
+G2 (initial WD - ActiveEnter): {'n': 72, 'min': -0.000125, 'p50': -3.6e-05, 'p90': -3.2e-05, 'p99': -3.1e-05, 'max': -3.1e-05}
+
+B -- t_start (qualifying)
+P0: starts=24 q=24 ep=6 fail=0 min=0.0079 p50=0.0348 p90=0.0417 p99=0.0538 max=0.0559 10s/max=179.03 <=0.8=24 results={'active/success': 24}
+    sut_uptime={'n': 24, 'min': 0.015193, 'p50': 0.0167175, 'p90': 0.0175628, 'p99': 0.025808539999999998, 'max': 0.028132}
+P1: starts=24 q=24 ep=6 fail=0 min=0.0585 p50=0.4685 p90=0.7224 p99=0.9553 max=0.9614 10s/max=10.40 <=0.8=22 results={'active/success': 24}
+    sut_uptime={'n': 24, 'min': 0.015142, 'p50': 0.017326, 'p90': 0.06587149999999999, 'p99': 0.11369188, 'max': 0.119636}
+P2: starts=20 q=20 ep=5 fail=0 min=0.3845 p50=0.5311 p90=0.7045 p99=0.7510 max=0.7615 10s/max=13.13 <=0.8=20 results={'active/success': 20}
+    sut_uptime={'n': 20, 'min': 0.01597, 'p50': 0.0173495, 'p90': 0.051179200000000015, 'p99': 0.12126813999999989, 'max': 0.136068}
+A pre-pressure starts: {'P0': {'n': 24, 'min': 0.023089, 'p50': 0.0368255, 'p90': 0.0465234, 'p99': 0.053794669999999996, 'max': 0.055582}, 'P1': {'n': 24, 'min': 0.02156, 'p50': 0.032184000000000004, 'p90': 0.0456165, 'p99': 0.05446361, 'max': 0.054531}, 'P2': {'n': 24, 'min': 0.021717, 'p50': 0.0356875, 'p90': 0.05019729999999999, 'p99': 0.05568781, 'max': 0.056206}}
+
+memory_high check: {"bands": {"P0": {"episodes": 30, "dosed": 0, "zero": 30, "ok": true, "dose_p50_episode_medians": {"n": 24, "min": 0.0, "p50": 0.0, "p90": 0.0, "p99": 0.0, "max": 0.0}, "pressure_stop_written": 30, "overrun_s": {"n": 30, "min": 0.05099801699998352, "p50": 0.053516107499945065, "p90": 0.06178196739920168, "p99": 0.08750656044998326, "max": 0.09538797599998361}}, "P1": {"episodes": 30, "dosed": 30, "zero": 0, "ok": true, "dose_p50_episode_medians": {"n": 24, "min": 0.2411658794170603, "p50": 0.26513025537410706, "p90": 0.34153237866497727, "p99": 0.3634301448680695, "max": 0.36698254573563255}, "pressure_stop_written": 30, "overrun_s": {"n": 30, "min": 0.05956155100011529, "p50": 0.06295357250019151, "p90": 0.10193751599981626, "p99": 0.13103666282010637, "max": 0.13731033200019738}}, "P2": {"episodes": 29, "dosed": 29, "zero": 0, "ok": true, "dose_p50_episode_medians": {"n": 24, "min": 0.5451929922636589, "p50": 0.6713642727719005, "p90": 0.8179350223486958, "p99": 0.8487753707762061, "max": 0.8525865822560802}, "pressure_stop_written": 29, "overrun_s": {"n": 29, "min": 0.06003627600057371, "p50": 0.07260157800010347, "p90": 0.10023657980000279, "p99": 0.118790112200586, "max": 0.12098965500081249}}}, "ok": true}
+guard: events=2
+
+RULE: {
+ "F": 3.0,
+ "U_start_s": 18.0,
+ "timeout_start_sec": {
+  "M_start_s": 0.961446,
+  "proposal_s": null,
+  "reasons": [
+   "B namunasi yetarli emas: {'P0': 24, 'P1': 24, 'P2': 20} (< 48, \u00a70.5(3))"
+  ]
+ },
+ "watchdog_sec": {
+  "M_wd_delta_s": 0.11695199999999994,
+  "L_s": 0.7017119999999997,
+  "ceil_L": 1,
+  "U_s": 17.038554,
+  "proposal_s": 5,
+  "halfW_over_M_wd": 21.37629112798414
+ },
+ "t_trial": {
+  "value_s": 41.1,
+  "check_a_s": 32.161446000000005,
+  "check_a_ok": true,
+  "check_b_s": 33.300000000000004,
+  "check_b_ok": true,
+  "proposal_s": 41.1
+ },
+ "memory_high": {
+  "proposal": "192M"
+ }
+}

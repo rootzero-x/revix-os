@@ -1,0 +1,70 @@
+[08:46:38] RUN open-params-cal-03  parts=B A_EP=0 A_COUNTS= SEED=20261005 B_MIN=32 B_MAXEP=11 total=2085s commit=c45de9f
+[08:46:38] loadavg1=0.06 < 0.3
+scripts/open-params-run.sh: line 55: /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/revixlab.slice/memory.events: No such file or directory
+[08:46:38] marker pre
+label=pre
+wall_utc=2026-10-04T08:46:38.369Z
+boot_id=4ea15279-acba-44ff-a533-6d7cd11924e5
+uptime=7728.16
+pid1_starttime_ticks=653523
+loadavg=0.06 0.19 0.24 1/225 1263
+mem_available_kb=9659816
+swap_free_kb=4194304
+vmstat_oom_kill=0
+lab_swap_current=NA
+lab_memory_events=NA
+revix_units=
+failed_units=
+interference=
+lock_holder=open-params 2026-10-03T17:42:32Z
+journal_oom_hits=0
+[08:46:38] preflight: {"clean": true, "problems": [], "units": [], "cgroups": [], "stale_drop_ins": [], "unit_patterns": ["revix-*"], "slices": ["revixlab.slice", "revixmon.slice"], "mono_us": 7728464953}
+doctor leftover_state: PASS | qoldiq yo'q (unit ham, cgroup ham)
+CPUQuotaPerSecUSec=4s
+MemoryHigh=201326592
+MemoryMax=2147483648
+MemorySwapMax=0
+TasksMax=256
+kernel: memory.max=2147483648 memory.high=201326592 memory.swap.max=0 pids.max=256 cpu.max=400000 100000
+cc -O2 -Wall -Wextra -Werror -std=c11 -pthread  -o sut sut.c
+make: Leaving directory '/home/snowden/openparams-work/revix'
+-rwxr-xr-x 1 snowden snowden 28328 Oct  4 13:46 /home/snowden/openparams-work/revix/sut
+cc (Debian 14.3.0-5) 14.3.0
+[08:46:39] guard FAOL (is-active + guard_start yozuvi)
+[08:46:40] sampler FAOL
+[08:46:40] controller boshlandi
+[08:49:55] controller tugadi rc=3
+Finished with result: exit-code
+Main processes terminated with: code=exited, status=3/NOTIMPLEMENTED
+Service runtime: 3min 14.923s
+CPU time consumed: 2.880s
+Memory peak: 19.8M (swap: 0B)
+{"record_type": "abort", "run_id": "open-params-cal-03", "mono_us": 7925165480, "real_us": 1791103795375627, "reason": "guard holati 'active', trip_file=True (B-P0-03) -- FAIL-CLOSED"}
+{"record_type": "controller_end", "run_id": "open-params-cal-03", "mono_us": 7925216159, "real_us": 1791103795426308, "status": "abort: guard holati 'active', trip_file=True (B-P0-03) -- FAIL-CLOSED", "poll_samples": 3895, "poll_max_interval_us": 51275, "poll_errors": 0}
+[08:49:55] guard to'xtadi; trip fayli: BOR
+guard_event yozuvlari: 1
+{"schema_version":1,"record_type":"guard_stop","stream":"guard_stop","run_id":"open-params-cal-03","session_id":"open-params","boot_id":"4ea15279-acba-44ff-a533-6d7cd11924e5","trial_id":null,"block_index":null,"seq":1,"mono_us":7925346339,"real_us":1791103795556488,"emitter":"guard:1339","tripped":true,"iterations":1960,"elapsed_s":196.00017922400002,"trip_summary":[{"reason":"user_full_rate2s_run
+[08:49:55] marker post
+label=post
+wall_utc=2026-10-04T08:49:55.591Z
+boot_id=4ea15279-acba-44ff-a533-6d7cd11924e5
+uptime=7925.38
+pid1_starttime_ticks=653523
+loadavg=0.21 0.19 0.23 1/221 1467
+mem_available_kb=9656984
+swap_free_kb=4194304
+vmstat_oom_kill=0
+lab_swap_current=0
+lab_memory_events=low 0 high 14877 max 0 oom 0 oom_kill 0 oom_group_kill 0 
+revix_units=revixlab.slice loaded active active Slice /revixlab;revixmon.slice loaded active active Slice /revixmon;
+failed_units=
+interference=
+lock_holder=open-params 2026-10-03T17:42:32Z
+journal_oom_hits=0
+[08:49:55] post-flight (teardown'dan OLDIN): oom_kill=0 lab_swap_current=0
+teardown: {"mono_us_begin": 7925504197, "killed": [{"cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/revixlab.slice", "ok": true}, {"cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/revixmon.slice", "ok": true}], "stopped": ["revixlab.slice", "revixmon.slice"], "reset": [], "removed_drop_ins": [], "errors": [], "mono_us_end": 7925542886}
+removed: ["/run/user/1000//systemd/user.control/revixlab.slice.d", "/run/user/1000//systemd/user.control/revixmon.slice.d"]
+[08:49:56] preflight (keyin): {"clean": true, "problems": [], "units": [], "cgroups": [], "stale_drop_ins": [], "unit_patterns": ["revix-*"], "slices": ["revixlab.slice", "revixmon.slice"], "mono_us": 7925782940}
+doctor leftover_state: PASS | qoldiq yo'q (unit ham, cgroup ham)
+[08:49:56] boot_id va pid1_starttime O'ZGARMADI
+[08:49:56] vmstat oom_kill O'ZGARMADI

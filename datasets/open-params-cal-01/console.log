@@ -1,0 +1,35 @@
+[17:46:42] RUN open-params-cal-01  parts=A,B A_EP=24 B_MIN=48 B_MAXEP=16 total=7080s commit=1d344b2
+[17:46:42] loadavg1=0.16 < 0.3
+scripts/open-params-run.sh: line 53: /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/revixlab.slice/memory.events: No such file or directory
+[17:46:42] marker pre
+label=pre
+wall_utc=2026-10-03T17:46:42.900Z
+boot_id=4ea15279-acba-44ff-a533-6d7cd11924e5
+uptime=3986.51
+pid1_starttime_ticks=156737
+loadavg=0.16 0.13 0.10 1/228 16668
+mem_available_kb=9603740
+swap_free_kb=4194304
+vmstat_oom_kill=0
+lab_swap_current=NA
+lab_memory_events=NA
+revix_units=
+failed_units=
+interference=
+lock_holder=open-params 2026-10-03T17:42:32Z
+journal_oom_hits=0
+[17:46:43] preflight: {"clean": true, "problems": [], "units": [], "cgroups": [], "stale_drop_ins": [], "unit_patterns": ["revix-*"], "slices": ["revixlab.slice", "revixmon.slice"], "mono_us": 3986807360}
+doctor leftover_state: PASS | qoldiq yo'q (unit ham, cgroup ham)
+CPUQuotaPerSecUSec=4s
+MemoryHigh=201326592
+MemoryMax=2147483648
+MemorySwapMax=0
+TasksMax=256
+kernel: memory.max=2147483648 memory.high=201326592 memory.swap.max=0 pids.max=256 cpu.max=400000 100000
+make: Entering directory '/home/snowden/openparams-work/revix'
+make: Leaving directory '/home/snowden/openparams-work/revix'
+-rwxr-xr-x 1 snowden snowden 28328 Oct  3 22:42 /home/snowden/openparams-work/revix/sut
+cc (Debian 14.3.0-5) 14.3.0
+[17:46:44] guard FAOL (is-active + guard_start yozuvi)
+[17:46:44] sampler FAOL
+[17:46:44] controller boshlandi

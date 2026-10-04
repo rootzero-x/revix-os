@@ -1,0 +1,16 @@
+label=pre
+wall_utc=2026-10-03T17:46:42.900Z
+boot_id=4ea15279-acba-44ff-a533-6d7cd11924e5
+uptime=3986.51
+pid1_starttime_ticks=156737
+loadavg=0.16 0.13 0.10 1/228 16668
+mem_available_kb=9603740
+swap_free_kb=4194304
+vmstat_oom_kill=0
+lab_swap_current=NA
+lab_memory_events=NA
+revix_units=
+failed_units=
+interference=
+lock_holder=open-params 2026-10-03T17:42:32Z
+journal_oom_hits=0

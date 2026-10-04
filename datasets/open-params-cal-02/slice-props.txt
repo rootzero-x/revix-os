@@ -1,0 +1,6 @@
+CPUQuotaPerSecUSec=4s
+MemoryHigh=201326592
+MemoryMax=2147483648
+MemorySwapMax=0
+TasksMax=256
+kernel: memory.max=2147483648 memory.high=201326592 memory.swap.max=0 pids.max=256 cpu.max=400000 100000
