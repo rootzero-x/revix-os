@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.12` |
+| **Versiya** | `preregistration/v1.13` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8, v1.9, v1.10, v1.11) · 2026-10-04 (v1.12) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8, v1.9, v1.10, v1.11) · 2026-10-04 (v1.12, v1.13) |
 | **Muhit** | Bu pre-registration **§15.1 va §16.11 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
 | **✅ Qaror 1 — QABUL QILINDI (v1.11)** | **§17.5 — dizayn nuqsoni** (stabilizatsiya oynasi pressure hold'ga sig'maydi) → **O3**: `hold_cap_s` **12 s → 13 s**. Orkestrator, egasining 2026-10-03 dagi ochiq delegatsiyasi bo'yicha. Asos, narx va cheklovlar: **Amendment log, v1.10 → v1.11** va §17.5. |
 | **✅ Qaror 2 — QABUL QILINDI (v1.11)** | **§18.6 — §11 ning fail-slow limbi ishlamaydi** → **F2**: `thr = 0.20 × τ = 1.6 s`, **fiksa**. Orkestrator, o'sha delegatsiya bo'yicha. §18.2 ning `thr = 0.20 × RMST(P0)` o'qishi **bekor qilinadi**. Asos, **bias yo'nalishi** va narx: **Amendment log, v1.10 → v1.11**, §18.6, §18.7. |
@@ -17,6 +17,10 @@
 | **🔴 Oshkora e'lon (v1.12)** | **v1.12 ning qarorlari kalibratsiya VA smoke ma'lumoti ko'rilgandan KEYIN qabul qilindi.** `TimeoutStartSec` og'ishi, V2 va `P2` yo'qotishi kutilmasi uchun *"ko'r tanlangan"* kafolati **yo'q**; qoidaga tayangan qiymatlar uchun qamrovi 0-band jadvalida. **Amendment log, v1.11 → v1.12, 0-band.** |
 | **✅ Gate — YOPILDI (v1.12), shart bilan** | **§21.7:** generator §9.4 ning ikki invariantini **o'lchov bo'yicha** majburlaydi — **faqat V2 generator vaqti bilan ishlaydigan driver uchun** (chiqish 33.075–33.245 s vs 33.0 s; eng uzun guard oralig'i ≤ 13.0 s; sustain trip 0/6; n = 6). `main` ning hozirgi (V0) driver'i bilan trial — **protokol buzilishi**. Orkestrator qarori. **5-band.** |
 | **⛔ Pilot preshartlari (v1.12)** | Birinchi pilot trial'i o'tkazilmaydi, toki `main` da: **(1)** driver istisno yo'li nuqsonining tuzatishi (guard abort'i `harness_error` bo'lib, washout o'tkazib yuborilardi); **(2)** V2 kodi; **(3)** muzlatilgan qiymatlarni `run_id` bilan olib yuradigan `run_meta.open_parameters`; **(4)** V2 ning `P1`/`P0` regressiya smoke'i merge qilingan kod bilan; **(5)** v1.12 merge qilingan va tag qilingan. **9-band.** |
+| **🔴 Pilot `p1-pilot-001` — YAROQSIZ (v1.13)** | 120/120 trial (v1.12, `main` `4cbd1c6`, seed 20261006), lekin `revix.validate` **4 xato, 3 trial** (hammasi `A/P2`) ⇒ §14.6 bo'yicha **analiz qilinmaydi**. Sabab — uchta **driver** nuqsoni (§17.4 oyna fakti yo'q; `probe_gap_exceeded` §4 ta'rifidan emas; eskirgan `ActiveExitTimestamp`), validator va muzlatilgan ta'rif emas (`15`). Run saqlanadi, **o'chirilmaydi**, hech qachon birlashtirilmaydi. **Amendment log, v1.12 → v1.13, 1- va 2-band.** |
+| **✅ Qaror — V-A (v1.13)** | Driver uch nuqsonni tuzatadi (§4, §17.4(2), (5) ni **implementatsiya qiladi**; hech bir ta'rif yoki qiymat o'zgarmaydi), unit test + `p1-pilot-001` ustida oflayn replay + smoke bilan tekshiriladi; butun pilot **`p1-pilot-002`** sifatida **bir xil seed (20261006) va jadval digest'i (`69ae399e…cb2dc`)** bilan qayta o'tkaziladi. **`p1-pilot-002` — analiz qilinishi mumkin bo'lgan YAGONA pilot run'i.** Orkestrator, egasining 2026-10-03 delegatsiyasi bo'yicha. **3-band.** |
+| **🔴 Oshkora e'lon (v1.13)** | **Qayta o'tkazish qarori `p1-pilot-001` ning DISPOSITION HISOBLARI KO'RILGANDAN KEYIN qabul qilindi** (orkestrator — yacheyka bo'yicha; tahlil agenti — run jami). *"Ko'r tanlangan"* kafolati **yo'q**; bias faqat **almashtirish** yo'nalishida — run'lar orasida **tanlov yo'q**; `p1-pilot-002` ham yiqilsa uchinchi run **yangi amendment'siz** o'tkazilmaydi. **0-band.** |
+| **⛔ `p1-pilot-002` preshartlari (v1.13)** | **(1)** uch tuzatish `main` da; **(2)** replay faqat `b007t001`, `b013t004` (→ `censored`) va `b010t001` (action vaqtlari) ni o'zgartiradi, boshqa trial yo'q; **(3)** smoke oldindan commit qilingan mezondan o'tdi; **(4)** `git_commit` tuzatishlarni o'z ichiga oladi; **(5)** dry-run digest'i bir xil; **(6)** v1.13 merge va tag; **(7)** VirtualBox VM o'chirilgan, host uyg'oq; **(8)** `04` ning revizya yozuvi. **8-band.** |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
@@ -28,6 +32,386 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.12 → v1.13 (2026-10-04)
+
+| | |
+|---|---|
+| **v1.12 sha256** | `ccb6186e55d94935cedd4a4e49562675fa5a2b1e276ae799e4605e239d004ad2` |
+| **v1.12 git tag** | `v0.1.12-preregistration` |
+| **Sabab** | Birinchi pilot run'i **`p1-pilot-001`** 120/120 trial'ni tugatdi, lekin `revix.validate` dan **O'TMADI** (4 xato, 3 trial) — §14.6 bo'yicha run **analiz qilinmaydi**. Sabab — uchta **driver implementatsiya nuqsoni**; validator va muzlatilgan ta'riflar to'g'ri ishladi (`docs/architecture/15-pilot-001-validatsiya-xatolari.md`, `main` `7b41ca7`). Pilotni **qayta o'tkazish** qarori disposition hisoblari **ko'rilgandan keyin** qabul qilindi — shuning uchun u shu yerda, oshkora e'lon bilan, **ikkinchi run boshlanishidan OLDIN** yoziladi |
+| **Qarorni kim qabul qildi** | **Orkestrator**, loyiha egasining **2026-10-03 dagi ochiq delegatsiyasi** bo'yicha (v1.11 va v1.12 dagi o'sha delegatsiya). Asos fayl: `15` (§0–§7). Matnni `agent/amend-v113` agenti yozdi; **har bir raqam `15` ga va u keltirgan fayllarga (`PREREGISTRATION.md`, `04`, `14` §13, `revix/schedule.py`, `revix/driver.py`, `datasets/smoke-tools/p1_validity.py`) qarshi tekshirildi**; guest'ga kirilmadi — tekshirilmagan ikki bayonot 1-bandda belgilangan |
+| **O'zgardi** | **Hech bir ta'rif emas.** **(1)** `p1-pilot-001` **yaroqsiz** deb qayd etildi: saqlanadi, hech qachon analiz qilinmaydi, o'chirilmaydi (1-, 6-band). **(2)** Qaror **V-A** (`15` §5.2): driver'ning uch nuqsoni tuzatiladi — §4 va §17.4(2), (5) ni **implementatsiya qiladi** — va butun pilot **`p1-pilot-002`** sifatida **bir xil seed va bir xil jadval** bilan qayta o'tkaziladi (3-band). **(3)** `p1-pilot-002` — **analiz qilinishi mumkin bo'lgan YAGONA pilot run'i**; birlashtirish va tanlab iqtibos keltirish taqiqi; u ham yiqilsa nima bo'lishi (0-band). **(4)** `p1-pilot-002` preshartlari (8-band) |
+| **O'zgarMADI** | **hech bir metrika, statistik test, arm, fault klassi, probe parametri, VR/FR ta'rifi, `disposition` enum'i, falsifikatsiya mezoni**, `W_stab_pilot`, `τ`, `hold_cap_s`, `injection_offset`, `θ`, `k_f`, `P`, `T_conn`, `T_rt`, blok va trial soni, **seed**, **jadval digest'i**, **guard chegaralari**, **dial**, v1.12 ning **muzlatilgan ochiq parametrlari** va **V2 generator vaqti**. To'liq ro'yxat — 4-bandda |
+| **Yig'ilgan ma'lumot** | **Bitta pilot run'i mavjud va u YAROQSIZ** (`p1-pilot-001`). **Hech qanday tadqiqot ma'lumoti analiz qilinmagan** — VR, FR, downtime, `t_up` taqsimoti, p-qiymat yoki effekt bahosi **hisoblanmagan**. **LEKIN disposition hisoblari ko'rilgan** — 0-band. Smoke va kalibratsiya ma'lumoti — pilot to'plamidan **chiqarilgan** (v1.12 4.5). To'liq holat — 6-band |
+
+**0. 🔴 OSHKORA E'LON — qayta o'tkazish qarori DISPOSITION HISOBLARI KO'RILGANDAN KEYIN qabul qilindi.**
+
+**(0.1) Kim nimani ko'rdi** (`15` §0, va `7b41ca7` merge xabaridagi
+orkestrator bayonoti):
+
+| kim | nimani ko'rdi | nimani ko'rmadi |
+|---|---|---|
+| **orkestrator** | pilot ishlayotgan paytda **har `(arm × pressure)` yacheykasi bo'yicha disposition sonlari** (o'zi chop etgan) | — (bu amendment uning boshqa ko'rganlarini da'vo qilmaydi) |
+| **tahlil agenti** (`15`) | `validate.txt` to'liq; `driver.json` dagi **run bo'yicha jami**: `aborted_guard` **10**, `censored` **57**, `complete` **53**; 10 ta `guard_event` (hammasi `user_full_rate2s_runaway`); uch nomlangan trial'ning xom record'lari; 120 trial bo'yicha **faqat yaroqlilik** klassifikatsiyasi | yacheyka bo'yicha `complete` maxrajlari; VR, FR, downtime, `t_up` taqsimoti, p-qiymat, effekt bahosi — **hisoblanmagan** (`15` §0) |
+| **shu amendment muallifi** | `15` ning matni (yuqoridagi jami sonlar shu orqali); `p1_validity.py` ning **kodi** | uning chiqishi (`validity.json` commit qilinmagan, `15` §7); guest'dagi run katalogi |
+
+**(0.2) Qaysi qoida, va nega u QO'LLANADI.** §16.10(3): *"Hech qanday P1
+natijasi ko'rilgandan keyin o'zgartirilMAYDI. Post-hoc o'zgarish run'ni
+bekor qiladi, parametrni emas."* Harfan bu qoida **ochiq parametrlar**
+haqida (`15` §5.1), harness kodi haqida emas. Lekin uning **maqsadi** —
+natijaga qarab o'zgartirmaslik — **o'xshatish bo'yicha qo'llanadi**:
+disposition hisoblari P1 natijasining bir qismi (§12: *"Yuqori
+eksklyuziya darajasi o'zi natija"*), va qayta o'tkazish qarori ular
+ma'lum bo'lgandan keyin qabul qilindi. **Shuning uchun "ko'r tanlangan"
+degan kafolat bu qarorga BERILMAYDI.**
+
+**(0.3) Nega qayta o'tkazish baribir asosli.**
+
+1. **Run muzlatilgan yaroqlilik darvozasidan o'tmadi** (§14.6) — natija
+   sababli emas, **implementatsiya sababli**, va bu sababni **muzlatilgan
+   matnning o'zi** aniqlaydi: §4 (*"Probe uzilishi > 2×P → trial
+   `censored`"*), §14.6(4), §17.4(2) va §17.4(5) (*"`complete` deb
+   yozilgan bo'lsa — bu validator xatosi"*). Rad etish mezoni run
+   boshlanishidan **oldin** yozilgan edi; uni hech kim ma'lumotdan keyin
+   qo'ymadi.
+2. **Tuzatishlar muzlatilgan ta'riflarni implementatsiya qiladi** — hech
+   bir chegara, ta'rif yoki qiymat o'zgarmaydi (4-band). Har uch
+   tuzatishning **to'g'ri chiqishi** muzlatilgan matn bilan oldindan
+   belgilangan (`b007t001` → `censored`, `b013t004` → `censored`,
+   `b010t001` ning ikki action'i — ikki turli `t_issue`; `15` §5.2 V-B):
+   tuzatuvchi uchun **tanlov erkinligi yo'q**.
+3. **Alternativalar yomonroq** (3.3-band): darvozani ma'lumotdan keyin
+   yumshatish (V-B) yoki trial'larni tanlab olib tashlash (V-D) — aynan
+   §16.10(3) ning ruhi taqiqlagan narsa.
+
+**(0.4) Qayta o'tkazishni nima E'TIROZLI qiladi.** `p1-pilot-001` va
+`p1-pilot-002` orasidagi har qanday o'zgarish **muzlatilgan ta'rifning
+implementatsiyasi bo'lmasa** — masalan guard chegarasi, dial, `T_trial`,
+generator vaqti, ochiq parametr, seed, jadval, blok soni, arm yoki band
+tartibi, prober yoki SUT sozlamasi, yoki driver'ning disposition
+qoidalarining 3.1-banddagi uch nuqsondan **tashqaridagi** har qanday
+o'zgarishi — u **post-hoc o'zgarish**, va `p1-pilot-002` ni ham
+**yaroqsiz** qiladi (§16.10(3) ruhi). Buning mexanik tekshiruvi —
+8-band, 2-preshart (oflayn replay **boshqa hech bir** trial'ning
+disposition'ini o'zgartirmasligi) va 5-preshart (jadval digest'i bir
+xil). Tuzatish agenti vazifasidan tashqari biror narsa kerak deb
+topsa — **to'xtaydi va xabar beradi**, yangi amendment'siz
+o'zgartirmaydi.
+
+**(0.5) BIAS YO'NALISHI — qayta o'tkazish faqat ALMASHTIRADI, hech qachon
+TANLAMAYDI.**
+
+- **`p1-pilot-002` — analiz qilinishi mumkin bo'lgan YAGONA pilot run'i.**
+  Bu **hozir**, `p1-pilot-002` ning birorta trial'idan oldin
+  belgilanadi, va uning natijasi qanday bo'lishidan **qat'i nazar**
+  o'zgarmaydi.
+- **`p1-pilot-001` hech qachon:** analiz qilinmaydi; `p1-pilot-002` bilan
+  **birlashtirilmaydi** (pooling); sezgirlik, izchillik yoki "takrorlash"
+  tekshiruvi sifatida **ishlatilmaydi** (V-C rad etildi — 3.3-band);
+  natija sifatida **tanlab iqtibos keltirilmaydi**; uning disposition
+  sonlari `p1-pilot-002` ning sonlari bilan **solishtirilmaydi**. Unga
+  havola faqat **yaroqsiz run va uning sababi** sifatida (`15`, shu band)
+  va 3.2(2) ning **yaroqlilik replay'ida** (faqat o'zgargan trial'lar
+  ro'yxati) mumkin.
+- Shuning uchun "ikki run'dan yoqqanini olish" yo'li **yo'q**: tanlov
+  bitta (qayta o'tkazish), u natija ko'rilishidan **oldin** yopiladi, va
+  qolgan yagona run'ning natijasi qanday chiqsa — shunday hisobot qilinadi.
+- **Qolgan xavf, ochiq:** qayta o'tkazish qarorining **o'zi** hisoblar
+  ma'lum bo'lgandan keyin qabul qilindi. Agar `p1-pilot-001` ning
+  hisoblari "yoqqan" bo'lganida, darvozani yumshatish (V-B) jozibali
+  bo'lardi — bu xavf **V-B ning rad etilishi** va yuqoridagi "yagona run"
+  qoidasi bilan **cheklanadi**, lekin **nolga tushmaydi**. O'quvchi buni
+  ko'rishi shart.
+- **Tuzatishning o'z yo'nalishi yangi emas.** Kech oynali `complete`
+  trial'larni `censored` qilish — §17.4 ning qarori; uning bias
+  yo'nalishi **§17.6 da birorta P1 ma'lumotidan oldin** e'lon qilingan,
+  va v1.13 uni **o'zgartirmaydi**. `probe_gap` → `censored` — §4 ning
+  matni. Ikkalasi ham `A/P2` yacheykasida to'planishi mumkin —
+  shuning uchun yacheyka jadvali majburiy (7-band).
+
+**(0.6) Agar `p1-pilot-002` ham validatsiyadan o'tmasa.** U §14.6 bo'yicha
+**analiz qilinmaydi**; xuddi `p1-pilot-001` kabi **saqlanadi, yaroqsiz
+deb belgilanadi, o'chirilmaydi**; sababi `15` uslubidagi **faqat
+yaroqlilik** tahlili bilan va **shu banddagi oshkora e'lon bilan** (kim
+nimani ko'rdi) yoziladi. **Uchinchi run yangi amendment'siz (v1.14 yoki
+keyingi) O'TKAZILMAYDI** — u amendment uchinchi run'dan **oldin** merge
+qilinadi va tag qilinadi. `p1-pilot-001` va `p1-pilot-002` hech qachon
+birlashtirilmaydi; "yagona analiz qilinadigan run" qoidasi ham shu
+amendment orqali qayta belgilanadi.
+
+> **Maqolada shunday yoziladi:** *"Birinchi pilot run'i 120/120 trial'ni
+> tugatdi, lekin oldindan belgilangan yaroqlilik darvozasidan
+> (validator) driver implementatsiyasidagi uch nuqson tufayli o'tmadi va
+> analiz qilinmadi. Nuqsonlar muzlatilgan ta'riflarni o'zgartirmasdan
+> tuzatildi va pilot bir xil seed va jadval bilan qayta o'tkazildi;
+> qayta o'tkazish qarori birinchi run'ning disposition hisoblari
+> ko'rilgandan keyin, lekin ikkinchi run'dan OLDIN qabul qilingan va
+> faqat ikkinchi run analiz qilingan."*
+
+**1. FAKT — `p1-pilot-001` (`15` §1).**
+
+| | |
+|---|---|
+| run katalogi | `~/revix-runs/p1-pilot-001` (guest; `dr-xr-xr-x` — faqat o'qish) |
+| zaxira | `~/revix-runs/_backup/p1-pilot-001.tar.zst` (`15` sarlavhasi) |
+| `git_commit` / `git_dirty` | `4cbd1c6` / `false` |
+| pre-registration | `preregistration/v1.12`, `ccb6186e…` |
+| seed / `schedule_digest` | `20261006` / `69ae399edbb20b5a0271d4b6657a3b5c1ec45b61b19a04a2bf9e0b6e8decb2dc` (`14` §13.2 dagi bilan bir xil) |
+| `generator_window.lead_s` | `2.57` (V2) |
+| trial'lar | **120/120** `trial_end` |
+| post-flight | `boot_id`, pid1 `653523`, `real − mono` siljishi (oldin ham, keyin ham bir xil), `oom_kill 0` — **o'zgarmagan**; `clock-watch.log` da `\|Δreal − Δmono\| ≤ 3 µs` |
+| wall | 6754 s (`15` §5.2) |
+| `revix.validate` | **4 xato, 3 ogohlantirish** — *"O'TMADI — bu run ANALIZ QILINMAYDI (§14.6)"* |
+
+**Tekshirilmagan ikki bayonot (ochiq):** orkestrator post-flight'da
+`leftover_state` ham toza bo'lganini va zaxira yonida `.SHA256SUMS`
+fayli borligini aytgan; `15` bularni **qayd etmaydi**, va bu amendment
+muallifi guest'ga kirmagani uchun ularni **tekshirmagan**. Ular hech bir
+qarorga asos emas.
+
+**Xatolar** (`15` §1):
+
+| trial | yacheyka | topilma | daraja |
+|---|---|---|---|
+| `b007t001` | A, P2 | `probe_gap` (492 256 µs > 2P) + driver `complete` | ERROR |
+| `b007t001` | A, P2 | `window_outside_hold_complete` (`t_up + W_stab` `T_h` dan 0.391 s keyin) | ERROR |
+| `b013t004` | A, P2 | `window_outside_hold_complete` (1.550 s keyin) | ERROR |
+| `b010t001` | A, P2 | `action_without_invocation_change` | ERROR |
+
+**Faqat yaroqlilik tekshiruvi** (`15` §4; `p1_validity.py` —
+validator'ning o'z funksiyalari): driver `complete` deb yozgan har
+trial'da ikki shart — buzilish **faqat `A/P2` da** (probe uzilishi 1,
+oyna hold'dan tashqarida 2); **qolgan besh yacheykada 0**. Oyna holati
+`not_evaluated` bo'lgan `complete` trial yo'q. Validator'ning qolgan
+tekshiruvlari (`probe_coverage`, `host_clock_discontinuity`,
+`guest_generation`, `trial_timing` va boshqalar) — **xato yo'q**.
+
+**2. FAKT — uchta DRIVER nuqsoni (validator ham, muzlatilgan ta'rif ham EMAS).**
+
+| # | muzlatilgan matn | driver nima qildi | trial |
+|---|---|---|---|
+| 1 | §17.4(1), (2): oynasi hold ichida bo'lmagan trial `censored` (`window_past_pressure` / `window_past_horizon`); §17.4(5): `t_up + W_stab_pilot > T_h` bo'lgan `complete` — **validator xatosi** | `schedule.TrialFacts` ning **sakkiz** faktida §17 oynasi haqida fakt **yo'q**; driver `t_up` ni **hisoblamaydi** ⇒ kech oyna hech qachon `censored` bo'lmaydi | `b007t001` (`25.391 + 8.0 = 33.391 > 33.0`), `b013t004` (`26.550 + 8.0 = 34.550 > 33.0`) — ikkalasi `complete` deb yozilgan |
+| 2 | §4: *"Probe uzilishi > 2×P → trial `censored`"*; §14.6(4) | `driver._collect_facts`: `probe_gap_exceeded = prober_state not in ("active",)` — prober jarayonining horizon'da **tirikligi**, probe qatorlari orasidagi uzilish emas | `b007t001`: uzilish 8.391 → 8.884 s = **492 256 µs** (baseline ichida, bosimdan oldin); prober tirik ⇒ fakt `false` |
+| 3 | §14.6(6): har `action` uchun mos invocation o'zgarishi | `driver._note_unit_state` chiqayotgan invocation'ning exit vaqtini **avval `ActiveExitTimestamp`** dan oladi; systemd uni faqat unit **`active` dan chiqqanda** yangilaydi | `b010t001` (`aborted_guard`): guard restart qilingan SUT'ni hali `activating` paytida o'ldirdi; ikkinchi action'ning `t_issue` i birinchisiniki bilan **teng** (23.023 s) ⇒ `check_actions` oynasi bo'sh ⇒ xato |
+
+**Hukm (`15` §2.4, §3.3):** validator §14.6(4), §14.6(6) va §17.4(5) ni
+**so'zma-so'z** bajardi; reducer `b007t001` va `b013t004` ni **mustaqil
+ravishda** `censored` (`probe_gap`, `window_past_pressure`) deb
+chiqardi. Pre-registration matnida **noaniqlik yo'q** — §4, §12,
+§14.6(4), §17.4(2), (5) bir xil narsani aytadi. Bo'shliq
+**implementatsiya shartnomasida** (`04` §8.1) — 7-band, 3-qator.
+`b010t001` da §14.6(6) **mazmunan** bajarilgan (ikki action, ikki
+invocation o'zgarishi); xato buzilgan record vaqtining natijasi, trial
+disposition'i (`aborted_guard`) unga bog'liq emas.
+
+**3. QAROR — V-A (`15` §5.2): driver tuzatiladi, butun pilot `p1-pilot-002` sifatida qayta o'tkaziladi.**
+
+**(3.1) Tuzatish — faqat shu uchtasi** (driver agenti; bu amendment kod
+yozmaydi):
+
+1. **§17.4(2), (5) — oyna fakti.** Driver §17 oynasining joylashuvini
+   **reducer'ning o'z funksiyalari** bilan hisoblaydi (`15` §5.2:
+   `build_episodes` → `classify_window_containment`; validator ham
+   shularga tayanadi) va `window_past_pressure` / `window_past_horizon`
+   holatini `censored` qiladi. **Ikkinchi, mustaqil `t_up` ta'rifi
+   yozilmaydi** — aks holda driver va reducer yana ajralishi mumkin.
+2. **§4 — probe fakti.** `probe_gap_exceeded` **probe qatorlari orasidagi
+   haqiqiy `> 2×P` uzilish**dan olinadi — reducer/validator ishlatadigan
+   shartning o'zi bilan; prober jarayonining holati bu faktning
+   ta'rifi emas.
+3. **`t_issue` ning vaqt manbai.** Chiqayotgan invocation hech qachon
+   `active` bo'lmagan bo'lsa, eskirgan `ActiveExitTimestamp` emas — shu
+   invocation'ning **haqiqiy** chiqish vaqti olinadi (`15` §5.2:
+   `exec_main_exit_ts` / `inactive_exit_ts`; aniq tanlov driver
+   agentiniki, u testda asoslanadi). Bu **vaqt manbaining tuzatilishi**,
+   §14.6(6) ning ta'rifi o'zgarmaydi.
+
+`disposition` ning qiymati ikki yo'lda ham `censored`; driver va
+reducer'ning `disposition_source` i **bir xil** bo'lishi kerak (§16.2(B)
+— birlamchi to'plam `(disposition, disposition_source)` jufti bilan
+aniqlanadi; `04` §8.1 qoida 3 — kelishmovchilik validator topilmasi).
+
+**(3.2) Tekshiruv — uch qatlam.**
+
+1. **Unit testlar** — har nuqson uchun regressiya testi (nomlangan uch
+   trial'ning holati sintetik record'da).
+2. **Oflayn replay** `p1-pilot-001` ning **xom record'lari** ustida
+   (katalog faqat o'qiladi; chiqish run katalogidan **tashqarida**).
+   **Kutilgan natija — oldindan, shu yerda yozilgan:** `b007t001`
+   `complete` → `censored`; `b013t004` `complete` → `censored`;
+   `b010t001` — ikki action **ikki turli** `t_issue` oladi,
+   disposition `aborted_guard` **o'zgarmaydi**; **boshqa birorta ham
+   trial'ning disposition'i o'zgarmaydi.** Replay hisoboti **faqat
+   o'zgargan trial'lar ro'yxatini** beradi — yacheyka bo'yicha
+   hisoblar, VR, downtime yoki boshqa natija **hisobot qilinmaydi**
+   (0.1-band ko'rilgan narsalarni kengaytirmaslik uchun). Kutilgandan
+   har qanday farq — **to'xtash va xabar**, tuzatishni moslashtirish
+   emas.
+3. **Smoke partiyasi** — mezoni smoke trial'laridan **OLDIN** commit
+   qilinadi (`14` §10 va §12.1 dagi uslubda); smoke ma'lumoti pilot
+   to'plamiga **hech qachon** kirmaydi (v1.12 4.5).
+
+**(3.3) Qayta o'tkazish.** **`p1-pilot-002`**: seed **`20261006`**,
+`schedule_digest` **`69ae399edbb20b5a0271d4b6657a3b5c1ec45b61b19a04a2bf9e0b6e8decb2dc`**
+(ya'ni **aynan bir xil** 120 trial'lik jadval va tartib — tartibni
+tanlash imkoni yo'q), **yangi run katalogi**; `p1-pilot-001` ning
+katalogi va zaxirasi **tegilmaydi**. `run_meta.preregistration_sha256` —
+**v1.13** niki.
+
+**Rad etilgan variantlar** (`15` §5.2):
+
+| # | variant | nega rad etildi |
+|---|---|---|
+| V-B | `p1-pilot-001` ni oflayn qayta tasniflash (reducer'ning derived disposition'i) | run hamon §14.6 dan o'tmaydi: o'tishi uchun validator'ni yoki `04` ning avtoritet qoidasini **ma'lumot ko'rilgandan keyin** o'zgartirish kerak (raw'ni tahrirlash §14.5(2) bo'yicha taqiqlangan); `b010t001` uchun **qo'shimcha erkinlik darajasi**. Darvoza ma'lumotdan keyin yumshatiladi |
+| V-C | V-A + `p1-pilot-001` ning oflayn qayta tasnifi sezgirlik tekshiruvi sifatida | yaroqsiz run'ni **natija yonida** saqlaydi va 0.5-band taqiqlagan solishtirish yo'lini ochadi; yaroqlilik haqida qo'shadigani 3.2(2) ning replay'ida allaqachon bor |
+| V-D | `p1-pilot-001` dan uch trial'ni chiqarib analiz | §14.6 — **run** darajasidagi darvoza; trial'ni tanlab olib tashlashga **hech bir muzlatilgan qoida ruxsat bermaydi** |
+
+**4. NIMA O'ZGARMADI — to'liq ro'yxat.**
+
+**Tuzatishlar driver'ning disposition'larini ALLAQACHON muzlatilgan
+ta'riflar bilan MOS qiladi** — §4, §12, §14.6(4), (6), §17.4(1), (2), (5);
+**hech bir ta'rif, chegara yoki qiymat yangidan tanlanmadi.**
+
+**Hech bir metrika ta'rifi** (§4 VR va uning invalidator'lari, §5 FR-A /
+FR-B, §6.1 `D_sd` / `D_probe` / `D_eff`, §6.2 censoring, §6.3 latency,
+§6.4 recovery loop, §7 pressure o'lchovi); **hech bir statistik test**
+(§10.1 Cochran–Armitage, Fisher/Barnard, Newcombe/Wilson,
+Clopper–Pearson; §10.2 Kaplan–Meier / log-rank / RMST difference /
+Cox-HR taqiqi / BCa; §10.4 Holm); **hech bir arm** (`A`:
+`Restart=on-failure`, `RestartSec=100ms`; `no_action`: `Restart=no`);
+**hech bir fault klassi** (faqat `clean_crash`, trial'ga bitta injeksiya);
+**`P0`/`P1`/`P2` bandlari** (§9.3); **`disposition` ning yopiq enum'i**
+va *"aynan bitta"* qoidasi (§12); §16.2 (A)/(B) va `(disposition,
+disposition_source)` qoidasi; §17.4 ning ikki `disposition_source`
+qiymati va besh bandi; **§11 butunlay** (kuchli shakl, fail-slow limbi
+`thr = 0.20 × τ = 1.6 s`, halol power bayonoti, davom etish mezonlari,
+null bo'lsa burilish); **§14 data schema** va §14.6 invariantlari
+(**qayta raqamlanmadi**, darvoza **yumshatilmadi**); v1.12 ning
+`host_clock_discontinuity` qoidasi va smoke/kalibratsiya chiqarilishi;
+§0, §13 — **tegilmadi**; §15–§22 ning qarorlari **o'z kuchida**.
+
+| qiymat | holat |
+|---|---|
+| `W_stab_pilot = 8 s`, `W_stab = 60 s` | **O'ZGARMADI** |
+| `τ = 8 s` (§10.2, §11) | **O'ZGARMADI** |
+| `hold_cap_s = 13 s`, `ramp_s = 5 s`, baseline 10 s, pre-flight 5 s, washout `≥ 20 s` | **O'ZGARMADI** |
+| `injection_offset = 3 s` | **O'ZGARMADI** |
+| `θ = 0.8` | **O'ZGARMADI** |
+| `k_f = 3` (`D_f = 300 ms`) | **O'ZGARMADI** |
+| `P = 100 ms`, `T_conn = 50 ms`, `T_rt = 50 ms` | **O'ZGARMADI** |
+| **20 blok / 120 trial** (`3 × 2 × 20`) | **O'ZGARMADI** |
+| seed `20261006`, `schedule_digest` `69ae399e…cb2dc` | **O'ZGARMADI** (5-preshart uni tekshiradi) |
+| `ε = 32 MiB`, quiescence `0.05`, `T_q = 5 s`, `T_w = 15 s`, `T_w_max = 120 s` | **O'ZGARMADI** |
+| guard: `sustain_rate_threshold = 0.35`, `sustain_max_seconds = 15.0`, `user_full_rate2s_max = 0.98`, `user_full_avg10_max = 85.0`, `user_some_avg10_max = 90.0`, `host_mem_available_min_kb = 1 500 000` (`revix/guard.py` `DEFAULTS`); `guard_sustain_s = 15 s` (§9.4) | **O'ZGARMADI** |
+| dial: slice `MemoryMax = 2G`, `MemoryHigh = 192M`, `CPUQuota = 400%`, `TasksMax = 256`; generator `step_mb = 4`, `base_mb` 160 / 184 / 184, `target_rate` 0.0 / 0.30 / 0.60, `interval_ms = 250`, generator unit `MemoryMax = 1536M` | **O'ZGARMADI** |
+| v1.12 muzlatilgan ochiq parametrlari: `WatchdogSec = 5 s`, `MemoryHigh = 192M`, `TimeoutStartSec = 10 s` (og'ish bilan), `T_trial = 41.1 s` | **O'ZGARMADI** (v1.12 1-band, og'ish e'loni ham) |
+| V2 generator vaqti: start `t_h − R = 17.43 s`, `R = 2.57 s`, `hold_s + R = 15.57 s`, `pressure_off = 33.0 s` | **O'ZGARMADI** (v1.12 2-band) |
+| `P2` dagi runaway yo'qotishi kutilmasi va uning bias mulohazasi | **O'ZGARMADI** (v1.12 3-band; 7-band) |
+
+**5. TARIXIY BO'LIMLAR QAYTA YOZILMADI** (v1.11 va v1.12 ning 7-band
+siyosati). **v1.12 log yozuvi** — jumladan uning 9-bandi va *"PILOTNI
+HOZIR NIMA TO'XTATADI"* ro'yxati — **o'zgartirilmadi**: u
+`v0.1.12-preregistration` tag'i bilan e'lon qilingan versiyaning
+bayonoti; `p1-pilot-001` **o'sha** versiya ostida o'tkazilgan. Sarlavha
+jadvalining v1.12 qatorlari ham tegilmadi. Buning o'rniga **normativ**
+joylarga **belgilangan `v1.13` ko'rsatkichi** qo'yildi: sarlavha jadvali
+va §14.6.
+
+**6. MA'LUMOT HOLATI.**
+
+| to'plam | holat | pilot to'plamiga |
+|---|---|---|
+| **`p1-pilot-001`** (120 trial, v1.12, `4cbd1c6`) | guest'da, faqat o'qish; zaxira `~/revix-runs/_backup/p1-pilot-001.tar.zst`; **YAROQSIZ** (§14.6) | **HECH QACHON** — analiz qilinmaydi, birlashtirilmaydi, **o'chirilmaydi** (0.5) |
+| **`p1-pilot-002`** | **mavjud emas** | **YAGONA** analiz qilinishi mumkin bo'lgan pilot run'i (0.5) |
+| 3.2(2) ning oflayn replay chiqishi | hali yo'q | **HECH QACHON** — yaroqlilik tekshiruvi |
+| v1.13 tuzatishlarining smoke partiyasi | hali yo'q | **HECH QACHON** (v1.12 4.5) |
+| `open-params-*`, `dose-*`, `tstart-*`, `dprobe-*`, `smoke-01`…`smoke-25` | v1.12 8-band jadvalidagidek | **HECH QACHON** (v1.12 4.5) |
+
+**Hech qanday tadqiqot ma'lumoti analiz qilinmagan.** `p1-pilot-001`
+dan ko'rilgan narsa — 0.1-banddagi ro'yxat (disposition hisoblari,
+guard hodisalari, uch trial'ning xom record'lari, yaroqlilik
+klassifikatsiyasi); `15` ning yaroqlilik skripti ichkarida `t_up` ni
+hisoblaydi, lekin uni nomlangan uch trial'dan boshqasi uchun **hisobot
+qilmaydi** va uning chiqishi commit qilinmagan (`15` §0, §7).
+
+**7. BU AMENDMENT NIMANI YOPMAYDI.**
+
+1. **v1.12 ning 9-bandi o'z kuchida**, bitta istisno bilan: 9.5-band
+   (driver istisno yo'li) kodi `main` da — `9c98e7f` va `1a40263` `4cbd1c6`
+   ning ajdodi (`ebf0e7e` merge'i; `git merge-base --is-ancestor` bilan
+   tekshirildi). Qolgan bandlar (reja va o'lchangan ramp, OQ-11, `P2`
+   abort stavkasi va arm'lararo farqi, bitta kernel, `timeout_start_sec`
+   namunasi, watchdog cheklovi, V2 cheklovlari, smoke chiqarilishining
+   mexanik majburlanmasligi, host uyqusini runtime'da aniqlash yo'qligi,
+   v1.11 dan meros §18.8 / §17.7 / `window_past_pressure`) —
+   **ochiq qoladi**; bu amendment ularni **qayta tekshirmadi**.
+2. **Yacheyka bo'yicha chiqarilish jadvali MAJBURIY qoladi** —
+   `aborted_guard` uchun (v1.12 3.3(4): har `(arm × pressure)`
+   yacheykasi, guard qoidasi, injeksiyaga nisbatan vaqt) va
+   `window_past_pressure` / `window_past_horizon` / `probe_gap` uchun
+   (§17.4(4)). **Ahamiyati oshdi:** 3.1 ning tuzatishi bilan `A/P2`
+   yacheykasida chiqarilishning **ikki manbai** (runaway abort va kech
+   oyna) bir joyga to'planishi mumkin; §17.4(4): *"`P2` yacheykasida
+   to'plangan yuqori daraja — o'zi NATIJA"*.
+3. **`P2` dagi runaway guard kutilmasi e'lon qilinganicha qoladi**
+   (v1.12 3.3, 3.4, 3.5) — bias mulohazasi va confound ogohligi bilan.
+   `p1-pilot-001` ning guard hodisalari (0.1-band) bu kutilmani
+   **yangilash yoki stavkani baholash uchun ishlatilmaydi**.
+4. **Implementatsiya shartnomasidagi bo'shliq — QAYD ETILDI, bu yerda
+   hal qilinmaydi.** `04` §8.1 (interim qoida, `driver-contract/v1.2`)
+   disposition avtoritetini **driver'ga** beradi, lekin driver'dan §4 ning
+   probe faktini va §17.4 ning oyna faktini **hisoblashni talab
+   qilmaydi**; `_collect_facts` ning docstring'i ikkalasini reducer'ga
+   qoldiradi (*"ikki yo'l bir-birini qoplaydi"*) — bu taxmin §17.4(5)
+   bilan **birga yashay olmaydi**: qoplash reducer'da, rad etish esa run
+   darajasida (`15` §2.4). `04` §8.2 ning mitigatsiyasi (*"bu holat amalda
+   yuzaga kelmasligi lozim"*) ham bu klassni to'smadi. **`04` o'z revizya
+   yozuvini talab qiladi:** uning sarlavhasi *"Implementatsiya bu faylni
+   o'zgartirmaydi. Nomuvofiqlik topilsa — avval shu fayl amendment
+   qilinadi"* deydi, demak driver'ning ikki fakt majburiyati `04` da
+   (o'z amendment log'i bilan, oldingi hash saqlanib) driver tuzatishi
+   merge qilinishidan **oldin yoki u bilan birga** yozilishi kerak. **Kim:**
+   orkestrator tayinlagan agent (driver tuzatish agenti yoki alohida
+   shartnoma agenti); **bu amendment `04` ni tahrirlamaydi** — u
+   `agent/amend-v113` ga tegishli emas. Bu talab 8-bandda 8-preshart.
+5. **`b007t001` dagi baseline uzilishining sababi o'lchanmagan** (8.19–8.88 s,
+   generator hali ishlamagan; `15` §6). GIPOTEZA: host/VM darajasidagi
+   qisqa to'xtash — `host_clock_discontinuity` 1 s dan qisqasini
+   ko'rmaydi (v1.12 4.4). Tuzatishdan keyin bunday trial **to'g'ri**
+   `censored` bo'ladi, lekin sababi ochiq.
+6. **`p1-pilot-002` hali ko'rilmagan klassni ochishi mumkin** (`15` §5.2
+   CHEKLOV): 120 trial'lik birinchi run smoke ko'rsatmagan uch klassni
+   ochdi; ehtimolini baholab bo'lmaydi. Bunday holat — 0.6-band.
+
+**8. `p1-pilot-002` PRESHARTLARI.** Birorta `p1-pilot-002` trial'i
+o'tkazilmaydi, toki:
+
+1. **Uch tuzatish** (3.1) unit testlari bilan **`main` ga merge
+   qilingan**.
+2. **Oflayn replay** (3.2(2)) oldindan yozilgan natijani berdi: faqat
+   `b007t001` va `b013t004` ning disposition'i o'zgardi (`censored`),
+   `b010t001` ning ikki action'i ikki turli `t_issue` oldi va
+   disposition'i `aborted_guard` qoldi, **boshqa hech bir trial
+   o'zgarmadi** — ya'ni **yon ta'sir yo'q**.
+3. **Smoke partiyasi** o'z **oldindan commit qilingan** mezonidan
+   o'tdi, merge qilingan kod bilan.
+4. `p1-pilot-002` ning `run_meta.git_commit` i tuzatishlarni **ajdod
+   sifatida** o'z ichiga oladi, `git_dirty: false`.
+5. Tuzatilgan kod bilan `--dry-run` (seed `20261006`) **aynan**
+   `69ae399edbb20b5a0271d4b6657a3b5c1ec45b61b19a04a2bf9e0b6e8decb2dc`
+   ni beradi.
+6. **v1.13 `main` ga merge qilingan va tag qilingan**
+   (`v0.1.13-preregistration`); `run_meta.preregistration_sha256` —
+   v1.13 niki.
+7. **Muhit:** VirtualBox VM'i **o'chirilgan** (`VBoxHeadless` yo'q —
+   `14` §3 dagi tekshiruv), va host pilot davomida **uyg'oq ushlanadi**
+   (v1.12 4.4: bu faqat idle uyquni to'sadi).
+8. `04` ning ikki fakt majburiyati uchun revizya yozuvi (7.4-band)
+   **merge qilingan** — `04` ning o'z sarlavha qoidasidan kelib chiqadi.
+
+**To'xtatmaydigan narsalar:** 7-banddagi ochiq cheklovlar (1, 5, 6) —
+e'lon qilingan, pilotni to'xtatmaydi.
 
 ### v1.11 → v1.12 (2026-10-04)
 
@@ -3213,6 +3597,14 @@ trial_id  block_index  seq  mono_us  real_us  emitter
 > run'lari (`smoke-*`, `open-params-*`) — `run_mode` dan qat'i nazar — pilot
 > ma'lumot to'plamiga **hech qachon** kirmaydi. Amendment log, v1.11 → v1.12,
 > **4-band**.
+
+> **v1.13 — bu darvoza birinchi pilot run'ini RAD ETDI (darvoza o'zgarmadi).**
+> `p1-pilot-001` (v1.12, 120/120 trial) 4 xato bilan o'tmadi — (4) va (6)
+> invariantlari va §17.4(5) bo'yicha; sabab — driver implementatsiyasining uch
+> nuqsoni (`docs/architecture/15-pilot-001-validatsiya-xatolari.md`). Run
+> **analiz qilinmaydi**, saqlanadi, **o'chirilmaydi**; analiz qilinishi mumkin
+> bo'lgan **yagona** pilot run'i — `p1-pilot-002`. Amendment log, v1.12 → v1.13,
+> **0- va 3-band**.
 
 ### 14.7 Ochiq bo'shliqlar (implementatorlar aniqlagan, kelajakdagi amendment uchun)
 
