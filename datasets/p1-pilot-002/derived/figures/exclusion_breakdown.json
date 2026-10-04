@@ -1,0 +1,103 @@
+{
+  "analysis_warnings": {
+    "relevant": [
+      "45/76 birlamchi trial arm `A` dan tashqarida -- §16.2(A) ga ko'ra trend testi arm ichida hisoblanadi (pooling `P(VR|P0)-P(VR|P2)` ni `0-0=0` ga intiltirib falsifikatsiya mezonini TRIVIAL qilardi). Bu trial'lar KM/log-rank, loop-rate va har jadvalning `k/n` qatorida QOLADI (§6.2) va §8.2 ning PSI atributsiyasi uchun ishlatiladi -- yashirilmaydi",
+      "§17 ning oyna-sig'ish eksklyuziyasi mavjud: eng yuqori daraja `A:P2` yacheykasida (0.050). §17.4(4): `P2` da to'plangan yuqori daraja O'ZI NATIJA -- u dizayn qiziqtirgan yacheykani o'lchay olmaganini bildiradi, va yashirilmaydi"
+    ],
+    "total": 38
+  },
+  "contract": "driver-contract/v1 §3",
+  "data": {
+    "by_disposition": [
+      {
+        "absent_key_inferred_zero": false,
+        "count": 41,
+        "disposition": "complete",
+        "excluded_from_primary": false,
+        "in_enum": true
+      },
+      {
+        "absent_key_inferred_zero": false,
+        "count": 70,
+        "disposition": "censored",
+        "excluded_from_primary": false,
+        "in_enum": true
+      },
+      {
+        "absent_key_inferred_zero": false,
+        "count": 0,
+        "disposition": "contaminated",
+        "excluded_from_primary": true,
+        "in_enum": true
+      },
+      {
+        "absent_key_inferred_zero": false,
+        "count": 9,
+        "disposition": "aborted_guard",
+        "excluded_from_primary": true,
+        "in_enum": true
+      },
+      {
+        "absent_key_inferred_zero": false,
+        "count": 0,
+        "disposition": "washout_timeout",
+        "excluded_from_primary": false,
+        "in_enum": true
+      },
+      {
+        "absent_key_inferred_zero": false,
+        "count": 0,
+        "disposition": "harness_error",
+        "excluded_from_primary": false,
+        "in_enum": true
+      }
+    ],
+    "by_reason": [
+      {
+        "reason": "aborted_guard",
+        "value": 9.0
+      },
+      {
+        "reason": "censored",
+        "value": 25.0
+      },
+      {
+        "reason": "complete",
+        "value": 10.0
+      }
+    ],
+    "by_reason_provided": true,
+    "exclusion_rate": 0.36666666666666664,
+    "sum_matches_total": true,
+    "sum_of_listed_counts": 120,
+    "total": 120
+  },
+  "figure": "exclusion_breakdown",
+  "figures_version": 1,
+  "missing": [],
+  "notes": [],
+  "placeholder_reason": null,
+  "problems": [],
+  "source": {
+    "analysis_version": "p1/v1",
+    "file": "analysis.json",
+    "generated_mono_us": 36283227754,
+    "preregistration_sha256": "f0c45722b231687c5e73a4a41e52517a6bd0ae96669c1d244211d18d8ac7b117",
+    "schema_version": 1,
+    "sha256": "e980b3710c26e70308229a70e622405ad553a810cdc2834c67e9af8e6394d7b8"
+  },
+  "status": "ok",
+  "subtitle": "closed enum (§12); the exclusion rate is itself a result",
+  "text": {
+    "main": [
+      "exclusion rate: 36.7% (reported as a result, §12); hatched = excluded from the primary analysis (contaminated, aborted_guard)"
+    ],
+    "small": [
+      "analysis.json warnings: 38 in total, 2 relevant to this figure",
+      "WARNING: 45/76 birlamchi trial arm `A` dan tashqarida -- §16.2(A) ga ko'ra trend testi arm ichida hisoblanadi (pooling `P(VR|P0)-P(VR|P2)` ni `0-0=0` ga intiltirib falsifikatsiya mezonini TRIVIAL qilardi). Bu trial'lar KM/log-rank, loop-rate va har jadvalning `k/n` qatorida QOLADI (§6.2) va §8.2 ning PSI atributsiyasi uchun ishlatiladi -- yashirilmaydi",
+      "WARNING: §17 ning oyna-sig'ish eksklyuziyasi mavjud: eng yuqori daraja `A:P2` yacheykasida (0.050). §17.4(4): `P2` da to'plangan yuqori daraja O'ZI NATIJA -- u dizayn qiziqtirgan yacheykani o'lchay olmaganini bildiradi, va yashirilmaydi",
+      "source: analysis.json sha256 e980b3710c26…   analysis_version = p1/v1   preregistration_sha256 = f0c45722b231…   figure = exclusion_breakdown (figures.py v1)"
+    ]
+  },
+  "title": "Trial dispositions and exclusions"
+}

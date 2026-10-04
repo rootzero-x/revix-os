@@ -1,0 +1,95 @@
+{
+  "analysis_warnings": {
+    "relevant": [
+      "45/76 birlamchi trial arm `A` dan tashqarida -- §16.2(A) ga ko'ra trend testi arm ichida hisoblanadi (pooling `P(VR|P0)-P(VR|P2)` ni `0-0=0` ga intiltirib falsifikatsiya mezonini TRIVIAL qilardi). Bu trial'lar KM/log-rank, loop-rate va har jadvalning `k/n` qatorida QOLADI (§6.2) va §8.2 ning PSI atributsiyasi uchun ishlatiladi -- yashirilmaydi",
+      "35/112 epizod birlamchi bo'lmagan trial'ga tegishli -- FR-A birlamchi to'plamdan hisoblanadi (§12), demak ular kirmaydi"
+    ],
+    "total": 38
+  },
+  "contract": "driver-contract/v1 §3",
+  "data": {
+    "cells": [
+      {
+        "ci_drawn": true,
+        "ci_lower": 0.5903836027749966,
+        "ci_method": "clopper_pearson",
+        "ci_upper": 1.0,
+        "k": 7,
+        "level": "P0",
+        "n": 7,
+        "p_hat": 1.0,
+        "point_drawn": true,
+        "x": 0
+      },
+      {
+        "ci_drawn": true,
+        "ci_lower": 0.13857933889016064,
+        "ci_method": "clopper_pearson",
+        "ci_upper": 0.6842223970859369,
+        "k": 5,
+        "level": "P1",
+        "n": 13,
+        "p_hat": 0.38461538461538464,
+        "point_drawn": true,
+        "x": 1
+      },
+      {
+        "ci_drawn": true,
+        "ci_lower": 0.002298972213814267,
+        "ci_method": "clopper_pearson",
+        "ci_upper": 0.4127799169883827,
+        "k": 1,
+        "level": "P2",
+        "n": 11,
+        "p_hat": 0.09090909090909091,
+        "point_drawn": true,
+        "x": 2
+      }
+    ],
+    "ci_level": 0.95,
+    "direction": "decreasing",
+    "endpoint": "P(VR) trend across pressure levels",
+    "falsification_rule": "trend p>0.05 AND newcombe_upper<0.15",
+    "falsified": false,
+    "p_value": 0.00019849899648617005,
+    "risk_difference": {
+      "ci_lower": 0.45345587446749763,
+      "ci_method": "newcombe",
+      "ci_upper": 0.9837678271141151,
+      "contrast": "P0-P2",
+      "estimate": 0.9090909090909091
+    },
+    "statistic": -3.720919136668115,
+    "test": "cochran_armitage_trend"
+  },
+  "figure": "p_vr_vs_pressure",
+  "figures_version": 1,
+  "missing": [],
+  "notes": [],
+  "placeholder_reason": null,
+  "problems": [],
+  "source": {
+    "analysis_version": "p1/v1",
+    "file": "analysis.json",
+    "generated_mono_us": 36283227754,
+    "preregistration_sha256": "f0c45722b231687c5e73a4a41e52517a6bd0ae96669c1d244211d18d8ac7b117",
+    "schema_version": 1,
+    "sha256": "e980b3710c26e70308229a70e622405ad553a810cdc2834c67e9af8e6394d7b8"
+  },
+  "status": "ok",
+  "subtitle": "dose-response, per-level proportion with exact CI",
+  "text": {
+    "main": [
+      "cochran_armitage_trend: statistic = -3.72, p = 0.000198, direction = decreasing",
+      "risk difference = 0.909  CI [0.453, 0.984]  (newcombe, contrast: P0-P2)",
+      "falsified (§11): false   rule: trend p>0.05 AND newcombe_upper<0.15"
+    ],
+    "small": [
+      "analysis.json warnings: 38 in total, 2 relevant to this figure",
+      "WARNING: 45/76 birlamchi trial arm `A` dan tashqarida -- §16.2(A) ga ko'ra trend testi arm ichida hisoblanadi (pooling `P(VR|P0)-P(VR|P2)` ni `0-0=0` ga intiltirib falsifikatsiya mezonini TRIVIAL qilardi). Bu trial'lar KM/log-rank, loop-rate va har jadvalning `k/n` qatorida QOLADI (§6.2) va §8.2 ning PSI atributsiyasi uchun ishlatiladi -- yashirilmaydi",
+      "WARNING: 35/112 epizod birlamchi bo'lmagan trial'ga tegishli -- FR-A birlamchi to'plamdan hisoblanadi (§12), demak ular kirmaydi",
+      "source: analysis.json sha256 e980b3710c26…   analysis_version = p1/v1   preregistration_sha256 = f0c45722b231…   figure = p_vr_vs_pressure (figures.py v1)"
+    ]
+  },
+  "title": "P(VR) versus pressure level"
+}

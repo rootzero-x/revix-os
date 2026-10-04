@@ -1,0 +1,19 @@
+[11:07:23Z] == pre-flight
+[11:07:23Z] loadavg(1m)=0.22
+[11:07:23Z] git HEAD=4cbd1c60704d20ae24ae54997c02a04e71b5fe7a
+[11:07:23Z] revix unit soni=0
+[11:07:23Z] schedule_digest=69ae399edbb20b5a0271d4b6657a3b5c1ec45b61b19a04a2bf9e0b6e8decb2dc
+[11:07:23Z] == PILOT BOSHLANDI seed=20261006
+[12:59:57Z] driver rc=0 wall_s=6754
+[12:59:57Z] == post-flight
+ERROR   probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 492256 us; disposition='complete' -- §4 ga ko'ra 'censored' bo'lishi SHART  [trial=b007t001]
+WARNING probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 511838 us; disposition='censored'  [trial=b009t000]
+ERROR   window_outside_hold_complete: 'complete' trial'ning oynasi hold'dan chiqqan (past_pressure): t_up=18618929737 + W_stab=8000000 = 18626929737 > T_h 18626538304 -- §4 kattaligi o'lchanmagan, §17.4(5): `complete` bo'lishi mumkin emas (sustained hold ichida sig'ishi shart)  [/home/snowden/revix-runs/p1-pilot-001/events.jsonl:2555, trial=b007t001]
+ERROR   window_outside_hold_complete: 'complete' trial'ning oynasi hold'dan chiqqan (past_pressure): t_up=20814805158 + W_stab=8000000 = 20822805158 > T_h 20821255438 -- §4 kattaligi o'lchanmagan, §17.4(5): `complete` bo'lishi mumkin emas (sustained hold ichida sig'ishi shart)  [/home/snowden/revix-runs/p1-pilot-001/events.jsonl:4752, trial=b013t004]
+WARNING disposition_cross_check: driver disposition='complete', reducer hosilasi='censored' (manba: probe_gap) -- ikkisi farq qiladi (driver avtoritet, §12)  [trial=b007t001]
+WARNING disposition_cross_check: driver disposition='complete', reducer hosilasi='censored' (manba: window_past_pressure) -- ikkisi farq qiladi (driver avtoritet, §12)  [trial=b013t004]
+ERROR   action_without_invocation_change: action (mono_us=19629521595, class='restart') dan keyin invocation o'zgarishi yo'q va oshkora defer ham yo'q  [/home/snowden/revix-runs/p1-pilot-001/events.jsonl:3504, trial=b010t001]
+xato: 4  ogohlantirish: 3
+NATIJA: O'TMADI -- bu run ANALIZ QILINMAYDI (§14.6)
+[13:00:00Z] == TUGADI
+[13:00:00Z] qulf bo'shatildi

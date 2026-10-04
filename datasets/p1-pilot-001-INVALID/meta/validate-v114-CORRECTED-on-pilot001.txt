@@ -1,0 +1,11 @@
+ERROR   probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 492256 us; disposition='complete' -- §4 ga ko'ra 'censored' bo'lishi SHART  [trial=b007t001]
+WARNING probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 511838 us; disposition='censored'  [trial=b009t000]
+ERROR   window_outside_hold_complete: 'complete' trial'ning oynasi hold'dan chiqqan (past_pressure): t_up=18618929737 + W_stab=8000000 = 18626929737 > T_h 18626538304 -- §4 kattaligi o'lchanmagan, §17.4(5): `complete` bo'lishi mumkin emas (sustained hold ichida sig'ishi shart)  [/home/snowden/revix-runs/p1-pilot-001/events.jsonl:2555, trial=b007t001]
+ERROR   window_outside_hold_complete: 'complete' trial'ning oynasi hold'dan chiqqan (past_pressure): t_up=20814805158 + W_stab=8000000 = 20822805158 > T_h 20821255438 -- §4 kattaligi o'lchanmagan, §17.4(5): `complete` bo'lishi mumkin emas (sustained hold ichida sig'ishi shart)  [/home/snowden/revix-runs/p1-pilot-001/events.jsonl:4752, trial=b013t004]
+WARNING disposition_cross_check: driver disposition='complete', reducer hosilasi='censored' (manba: probe_gap) -- ikkisi farq qiladi (driver avtoritet, §12)  [trial=b007t001]
+WARNING disposition_cross_check: driver disposition='complete', reducer hosilasi='censored' (manba: window_past_pressure) -- ikkisi farq qiladi (driver avtoritet, §12)  [trial=b013t004]
+ERROR   action_without_invocation_change: action (mono_us=19629521595, class='restart') dan keyin invocation o'zgarishi yo'q va oshkora defer ham yo'q  [/home/snowden/revix-runs/p1-pilot-001/events.jsonl:3504, trial=b010t001]
+
+record: 16185  probe: 98624  trial: 120  run_mode: pilot
+xato: 4  ogohlantirish: 3
+NATIJA: O'TMADI -- bu run ANALIZ QILINMAYDI (§14.6)

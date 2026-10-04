@@ -66,13 +66,15 @@ backoff'iga nisbatan kam downtime va kam false-recovery beradi.
 | Texnologiya auditi | ✅ bajarildi |
 | Prior art skani | ✅ bajarildi (tekshirish darajalari bilan) |
 | Research gap | ✅ aniqlandi |
-| **Pre-registration (P1)** | ✅ **muzlatildi** (`v1.4`, 4 amendment, teglangan) |
+| **Pre-registration (P1)** | ✅ **muzlatildi** (`v1.14`, 14 amendment, har biri teglangan; oxirgisi `v0.1.14-preregistration`) |
 | **Driver/analiz shartnomasi** | ✅ **muzlatildi** (`driver-contract/v1.2`, teglangan) |
 | Muhit tekshiruvlari | ✅ empirik — ikki mashina: [`01`](docs/architecture/01-muhit-tekshiruvlari.md), [`07`](docs/architecture/07-wsl-muhit-tekshiruvlari.md) |
 | Guard kalibratsiyasi | ✅ o'lchangan (**boshqa mashinada**) · 🟡 bu mashinada qayta kalibratsiya |
 | **Pilot harness** | ✅ barcha modullar yozildi |
-| Pressure dosing kalibratsiyasi | ⏳ **pilotni gate qiladi** |
-| Pilot eksperiment | ⏳ |
+| Pressure dosing kalibratsiyasi | ✅ o'lchangan ([`10`](docs/architecture/10-pressure-dozalash.md)) |
+| Ochiq parametrlar kalibratsiyasi (`WatchdogSec`, `MemoryHigh`, `TimeoutStartSec`) | ✅ o'lchangan, `TimeoutStartSec` **ochiq og'ish bilan** ([`13`](docs/architecture/13-ochiq-parametrlar-kalibratsiyasi.md), v1.12) |
+| **Pilot eksperiment (P1)** | 🟡 **o'tkazildi, GATE QILINGAN.** `p1-pilot-002`: 120/120 trial, tuzatilgan (v1.14) darvoza ostida yaroqli; birlamchi endpoint hisoblangan, **lekin frozen §20.3 bo'yicha talqin qilinmaydi** (P0 da `no_episode` 10/20). Natijalar: [`docs/experiments/01-p1-pilot-natijalari.md`](docs/experiments/01-p1-pilot-natijalari.md). `p1-pilot-001` yaroqsiz, saqlangan. |
+| Research appliance (ISO) | ✅ qurildi va VirtualBox'da yuklandi, `revix doctor` 0 FAIL ([`11`](docs/architecture/11-iso-qurilish-jurnali.md)); panel `revix-dashboard.service` |
 | Kalibratsiya (`Repairs()`) | ⏳ |
 | Confirmatory eksperiment | ⏳ |
 | Arm C (REVIX engine) | ⏳ |

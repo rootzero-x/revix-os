@@ -1,0 +1,292 @@
+{
+  "analysis_warnings": {
+    "relevant": [
+      "45/76 birlamchi trial arm `A` dan tashqarida -- §16.2(A) ga ko'ra trend testi arm ichida hisoblanadi (pooling `P(VR|P0)-P(VR|P2)` ni `0-0=0` ga intiltirib falsifikatsiya mezonini TRIVIAL qilardi). Bu trial'lar KM/log-rank, loop-rate va har jadvalning `k/n` qatorida QOLADI (§6.2) va §8.2 ning PSI atributsiyasi uchun ishlatiladi -- yashirilmaydi",
+      "KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=18)",
+      "KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=18)",
+      "KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=18)",
+      "KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=0)",
+      "KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=0)",
+      "KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=0)",
+      "RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi",
+      "KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=6)",
+      "KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=6)",
+      "KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=6)",
+      "KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=2)",
+      "KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=2)",
+      "KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=2)",
+      "RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi",
+      "RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi",
+      "§11 ning fail-slow limbi §18.6 ning F2 varianti bilan hisoblandi: `thr = 0.20 x tau = 1.6 s`, REFERENS `tau` -- §18.2 matndan o'qigan `RMST(P0)` EMAS. Sabab: F1 ning chegarasi o'lchangan holda `5 x P` dan past (`P0` 0.0600 s = 0.60 x P, `P1` 0.1700 s, `P2` 0.2050 s; `docs/architecture/10-pressure-dozalash.md` §7.5), demak F1 ning INKOR shoxiga erishib bo'lmaydi. OCHIQ BIAS: kattaroq `thr` `CI95_upper[Delta] < thr` ni osonlashtiradi, ya'ni F2 fail-slow gipotezasiga nisbatan ANTI-KONSERVATIV. Ratifikatsiya: `PREREGISTRATION.md` v1.11 amendment'i",
+      "§11 ning fail-slow mezoni BAHOLANMAYDI: `Delta` ning SE'si nol yoki aniqlanmagan, demak CI DEGENERAT va `CI95_upper < thr` taqqoslashi ma'lumotdan emas, ARIFMETIKADAN javob berardi (§21.1(b)). Kirishlar (`delta`, `ci_lower`, `ci_upper`) ko'rinishda qoladi, HUKM esa `null`",
+      "KM egri chizig'i median ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)",
+      "KM egri chizig'i p90 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)",
+      "KM egri chizig'i p99 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)",
+      "KM egri chizig'i median ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)",
+      "KM egri chizig'i p90 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)",
+      "KM egri chizig'i p99 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)"
+    ],
+    "total": 38
+  },
+  "contract": "driver-contract/v1 §3",
+  "data": {
+    "arms": [
+      {
+        "anchor_added": {
+          "x": 0.0,
+          "y": 1.0
+        },
+        "arm": "A",
+        "at_risk": [
+          47.0,
+          46.0,
+          45.0,
+          44.0,
+          43.0,
+          42.0,
+          41.0,
+          40.0,
+          39.0,
+          38.0,
+          37.0,
+          36.0,
+          35.0,
+          34.0,
+          33.0,
+          32.0,
+          31.0,
+          30.0
+        ],
+        "drawn": true,
+        "drawn_x": [
+          0.0,
+          8299974.0,
+          8299978.0,
+          8299979.0,
+          8299989.0,
+          8300009.0,
+          8300013.0,
+          8300015.0,
+          8300026.0,
+          8399972.0,
+          8399983.0,
+          8399989.0,
+          8400001.0,
+          8400002.0,
+          8500041.0,
+          8799967.0,
+          8899993.0,
+          9001027.0,
+          10300010.0
+        ],
+        "drawn_y": [
+          1.0,
+          0.9787234042553191,
+          0.9574468085106382,
+          0.9361702127659574,
+          0.9148936170212765,
+          0.8936170212765956,
+          0.8723404255319147,
+          0.8510638297872338,
+          0.829787234042553,
+          0.8085106382978721,
+          0.7872340425531913,
+          0.7659574468085105,
+          0.7446808510638296,
+          0.7234042553191488,
+          0.7021276595744679,
+          0.6808510638297871,
+          0.6595744680851062,
+          0.6382978723404253,
+          0.6170212765957445
+        ],
+        "greenwood_var": [
+          0.00044306174932336764,
+          0.000866859944328328,
+          0.0012713945850148808,
+          0.0016566656713830265,
+          0.0020226732034327646,
+          0.0023694171811640954,
+          0.0026968976045770193,
+          0.0030051144736715357,
+          0.0032940677884476448,
+          0.0035637575489053477,
+          0.0038141837550446428,
+          0.00404534640686553,
+          0.004257245504368009,
+          0.0044498810475520805,
+          0.004623253036417748,
+          0.004777361470965005,
+          0.004912206351193856,
+          0.0050277876771042986
+        ],
+        "reason": null,
+        "survival": [
+          0.9787234042553191,
+          0.9574468085106382,
+          0.9361702127659574,
+          0.9148936170212765,
+          0.8936170212765956,
+          0.8723404255319147,
+          0.8510638297872338,
+          0.829787234042553,
+          0.8085106382978721,
+          0.7872340425531913,
+          0.7659574468085105,
+          0.7446808510638296,
+          0.7234042553191488,
+          0.7021276595744679,
+          0.6808510638297871,
+          0.6595744680851062,
+          0.6382978723404253,
+          0.6170212765957445
+        ],
+        "times": [
+          8299974.0,
+          8299978.0,
+          8299979.0,
+          8299989.0,
+          8300009.0,
+          8300013.0,
+          8300015.0,
+          8300026.0,
+          8399972.0,
+          8399983.0,
+          8399989.0,
+          8400001.0,
+          8400002.0,
+          8500041.0,
+          8799967.0,
+          8899993.0,
+          9001027.0,
+          10300010.0
+        ]
+      },
+      {
+        "arm": "no_action",
+        "at_risk": [],
+        "drawn": false,
+        "drawn_x": null,
+        "drawn_y": null,
+        "greenwood_var": [],
+        "reason": "no event times (all trials censored, or arm empty)",
+        "survival": [],
+        "times": []
+      }
+    ],
+    "censoring": {
+      "n_censored": 83,
+      "n_undetermined": 0
+    },
+    "horizon": {
+      "axis_value": 41100000.0,
+      "seconds": 41.1,
+      "t_trial_us": 41100000
+    },
+    "logrank": {
+      "chi2": 25.55398309353788,
+      "expected": {
+        "A": 7.458647306842939,
+        "no_action": 10.54135269315706
+      },
+      "observed": {
+        "A": 18.0,
+        "no_action": 0.0
+      },
+      "p_value": 4.301771103560598e-07
+    },
+    "proportional_hazards_checked": false,
+    "rmst": {
+      "by_arm": {
+        "A": {
+          "estimate": 8000000.0,
+          "se": 0.0
+        },
+        "no_action": {
+          "estimate": 8000000.0,
+          "se": 0.0
+        }
+      },
+      "difference": {
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "estimate": 0.0,
+        "se": 0.0
+      },
+      "tau": 8000000.0
+    },
+    "time_unit": {
+      "label": "µs",
+      "stated": true,
+      "unit": "us"
+    }
+  },
+  "figure": "km_time_to_vr",
+  "figures_version": 1,
+  "missing": [
+    {
+      "fields": [
+        "no event times (all trials censored, or arm empty)"
+      ],
+      "where": "survival.km.by_arm[no_action]"
+    }
+  ],
+  "notes": [],
+  "placeholder_reason": null,
+  "problems": [],
+  "recovered_within_horizon": {
+    "k": 18,
+    "n": 101,
+    "raw": "18/101"
+  },
+  "source": {
+    "analysis_version": "p1/v1",
+    "file": "analysis.json",
+    "generated_mono_us": 36283227754,
+    "preregistration_sha256": "f0c45722b231687c5e73a4a41e52517a6bd0ae96669c1d244211d18d8ac7b117",
+    "schema_version": 1,
+    "sha256": "e980b3710c26e70308229a70e622405ad553a810cdc2834c67e9af8e6394d7b8"
+  },
+  "status": "partial",
+  "subtitle": "S(t) = P(not yet verified-recovered at t), per arm; censored trials included",
+  "text": {
+    "main": [
+      "log-rank: chi2 = 25.6, p = 4.3e-07",
+      "RMST (tau = 8e+06 µs): A = 8e+06 (SE 0); no_action = 8e+06 (SE 0)",
+      "RMST difference = 0 (SE 0)  CI [0, 0]",
+      "recovered within horizon: 18/101  (T_trial = 41.1 s)   censored trials kept in KM: 83 (§6.2)",
+      "VR undetermined (vr=None, own category; not counted as recovered or failed): 0",
+      "proportional_hazards_checked = false; hazard ratio is never drawn (§10.2)"
+    ],
+    "small": [
+      "MISSING 1 (drawn as missing, never interpolated): survival.km.by_arm[no_action]: no event times (all trials censored, or arm empty)",
+      "analysis.json warnings: 38 in total, 24 relevant to this figure",
+      "WARNING: 45/76 birlamchi trial arm `A` dan tashqarida -- §16.2(A) ga ko'ra trend testi arm ichida hisoblanadi (pooling `P(VR|P0)-P(VR|P2)` ni `0-0=0` ga intiltirib falsifikatsiya mezonini TRIVIAL qilardi). Bu trial'lar KM/log-rank, loop-rate va har jadvalning `k/n` qatorida QOLADI (§6.2) va §8.2 ning PSI atributsiyasi uchun ishlatiladi -- yashirilmaydi",
+      "WARNING: KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=18)",
+      "WARNING: KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=18)",
+      "WARNING: KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=18)",
+      "WARNING: KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=0)",
+      "WARNING: KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=0)",
+      "WARNING: KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=0)",
+      "WARNING: RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi",
+      "WARNING: KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=6)",
+      "WARNING: KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=6)",
+      "WARNING: KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=6)",
+      "WARNING: KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=2)",
+      "WARNING: KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=2)",
+      "WARNING: KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=2)",
+      "WARNING: RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi",
+      "WARNING: RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi",
+      "WARNING: §11 ning fail-slow limbi §18.6 ning F2 varianti bilan hisoblandi: `thr = 0.20 x tau = 1.6 s`, REFERENS `tau` -- §18.2 matndan o'qigan `RMST(P0)` EMAS. Sabab: F1 ning chegarasi o'lchangan holda `5 x P` dan past (`P0` 0.0600 s = 0.60 x P, `P1` 0.1700 s, `P2` 0.2050 s; `docs/architecture/10-pressure-dozalash.md` §7.5), demak F1 ning INKOR shoxiga erishib bo'lmaydi. OCHIQ BIAS: kattaroq `thr` `CI95_upper[Delta] < thr` ni osonlashtiradi, ya'ni F2 fail-slow gipotezasiga nisbatan ANTI-KONSERVATIV. Ratifikatsiya: `PREREGISTRATION.md` v1.11 amendment'i",
+      "WARNING: §11 ning fail-slow mezoni BAHOLANMAYDI: `Delta` ning SE'si nol yoki aniqlanmagan, demak CI DEGENERAT va `CI95_upper < thr` taqqoslashi ma'lumotdan emas, ARIFMETIKADAN javob berardi (§21.1(b)). Kirishlar (`delta`, `ci_lower`, `ci_upper`) ko'rinishda qoladi, HUKM esa `null`",
+      "WARNING: KM egri chizig'i median ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)",
+      "WARNING: KM egri chizig'i p90 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)",
+      "WARNING: KM egri chizig'i p99 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)",
+      "WARNING: KM egri chizig'i median ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)",
+      "WARNING: KM egri chizig'i p90 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)",
+      "WARNING: KM egri chizig'i p99 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)",
+      "source: analysis.json sha256 e980b3710c26…   analysis_version = p1/v1   preregistration_sha256 = f0c45722b231…   figure = km_time_to_vr (figures.py v1)"
+    ]
+  },
+  "title": "Kaplan-Meier time to verified recovery"
+}

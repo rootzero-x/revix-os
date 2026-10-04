@@ -1,0 +1,37 @@
+[13:50:37Z] == pre-flight
+[13:50:37Z] host VirtualBox jarayonlari=0
+[13:50:37Z] loadavg(1m)=0.17
+[13:50:38Z] git HEAD=8deaaf0aab33c51074ea69365a7b368830eaa332
+[13:50:38Z] revix unit soni=0
+[13:50:38Z] schedule_digest=69ae399edbb20b5a0271d4b6657a3b5c1ec45b61b19a04a2bf9e0b6e8decb2dc
+[13:50:38Z] == PILOT BOSHLANDI seed=20261006
+[15:43:50Z] driver rc=0 wall_s=6792
+[15:43:50Z] == post-flight
+WARNING probe_gap: 4 ta probe uzilishi > 2xP (200000 us), eng katta 1808393 us; disposition='censored'  [trial=b003t005]
+ERROR   probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 678119 us; disposition='aborted_guard' -- §4 ga ko'ra 'censored' bo'lishi SHART  [trial=b010t005]
+WARNING probe_gap: 4 ta probe uzilishi > 2xP (200000 us), eng katta 1540465 us; disposition='censored'  [trial=b011t000]
+WARNING probe_gap: 2 ta probe uzilishi > 2xP (200000 us), eng katta 830021 us; disposition='censored'  [trial=b011t005]
+WARNING probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 350577 us; disposition='censored'  [trial=b012t003]
+WARNING probe_gap: 2 ta probe uzilishi > 2xP (200000 us), eng katta 353476 us; disposition='censored'  [trial=b012t004]
+WARNING probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 356677 us; disposition='censored'  [trial=b013t000]
+WARNING probe_gap: 3 ta probe uzilishi > 2xP (200000 us), eng katta 455115 us; disposition='censored'  [trial=b014t000]
+WARNING probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 742226 us; disposition='censored'  [trial=b014t001]
+WARNING probe_gap: 4 ta probe uzilishi > 2xP (200000 us), eng katta 688730 us; disposition='censored'  [trial=b014t003]
+WARNING probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 359856 us; disposition='censored'  [trial=b014t004]
+WARNING probe_gap: 4 ta probe uzilishi > 2xP (200000 us), eng katta 1034862 us; disposition='censored'  [trial=b014t005]
+WARNING probe_gap: 4 ta probe uzilishi > 2xP (200000 us), eng katta 4689678 us; disposition='censored'  [trial=b016t003]
+WARNING probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 225242 us; disposition='censored'  [trial=b016t004]
+WARNING probe_gap: 3 ta probe uzilishi > 2xP (200000 us), eng katta 693151 us; disposition='censored'  [trial=b016t005]
+WARNING probe_gap: 9 ta probe uzilishi > 2xP (200000 us), eng katta 903059 us; disposition='censored'  [trial=b017t000]
+WARNING probe_gap: 8 ta probe uzilishi > 2xP (200000 us), eng katta 1239973 us; disposition='censored'  [trial=b017t001]
+WARNING probe_gap: 2 ta probe uzilishi > 2xP (200000 us), eng katta 824611 us; disposition='censored'  [trial=b017t002]
+WARNING probe_gap: 2 ta probe uzilishi > 2xP (200000 us), eng katta 1223611 us; disposition='censored'  [trial=b018t001]
+WARNING probe_gap: 2 ta probe uzilishi > 2xP (200000 us), eng katta 763064 us; disposition='censored'  [trial=b018t002]
+WARNING probe_gap: 2 ta probe uzilishi > 2xP (200000 us), eng katta 763581 us; disposition='censored'  [trial=b018t003]
+WARNING probe_gap: 4 ta probe uzilishi > 2xP (200000 us), eng katta 495722 us; disposition='censored'  [trial=b018t004]
+WARNING probe_gap: 1 ta probe uzilishi > 2xP (200000 us), eng katta 1541586 us; disposition='censored'  [trial=b018t005]
+WARNING probe_gap: 2 ta probe uzilishi > 2xP (200000 us), eng katta 652574 us; disposition='censored'  [trial=b019t000]
+xato: 1  ogohlantirish: 23
+NATIJA: O'TMADI -- bu run ANALIZ QILINMAYDI (§14.6)
+[15:43:53Z] == TUGADI
+[15:43:53Z] qulf bo'shatildi

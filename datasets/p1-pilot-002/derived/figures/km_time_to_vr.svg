@@ -1,0 +1,532 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="489.6pt" height="860.52pt" viewBox="0 0 489.6 860.52" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <title>km_time_to_vr: Kaplan-Meier time to verified recovery</title>
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title>km_time_to_vr: Kaplan-Meier time to verified recovery</dc:title>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>revix.figures v1</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 860.52 
+L 489.6 860.52 
+L 489.6 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 61.2 288 
+L 468 288 
+L 468 57.6 
+L 61.2 57.6 
+z
+" style="fill: #ffffff"/>
+   </g>
+   <g id="line2d_1">
+    <path d="M 452.353846 288 
+L 452.353846 57.6 
+" clip-path="url(#pf587c06078)" style="fill: none; stroke-dasharray: 3.33,1.44; stroke-dashoffset: 0; stroke: #000000; stroke-width: 0.9"/>
+   </g>
+   <g id="line2d_2">
+    <path d="M 137.337002 288 
+L 137.337002 57.6 
+" clip-path="url(#pf587c06078)" style="fill: none; stroke-dasharray: 0.9,1.485; stroke-dashoffset: 0; stroke: #666666; stroke-width: 0.9"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_3">
+      <defs>
+       <path id="m46b5af429e" d="M 0 0 
+L 0 3 
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#m46b5af429e" x="61.2" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_1">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="61.2" y="300.198828" transform="rotate(-0 61.2 300.198828)">0.0</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_4">
+      <g>
+       <use xlink:href="#m46b5af429e" x="108.785626" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_2">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="108.785626" y="300.198828" transform="rotate(-0 108.785626 300.198828)">0.5</text>
+     </g>
+    </g>
+    <g id="xtick_3">
+     <g id="line2d_5">
+      <g>
+       <use xlink:href="#m46b5af429e" x="156.371252" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_3">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="156.371252" y="300.198828" transform="rotate(-0 156.371252 300.198828)">1.0</text>
+     </g>
+    </g>
+    <g id="xtick_4">
+     <g id="line2d_6">
+      <g>
+       <use xlink:href="#m46b5af429e" x="203.956878" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_4">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="203.956878" y="300.198828" transform="rotate(-0 203.956878 300.198828)">1.5</text>
+     </g>
+    </g>
+    <g id="xtick_5">
+     <g id="line2d_7">
+      <g>
+       <use xlink:href="#m46b5af429e" x="251.542504" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_5">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="251.542504" y="300.198828" transform="rotate(-0 251.542504 300.198828)">2.0</text>
+     </g>
+    </g>
+    <g id="xtick_6">
+     <g id="line2d_8">
+      <g>
+       <use xlink:href="#m46b5af429e" x="299.12813" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_6">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="299.12813" y="300.198828" transform="rotate(-0 299.12813 300.198828)">2.5</text>
+     </g>
+    </g>
+    <g id="xtick_7">
+     <g id="line2d_9">
+      <g>
+       <use xlink:href="#m46b5af429e" x="346.713756" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_7">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="346.713756" y="300.198828" transform="rotate(-0 346.713756 300.198828)">3.0</text>
+     </g>
+    </g>
+    <g id="xtick_8">
+     <g id="line2d_10">
+      <g>
+       <use xlink:href="#m46b5af429e" x="394.299382" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_8">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="394.299382" y="300.198828" transform="rotate(-0 394.299382 300.198828)">3.5</text>
+     </g>
+    </g>
+    <g id="xtick_9">
+     <g id="line2d_11">
+      <g>
+       <use xlink:href="#m46b5af429e" x="441.885008" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_9">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="441.885008" y="300.198828" transform="rotate(-0 441.885008 300.198828)">4.0</text>
+     </g>
+    </g>
+    <g id="text_10">
+     <text style="font-size: 8px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="264.6" y="311.837344" transform="rotate(-0 264.6 311.837344)">time to VR (µs)</text>
+    </g>
+    <g id="text_11">
+     <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="468" y="310.457422" transform="rotate(-0 468 310.457422)">1e7</text>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_12">
+      <defs>
+       <path id="mc0030f1250" d="M 0 0 
+L -3 0 
+" style="stroke: #000000; stroke-width: 0.8"/>
+      </defs>
+      <g>
+       <use xlink:href="#mc0030f1250" x="61.2" y="288" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_12">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="54.7" y="290.849414" transform="rotate(-0 54.7 290.849414)">0.0</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_13">
+      <g>
+       <use xlink:href="#mc0030f1250" x="61.2" y="244.528302" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_13">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="54.7" y="247.377716" transform="rotate(-0 54.7 247.377716)">0.2</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_14">
+      <g>
+       <use xlink:href="#mc0030f1250" x="61.2" y="201.056604" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_14">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="54.7" y="203.906018" transform="rotate(-0 54.7 203.906018)">0.4</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_15">
+      <g>
+       <use xlink:href="#mc0030f1250" x="61.2" y="157.584906" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_15">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="54.7" y="160.43432" transform="rotate(-0 54.7 160.43432)">0.6</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_16">
+      <g>
+       <use xlink:href="#mc0030f1250" x="61.2" y="114.113208" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_16">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="54.7" y="116.962622" transform="rotate(-0 54.7 116.962622)">0.8</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_17">
+      <g>
+       <use xlink:href="#mc0030f1250" x="61.2" y="70.641509" style="stroke: #000000; stroke-width: 0.8"/>
+      </g>
+     </g>
+     <g id="text_17">
+      <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: end" x="54.7" y="73.490923" transform="rotate(-0 54.7 73.490923)">1.0</text>
+     </g>
+    </g>
+    <g id="text_18">
+     <text style="font-size: 8px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle" x="37.108906" y="172.8" transform="rotate(-90 37.108906 172.8)">S(t)  [P(not yet verified-recovered)]</text>
+    </g>
+   </g>
+   <g id="line2d_18">
+    <path d="M 61.2 70.641509 
+L 140.191892 70.641509 
+L 140.191892 75.266158 
+L 140.19193 75.266158 
+L 140.19193 79.890807 
+L 140.191939 79.890807 
+L 140.191939 84.515456 
+L 140.192035 84.515456 
+L 140.192035 89.140104 
+L 140.192225 89.140104 
+L 140.192225 93.764753 
+L 140.192263 93.764753 
+L 140.192263 98.389402 
+L 140.192282 98.389402 
+L 140.192282 103.014051 
+L 140.192387 103.014051 
+L 140.192387 107.638699 
+L 141.143585 107.638699 
+L 141.143585 112.263348 
+L 141.14369 112.263348 
+L 141.14369 116.887997 
+L 141.143747 116.887997 
+L 141.143747 121.512646 
+L 141.143861 121.512646 
+L 141.143861 126.137294 
+L 141.143871 126.137294 
+L 141.143871 130.761943 
+L 142.095954 130.761943 
+L 142.095954 135.386592 
+L 144.950388 135.386592 
+L 144.950388 140.01124 
+L 145.902348 140.01124 
+L 145.902348 144.635889 
+L 146.863901 144.635889 
+L 146.863901 149.260538 
+L 159.226485 149.260538 
+L 159.226485 153.885187 
+" clip-path="url(#pf587c06078)" style="fill: none; stroke: #000000; stroke-width: 1.4; stroke-linecap: square"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 61.2 288 
+L 61.2 57.6 
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 61.2 288 
+L 468 288 
+" style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="line2d_19">
+    <defs>
+     <path id="mba521d8ed1" d="M 0 2.25 
+C 0.596707 2.25 1.169055 2.012926 1.59099 1.59099 
+C 2.012926 1.169055 2.25 0.596707 2.25 0 
+C 2.25 -0.596707 2.012926 -1.169055 1.59099 -1.59099 
+C 1.169055 -2.012926 0.596707 -2.25 0 -2.25 
+C -0.596707 -2.25 -1.169055 -2.012926 -1.59099 -1.59099 
+C -2.012926 -1.169055 -2.25 -0.596707 -2.25 0 
+C -2.25 0.596707 -2.012926 1.169055 -1.59099 1.59099 
+C -1.169055 2.012926 -0.596707 2.25 0 2.25 
+z
+" style="stroke: #000000"/>
+    </defs>
+    <g clip-path="url(#pf587c06078)">
+     <use xlink:href="#mba521d8ed1" x="140.191892" y="75.266158" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="140.19193" y="79.890807" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="140.191939" y="84.515456" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="140.192035" y="89.140104" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="140.192225" y="93.764753" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="140.192263" y="98.389402" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="140.192282" y="103.014051" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="140.192387" y="107.638699" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="141.143585" y="112.263348" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="141.14369" y="116.887997" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="141.143747" y="121.512646" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="141.143861" y="126.137294" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="141.143871" y="130.761943" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="142.095954" y="135.386592" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="144.950388" y="140.01124" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="145.902348" y="144.635889" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="146.863901" y="149.260538" style="stroke: #000000"/>
+     <use xlink:href="#mba521d8ed1" x="159.226485" y="153.885187" style="stroke: #000000"/>
+    </g>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif" transform="translate(450.703377 283.65283) rotate(-90)"> T_trial</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: middle; fill: #404040" x="137.337002" y="63.751766" transform="rotate(-0 137.337002 63.751766)">tau</text>
+   </g>
+   <g id="legend_1">
+    <g id="line2d_20">
+     <path d="M 66.1 268.724844 
+L 77.3 268.724844 
+L 88.5 268.724844 
+" style="fill: none; stroke: #000000; stroke-width: 1.4; stroke-linecap: square"/>
+     <g>
+      <use xlink:href="#mba521d8ed1" x="77.3" y="268.724844" style="stroke: #000000"/>
+     </g>
+    </g>
+    <g id="text_21">
+     <text style="font-size: 7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="94.1" y="271.174844" transform="rotate(-0 94.1 271.174844)">A</text>
+    </g>
+    <g id="line2d_21">
+     <defs>
+      <path id="m483f0f6bdb" d="M -3 3 
+L 3 3 
+L 3 -3 
+L -3 -3 
+z
+" style="stroke: #999999; stroke-linejoin: miter"/>
+     </defs>
+     <g>
+      <use xlink:href="#m483f0f6bdb" x="77.3" y="278.999531" style="fill-opacity: 0; stroke: #999999; stroke-linejoin: miter"/>
+     </g>
+    </g>
+    <g id="text_22">
+     <text style="font-size: 7px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="94.1" y="281.449531" transform="rotate(-0 94.1 281.449531)">no_action  (missing: no event times (all trials censored, or arm empty))</text>
+    </g>
+   </g>
+  </g>
+  <g id="text_23">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="853.227422" transform="rotate(-0 10.08 853.227422)">    km_time_to_vr (figures.py v1)</text>
+  </g>
+  <g id="text_24">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="844.647422" transform="rotate(-0 10.08 844.647422)">source: analysis.json sha256 e980b3710c26…   analysis_version = p1/v1   preregistration_sha256 = f0c45722b231…   figure =</text>
+  </g>
+  <g id="text_25">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="836.067422" transform="rotate(-0 10.08 836.067422)">WARNING: KM egri chizig'i p99 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)</text>
+  </g>
+  <g id="text_26">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="827.487422" transform="rotate(-0 10.08 827.487422)">WARNING: KM egri chizig'i p90 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)</text>
+  </g>
+  <g id="text_27">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="818.907422" transform="rotate(-0 10.08 818.907422)">    (n_uncensored=13)</text>
+  </g>
+  <g id="text_28">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="810.508203" transform="rotate(-0 10.08 810.508203)">WARNING: KM egri chizig'i median ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap</text>
+  </g>
+  <g id="text_29">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="801.747422" transform="rotate(-0 10.08 801.747422)">WARNING: KM egri chizig'i p99 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)</text>
+  </g>
+  <g id="text_30">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="793.167422" transform="rotate(-0 10.08 793.167422)">WARNING: KM egri chizig'i p90 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)</text>
+  </g>
+  <g id="text_31">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="784.587422" transform="rotate(-0 10.08 784.587422)">    (n_uncensored=31)</text>
+  </g>
+  <g id="text_32">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="776.188203" transform="rotate(-0 10.08 776.188203)">WARNING: KM egri chizig'i median ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap</text>
+  </g>
+  <g id="text_33">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="767.608203" transform="rotate(-0 10.08 767.608203)">    ko'rinishda qoladi, HUKM esa `null`</text>
+  </g>
+  <g id="text_34">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="758.847422" transform="rotate(-0 10.08 758.847422)">    &lt; thr` taqqoslashi ma'lumotdan emas, ARIFMETIKADAN javob berardi (§21.1(b)). Kirishlar (`delta`, `ci_lower`, `ci_upper`)</text>
+  </g>
+  <g id="text_35">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="750.267422" transform="rotate(-0 10.08 750.267422)">WARNING: §11 ning fail-slow mezoni BAHOLANMAYDI: `Delta` ning SE'si nol yoki aniqlanmagan, demak CI DEGENERAT va `CI95_upper</text>
+  </g>
+  <g id="text_36">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="741.868203" transform="rotate(-0 10.08 741.868203)">    gipotezasiga nisbatan ANTI-KONSERVATIV. Ratifikatsiya: `PREREGISTRATION.md` v1.11 amendment'i</text>
+  </g>
+  <g id="text_37">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="733.107422" transform="rotate(-0 10.08 733.107422)">    erishib bo'lmaydi. OCHIQ BIAS: kattaroq `thr` `CI95_upper[Delta] &lt; thr` ni osonlashtiradi, ya'ni F2 fail-slow</text>
+  </g>
+  <g id="text_38">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="724.708203" transform="rotate(-0 10.08 724.708203)">    x P, `P1` 0.1700 s, `P2` 0.2050 s; `docs/architecture/10-pressure-dozalash.md` §7.5), demak F1 ning INKOR shoxiga</text>
+  </g>
+  <g id="text_39">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="716.128203" transform="rotate(-0 10.08 716.128203)">    §18.2 matndan o'qigan `RMST(P0)` EMAS. Sabab: F1 ning chegarasi o'lchangan holda `5 x P` dan past (`P0` 0.0600 s = 0.60</text>
+  </g>
+  <g id="text_40">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="707.548203" transform="rotate(-0 10.08 707.548203)">WARNING: §11 ning fail-slow limbi §18.6 ning F2 varianti bilan hisoblandi: `thr = 0.20 x tau = 1.6 s`, REFERENS `tau` --</text>
+  </g>
+  <g id="text_41">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="698.968203" transform="rotate(-0 10.08 698.968203)">WARNING: RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi</text>
+  </g>
+  <g id="text_42">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="690.388203" transform="rotate(-0 10.08 690.388203)">WARNING: RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi</text>
+  </g>
+  <g id="text_43">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="681.627422" transform="rotate(-0 10.08 681.627422)">    bootstrap'ga qaytiladi (n_uncensored=2)</text>
+  </g>
+  <g id="text_44">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="673.228203" transform="rotate(-0 10.08 673.228203)">WARNING: KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_45">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="664.467422" transform="rotate(-0 10.08 664.467422)">    bootstrap'ga qaytiladi (n_uncensored=2)</text>
+  </g>
+  <g id="text_46">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="656.068203" transform="rotate(-0 10.08 656.068203)">WARNING: KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_47">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="647.307422" transform="rotate(-0 10.08 647.307422)">    bootstrap'ga qaytiladi (n_uncensored=2)</text>
+  </g>
+  <g id="text_48">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="638.908203" transform="rotate(-0 10.08 638.908203)">WARNING: KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_49">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="630.147422" transform="rotate(-0 10.08 630.147422)">    bootstrap'ga qaytiladi (n_uncensored=6)</text>
+  </g>
+  <g id="text_50">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="621.748203" transform="rotate(-0 10.08 621.748203)">WARNING: KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_51">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="612.987422" transform="rotate(-0 10.08 612.987422)">    bootstrap'ga qaytiladi (n_uncensored=6)</text>
+  </g>
+  <g id="text_52">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="604.588203" transform="rotate(-0 10.08 604.588203)">WARNING: KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_53">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="595.827422" transform="rotate(-0 10.08 595.827422)">    bootstrap'ga qaytiladi (n_uncensored=6)</text>
+  </g>
+  <g id="text_54">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="587.428203" transform="rotate(-0 10.08 587.428203)">WARNING: KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_55">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="578.848203" transform="rotate(-0 10.08 578.848203)">WARNING: RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi</text>
+  </g>
+  <g id="text_56">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="570.087422" transform="rotate(-0 10.08 570.087422)">    bootstrap'ga qaytiladi (n_uncensored=0)</text>
+  </g>
+  <g id="text_57">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="561.688203" transform="rotate(-0 10.08 561.688203)">WARNING: KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_58">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="552.927422" transform="rotate(-0 10.08 552.927422)">    bootstrap'ga qaytiladi (n_uncensored=0)</text>
+  </g>
+  <g id="text_59">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="544.528203" transform="rotate(-0 10.08 544.528203)">WARNING: KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_60">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="535.767422" transform="rotate(-0 10.08 535.767422)">    bootstrap'ga qaytiladi (n_uncensored=0)</text>
+  </g>
+  <g id="text_61">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="527.368203" transform="rotate(-0 10.08 527.368203)">WARNING: KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_62">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="518.607422" transform="rotate(-0 10.08 518.607422)">    bootstrap'ga qaytiladi (n_uncensored=18)</text>
+  </g>
+  <g id="text_63">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="510.208203" transform="rotate(-0 10.08 510.208203)">WARNING: KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_64">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="501.447422" transform="rotate(-0 10.08 501.447422)">    bootstrap'ga qaytiladi (n_uncensored=18)</text>
+  </g>
+  <g id="text_65">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="493.048203" transform="rotate(-0 10.08 493.048203)">WARNING: KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_66">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="484.287422" transform="rotate(-0 10.08 484.287422)">    bootstrap'ga qaytiladi (n_uncensored=18)</text>
+  </g>
+  <g id="text_67">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="475.888203" transform="rotate(-0 10.08 475.888203)">WARNING: KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa</text>
+  </g>
+  <g id="text_68">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="467.308203" transform="rotate(-0 10.08 467.308203)">    yashirilmaydi</text>
+  </g>
+  <g id="text_69">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="458.728203" transform="rotate(-0 10.08 458.728203)">    loop-rate va har jadvalning `k/n` qatorida QOLADI (§6.2) va §8.2 ning PSI atributsiyasi uchun ishlatiladi --</text>
+  </g>
+  <g id="text_70">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="449.967422" transform="rotate(-0 10.08 449.967422)">    `P(VR|P0)-P(VR|P2)` ni `0-0=0` ga intiltirib falsifikatsiya mezonini TRIVIAL qilardi). Bu trial'lar KM/log-rank,</text>
+  </g>
+  <g id="text_71">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="441.568203" transform="rotate(-0 10.08 441.568203)">WARNING: 45/76 birlamchi trial arm `A` dan tashqarida -- §16.2(A) ga ko'ra trend testi arm ichida hisoblanadi (pooling</text>
+  </g>
+  <g id="text_72">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="432.988203" transform="rotate(-0 10.08 432.988203)">analysis.json warnings: 38 in total, 24 relevant to this figure</text>
+  </g>
+  <g id="text_73">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="424.408203" transform="rotate(-0 10.08 424.408203)">    empty)</text>
+  </g>
+  <g id="text_74">
+   <text style="font-size: 6.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="415.647422" transform="rotate(-0 10.08 415.647422)">MISSING 1 (drawn as missing, never interpolated): survival.km.by_arm[no_action]: no event times (all trials censored, or arm</text>
+  </g>
+  <g id="text_75">
+   <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="403.231641" transform="rotate(-0 10.08 403.231641)">proportional_hazards_checked = false; hazard ratio is never drawn (§10.2)</text>
+  </g>
+  <g id="text_76">
+   <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="393.540234" transform="rotate(-0 10.08 393.540234)">VR undetermined (vr=None, own category; not counted as recovered or failed): 0</text>
+  </g>
+  <g id="text_77">
+   <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="383.431641" transform="rotate(-0 10.08 383.431641)">recovered within horizon: 18/101  (T_trial = 41.1 s)   censored trials kept in KM: 83 (§6.2)</text>
+  </g>
+  <g id="text_78">
+   <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="373.740234" transform="rotate(-0 10.08 373.740234)">RMST difference = 0 (SE 0)  CI [0, 0]</text>
+  </g>
+  <g id="text_79">
+   <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="363.631641" transform="rotate(-0 10.08 363.631641)">RMST (tau = 8e+06 µs): A = 8e+06 (SE 0); no_action = 8e+06 (SE 0)</text>
+  </g>
+  <g id="text_80">
+   <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="353.940234" transform="rotate(-0 10.08 353.940234)">log-rank: chi2 = 25.6, p = 4.3e-07</text>
+  </g>
+  <g id="text_81">
+   <text style="font-weight: 700; font-size: 10px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start" x="10.08" y="14.798437" transform="rotate(-0 10.08 14.798437)">Kaplan-Meier time to verified recovery</text>
+  </g>
+  <g id="text_82">
+   <text style="font-size: 7.5px; font-family: 'DejaVu Sans', 'Bitstream Vera Sans', 'Computer Modern Sans Serif', 'Lucida Grande', 'Verdana', 'Geneva', 'Lucid', 'Arial', 'Helvetica', 'Avant Garde', sans-serif; text-anchor: start; fill: #404040" x="10.08" y="30.178828" transform="rotate(-0 10.08 30.178828)">S(t) = P(not yet verified-recovered at t), per arm; censored trials included</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pf587c06078">
+   <rect x="61.2" y="57.6" width="406.8" height="230.4"/>
+  </clipPath>
+ </defs>
+</svg>

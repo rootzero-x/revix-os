@@ -1,0 +1,2076 @@
+{
+  "arm_policy_delay_us": {
+    "A": 100000,
+    "no_action": null
+  },
+  "arms": {
+    "A": {
+      "Restart": "on-failure",
+      "RestartSec": "100ms",
+      "StartLimitBurst": 0
+    },
+    "no_action": {
+      "Restart": "no",
+      "StartLimitBurst": 0
+    }
+  },
+  "boot_id_note": "WSL guest qayta ishga tushganda CLOCK_MONOTONIC nolga qaytadi, lekin boot_id O'ZGARMAYDI (o'lchangan) -- shuning uchun guest_generation markeri alohida yoziladi",
+  "campaign_estimate": {
+    "n_blocks": 20,
+    "n_trials": 120,
+    "per_trial_overhead_s": 0.0,
+    "per_trial_s": 53.0,
+    "pressure_on_total_s": 2160.0,
+    "sustained_pressure_on_total_s": 1560.0,
+    "total_hours": 1.7666666666666666,
+    "total_s": 6360.0,
+    "worst_case_hours": 5.1,
+    "worst_case_total_s": 18360.0
+  },
+  "cgroup_delegated_controllers": {
+    "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+    "cgroup_controllers": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "cgroup_subtree_control": [
+      "cpu",
+      "memory",
+      "pids"
+    ],
+    "missing": [],
+    "systemctl_Delegate": "yes",
+    "systemctl_DelegateControllers": "cpu memory pids"
+  },
+  "config": {
+    "allow_pressure": true,
+    "blocks": 20,
+    "max_hours": null,
+    "memory_high": "192M",
+    "only": [],
+    "python": "/usr/bin/python3",
+    "repo_root": "/home/snowden/revix-work",
+    "run_dir": "/home/snowden/revix-runs/p1-pilot-002",
+    "run_mode": "pilot",
+    "seed": 20261006,
+    "session_id": "p1",
+    "sut_binary": null,
+    "timeout_start_sec": "10s",
+    "watchdog_sec": "5s"
+  },
+  "cpu_count": 12,
+  "cpu_governor_detail": {
+    "cpu_count": 0,
+    "drivers": [],
+    "governors": [],
+    "os_cpu_count": 12
+  },
+  "cpu_model": null,
+  "disposition_facts": {
+    "analysis": "docs/architecture/16-pilot-002-tuzatishlar.md",
+    "computed_when": "trial oynasi yopilgandan keyin (prober to'xtagan, horizon o'tgan), washout'dan oldin; faqat trial_end ga",
+    "driver_function": "revix.driver.measured_trial_facts",
+    "facts": {
+      "probe_gap_exceeded": "prober horizon'da tirik emas OR reduce.probe_gaps (>2P, §4, §14.6(4))",
+      "window_outside_hold": "reduce.classify_window_containment holati window_past_pressure/_horizon (§17.4(2),(5))"
+    },
+    "method": "post_window_reducer_facts",
+    "reducer_functions": [
+      "split_trials",
+      "probe_gaps",
+      "fault_effective_us",
+      "reference_throughput",
+      "build_episodes",
+      "classify_window_containment"
+    ],
+    "reducer_module": "revix.reduce",
+    "since": "preregistration/v1.13, Amendment log v1.12 -> v1.13, 3.1-band",
+    "t_issue_source": "revix.driver.exit_ts_candidate (ActiveExit eskirgan bo'lsa ExecMainExit; 15 §3.2)"
+  },
+  "driver_contract": "driver-contract/v1.1",
+  "driver_version": 1,
+  "dvfs_measurable": false,
+  "dvfs_source": "cpufreq/thermal_zone sysfs mavjud emas (o'lchangan)",
+  "fault_class": "clean_crash",
+  "fault_kind": "exit",
+  "generator_window": {
+    "generator_on_s": 15.57,
+    "lead_s": 2.57,
+    "lead_source": "docs/architecture/14-smoke-trial-natijalari.md §5.1 (pressure_start -> oxirgi pressure_ramp: 2.570 s smoke-05, 2.568 s smoke-07; P2 dial); V2 qarori 14 §10",
+    "max_seconds": 15.57,
+    "note": "TrialTimeline frozen reja (pressure_on_s = ramp_s + hold_s) o'zgarmagan; generator hold_start - lead_s da boshlanadi va pressure_off da chiqadi (V2, 14 §10)",
+    "planned_hold_start_s": 20.0,
+    "planned_pressure_on_s": 18.0,
+    "planned_ramp_start_s": 15.0,
+    "start_s": 17.43,
+    "stop_s": 33.0
+  },
+  "git_commit": "8deaaf0aab33c51074ea69365a7b368830eaa332",
+  "git_detail": {
+    "commit": "8deaaf0aab33c51074ea69365a7b368830eaa332",
+    "commit_short": "8deaaf0",
+    "dirty": false,
+    "dirty_paths": [],
+    "error": null,
+    "git_present": true,
+    "is_repo": true
+  },
+  "git_dirty": false,
+  "governor": null,
+  "guard_start": {
+    "argv": [
+      "/usr/bin/python3",
+      "-m",
+      "revix.guard",
+      "--lab-cgroup",
+      "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/revixlab.slice",
+      "--watch-cgroup",
+      "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service",
+      "--log",
+      "/home/snowden/revix-runs/p1-pilot-002/guard.jsonl",
+      "--trip-file",
+      "/home/snowden/revix-runs/p1-pilot-002/guard.trip",
+      "--run-id",
+      "d7f935d4a9864b12bb22fe78a6948408",
+      "--session-id",
+      "p1"
+    ],
+    "check": {
+      "active_state": "active",
+      "ok": true,
+      "reason": "guard_start_and_active",
+      "records_seen": 1
+    },
+    "job": {
+      "job_path": "/org/freedesktop/systemd1/job/21164",
+      "job_result": "done",
+      "mono_us_after_call": 25968057179,
+      "mono_us_before_call": 25968055454,
+      "mono_us_job_removed": 25968059028,
+      "unit": "revix-guard.service"
+    },
+    "runtime_max_sec": 18960.0
+  },
+  "guest_generation": {
+    "clk_tck": 100,
+    "comparable": true,
+    "generation": "pid1:653523",
+    "identity_key": "pid1_starttime_ticks",
+    "pid1_starttime_s": 6535.23,
+    "pid1_starttime_ticks": 653523,
+    "uptime_s": 25968.04
+  },
+  "mem_available_kb": 9502140,
+  "mem_total_kb": 10183888,
+  "module_versions": {
+    "dbus": "1.4.0",
+    "numpy": "2.4.6",
+    "psutil": "7.1.0",
+    "scipy": "1.17.1"
+  },
+  "n_trials_selected": 120,
+  "n_trials_total": 120,
+  "only": [],
+  "oomd_effective": {
+    "duration_default_raw": null,
+    "duration_effective_s": null,
+    "duration_raw_unit": "[not set]",
+    "duration_source": "oomd.conf",
+    "kill_authority": false,
+    "managed_oom_kills": null,
+    "managed_oom_memory_pressure": "auto",
+    "managed_oom_preference": "none",
+    "managed_oom_swap": "auto",
+    "oomd_active": false,
+    "oomd_active_raw": "inactive",
+    "oomd_conf": {},
+    "oomd_enabled_raw": "not-found",
+    "pressure_limit_percent": null,
+    "pressure_limit_raw": "0",
+    "pressure_limit_source": "oomd.conf",
+    "unit": "user@1000.service"
+  },
+  "open_parameters": {
+    "base_mb": {
+      "calibration_required": false,
+      "dose_arithmetic": {
+        "P0": {
+          "base_mb": 160,
+          "breach_expected": false,
+          "breach_margin_mb": -6.7,
+          "dose_expected": false,
+          "level": "P0",
+          "memory_high_mib": 192.0,
+          "overhead_mb": 25.3,
+          "projected_memory_current_mb": 185.3,
+          "ramp_free_expected": true,
+          "step_mb": 4
+        },
+        "P1": {
+          "base_mb": 184,
+          "breach_expected": true,
+          "breach_margin_mb": 17.3,
+          "dose_expected": true,
+          "level": "P1",
+          "memory_high_mib": 192.0,
+          "overhead_mb": 25.3,
+          "projected_memory_current_mb": 209.3,
+          "ramp_free_expected": true,
+          "step_mb": 4
+        },
+        "P2": {
+          "base_mb": 184,
+          "breach_expected": true,
+          "breach_margin_mb": 17.3,
+          "dose_expected": true,
+          "level": "P2",
+          "memory_high_mib": 192.0,
+          "overhead_mb": 25.3,
+          "projected_memory_current_mb": 209.3,
+          "ramp_free_expected": true,
+          "step_mb": 4
+        }
+      },
+      "source": "docs/architecture/10-pressure-dozalash.md §2.6 (P0=160 §3.2, P1=P2=184 §2.2 D2); overhead 25.3 MiB O'LCHANGAN (§2.2), demak 184+25.3=209.3 > 192 breach, 160+25.3=185.3 < 192 breach YO'Q; ishchi oyna TOR -- 184 yagona ishlaydigan qiymat, 188 guard trip, 196 §9.4 invariant 2 ni buzdi (§3.6); OQ-2",
+      "value": {
+        "P0": 160,
+        "P1": 184,
+        "P2": 184
+      }
+    },
+    "interval_ms": {
+      "calibration_required": false,
+      "source": "docs/architecture/10-pressure-dozalash.md §2.6 (kalibrlangan control tik'i; pressure.py ning modul default'i bilan TASODIFAN bir xil, demak oshkora beriladi -- qoida 17); §3.5: 250 ms tik + 2 s PSI oynasi + 4 MiB blok granularligi bandni UZLUKSIZ ushlash uchun qo'pol (OQ-3)",
+      "value": 250
+    },
+    "memory_high": {
+      "calibration": {
+        "measured_in": "docs/architecture/10-pressure-dozalash.md §2.2",
+        "reproduced_in": [
+          "open-params-cal-01",
+          "open-params-cal-02",
+          "open-params-cal-03"
+        ],
+        "reproduction": {
+          "P0": {
+            "both_zero": 30,
+            "episodes": 30
+          },
+          "P1": {
+            "both_positive": 30,
+            "episodes": 30
+          },
+          "P2": {
+            "both_positive": 29,
+            "episodes": 29
+          }
+        },
+        "reproduction_rule": "13 §0.7 (>= 90% epizodda)",
+        "run_ids": [
+          "dose-01-dial",
+          "dose-02-bands",
+          "dose-03-p2sweep"
+        ],
+        "run_ids_note": "xom ma'lumot datasets/ da YO'Q, guest ~/revix-runs/dose-* (13 §4)"
+      },
+      "calibration_required": false,
+      "frozen_in": "preregistration/v1.12",
+      "frozen_section": "§16.10; Amendment log v1.11 -> v1.12, 1.2-band",
+      "frozen_value": "192M",
+      "limitation": "OQ-11 OCHIQ: boshqa hech bir MemoryHigh qiymati o'lchanmagan; ishchi base_mb oynasi tor (faqat 184, 10 §3.6). Muzlatilgani -- o'lchangan dial, eng yaxshisi emas",
+      "matches_frozen": true,
+      "rule_satisfied": true,
+      "source": "docs/architecture/10-pressure-dozalash.md §2.2 (dose-01-dial: 192M MemoryMax=2G ostida QAYTA o'lchangan, 1G dan ko'chirilmagan; step_mb=4 -> base 184 erishilgan p50 0.3344) va §2.6; qayta-ishlab-chiqarish docs/architecture/13-ochiq-parametrlar-kalibratsiyasi.md §4",
+      "value": "192M"
+    },
+    "pressure_target_rate": {
+      "calibration_required": false,
+      "source": "§9.3 bandlar (P1 20-35%, P2 60-80%); docs/architecture/10-pressure-dozalash.md §3.1 nishon->erishilgan xaritasini O'LCHADI: P1=0.30 -> epizod medianalarining medianasi 0.2810 (10/13 band ichida, §3.3); P2=0.60 -> 0.7023 (8/11 band ichida, §3.4); avvalgi P2=0.70 -> 0.8868, ya'ni band USTIDA (over-doza)",
+      "value": {
+        "P0": 0.0,
+        "P1": 0.3,
+        "P2": 0.6
+      }
+    },
+    "ramp_above_threshold_s": {
+      "calibration": {
+        "guard_sustain_headroom_s": 2.0,
+        "measured_dial": {
+          "base_mb": 184,
+          "memory_high": "192M",
+          "step_mb": 4
+        },
+        "measured_episodes": 29,
+        "measured_episodes_at_value": 29,
+        "measured_in": "docs/architecture/10-pressure-dozalash.md §4.1",
+        "measured_s": 0.0,
+        "plan_slack_s": 0.0,
+        "planned_s": 0.0
+      },
+      "calibration_required": false,
+      "source": "schedule.RAMP_ABOVE_THRESHOLD_S -- §9.4 bu qiymatni dosing kalibratsiyasidan olishni talab qiladi va u ENDI OLINDI: docs/architecture/10-pressure-dozalash.md §4.1 kalibrlangan dial'da (base_mb=184, step_mb=4, MemoryHigh=192M, MemoryMax=2G) 29 epizoddan 29 tasida AYNAN 0.000 s O'LCHADI (ramp tezligi min=p50=max=0.0000, §8.4 ning quiescence chegarasi 0.05 dan yuqori namuna YO'Q), §4.2 esa §9.4 invariant 2 ni son bilan yozadi; bu PREREGISTRATION.md §21.7 ning \"nol dozadagi qiymat kalibratsiya EMAS\" e'tirozini YOPADI, chunki o'lchov HAQIQIY doza ostida (erishilgan p50 0.223..0.921) bajarilgan; avvalgi 3.0 esa o'z izohida TAXMIN deb belgilangan edi",
+      "value": 0.0
+    },
+    "step_mb": {
+      "calibration_required": false,
+      "source": "docs/architecture/10-pressure-dozalash.md §2.2 dial sweep'i (step_mb=16 -> base 160 -> erishilgan 0.0000 NOL doza; step_mb=8 -> 176 -> 0.0138; step_mb=4 -> 184 -> 0.3344) va §2.6 ning kalibrlangan dial'i; OQ-2",
+      "value": 4
+    },
+    "t_trial_s": {
+      "calibration_required": false,
+      "frozen_in": "preregistration/v1.12",
+      "frozen_section": "§16.10(4); Amendment log v1.11 -> v1.12, 1.4-band",
+      "frozen_value": 41.1,
+      "matches_frozen": true,
+      "rule_satisfied": true,
+      "source": "T_trial = TrialTimeline.t_pressure_off + TrialTimeline.w_stab_s + P   (P = probe davri 100 ms, PREREGISTRATION.md §2); invariant: t_verify_end_earliest <= T_trial <= total_s",
+      "value": 41.1
+    },
+    "timeout_start_sec": {
+      "calibration": {
+        "M_start_s": 0.9614,
+        "other_observed_tails": [
+          {
+            "band": "P2",
+            "max_t_start_s": 1.703,
+            "source": "13 §3.1, open-params-smoke-01 (hisobga kirmaydi)",
+            "timeout_over_max": 5.87
+          },
+          {
+            "band": "P1",
+            "max_t_start_s": 1.4807,
+            "source": "10-pressure-dozalash.md §6.2 / §10.1 (tstart-* run'lari)",
+            "timeout_over_max": 6.75
+          }
+        ],
+        "qualifying_starts": {
+          "P0": 24,
+          "P1": 24,
+          "P2": 20
+        },
+        "required_per_band": 48,
+        "result_timeout": 0,
+        "rule_proposal": null,
+        "run_ids": [
+          "open-params-cal-02",
+          "open-params-cal-03"
+        ],
+        "run_ids_note": "B qism cal-02 va cal-03 da; cal-01 ning B qismi boshlanmagan (13 §0A.1)",
+        "source_sections": "13 §3.1, §6.2; v1.12 1.3",
+        "timeout_over_max": 10.4
+      },
+      "calibration_required": false,
+      "deviation": "OG'ISH (preregistration v1.12, Amendment log v1.11 -> v1.12, 1.3-band): o'z oldindan yozilgan qoidasi (13 §0.5(3), har bandda >= 48 bosim ostidagi start) TAKLIF BERMAGAN -- olingan 24/24/20; 10 s ma'lumotdan OLDINGI driver default'i sifatida saqlangan. Bu KALIBRLANGAN qiymat EMAS",
+      "frozen_as": "pre_data_default_documented_deviation",
+      "frozen_in": "preregistration/v1.12",
+      "frozen_section": "§16.10; Amendment log v1.11 -> v1.12, 1.3-band",
+      "frozen_value": "10s",
+      "matches_frozen": true,
+      "mechanism_statement": "§9.2 (i) (TimeoutStartSec oshib ketdi) ning mavjudligi TimeoutStartSec ning muzlatilgan qiymati -- 10 s -- bilan belgilangan; Result=timeout ning yo'qligi topilma sifatida hisobot qilinmaydi (v1.12 1.3)",
+      "rule_satisfied": false,
+      "source": "docs/architecture/13-ochiq-parametrlar-kalibratsiyasi.md §0.5 (qoida), §3.1, §6.2",
+      "value": "10s"
+    },
+    "watchdog_sec": {
+      "calibration": {
+        "F": 3,
+        "M_wd_delta_s": 0.117,
+        "episodes": {
+          "P0": 24,
+          "P1": 24,
+          "P2": 24
+        },
+        "halfW_over_M_wd": 21.38,
+        "max_gap_s": 2.617,
+        "result_watchdog": 0,
+        "rule": "13 §0.5 (commit 812c989, ma'lumotdan OLDIN): L_wd = 2*F*M_wd, F = 3, taklif = max(5, ceil(L_wd))",
+        "run_ids": [
+          "open-params-cal-01",
+          "open-params-cal-02"
+        ],
+        "run_ids_note": "A qism faqat cal-01 va cal-02 da; cal-03 faqat B (t_start)",
+        "source_sections": "13 §2.2, §6.1"
+      },
+      "calibration_required": false,
+      "frozen_in": "preregistration/v1.12",
+      "frozen_section": "§16.10; Amendment log v1.11 -> v1.12, 1.1-band",
+      "frozen_value": "5s",
+      "matches_frozen": true,
+      "mechanism_statement": "§9.2 (iv) (watchdog miss) ning mavjudligi WatchdogSec ning muzlatilgan qiymati -- 5 s -- bilan belgilangan",
+      "rule_satisfied": true,
+      "source": "docs/architecture/13-ochiq-parametrlar-kalibratsiyasi.md §0.5 (qoida), §2.2, §6.1",
+      "value": "5s"
+    }
+  },
+  "per_trial_overhead": {
+    "dump_us": 25032,
+    "measured_setup_teardown_s": 0.083886,
+    "note": "o'lchov: fault YO'Q, pressure YO'Q; `estimate_campaign` ta'rifi bo'yicha fazalar yig'indisidan oshgan qism",
+    "per_trial_overhead_s": 0.0,
+    "planned_preflight_s": 5.0,
+    "setup_us": 54193,
+    "source": "measured_preflight_cycle",
+    "teardown_us": 4661
+  },
+  "per_trial_overhead_s": 0.0,
+  "pid1_starttime_s": 6535.23,
+  "pid1_starttime_ticks": 653523,
+  "preregistration_bytes": 367025,
+  "preregistration_path": "PREREGISTRATION.md",
+  "preregistration_sha256": "f0c45722b231687c5e73a4a41e52517a6bd0ae96669c1d244211d18d8ac7b117",
+  "preregistration_version": "preregistration/v1.13",
+  "pressure_allowed": true,
+  "pressure_base_mb": {
+    "P0": 160,
+    "P1": 184,
+    "P2": 184
+  },
+  "pressure_interval_ms": 250,
+  "pressure_step_mb": 4,
+  "pressure_target_rate": {
+    "P0": 0.0,
+    "P1": 0.3,
+    "P2": 0.6
+  },
+  "probe_period_us": 100000,
+  "psi_sampler_start": {
+    "argv": [
+      "/usr/bin/python3",
+      "-m",
+      "revix.psi_sampler",
+      "--with-host",
+      "--with-user",
+      "--scope",
+      "lab=/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/revixlab.slice",
+      "--scope",
+      "mon=/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/revixmon.slice",
+      "--csv",
+      "/home/snowden/revix-runs/p1-pilot-002/psi.csv",
+      "--events",
+      "/home/snowden/revix-runs/p1-pilot-002/events.jsonl",
+      "--run-id",
+      "d7f935d4a9864b12bb22fe78a6948408",
+      "--session-id",
+      "p1"
+    ],
+    "job": {
+      "job_path": "/org/freedesktop/systemd1/job/21181",
+      "job_result": "done",
+      "mono_us_after_call": 25968167382,
+      "mono_us_before_call": 25968165723,
+      "mono_us_job_removed": 25968169917,
+      "unit": "revix-psi.service"
+    }
+  },
+  "python_version": "3.14.7 (main, Sep  5 2026, 05:55:41) [GCC 16.2.0]",
+  "repo_version": "0.1.0-dev",
+  "rng": "python-random-mt19937",
+  "rng_seed": 20261006,
+  "run_files": [
+    "events.jsonl",
+    "probe.csv",
+    "psi.csv",
+    "guard.jsonl",
+    "pressure.jsonl",
+    "run_meta.json"
+  ],
+  "run_mode": "pilot",
+  "scaling_driver": null,
+  "schedule": {
+    "cells_per_block": 6,
+    "factors": [
+      {
+        "levels": [
+          "A",
+          "no_action"
+        ],
+        "name": "arm"
+      },
+      {
+        "levels": [
+          "P0",
+          "P1",
+          "P2"
+        ],
+        "name": "pressure_level"
+      }
+    ],
+    "n_blocks": 20,
+    "n_trials": 120,
+    "rng": "python-random-mt19937",
+    "schedule_version": 1,
+    "seed": 20261006,
+    "trials": [
+      {
+        "arm": "no_action",
+        "block_index": 0,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b000t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 0,
+        "position_in_block": 1,
+        "pressure_level": "P2",
+        "trial_id": "b000t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 0,
+        "position_in_block": 2,
+        "pressure_level": "P0",
+        "trial_id": "b000t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 0,
+        "position_in_block": 3,
+        "pressure_level": "P2",
+        "trial_id": "b000t003"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 0,
+        "position_in_block": 4,
+        "pressure_level": "P0",
+        "trial_id": "b000t004"
+      },
+      {
+        "arm": "A",
+        "block_index": 0,
+        "position_in_block": 5,
+        "pressure_level": "P1",
+        "trial_id": "b000t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 1,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b001t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 1,
+        "position_in_block": 1,
+        "pressure_level": "P2",
+        "trial_id": "b001t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 1,
+        "position_in_block": 2,
+        "pressure_level": "P0",
+        "trial_id": "b001t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 1,
+        "position_in_block": 3,
+        "pressure_level": "P0",
+        "trial_id": "b001t003"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 1,
+        "position_in_block": 4,
+        "pressure_level": "P1",
+        "trial_id": "b001t004"
+      },
+      {
+        "arm": "A",
+        "block_index": 1,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b001t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 2,
+        "position_in_block": 0,
+        "pressure_level": "P2",
+        "trial_id": "b002t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 2,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b002t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 2,
+        "position_in_block": 2,
+        "pressure_level": "P0",
+        "trial_id": "b002t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 2,
+        "position_in_block": 3,
+        "pressure_level": "P1",
+        "trial_id": "b002t003"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 2,
+        "position_in_block": 4,
+        "pressure_level": "P2",
+        "trial_id": "b002t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 2,
+        "position_in_block": 5,
+        "pressure_level": "P1",
+        "trial_id": "b002t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 3,
+        "position_in_block": 0,
+        "pressure_level": "P2",
+        "trial_id": "b003t000"
+      },
+      {
+        "arm": "A",
+        "block_index": 3,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b003t001"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 3,
+        "position_in_block": 2,
+        "pressure_level": "P2",
+        "trial_id": "b003t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 3,
+        "position_in_block": 3,
+        "pressure_level": "P1",
+        "trial_id": "b003t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 3,
+        "position_in_block": 4,
+        "pressure_level": "P1",
+        "trial_id": "b003t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 3,
+        "position_in_block": 5,
+        "pressure_level": "P0",
+        "trial_id": "b003t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 4,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b004t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 4,
+        "position_in_block": 1,
+        "pressure_level": "P1",
+        "trial_id": "b004t001"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 4,
+        "position_in_block": 2,
+        "pressure_level": "P0",
+        "trial_id": "b004t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 4,
+        "position_in_block": 3,
+        "pressure_level": "P2",
+        "trial_id": "b004t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 4,
+        "position_in_block": 4,
+        "pressure_level": "P2",
+        "trial_id": "b004t004"
+      },
+      {
+        "arm": "A",
+        "block_index": 4,
+        "position_in_block": 5,
+        "pressure_level": "P0",
+        "trial_id": "b004t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 5,
+        "position_in_block": 0,
+        "pressure_level": "P2",
+        "trial_id": "b005t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 5,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b005t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 5,
+        "position_in_block": 2,
+        "pressure_level": "P0",
+        "trial_id": "b005t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 5,
+        "position_in_block": 3,
+        "pressure_level": "P1",
+        "trial_id": "b005t003"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 5,
+        "position_in_block": 4,
+        "pressure_level": "P1",
+        "trial_id": "b005t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 5,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b005t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 6,
+        "position_in_block": 0,
+        "pressure_level": "P2",
+        "trial_id": "b006t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 6,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b006t001"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 6,
+        "position_in_block": 2,
+        "pressure_level": "P1",
+        "trial_id": "b006t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 6,
+        "position_in_block": 3,
+        "pressure_level": "P2",
+        "trial_id": "b006t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 6,
+        "position_in_block": 4,
+        "pressure_level": "P0",
+        "trial_id": "b006t004"
+      },
+      {
+        "arm": "A",
+        "block_index": 6,
+        "position_in_block": 5,
+        "pressure_level": "P1",
+        "trial_id": "b006t005"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 7,
+        "position_in_block": 0,
+        "pressure_level": "P2",
+        "trial_id": "b007t000"
+      },
+      {
+        "arm": "A",
+        "block_index": 7,
+        "position_in_block": 1,
+        "pressure_level": "P2",
+        "trial_id": "b007t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 7,
+        "position_in_block": 2,
+        "pressure_level": "P1",
+        "trial_id": "b007t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 7,
+        "position_in_block": 3,
+        "pressure_level": "P0",
+        "trial_id": "b007t003"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 7,
+        "position_in_block": 4,
+        "pressure_level": "P1",
+        "trial_id": "b007t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 7,
+        "position_in_block": 5,
+        "pressure_level": "P0",
+        "trial_id": "b007t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 8,
+        "position_in_block": 0,
+        "pressure_level": "P0",
+        "trial_id": "b008t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 8,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b008t001"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 8,
+        "position_in_block": 2,
+        "pressure_level": "P2",
+        "trial_id": "b008t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 8,
+        "position_in_block": 3,
+        "pressure_level": "P1",
+        "trial_id": "b008t003"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 8,
+        "position_in_block": 4,
+        "pressure_level": "P1",
+        "trial_id": "b008t004"
+      },
+      {
+        "arm": "A",
+        "block_index": 8,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b008t005"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 9,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b009t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 9,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b009t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 9,
+        "position_in_block": 2,
+        "pressure_level": "P0",
+        "trial_id": "b009t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 9,
+        "position_in_block": 3,
+        "pressure_level": "P2",
+        "trial_id": "b009t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 9,
+        "position_in_block": 4,
+        "pressure_level": "P2",
+        "trial_id": "b009t004"
+      },
+      {
+        "arm": "A",
+        "block_index": 9,
+        "position_in_block": 5,
+        "pressure_level": "P1",
+        "trial_id": "b009t005"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 10,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b010t000"
+      },
+      {
+        "arm": "A",
+        "block_index": 10,
+        "position_in_block": 1,
+        "pressure_level": "P2",
+        "trial_id": "b010t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 10,
+        "position_in_block": 2,
+        "pressure_level": "P0",
+        "trial_id": "b010t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 10,
+        "position_in_block": 3,
+        "pressure_level": "P0",
+        "trial_id": "b010t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 10,
+        "position_in_block": 4,
+        "pressure_level": "P1",
+        "trial_id": "b010t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 10,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b010t005"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 11,
+        "position_in_block": 0,
+        "pressure_level": "P0",
+        "trial_id": "b011t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 11,
+        "position_in_block": 1,
+        "pressure_level": "P2",
+        "trial_id": "b011t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 11,
+        "position_in_block": 2,
+        "pressure_level": "P1",
+        "trial_id": "b011t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 11,
+        "position_in_block": 3,
+        "pressure_level": "P0",
+        "trial_id": "b011t003"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 11,
+        "position_in_block": 4,
+        "pressure_level": "P1",
+        "trial_id": "b011t004"
+      },
+      {
+        "arm": "A",
+        "block_index": 11,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b011t005"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 12,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b012t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 12,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b012t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 12,
+        "position_in_block": 2,
+        "pressure_level": "P0",
+        "trial_id": "b012t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 12,
+        "position_in_block": 3,
+        "pressure_level": "P1",
+        "trial_id": "b012t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 12,
+        "position_in_block": 4,
+        "pressure_level": "P2",
+        "trial_id": "b012t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 12,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b012t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 13,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b013t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 13,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b013t001"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 13,
+        "position_in_block": 2,
+        "pressure_level": "P1",
+        "trial_id": "b013t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 13,
+        "position_in_block": 3,
+        "pressure_level": "P0",
+        "trial_id": "b013t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 13,
+        "position_in_block": 4,
+        "pressure_level": "P2",
+        "trial_id": "b013t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 13,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b013t005"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 14,
+        "position_in_block": 0,
+        "pressure_level": "P2",
+        "trial_id": "b014t000"
+      },
+      {
+        "arm": "A",
+        "block_index": 14,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b014t001"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 14,
+        "position_in_block": 2,
+        "pressure_level": "P1",
+        "trial_id": "b014t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 14,
+        "position_in_block": 3,
+        "pressure_level": "P1",
+        "trial_id": "b014t003"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 14,
+        "position_in_block": 4,
+        "pressure_level": "P0",
+        "trial_id": "b014t004"
+      },
+      {
+        "arm": "A",
+        "block_index": 14,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b014t005"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 15,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b015t000"
+      },
+      {
+        "arm": "A",
+        "block_index": 15,
+        "position_in_block": 1,
+        "pressure_level": "P2",
+        "trial_id": "b015t001"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 15,
+        "position_in_block": 2,
+        "pressure_level": "P2",
+        "trial_id": "b015t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 15,
+        "position_in_block": 3,
+        "pressure_level": "P0",
+        "trial_id": "b015t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 15,
+        "position_in_block": 4,
+        "pressure_level": "P0",
+        "trial_id": "b015t004"
+      },
+      {
+        "arm": "A",
+        "block_index": 15,
+        "position_in_block": 5,
+        "pressure_level": "P1",
+        "trial_id": "b015t005"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 16,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b016t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 16,
+        "position_in_block": 1,
+        "pressure_level": "P2",
+        "trial_id": "b016t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 16,
+        "position_in_block": 2,
+        "pressure_level": "P1",
+        "trial_id": "b016t002"
+      },
+      {
+        "arm": "A",
+        "block_index": 16,
+        "position_in_block": 3,
+        "pressure_level": "P0",
+        "trial_id": "b016t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 16,
+        "position_in_block": 4,
+        "pressure_level": "P2",
+        "trial_id": "b016t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 16,
+        "position_in_block": 5,
+        "pressure_level": "P0",
+        "trial_id": "b016t005"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 17,
+        "position_in_block": 0,
+        "pressure_level": "P1",
+        "trial_id": "b017t000"
+      },
+      {
+        "arm": "A",
+        "block_index": 17,
+        "position_in_block": 1,
+        "pressure_level": "P2",
+        "trial_id": "b017t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 17,
+        "position_in_block": 2,
+        "pressure_level": "P1",
+        "trial_id": "b017t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 17,
+        "position_in_block": 3,
+        "pressure_level": "P0",
+        "trial_id": "b017t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 17,
+        "position_in_block": 4,
+        "pressure_level": "P0",
+        "trial_id": "b017t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 17,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b017t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 18,
+        "position_in_block": 0,
+        "pressure_level": "P2",
+        "trial_id": "b018t000"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 18,
+        "position_in_block": 1,
+        "pressure_level": "P2",
+        "trial_id": "b018t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 18,
+        "position_in_block": 2,
+        "pressure_level": "P0",
+        "trial_id": "b018t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 18,
+        "position_in_block": 3,
+        "pressure_level": "P1",
+        "trial_id": "b018t003"
+      },
+      {
+        "arm": "A",
+        "block_index": 18,
+        "position_in_block": 4,
+        "pressure_level": "P1",
+        "trial_id": "b018t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 18,
+        "position_in_block": 5,
+        "pressure_level": "P0",
+        "trial_id": "b018t005"
+      },
+      {
+        "arm": "A",
+        "block_index": 19,
+        "position_in_block": 0,
+        "pressure_level": "P2",
+        "trial_id": "b019t000"
+      },
+      {
+        "arm": "A",
+        "block_index": 19,
+        "position_in_block": 1,
+        "pressure_level": "P0",
+        "trial_id": "b019t001"
+      },
+      {
+        "arm": "A",
+        "block_index": 19,
+        "position_in_block": 2,
+        "pressure_level": "P1",
+        "trial_id": "b019t002"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 19,
+        "position_in_block": 3,
+        "pressure_level": "P0",
+        "trial_id": "b019t003"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 19,
+        "position_in_block": 4,
+        "pressure_level": "P1",
+        "trial_id": "b019t004"
+      },
+      {
+        "arm": "no_action",
+        "block_index": 19,
+        "position_in_block": 5,
+        "pressure_level": "P2",
+        "trial_id": "b019t005"
+      }
+    ]
+  },
+  "schedule_digest": "69ae399edbb20b5a0271d4b6657a3b5c1ec45b61b19a04a2bf9e0b6e8decb2dc",
+  "slice_setup": {
+    "dose_preflight": {
+      "arithmetic": {
+        "P0": {
+          "base_mb": 160,
+          "breach_expected": false,
+          "breach_margin_mb": -6.7,
+          "dose_expected": false,
+          "level": "P0",
+          "memory_high_mib": 192.0,
+          "overhead_mb": 25.3,
+          "projected_memory_current_mb": 185.3,
+          "ramp_free_expected": true,
+          "step_mb": 4
+        },
+        "P1": {
+          "base_mb": 184,
+          "breach_expected": true,
+          "breach_margin_mb": 17.3,
+          "dose_expected": true,
+          "level": "P1",
+          "memory_high_mib": 192.0,
+          "overhead_mb": 25.3,
+          "projected_memory_current_mb": 209.3,
+          "ramp_free_expected": true,
+          "step_mb": 4
+        },
+        "P2": {
+          "base_mb": 184,
+          "breach_expected": true,
+          "breach_margin_mb": 17.3,
+          "dose_expected": true,
+          "level": "P2",
+          "memory_high_mib": 192.0,
+          "overhead_mb": 25.3,
+          "projected_memory_current_mb": 209.3,
+          "ramp_free_expected": true,
+          "step_mb": 4
+        }
+      },
+      "levels_checked": [
+        "P0",
+        "P1",
+        "P2"
+      ],
+      "memory_high": "192M"
+    },
+    "lab_cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/revixlab.slice",
+    "lab_slice_properties": {
+      "CPUQuota": "400%",
+      "MemoryHigh": "192M",
+      "MemoryMax": "2G",
+      "TasksMax": 256
+    },
+    "mon_cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/revixmon.slice",
+    "mon_slice_properties": {
+      "MemoryMax": "512M",
+      "TasksMax": 64
+    },
+    "preflight": {
+      "cgroups": [],
+      "clean": true,
+      "mono_us": 25968051837,
+      "problems": [],
+      "slices": [
+        "revixlab.slice",
+        "revixmon.slice"
+      ],
+      "stale_drop_ins": [],
+      "unit_patterns": [
+        "revix-*"
+      ],
+      "units": []
+    },
+    "removed_drop_ins": []
+  },
+  "started_mono_us": 25968320317,
+  "started_real_us": 1791121838530462,
+  "systemd_version": {
+    "raw": "systemd 257 (257.7-1)",
+    "version": 257
+  },
+  "t_recovery_window_us": 18100000,
+  "t_trial_formula": "T_trial = TrialTimeline.t_pressure_off + TrialTimeline.w_stab_s + P   (P = probe davri 100 ms, PREREGISTRATION.md §2); invariant: t_verify_end_earliest <= T_trial <= total_s",
+  "t_trial_us": 41100000,
+  "thermal_c": null,
+  "timeline": {
+    "baseline_s": 10.0,
+    "guard_sustain_window_s": 15.0,
+    "hold_cap_s": 13.0,
+    "hold_s": 13.0,
+    "injection_offset_s": 3.0,
+    "preflight_s": 5.0,
+    "pressure_on_s": 18.0,
+    "ramp_above_threshold_s": 0.0,
+    "ramp_s": 5.0,
+    "sustained_pressure_on_s": 13.0,
+    "t_inject_s": 23.0,
+    "t_pressure_off_s": 33.0,
+    "total_s": 53.0,
+    "w_stab_s": 8.0,
+    "washout_s": 20.0
+  },
+  "uname": {
+    "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5",
+    "cpu_count": 12,
+    "hostname": "Root-Zero",
+    "kernel": "6.6.87.2-microsoft-standard-WSL2",
+    "machine": "x86_64",
+    "own_cgroup": "/init.scope",
+    "uid": 1000
+  },
+  "units_show": {
+    "revix-bystander.service": {
+      "alive_after": true,
+      "alive_before": true,
+      "dump_valid": true,
+      "load_state": "loaded",
+      "mono_us_dump_begin": 25968236566,
+      "mono_us_dump_end": 25968248663,
+      "properties": {
+        "ActiveEnterTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "ActiveEnterTimestampMonotonic": "25968206516",
+        "ActiveExitTimestampMonotonic": "0",
+        "ActiveState": "active",
+        "After": "-.mount basic.target revixlab.slice",
+        "AllowIsolate": "no",
+        "AssertResult": "yes",
+        "AssertTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "AssertTimestampMonotonic": "25968171959",
+        "Before": "shutdown.target",
+        "BindLogSockets": "no",
+        "BlockIOAccounting": "no",
+        "BlockIOWeight": "[not set]",
+        "CPUAccounting": "yes",
+        "CPUAffinityFromNUMA": "no",
+        "CPUQuotaPerSecUSec": "infinity",
+        "CPUQuotaPeriodUSec": "infinity",
+        "CPUSchedulingPolicy": "0",
+        "CPUSchedulingPriority": "0",
+        "CPUSchedulingResetOnFork": "no",
+        "CPUShares": "[not set]",
+        "CPUUsageNSec": "8972000",
+        "CPUWeight": "[not set]",
+        "CacheDirectoryMode": "0755",
+        "CanFreeze": "yes",
+        "CanIsolate": "no",
+        "CanLiveMount": "no",
+        "CanReload": "no",
+        "CanStart": "yes",
+        "CanStop": "yes",
+        "CapabilityBoundingSet": "cap_chown cap_dac_override cap_dac_read_search cap_fowner cap_fsetid cap_kill cap_setgid cap_setuid cap_setpcap cap_linux_immutable cap_net_bind_service cap_net_broadcast cap_net_admin cap_net_raw cap_ipc_lock cap_ipc_owner cap_sys_module cap_sys_rawio cap_sys_chroot cap_sys_ptrace cap_sys_pacct cap_sys_admin cap_sys_boot cap_sys_nice cap_sys_resource cap_sys_time cap_sys_tty_config cap_mknod cap_lease cap_audit_write cap_audit_control cap_setfcap cap_mac_override cap_mac_admin cap_syslog cap_wake_alarm cap_block_suspend cap_audit_read cap_perfmon cap_bpf cap_checkpoint_restore",
+        "CleanResult": "success",
+        "CollectMode": "inactive-or-failed",
+        "ConditionResult": "yes",
+        "ConditionTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "ConditionTimestampMonotonic": "25968171958",
+        "ConfigurationDirectoryMode": "0755",
+        "Conflicts": "shutdown.target",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/revixlab.slice/revix-bystander.service",
+        "ControlGroupId": "76490",
+        "ControlPID": "0",
+        "CoredumpFilter": "0x33",
+        "CoredumpReceive": "no",
+        "DebugInvocation": "no",
+        "DefaultDependencies": "yes",
+        "DefaultMemoryLow": "0",
+        "DefaultMemoryMin": "0",
+        "DefaultStartupMemoryLow": "0",
+        "Delegate": "no",
+        "Description": "REVIX bystander",
+        "DevicePolicy": "auto",
+        "DynamicUser": "no",
+        "EffectiveMemoryHigh": "201326592",
+        "EffectiveMemoryMax": "134217728",
+        "EffectiveTasksMax": "64",
+        "Environment": "REVIX_SUT_SOCKET=/run/user/1000/revix-bystander.sock REVIX_SUT_RATE_HZ=2000",
+        "ExecMainCode": "0",
+        "ExecMainExitTimestampMonotonic": "0",
+        "ExecMainHandoffTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "ExecMainHandoffTimestampMonotonic": "25968204746",
+        "ExecMainPID": "49525",
+        "ExecMainStartTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "ExecMainStartTimestampMonotonic": "25968172507",
+        "ExecMainStatus": "0",
+        "ExecStart": "{ path=/home/snowden/revix-work/revix/sut ; argv[]=/home/snowden/revix-work/revix/sut ; ignore_errors=no ; start_time=[Sun 2026-10-04 18:50:38 +05] ; stop_time=[n/a] ; pid=49525 ; code=(null) ; status=0/0 }",
+        "ExecStartEx": "{ path=/home/snowden/revix-work/revix/sut ; argv[]=/home/snowden/revix-work/revix/sut ; flags= ; start_time=[Sun 2026-10-04 18:50:38 +05] ; stop_time=[n/a] ; pid=49525 ; code=(null) ; status=0/0 }",
+        "ExitType": "main",
+        "ExtensionImagePolicy": "root=verity+signed+encrypted+unprotected+absent:usr=verity+signed+encrypted+unprotected+absent:home=encrypted+unprotected+absent:srv=encrypted+unprotected+absent:tmp=encrypted+unprotected+absent:var=encrypted+unprotected+absent",
+        "FailureAction": "none",
+        "FileDescriptorStoreMax": "0",
+        "FileDescriptorStorePreserve": "restart",
+        "FinalKillSignal": "9",
+        "FragmentPath": "/run/user/1000/systemd/transient/revix-bystander.service",
+        "FreezerState": "running",
+        "GID": "[not set]",
+        "GuessMainPID": "yes",
+        "IOAccounting": "no",
+        "IOReadBytes": "[not set]",
+        "IOReadOperations": "[not set]",
+        "IOSchedulingClass": "2",
+        "IOSchedulingPriority": "4",
+        "IOWeight": "[not set]",
+        "IOWriteBytes": "[not set]",
+        "IOWriteOperations": "[not set]",
+        "IPAccounting": "no",
+        "IPEgressBytes": "[no data]",
+        "IPEgressPackets": "[no data]",
+        "IPIngressBytes": "[no data]",
+        "IPIngressPackets": "[no data]",
+        "Id": "revix-bystander.service",
+        "IgnoreOnIsolate": "no",
+        "IgnoreSIGPIPE": "yes",
+        "InactiveEnterTimestampMonotonic": "0",
+        "InactiveExitTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "InactiveExitTimestampMonotonic": "25968172914",
+        "InvocationID": "09d0ac53e86c47ba8d147181a511e88d",
+        "JobRunningTimeoutUSec": "infinity",
+        "JobTimeoutAction": "none",
+        "JobTimeoutUSec": "infinity",
+        "KeyringMode": "inherit",
+        "KillMode": "control-group",
+        "KillSignal": "15",
+        "LimitAS": "infinity",
+        "LimitASSoft": "infinity",
+        "LimitCORE": "infinity",
+        "LimitCORESoft": "0",
+        "LimitCPU": "infinity",
+        "LimitCPUSoft": "infinity",
+        "LimitDATA": "infinity",
+        "LimitDATASoft": "infinity",
+        "LimitFSIZE": "infinity",
+        "LimitFSIZESoft": "infinity",
+        "LimitLOCKS": "infinity",
+        "LimitLOCKSSoft": "infinity",
+        "LimitMEMLOCK": "67108864",
+        "LimitMEMLOCKSoft": "67108864",
+        "LimitMSGQUEUE": "819200",
+        "LimitMSGQUEUESoft": "819200",
+        "LimitNICE": "0",
+        "LimitNICESoft": "0",
+        "LimitNOFILE": "1048576",
+        "LimitNOFILESoft": "1024",
+        "LimitNPROC": "39741",
+        "LimitNPROCSoft": "39741",
+        "LimitRSS": "infinity",
+        "LimitRSSSoft": "infinity",
+        "LimitRTPRIO": "0",
+        "LimitRTPRIOSoft": "0",
+        "LimitRTTIME": "infinity",
+        "LimitRTTIMESoft": "infinity",
+        "LimitSIGPENDING": "39741",
+        "LimitSIGPENDINGSoft": "39741",
+        "LimitSTACK": "infinity",
+        "LimitSTACKSoft": "8388608",
+        "LiveMountResult": "success",
+        "LoadState": "loaded",
+        "LockPersonality": "no",
+        "LogLevelMax": "-1",
+        "LogRateLimitBurst": "0",
+        "LogRateLimitIntervalUSec": "0",
+        "LogsDirectoryMode": "0755",
+        "MainPID": "49525",
+        "ManagedOOMMemoryPressure": "auto",
+        "ManagedOOMMemoryPressureDurationUSec": "[not set]",
+        "ManagedOOMMemoryPressureLimit": "0",
+        "ManagedOOMPreference": "none",
+        "ManagedOOMSwap": "auto",
+        "MemoryAccounting": "yes",
+        "MemoryAvailable": "133988352",
+        "MemoryCurrent": "229376",
+        "MemoryDenyWriteExecute": "no",
+        "MemoryHigh": "infinity",
+        "MemoryKSM": "no",
+        "MemoryLimit": "infinity",
+        "MemoryLow": "0",
+        "MemoryMax": "134217728",
+        "MemoryMin": "0",
+        "MemoryPeak": "1933312",
+        "MemoryPressureThresholdUSec": "200ms",
+        "MemoryPressureWatch": "auto",
+        "MemorySwapCurrent": "0",
+        "MemorySwapMax": "0",
+        "MemorySwapPeak": "0",
+        "MemoryZSwapCurrent": "[not set]",
+        "MemoryZSwapMax": "infinity",
+        "MemoryZSwapWriteback": "yes",
+        "MountAPIVFS": "no",
+        "MountImagePolicy": "root=verity+signed+encrypted+unprotected+absent:usr=verity+signed+encrypted+unprotected+absent:home=encrypted+unprotected+absent:srv=encrypted+unprotected+absent:tmp=encrypted+unprotected+absent:var=encrypted+unprotected+absent",
+        "NFileDescriptorStore": "0",
+        "NRestarts": "0",
+        "NUMAPolicy": "n/a",
+        "Names": "revix-bystander.service",
+        "NeedDaemonReload": "no",
+        "Nice": "0",
+        "NoNewPrivileges": "no",
+        "NonBlocking": "no",
+        "NotifyAccess": "main",
+        "OOMPolicy": "stop",
+        "OOMScoreAdjust": "200",
+        "OnFailureJobMode": "replace",
+        "OnSuccessJobMode": "fail",
+        "Perpetual": "no",
+        "PrivateDevices": "no",
+        "PrivateIPC": "no",
+        "PrivateMounts": "no",
+        "PrivateNetwork": "no",
+        "PrivatePIDs": "no",
+        "PrivateTmp": "no",
+        "PrivateTmpEx": "no",
+        "PrivateUsers": "no",
+        "PrivateUsersEx": "no",
+        "ProcSubset": "all",
+        "ProtectClock": "no",
+        "ProtectControlGroups": "no",
+        "ProtectControlGroupsEx": "no",
+        "ProtectHome": "no",
+        "ProtectHostname": "no",
+        "ProtectKernelLogs": "no",
+        "ProtectKernelModules": "no",
+        "ProtectKernelTunables": "no",
+        "ProtectProc": "default",
+        "ProtectSystem": "no",
+        "RefuseManualStart": "no",
+        "RefuseManualStop": "no",
+        "ReloadResult": "success",
+        "ReloadSignal": "1",
+        "RemainAfterExit": "no",
+        "RemoveIPC": "no",
+        "Requires": "basic.target revixlab.slice",
+        "RequiresMountsFor": "/home/snowden/revix-work",
+        "Restart": "no",
+        "RestartKillSignal": "15",
+        "RestartMaxDelayUSec": "infinity",
+        "RestartMode": "normal",
+        "RestartSteps": "0",
+        "RestartUSec": "100ms",
+        "RestartUSecNext": "100ms",
+        "RestrictNamespaces": "no",
+        "RestrictRealtime": "no",
+        "RestrictSUIDSGID": "no",
+        "Result": "success",
+        "RootDirectoryStartOnly": "no",
+        "RootEphemeral": "no",
+        "RootImagePolicy": "root=verity+signed+encrypted+unprotected+absent:usr=verity+signed+encrypted+unprotected+absent:home=encrypted+unprotected+absent:srv=encrypted+unprotected+absent:tmp=encrypted+unprotected+absent:var=encrypted+unprotected+absent",
+        "RuntimeDirectoryMode": "0755",
+        "RuntimeDirectoryPreserve": "no",
+        "RuntimeMaxUSec": "infinity",
+        "RuntimeRandomizedExtraUSec": "0",
+        "SameProcessGroup": "no",
+        "SecureBits": "0",
+        "SendSIGHUP": "no",
+        "SendSIGKILL": "yes",
+        "SetLoginEnvironment": "no",
+        "Slice": "revixlab.slice",
+        "StandardError": "null",
+        "StandardInput": "null",
+        "StandardOutput": "null",
+        "StartLimitAction": "none",
+        "StartLimitBurst": "0",
+        "StartLimitIntervalUSec": "10s",
+        "StartupBlockIOWeight": "[not set]",
+        "StartupCPUShares": "[not set]",
+        "StartupCPUWeight": "[not set]",
+        "StartupIOWeight": "[not set]",
+        "StartupMemoryHigh": "infinity",
+        "StartupMemoryLow": "0",
+        "StartupMemoryMax": "infinity",
+        "StartupMemorySwapMax": "infinity",
+        "StartupMemoryZSwapMax": "infinity",
+        "StateChangeTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "StateChangeTimestampMonotonic": "25968206516",
+        "StateDirectoryMode": "0755",
+        "StatusErrno": "0",
+        "StatusText": "revix-sut listening",
+        "StopWhenUnneeded": "no",
+        "SubState": "running",
+        "SuccessAction": "none",
+        "SurviveFinalKillSignal": "no",
+        "SyslogFacility": "3",
+        "SyslogLevel": "6",
+        "SyslogLevelPrefix": "yes",
+        "SyslogPriority": "30",
+        "SystemCallErrorNumber": "2147483646",
+        "TTYReset": "no",
+        "TTYVHangup": "no",
+        "TTYVTDisallocate": "no",
+        "TasksAccounting": "yes",
+        "TasksCurrent": "2",
+        "TasksMax": "64",
+        "TimeoutAbortUSec": "1min 30s",
+        "TimeoutCleanUSec": "infinity",
+        "TimeoutStartFailureMode": "terminate",
+        "TimeoutStartUSec": "10s",
+        "TimeoutStopFailureMode": "terminate",
+        "TimeoutStopUSec": "1min 30s",
+        "TimerSlackNSec": "50000",
+        "Transient": "yes",
+        "Type": "notify",
+        "UID": "[not set]",
+        "UMask": "0002",
+        "UnitFilePreset": "enabled",
+        "UnitFileState": "transient",
+        "UtmpMode": "init",
+        "WatchdogSignal": "6",
+        "WatchdogTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "WatchdogTimestampMonotonic": "25968206482",
+        "WatchdogUSec": "5s",
+        "WorkingDirectory": "/home/snowden/revix-work"
+      },
+      "property_count": 288,
+      "source": "systemctl --user show",
+      "systemctl_rc": 0,
+      "systemctl_stderr": null,
+      "unit": "revix-bystander.service"
+    },
+    "revix-sut.service": {
+      "alive_after": true,
+      "alive_before": true,
+      "dump_valid": true,
+      "load_state": "loaded",
+      "mono_us_dump_begin": 25968224395,
+      "mono_us_dump_end": 25968235806,
+      "properties": {
+        "ActiveEnterTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "ActiveEnterTimestampMonotonic": "25968218250",
+        "ActiveExitTimestampMonotonic": "0",
+        "ActiveState": "active",
+        "After": "-.mount revixlab.slice basic.target",
+        "AllowIsolate": "no",
+        "AssertResult": "yes",
+        "AssertTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "AssertTimestampMonotonic": "25968208581",
+        "Before": "shutdown.target",
+        "BindLogSockets": "no",
+        "BlockIOAccounting": "no",
+        "BlockIOWeight": "[not set]",
+        "CPUAccounting": "yes",
+        "CPUAffinityFromNUMA": "no",
+        "CPUQuotaPerSecUSec": "infinity",
+        "CPUQuotaPeriodUSec": "infinity",
+        "CPUSchedulingPolicy": "0",
+        "CPUSchedulingPriority": "0",
+        "CPUSchedulingResetOnFork": "no",
+        "CPUShares": "[not set]",
+        "CPUUsageNSec": "9121000",
+        "CPUWeight": "[not set]",
+        "CacheDirectoryMode": "0755",
+        "CanFreeze": "yes",
+        "CanIsolate": "no",
+        "CanLiveMount": "no",
+        "CanReload": "no",
+        "CanStart": "yes",
+        "CanStop": "yes",
+        "CapabilityBoundingSet": "cap_chown cap_dac_override cap_dac_read_search cap_fowner cap_fsetid cap_kill cap_setgid cap_setuid cap_setpcap cap_linux_immutable cap_net_bind_service cap_net_broadcast cap_net_admin cap_net_raw cap_ipc_lock cap_ipc_owner cap_sys_module cap_sys_rawio cap_sys_chroot cap_sys_ptrace cap_sys_pacct cap_sys_admin cap_sys_boot cap_sys_nice cap_sys_resource cap_sys_time cap_sys_tty_config cap_mknod cap_lease cap_audit_write cap_audit_control cap_setfcap cap_mac_override cap_mac_admin cap_syslog cap_wake_alarm cap_block_suspend cap_audit_read cap_perfmon cap_bpf cap_checkpoint_restore",
+        "CleanResult": "success",
+        "CollectMode": "inactive-or-failed",
+        "ConditionResult": "yes",
+        "ConditionTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "ConditionTimestampMonotonic": "25968208578",
+        "ConfigurationDirectoryMode": "0755",
+        "Conflicts": "shutdown.target",
+        "ControlGroup": "/user.slice/user-1000.slice/user@1000.service/revixlab.slice/revix-sut.service",
+        "ControlGroupId": "76529",
+        "ControlPID": "0",
+        "CoredumpFilter": "0x33",
+        "CoredumpReceive": "no",
+        "DebugInvocation": "no",
+        "DefaultDependencies": "yes",
+        "DefaultMemoryLow": "0",
+        "DefaultMemoryMin": "0",
+        "DefaultStartupMemoryLow": "0",
+        "Delegate": "no",
+        "Description": "REVIX sut",
+        "DevicePolicy": "auto",
+        "DynamicUser": "no",
+        "EffectiveMemoryHigh": "201326592",
+        "EffectiveMemoryMax": "268435456",
+        "EffectiveTasksMax": "64",
+        "Environment": "REVIX_SUT_SOCKET=/run/user/1000/revix-sut.sock REVIX_SUT_RATE_HZ=2000",
+        "ExecMainCode": "0",
+        "ExecMainExitTimestampMonotonic": "0",
+        "ExecMainHandoffTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "ExecMainHandoffTimestampMonotonic": "25968216663",
+        "ExecMainPID": "49527",
+        "ExecMainStartTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "ExecMainStartTimestampMonotonic": "25968209241",
+        "ExecMainStatus": "0",
+        "ExecStart": "{ path=/home/snowden/revix-work/revix/sut ; argv[]=/home/snowden/revix-work/revix/sut ; ignore_errors=no ; start_time=[Sun 2026-10-04 18:50:38 +05] ; stop_time=[n/a] ; pid=49527 ; code=(null) ; status=0/0 }",
+        "ExecStartEx": "{ path=/home/snowden/revix-work/revix/sut ; argv[]=/home/snowden/revix-work/revix/sut ; flags= ; start_time=[Sun 2026-10-04 18:50:38 +05] ; stop_time=[n/a] ; pid=49527 ; code=(null) ; status=0/0 }",
+        "ExitType": "main",
+        "ExtensionImagePolicy": "root=verity+signed+encrypted+unprotected+absent:usr=verity+signed+encrypted+unprotected+absent:home=encrypted+unprotected+absent:srv=encrypted+unprotected+absent:tmp=encrypted+unprotected+absent:var=encrypted+unprotected+absent",
+        "FailureAction": "none",
+        "FileDescriptorStoreMax": "0",
+        "FileDescriptorStorePreserve": "restart",
+        "FinalKillSignal": "9",
+        "FragmentPath": "/run/user/1000/systemd/transient/revix-sut.service",
+        "FreezerState": "running",
+        "GID": "[not set]",
+        "GuessMainPID": "yes",
+        "IOAccounting": "no",
+        "IOReadBytes": "[not set]",
+        "IOReadOperations": "[not set]",
+        "IOSchedulingClass": "2",
+        "IOSchedulingPriority": "4",
+        "IOWeight": "[not set]",
+        "IOWriteBytes": "[not set]",
+        "IOWriteOperations": "[not set]",
+        "IPAccounting": "no",
+        "IPEgressBytes": "[no data]",
+        "IPEgressPackets": "[no data]",
+        "IPIngressBytes": "[no data]",
+        "IPIngressPackets": "[no data]",
+        "Id": "revix-sut.service",
+        "IgnoreOnIsolate": "no",
+        "IgnoreSIGPIPE": "yes",
+        "InactiveEnterTimestampMonotonic": "0",
+        "InactiveExitTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "InactiveExitTimestampMonotonic": "25968209825",
+        "InvocationID": "2519141a12a84c1f9da80dd4fdf0b6ce",
+        "JobRunningTimeoutUSec": "infinity",
+        "JobTimeoutAction": "none",
+        "JobTimeoutUSec": "infinity",
+        "KeyringMode": "inherit",
+        "KillMode": "control-group",
+        "KillSignal": "15",
+        "LimitAS": "infinity",
+        "LimitASSoft": "infinity",
+        "LimitCORE": "infinity",
+        "LimitCORESoft": "0",
+        "LimitCPU": "infinity",
+        "LimitCPUSoft": "infinity",
+        "LimitDATA": "infinity",
+        "LimitDATASoft": "infinity",
+        "LimitFSIZE": "infinity",
+        "LimitFSIZESoft": "infinity",
+        "LimitLOCKS": "infinity",
+        "LimitLOCKSSoft": "infinity",
+        "LimitMEMLOCK": "67108864",
+        "LimitMEMLOCKSoft": "67108864",
+        "LimitMSGQUEUE": "819200",
+        "LimitMSGQUEUESoft": "819200",
+        "LimitNICE": "0",
+        "LimitNICESoft": "0",
+        "LimitNOFILE": "1048576",
+        "LimitNOFILESoft": "1024",
+        "LimitNPROC": "39741",
+        "LimitNPROCSoft": "39741",
+        "LimitRSS": "infinity",
+        "LimitRSSSoft": "infinity",
+        "LimitRTPRIO": "0",
+        "LimitRTPRIOSoft": "0",
+        "LimitRTTIME": "infinity",
+        "LimitRTTIMESoft": "infinity",
+        "LimitSIGPENDING": "39741",
+        "LimitSIGPENDINGSoft": "39741",
+        "LimitSTACK": "infinity",
+        "LimitSTACKSoft": "8388608",
+        "LiveMountResult": "success",
+        "LoadState": "loaded",
+        "LockPersonality": "no",
+        "LogLevelMax": "-1",
+        "LogRateLimitBurst": "0",
+        "LogRateLimitIntervalUSec": "0",
+        "LogsDirectoryMode": "0755",
+        "MainPID": "49527",
+        "ManagedOOMMemoryPressure": "auto",
+        "ManagedOOMMemoryPressureDurationUSec": "[not set]",
+        "ManagedOOMMemoryPressureLimit": "0",
+        "ManagedOOMPreference": "none",
+        "ManagedOOMSwap": "auto",
+        "MemoryAccounting": "yes",
+        "MemoryAvailable": "200679424",
+        "MemoryCurrent": "368640",
+        "MemoryDenyWriteExecute": "no",
+        "MemoryHigh": "infinity",
+        "MemoryKSM": "no",
+        "MemoryLimit": "infinity",
+        "MemoryLow": "0",
+        "MemoryMax": "268435456",
+        "MemoryMin": "0",
+        "MemoryPeak": "1835008",
+        "MemoryPressureThresholdUSec": "200ms",
+        "MemoryPressureWatch": "auto",
+        "MemorySwapCurrent": "0",
+        "MemorySwapMax": "0",
+        "MemorySwapPeak": "0",
+        "MemoryZSwapCurrent": "[not set]",
+        "MemoryZSwapMax": "infinity",
+        "MemoryZSwapWriteback": "yes",
+        "MountAPIVFS": "no",
+        "MountImagePolicy": "root=verity+signed+encrypted+unprotected+absent:usr=verity+signed+encrypted+unprotected+absent:home=encrypted+unprotected+absent:srv=encrypted+unprotected+absent:tmp=encrypted+unprotected+absent:var=encrypted+unprotected+absent",
+        "NFileDescriptorStore": "0",
+        "NRestarts": "0",
+        "NUMAPolicy": "n/a",
+        "Names": "revix-sut.service",
+        "NeedDaemonReload": "no",
+        "Nice": "0",
+        "NoNewPrivileges": "no",
+        "NonBlocking": "no",
+        "NotifyAccess": "main",
+        "OOMPolicy": "stop",
+        "OOMScoreAdjust": "200",
+        "OnFailureJobMode": "replace",
+        "OnSuccessJobMode": "fail",
+        "Perpetual": "no",
+        "PrivateDevices": "no",
+        "PrivateIPC": "no",
+        "PrivateMounts": "no",
+        "PrivateNetwork": "no",
+        "PrivatePIDs": "no",
+        "PrivateTmp": "no",
+        "PrivateTmpEx": "no",
+        "PrivateUsers": "no",
+        "PrivateUsersEx": "no",
+        "ProcSubset": "all",
+        "ProtectClock": "no",
+        "ProtectControlGroups": "no",
+        "ProtectControlGroupsEx": "no",
+        "ProtectHome": "no",
+        "ProtectHostname": "no",
+        "ProtectKernelLogs": "no",
+        "ProtectKernelModules": "no",
+        "ProtectKernelTunables": "no",
+        "ProtectProc": "default",
+        "ProtectSystem": "no",
+        "RefuseManualStart": "no",
+        "RefuseManualStop": "no",
+        "ReloadResult": "success",
+        "ReloadSignal": "1",
+        "RemainAfterExit": "no",
+        "RemoveIPC": "no",
+        "Requires": "basic.target revixlab.slice",
+        "RequiresMountsFor": "/home/snowden/revix-work",
+        "Restart": "on-failure",
+        "RestartKillSignal": "15",
+        "RestartMaxDelayUSec": "infinity",
+        "RestartMode": "normal",
+        "RestartSteps": "0",
+        "RestartUSec": "100ms",
+        "RestartUSecNext": "100ms",
+        "RestrictNamespaces": "no",
+        "RestrictRealtime": "no",
+        "RestrictSUIDSGID": "no",
+        "Result": "success",
+        "RootDirectoryStartOnly": "no",
+        "RootEphemeral": "no",
+        "RootImagePolicy": "root=verity+signed+encrypted+unprotected+absent:usr=verity+signed+encrypted+unprotected+absent:home=encrypted+unprotected+absent:srv=encrypted+unprotected+absent:tmp=encrypted+unprotected+absent:var=encrypted+unprotected+absent",
+        "RuntimeDirectoryMode": "0755",
+        "RuntimeDirectoryPreserve": "no",
+        "RuntimeMaxUSec": "infinity",
+        "RuntimeRandomizedExtraUSec": "0",
+        "SameProcessGroup": "no",
+        "SecureBits": "0",
+        "SendSIGHUP": "no",
+        "SendSIGKILL": "yes",
+        "SetLoginEnvironment": "no",
+        "Slice": "revixlab.slice",
+        "StandardError": "null",
+        "StandardInput": "null",
+        "StandardOutput": "null",
+        "StartLimitAction": "none",
+        "StartLimitBurst": "0",
+        "StartLimitIntervalUSec": "10s",
+        "StartupBlockIOWeight": "[not set]",
+        "StartupCPUShares": "[not set]",
+        "StartupCPUWeight": "[not set]",
+        "StartupIOWeight": "[not set]",
+        "StartupMemoryHigh": "infinity",
+        "StartupMemoryLow": "0",
+        "StartupMemoryMax": "infinity",
+        "StartupMemorySwapMax": "infinity",
+        "StartupMemoryZSwapMax": "infinity",
+        "StateChangeTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "StateChangeTimestampMonotonic": "25968218250",
+        "StateDirectoryMode": "0755",
+        "StatusErrno": "0",
+        "StatusText": "revix-sut listening",
+        "StopWhenUnneeded": "no",
+        "SubState": "running",
+        "SuccessAction": "none",
+        "SurviveFinalKillSignal": "no",
+        "SyslogFacility": "3",
+        "SyslogLevel": "6",
+        "SyslogLevelPrefix": "yes",
+        "SyslogPriority": "30",
+        "SystemCallErrorNumber": "2147483646",
+        "TTYReset": "no",
+        "TTYVHangup": "no",
+        "TTYVTDisallocate": "no",
+        "TasksAccounting": "yes",
+        "TasksCurrent": "2",
+        "TasksMax": "64",
+        "TimeoutAbortUSec": "1min 30s",
+        "TimeoutCleanUSec": "infinity",
+        "TimeoutStartFailureMode": "terminate",
+        "TimeoutStartUSec": "10s",
+        "TimeoutStopFailureMode": "terminate",
+        "TimeoutStopUSec": "1min 30s",
+        "TimerSlackNSec": "50000",
+        "Transient": "yes",
+        "Type": "notify",
+        "UID": "[not set]",
+        "UMask": "0002",
+        "UnitFilePreset": "enabled",
+        "UnitFileState": "transient",
+        "UtmpMode": "init",
+        "WatchdogSignal": "6",
+        "WatchdogTimestamp": "Sun 2026-10-04 18:50:38 +05",
+        "WatchdogTimestampMonotonic": "25968218215",
+        "WatchdogUSec": "5s",
+        "WorkingDirectory": "/home/snowden/revix-work"
+      },
+      "property_count": 288,
+      "source": "systemctl --user show",
+      "systemctl_rc": 0,
+      "systemctl_stderr": null,
+      "unit": "revix-sut.service"
+    }
+  },
+  "uptime_s_at_start": 25968.04,
+  "washout_policy": {
+    "memory_epsilon_bytes": 33554432,
+    "quiescence_rate": 0.05,
+    "t_q_s": 5.0,
+    "t_w_max_s": 120.0,
+    "t_w_s": 15.0
+  }
+}

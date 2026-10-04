@@ -1,0 +1,2290 @@
+{
+  "schema_version": 1,
+  "analysis_version": "p1/v1",
+  "preregistration_sha256": "f0c45722b231687c5e73a4a41e52517a6bd0ae96669c1d244211d18d8ac7b117",
+  "preregistration_version": "preregistration/v1.13",
+  "generated_mono_us": 36283227754,
+  "time_unit": "us",
+  "run_id": null,
+  "session_id": null,
+  "t_trial_us": 41100000,
+  "t_trial_formula": "T_trial = TrialTimeline.t_pressure_off + TrialTimeline.w_stab_s + P   (P = probe davri 100 ms, PREREGISTRATION.md §2); invariant: t_verify_end_earliest <= T_trial <= total_s",
+  "n_trials": {
+    "total": 120,
+    "by_disposition": {
+      "complete": 41,
+      "censored": 70,
+      "contaminated": 0,
+      "aborted_guard": 9,
+      "washout_timeout": 0,
+      "harness_error": 0
+    },
+    "vr_undetermined_in_binary_denominator": 0
+  },
+  "primary": {
+    "endpoint": "P(VR) trend across pressure levels",
+    "test": "cochran_armitage_trend",
+    "arm": "A",
+    "scope": "within arm A (PREREGISTRATION.md §16.2(A)); not pooled across arms",
+    "statistic": -3.720919136668115,
+    "p_value": 0.00019849899648617005,
+    "direction": "decreasing",
+    "cells": [
+      {
+        "level": "P0",
+        "arm": "A",
+        "k": 7,
+        "n": 7,
+        "p_hat": 1.0,
+        "ci_lower": 0.5903836027749966,
+        "ci_upper": 1.0,
+        "ci_method": "clopper_pearson"
+      },
+      {
+        "level": "P1",
+        "arm": "A",
+        "k": 5,
+        "n": 13,
+        "p_hat": 0.38461538461538464,
+        "ci_lower": 0.13857933889016064,
+        "ci_upper": 0.6842223970859369,
+        "ci_method": "clopper_pearson"
+      },
+      {
+        "level": "P2",
+        "arm": "A",
+        "k": 1,
+        "n": 11,
+        "p_hat": 0.09090909090909091,
+        "ci_lower": 0.002298972213814267,
+        "ci_upper": 0.4127799169883827,
+        "ci_method": "clopper_pearson"
+      }
+    ],
+    "ci_level": 0.95,
+    "risk_difference": {
+      "estimate": 0.9090909090909091,
+      "ci_lower": 0.45345587446749763,
+      "ci_upper": 0.9837678271141151,
+      "ci_method": "newcombe",
+      "contrast": "P0-P2"
+    },
+    "falsified": false,
+    "falsification_rule": "trend p>0.05 AND newcombe_upper<0.15",
+    "recovered_within_horizon": "13/31"
+  },
+  "survival": {
+    "km": {
+      "by_arm": {
+        "A": {
+          "times": [
+            8299974.0,
+            8299978.0,
+            8299979.0,
+            8299989.0,
+            8300009.0,
+            8300013.0,
+            8300015.0,
+            8300026.0,
+            8399972.0,
+            8399983.0,
+            8399989.0,
+            8400001.0,
+            8400002.0,
+            8500041.0,
+            8799967.0,
+            8899993.0,
+            9001027.0,
+            10300010.0
+          ],
+          "survival": [
+            0.9787234042553191,
+            0.9574468085106382,
+            0.9361702127659574,
+            0.9148936170212765,
+            0.8936170212765956,
+            0.8723404255319147,
+            0.8510638297872338,
+            0.829787234042553,
+            0.8085106382978721,
+            0.7872340425531913,
+            0.7659574468085105,
+            0.7446808510638296,
+            0.7234042553191488,
+            0.7021276595744679,
+            0.6808510638297871,
+            0.6595744680851062,
+            0.6382978723404253,
+            0.6170212765957445
+          ],
+          "at_risk": [
+            47,
+            46,
+            45,
+            44,
+            43,
+            42,
+            41,
+            40,
+            39,
+            38,
+            37,
+            36,
+            35,
+            34,
+            33,
+            32,
+            31,
+            30
+          ],
+          "greenwood_var": [
+            0.00044306174932336764,
+            0.000866859944328328,
+            0.0012713945850148808,
+            0.0016566656713830265,
+            0.0020226732034327646,
+            0.0023694171811640954,
+            0.0026968976045770193,
+            0.0030051144736715357,
+            0.0032940677884476448,
+            0.0035637575489053477,
+            0.0038141837550446428,
+            0.00404534640686553,
+            0.004257245504368009,
+            0.0044498810475520805,
+            0.004623253036417748,
+            0.004777361470965005,
+            0.004912206351193856,
+            0.0050277876771042986
+          ],
+          "n_events": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "n_total": 47,
+          "n_censored": 29,
+          "quantiles": {
+            "median": {
+              "estimate": 8399977.5,
+              "source": "bca_bootstrap_uncensored",
+              "ci_lower": 8300012.0,
+              "ci_upper": 8450021.5,
+              "ci_method": "bca",
+              "ci_basis": "uncensored_subsample",
+              "n_boot": 9999,
+              "rng_seed": [
+                1,
+                1,
+                0,
+                0
+              ],
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            },
+            "p90": {
+              "estimate": 8930303.2,
+              "source": "bca_bootstrap_uncensored",
+              "ci_lower": 8500041.0,
+              "ci_upper": 10300010.0,
+              "ci_method": "bca",
+              "ci_basis": "uncensored_subsample",
+              "n_boot": 9999,
+              "rng_seed": [
+                1,
+                1,
+                0,
+                1
+              ],
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            },
+            "p99": {
+              "estimate": 10079182.889999997,
+              "source": "bca_bootstrap_uncensored",
+              "ci_lower": 8966846.799999999,
+              "ci_upper": 10300010.0,
+              "ci_method": "bca",
+              "ci_basis": "uncensored_subsample",
+              "n_boot": 9999,
+              "rng_seed": [
+                1,
+                1,
+                0,
+                2
+              ],
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            }
+          }
+        },
+        "no_action": {
+          "times": [],
+          "survival": [],
+          "at_risk": [],
+          "greenwood_var": [],
+          "n_events": [],
+          "n_total": 54,
+          "n_censored": 54,
+          "quantiles": {
+            "median": {
+              "estimate": null,
+              "source": null,
+              "ci_lower": null,
+              "ci_upper": null,
+              "ci_method": null,
+              "ci_basis": null,
+              "n_boot": null,
+              "rng_seed": null,
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            },
+            "p90": {
+              "estimate": null,
+              "source": null,
+              "ci_lower": null,
+              "ci_upper": null,
+              "ci_method": null,
+              "ci_basis": null,
+              "n_boot": null,
+              "rng_seed": null,
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            },
+            "p99": {
+              "estimate": null,
+              "source": null,
+              "ci_lower": null,
+              "ci_upper": null,
+              "ci_method": null,
+              "ci_basis": null,
+              "n_boot": null,
+              "rng_seed": null,
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            }
+          }
+        }
+      },
+      "by_pressure_band": {
+        "P0": {
+          "times": [
+            8299974.0,
+            8299979.0,
+            8299989.0,
+            8300009.0,
+            8300013.0,
+            8300015.0,
+            8399972.0,
+            8399989.0,
+            8400001.0,
+            8400002.0
+          ],
+          "survival": [
+            0.9,
+            0.7999999999999999,
+            0.7,
+            0.6,
+            0.5,
+            0.4,
+            0.30000000000000004,
+            0.20000000000000004,
+            0.10000000000000002,
+            0.0
+          ],
+          "at_risk": [
+            10,
+            9,
+            8,
+            7,
+            6,
+            5,
+            4,
+            3,
+            2,
+            1
+          ],
+          "greenwood_var": [
+            0.009000000000000001,
+            0.015999999999999997,
+            0.020999999999999998,
+            0.024,
+            0.025,
+            0.024000000000000007,
+            0.021000000000000005,
+            0.016000000000000007,
+            0.009000000000000003,
+            0.0
+          ],
+          "n_events": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "n_total": 10,
+          "n_censored": 0,
+          "quantiles": {
+            "median": {
+              "estimate": 8300013.0,
+              "source": "kaplan_meier",
+              "ci_lower": null,
+              "ci_upper": null,
+              "ci_method": null,
+              "ci_basis": null,
+              "n_boot": null,
+              "rng_seed": null,
+              "note": "no confidence interval: stats.py provides no censoring-aware quantile CI (e.g. Brookmeyer-Crowley) and BCa bootstrap is invalid under censoring"
+            },
+            "p90": {
+              "estimate": 8400001.0,
+              "source": "kaplan_meier",
+              "ci_lower": null,
+              "ci_upper": null,
+              "ci_method": null,
+              "ci_basis": null,
+              "n_boot": null,
+              "rng_seed": null,
+              "note": "no confidence interval: stats.py provides no censoring-aware quantile CI (e.g. Brookmeyer-Crowley) and BCa bootstrap is invalid under censoring"
+            },
+            "p99": {
+              "estimate": 8400002.0,
+              "source": "kaplan_meier",
+              "ci_lower": null,
+              "ci_upper": null,
+              "ci_method": null,
+              "ci_basis": null,
+              "n_boot": null,
+              "rng_seed": null,
+              "note": "no confidence interval: stats.py provides no censoring-aware quantile CI (e.g. Brookmeyer-Crowley) and BCa bootstrap is invalid under censoring"
+            }
+          }
+        },
+        "P1": {
+          "times": [
+            8299978.0,
+            8300026.0,
+            8399983.0,
+            8500041.0,
+            9001027.0,
+            10300010.0
+          ],
+          "survival": [
+            0.9473684210526316,
+            0.8947368421052632,
+            0.8421052631578947,
+            0.7894736842105263,
+            0.736842105263158,
+            0.6842105263157896
+          ],
+          "at_risk": [
+            19,
+            18,
+            17,
+            16,
+            15,
+            14
+          ],
+          "greenwood_var": [
+            0.0026242892549934393,
+            0.004956990814987608,
+            0.006998104679982503,
+            0.00874763084997813,
+            0.010205569324974488,
+            0.011371920104971575
+          ],
+          "n_events": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "n_total": 19,
+          "n_censored": 13,
+          "quantiles": {
+            "median": {
+              "estimate": 8450012.0,
+              "source": "bca_bootstrap_uncensored",
+              "ci_lower": 8300002.0,
+              "ci_upper": 9650518.5,
+              "ci_method": "bca",
+              "ci_basis": "uncensored_subsample",
+              "n_boot": 9999,
+              "rng_seed": [
+                1,
+                3,
+                1,
+                0
+              ],
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            },
+            "p90": {
+              "estimate": 9650518.5,
+              "source": "bca_bootstrap_uncensored",
+              "ci_lower": 8750534.0,
+              "ci_upper": 10300010.0,
+              "ci_method": "bca",
+              "ci_basis": "uncensored_subsample",
+              "n_boot": 9999,
+              "rng_seed": [
+                1,
+                3,
+                1,
+                1
+              ],
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            },
+            "p99": {
+              "estimate": 10235060.85,
+              "source": "bca_bootstrap_uncensored",
+              "ci_lower": 8975977.7,
+              "ci_upper": 10300010.0,
+              "ci_method": "bca",
+              "ci_basis": "uncensored_subsample",
+              "n_boot": 9999,
+              "rng_seed": [
+                1,
+                3,
+                1,
+                2
+              ],
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            }
+          }
+        },
+        "P2": {
+          "times": [
+            8799967.0,
+            8899993.0
+          ],
+          "survival": [
+            0.9444444444444444,
+            0.8888888888888888
+          ],
+          "at_risk": [
+            18,
+            17
+          ],
+          "greenwood_var": [
+            0.002914951989026063,
+            0.0054869684499314125
+          ],
+          "n_events": [
+            1,
+            1
+          ],
+          "n_total": 18,
+          "n_censored": 16,
+          "quantiles": {
+            "median": {
+              "estimate": 8849980.0,
+              "source": "bca_bootstrap_uncensored",
+              "ci_lower": 8799967.0,
+              "ci_upper": 8899993.0,
+              "ci_method": "bca",
+              "ci_basis": "uncensored_subsample",
+              "n_boot": 9999,
+              "rng_seed": [
+                1,
+                3,
+                2,
+                0
+              ],
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            },
+            "p90": {
+              "estimate": 8889990.4,
+              "source": "bca_bootstrap_uncensored",
+              "ci_lower": 8799967.0,
+              "ci_upper": 8899993.0,
+              "ci_method": "bca",
+              "ci_basis": "uncensored_subsample",
+              "n_boot": 9999,
+              "rng_seed": [
+                1,
+                3,
+                2,
+                1
+              ],
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            },
+            "p99": {
+              "estimate": 8898992.74,
+              "source": "bca_bootstrap_uncensored",
+              "ci_lower": 8799967.0,
+              "ci_upper": 8899993.0,
+              "ci_method": "bca",
+              "ci_basis": "uncensored_subsample",
+              "n_boot": 9999,
+              "rng_seed": [
+                1,
+                3,
+                2,
+                2
+              ],
+              "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+            }
+          }
+        }
+      },
+      "by_pressure_band_scope": "within arm A (PREREGISTRATION.md §16.5); not pooled across arms"
+    },
+    "logrank": {
+      "chi2": 25.55398309353788,
+      "p_value": 4.301771103560598e-07,
+      "observed": {
+        "A": 18.0,
+        "no_action": 0.0
+      },
+      "expected": {
+        "A": 7.458647306842939,
+        "no_action": 10.54135269315706
+      },
+      "contrast": "A-no_action",
+      "by_pressure_band": {
+        "chi2": 36.990098328856014,
+        "p_value": 1.1873066162900552e-09,
+        "observed": {
+          "P0": 10.0,
+          "P2": 2.0
+        },
+        "expected": {
+          "P0": 2.2228667061390177,
+          "P2": 9.777133293860983
+        },
+        "contrast": "P0-P2"
+      }
+    },
+    "rmst": {
+      "tau": 8000000.0,
+      "by_arm": {
+        "A": {
+          "estimate": 8000000.0,
+          "se": 0.0
+        },
+        "no_action": {
+          "estimate": 8000000.0,
+          "se": 0.0
+        }
+      },
+      "difference": {
+        "contrast": "A-no_action",
+        "orientation": "A_minus_no_action",
+        "tau": 8000000.0,
+        "estimate": 0.0,
+        "se": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0
+      },
+      "by_pressure_band": {
+        "P0": {
+          "estimate": 8000000.0,
+          "se": 0.0
+        },
+        "P1": {
+          "estimate": 8000000.0,
+          "se": 0.0
+        },
+        "P2": {
+          "estimate": 8000000.0,
+          "se": 0.0
+        }
+      },
+      "pressure_difference": {
+        "contrast": "P0-P2",
+        "orientation": "P0_minus_P2",
+        "tau": 8000000.0,
+        "estimate": 0.0,
+        "se": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0
+      },
+      "fail_slow": {
+        "limb": "fail_slow",
+        "preregistration_section": "11",
+        "decision": "PREREGISTRATION.md §18.6 option F2 (thr = 0.20 * tau)",
+        "rule": "CI95_upper[RMST_A(P2, tau) - RMST_A(P0, tau)] < thr => fail-slow form NOT supported (strict: equality does NOT falsify)",
+        "contrast": "P2-P0",
+        "orientation": "P2_minus_P0",
+        "scope": "within arm A (PREREGISTRATION.md §16.5); not pooled across arms",
+        "tau": 8000000.0,
+        "thr": 1600000.0,
+        "thr_reference": "tau_F2",
+        "thr_coefficient": 0.2,
+        "thr_basis": "0.20 * tau",
+        "delta": 0.0,
+        "se": 0.0,
+        "ci_lower": 0.0,
+        "ci_upper": 0.0,
+        "ci_level": 0.95,
+        "ci_method": "rmst_difference_greenwood_normal",
+        "fail_slow_supported": null,
+        "bias": "thr = 0.20 * tau (PREREGISTRATION.md §18.6 option F2) is ANTI-CONSERVATIVE with respect to the fail-slow hypothesis: a larger thr makes CI95_upper[delta] < thr easier to satisfy, so 'fail-slow not supported' is easier to conclude than under F1 (thr = 0.20 * RMST(P0)). F1 was rejected because its refutation branch sits below the probe quantization floor: measured thr = 0.0600 s = 0.60 x P at P0, 0.1700 s = 1.70 x P at P1, 0.2050 s = 2.05 x P at P2 (docs/architecture/10-pressure-dozalash.md §7.5), against §18.6's adequacy threshold of 5 x P = 0.5 s. A pre-registered falsification criterion whose refutation branch cannot be reached is not a test. Both costs are stated in full in analyze.py fail_slow_threshold_us()."
+      },
+      "by_pressure_band_scope": "within arm A (PREREGISTRATION.md §16.5); not pooled across arms"
+    },
+    "proportional_hazards_checked": false,
+    "censoring": {
+      "n_censored": 83,
+      "n_undetermined": 0,
+      "recovered_within_horizon": "18/101"
+    }
+  },
+  "false_recovery": {
+    "fr_a": {
+      "per_action": 0.9166666666666666,
+      "per_episode": 0.7254901960784313,
+      "n_undetermined": 26,
+      "basis": {
+        "source": "episodes.jsonl (--episodes)",
+        "trial_set": "primary (disposition == complete)",
+        "n_trials": 76,
+        "n_episodes": 77,
+        "n_actions": 12,
+        "n_resolvable_per_episode": 51,
+        "n_resolvable_per_action": 12
+      }
+    },
+    "fr_b": {
+      "computed": false,
+      "reason": "no calibration matrix (P1)"
+    }
+  },
+  "downtime": {
+    "d_sd": {
+      "unit": "us",
+      "n": 76,
+      "n_censored": 45,
+      "n_missing": 0,
+      "censoring_flag": "d_sd_censored",
+      "recovered_within_horizon": "13/76",
+      "note": null,
+      "ecdf": {
+        "x": [
+          273067.0,
+          279128.0,
+          281934.0,
+          286582.0,
+          293063.0,
+          299009.0,
+          320374.0,
+          327969.0,
+          349158.0,
+          364284.0,
+          367522.0,
+          368064.0,
+          406788.0,
+          468675.0,
+          469873.0,
+          548878.0,
+          658075.0,
+          773536.0,
+          819002.0,
+          836199.0,
+          859767.0,
+          864275.0,
+          941838.0,
+          984056.0,
+          1024127.0,
+          1059556.0,
+          1125114.0,
+          1382270.0,
+          1527490.0,
+          1779672.0,
+          1827443.0
+        ],
+        "y": [
+          0.013157894736842146,
+          0.02631578947368418,
+          0.039473684210526216,
+          0.05263157894736836,
+          0.0657894736842104,
+          0.07894736842105243,
+          0.09210526315789447,
+          0.1052631578947365,
+          0.11842105263157854,
+          0.13157894736842068,
+          0.14473684210526283,
+          0.15789473684210487,
+          0.171052631578947,
+          0.18421052631578905,
+          0.1973684210526312,
+          0.21052631578947334,
+          0.22368421052631549,
+          0.23684210526315752,
+          0.24999999999999967,
+          0.2631578947368418,
+          0.27631578947368396,
+          0.2894736842105261,
+          0.30263157894736814,
+          0.3157894736842103,
+          0.32894736842105243,
+          0.3421052631578946,
+          0.3552631578947367,
+          0.36842105263157887,
+          0.381578947368421,
+          0.39473684210526316,
+          0.4078947368421053
+        ],
+        "method": "1 - kaplan_meier (step function; equals the plain ECDF when nothing is censored)"
+      },
+      "median": {
+        "estimate": 548878.0,
+        "source": "bca_bootstrap_uncensored",
+        "ci_lower": 367522.0,
+        "ci_upper": 859767.0,
+        "ci_method": "bca",
+        "ci_basis": "uncensored_subsample",
+        "n_boot": 9999,
+        "rng_seed": [
+          1,
+          2,
+          0,
+          0
+        ],
+        "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+      },
+      "p90": {
+        "estimate": 1382270.0,
+        "source": "bca_bootstrap_uncensored",
+        "ci_lower": 984056.0,
+        "ci_upper": 1827443.0,
+        "ci_method": "bca",
+        "ci_basis": "uncensored_subsample",
+        "n_boot": 9999,
+        "rng_seed": [
+          1,
+          2,
+          0,
+          1
+        ],
+        "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+      },
+      "p99": {
+        "estimate": 1813111.7,
+        "source": "bca_bootstrap_uncensored",
+        "ci_lower": 1583304.5999999996,
+        "ci_upper": 1827443.0,
+        "ci_method": "bca",
+        "ci_basis": "uncensored_subsample",
+        "n_boot": 9999,
+        "rng_seed": [
+          1,
+          2,
+          0,
+          2
+        ],
+        "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+      }
+    },
+    "d_probe": {
+      "unit": "us",
+      "n": 76,
+      "n_censored": 63,
+      "n_missing": 0,
+      "censoring_flag": "d_probe_censored",
+      "recovered_within_horizon": "13/76",
+      "note": null,
+      "ecdf": {
+        "x": [
+          399968.0,
+          399999.0,
+          400004.0,
+          400006.0,
+          400013.0,
+          400018.0,
+          400038.0,
+          499996.0,
+          500010.0,
+          500019.0,
+          999986.0,
+          1101057.0,
+          2900020.0
+        ],
+        "y": [
+          0.013157894736842146,
+          0.02631578947368418,
+          0.039473684210526216,
+          0.05263157894736836,
+          0.0657894736842104,
+          0.07894736842105243,
+          0.09210526315789447,
+          0.1052631578947365,
+          0.11842105263157854,
+          0.13157894736842068,
+          0.14473684210526283,
+          0.15789473684210487,
+          0.171052631578947
+        ],
+        "method": "1 - kaplan_meier (step function; equals the plain ECDF when nothing is censored)"
+      },
+      "median": {
+        "estimate": 400038.0,
+        "source": "bca_bootstrap_uncensored",
+        "ci_lower": 400006.0,
+        "ci_upper": 500019.0,
+        "ci_method": "bca",
+        "ci_basis": "uncensored_subsample",
+        "n_boot": 9999,
+        "rng_seed": [
+          1,
+          2,
+          1,
+          0
+        ],
+        "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+      },
+      "p90": {
+        "estimate": 1080842.8,
+        "source": "bca_bootstrap_uncensored",
+        "ci_lower": 500014.4,
+        "ci_upper": 2900020.0,
+        "ci_method": "bca",
+        "ci_basis": "uncensored_subsample",
+        "n_boot": 9999,
+        "rng_seed": [
+          1,
+          2,
+          1,
+          1
+        ],
+        "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+      },
+      "p99": {
+        "estimate": 2684144.439999998,
+        "source": "bca_bootstrap_uncensored",
+        "ci_lower": 1028932.4399999994,
+        "ci_upper": 2900020.0,
+        "ci_method": "bca",
+        "ci_basis": "uncensored_subsample",
+        "n_boot": 9999,
+        "rng_seed": [
+          1,
+          2,
+          1,
+          2
+        ],
+        "note": "fallback from Kaplan-Meier: km_quantile returned nan (documented limitation of stats.km_quantile); computed on the uncensored portion only, per §2.3 #8"
+      }
+    },
+    "d_eff": {
+      "unit": "us",
+      "n": 76,
+      "n_censored": null,
+      "n_missing": 0,
+      "censoring_flag": null,
+      "recovered_within_horizon": "13/76",
+      "note": "D_eff is horizon-truncated by construction (PREREGISTRATION.md §6.1 integral domain) and reduce.py emits no censoring flag for it; quantiles are those of the truncated measure",
+      "ecdf": {
+        "x": [
+          301615.9406060612,
+          303814.0775252526,
+          305803.43232323264,
+          313860.25696969737,
+          354995.0525837246,
+          401077.9494949489,
+          408477.91393939394,
+          421801.60121212166,
+          488290.75,
+          533922.7494443321,
+          702591.0799959602,
+          936436.3678282828,
+          953459.1694444441,
+          1067205.1721212124,
+          1102018.3282828282,
+          1106851.793408482,
+          1121779.8008181415,
+          1203344.3891105615,
+          1244281.3363838608,
+          1343277.581010101,
+          1397061.0361366621,
+          1619701.4257751252,
+          1946474.709090909,
+          2017989.9027777782,
+          2251312.134848485,
+          2800022.3627272723,
+          2889390.6028282824,
+          2973466.298277517,
+          3074041.339545454,
+          4314079.2867676765,
+          5321970.07,
+          17700000.0,
+          17900000.0,
+          18000000.0,
+          18100000.0
+        ],
+        "y": [
+          0.013157894736842146,
+          0.02631578947368418,
+          0.039473684210526216,
+          0.05263157894736836,
+          0.0657894736842104,
+          0.07894736842105243,
+          0.09210526315789447,
+          0.1052631578947365,
+          0.11842105263157854,
+          0.13157894736842068,
+          0.14473684210526283,
+          0.15789473684210487,
+          0.171052631578947,
+          0.18421052631578905,
+          0.1973684210526312,
+          0.21052631578947334,
+          0.22368421052631549,
+          0.23684210526315752,
+          0.24999999999999967,
+          0.2631578947368418,
+          0.27631578947368396,
+          0.2894736842105261,
+          0.30263157894736814,
+          0.3157894736842103,
+          0.32894736842105243,
+          0.3421052631578946,
+          0.3552631578947367,
+          0.36842105263157887,
+          0.381578947368421,
+          0.39473684210526316,
+          0.4078947368421053,
+          0.42105263157894746,
+          0.4342105263157896,
+          0.47368421052631593,
+          1.0
+        ],
+        "method": "1 - kaplan_meier (step function; equals the plain ECDF when nothing is censored)"
+      },
+      "median": {
+        "estimate": 18100000.0,
+        "source": "kaplan_meier",
+        "ci_lower": 4314079.2867676765,
+        "ci_upper": 18100000.0,
+        "ci_method": "percentile",
+        "ci_basis": "full_sample",
+        "n_boot": 9999,
+        "rng_seed": [
+          1,
+          2,
+          2,
+          0
+        ],
+        "note": "no censored observations: BCa interval uses the full sample"
+      },
+      "p90": {
+        "estimate": 18100000.0,
+        "source": "kaplan_meier",
+        "ci_lower": 18100000.0,
+        "ci_upper": 18100000.0,
+        "ci_method": "percentile",
+        "ci_basis": "full_sample",
+        "n_boot": 9999,
+        "rng_seed": [
+          1,
+          2,
+          2,
+          1
+        ],
+        "note": "no censored observations: BCa interval uses the full sample"
+      },
+      "p99": {
+        "estimate": 18100000.0,
+        "source": "kaplan_meier",
+        "ci_lower": 18100000.0,
+        "ci_upper": 18100000.0,
+        "ci_method": "percentile",
+        "ci_basis": "full_sample",
+        "n_boot": 9999,
+        "rng_seed": [
+          1,
+          2,
+          2,
+          2
+        ],
+        "note": "no censored observations: BCa interval uses the full sample"
+      }
+    }
+  },
+  "sensitivity": {
+    "w_stab": [
+      8.0,
+      10.0,
+      30.0,
+      60.0,
+      120.0
+    ],
+    "theta": [
+      0.5,
+      0.8,
+      0.95
+    ],
+    "grid": [
+      {
+        "w_stab": 8.0,
+        "theta": 0.5,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 7,
+            "n": 22,
+            "p_hat": 0.3181818181818182,
+            "n_excluded": 18
+          },
+          "P1": {
+            "k": 5,
+            "n": 28,
+            "p_hat": 0.17857142857142858,
+            "n_excluded": 12
+          },
+          "P2": {
+            "k": 1,
+            "n": 26,
+            "p_hat": 0.038461538461538464,
+            "n_excluded": 14
+          }
+        },
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 8.0,
+        "theta": 0.8,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 7,
+            "n": 22,
+            "p_hat": 0.3181818181818182,
+            "n_excluded": 18
+          },
+          "P1": {
+            "k": 5,
+            "n": 28,
+            "p_hat": 0.17857142857142858,
+            "n_excluded": 12
+          },
+          "P2": {
+            "k": 1,
+            "n": 26,
+            "p_hat": 0.038461538461538464,
+            "n_excluded": 14
+          }
+        },
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 8.0,
+        "theta": 0.95,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 7,
+            "n": 22,
+            "p_hat": 0.3181818181818182,
+            "n_excluded": 18
+          },
+          "P1": {
+            "k": 5,
+            "n": 28,
+            "p_hat": 0.17857142857142858,
+            "n_excluded": 12
+          },
+          "P2": {
+            "k": 1,
+            "n": 26,
+            "p_hat": 0.038461538461538464,
+            "n_excluded": 14
+          }
+        },
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 10.0,
+        "theta": 0.5,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 10.0,
+        "theta": 0.8,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 10.0,
+        "theta": 0.95,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 30.0,
+        "theta": 0.5,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 30.0,
+        "theta": 0.8,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 30.0,
+        "theta": 0.95,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 60.0,
+        "theta": 0.5,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "W_stab > T_trial: W_stab = 60.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 60.0,
+        "theta": 0.8,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "W_stab > T_trial: W_stab = 60.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 60.0,
+        "theta": 0.95,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "W_stab > T_trial: W_stab = 60.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 120.0,
+        "theta": 0.5,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "W_stab > T_trial: W_stab = 120.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 120.0,
+        "theta": 0.8,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "W_stab > T_trial: W_stab = 120.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "w_stab": 120.0,
+        "theta": 0.95,
+        "p_vr_by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_hat": 0.0,
+            "n_excluded": 25
+          }
+        },
+        "note": "W_stab > T_trial: W_stab = 120.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      }
+    ],
+    "recovered_within_horizon": "39/768"
+  },
+  "multiplicity": {
+    "method": "holm_bonferroni",
+    "family": [
+      {
+        "name": "primary: P(VR) trend across pressure levels (clean_crash)",
+        "test": "cochran_armitage_trend",
+        "fault_class": "clean_crash",
+        "p_value": 0.00019849899648617005,
+        "preregistration_section": "10.1"
+      }
+    ],
+    "adjusted": [
+      0.00019849899648617005
+    ],
+    "uncorrected": [
+      {
+        "name": "sensitivity: W_stab x theta sweep",
+        "label": "exploratory",
+        "preregistration_section": "4"
+      },
+      {
+        "name": "survival: log-rank between arms",
+        "label": "prespecified_secondary",
+        "preregistration_section": "10.2"
+      },
+      {
+        "name": "survival: RMST difference at tau = 8000000.0 us (8 s)",
+        "label": "prespecified_secondary",
+        "preregistration_section": "11"
+      },
+      {
+        "name": "downtime: d_sd / d_probe / d_eff quantiles",
+        "label": "prespecified_secondary",
+        "preregistration_section": "10.2"
+      }
+    ]
+  },
+  "exclusions": {
+    "rate": 0.36666666666666664,
+    "rate_set": "binary_p_vr_denominator",
+    "by_reason": {
+      "complete": 10,
+      "censored": 25,
+      "aborted_guard": 9
+    },
+    "n_total": 120,
+    "n_excluded": 44,
+    "n_primary": 76,
+    "by_set": {
+      "binary_p_vr_denominator": {
+        "set": "binary_p_vr_denominator",
+        "description": "denominator of the binary P(VR) endpoint (§10.1); membership decided by reduce.select_primary, which per §16.2(B) admits disposition_source == 'down_at_horizon' as an observed VR = false and excludes 'probe_gap' as unobserved",
+        "rate": 0.36666666666666664,
+        "rate_source": "reduction_summary",
+        "rate_recounted_here": 0.36666666666666664,
+        "n_total": 120,
+        "n_included": 76,
+        "n_excluded": 44,
+        "by_reason": {
+          "aborted_guard:guard_event": 9,
+          "censored:probe_gap": 23,
+          "censored:window_past_pressure": 2,
+          "vr_undetermined:no_episode": 10
+        },
+        "reducer_block": {
+          "n_total": 120,
+          "n_included": 76,
+          "n_excluded": 44,
+          "exclusion_rate": 0.36666666666666664,
+          "reasons": {
+            "aborted_guard:guard_event": 9,
+            "censored:probe_gap": 23,
+            "censored:window_past_pressure": 2,
+            "vr_undetermined:no_episode": 10
+          },
+          "analysis_set": "binary_pvr_denominator",
+          "by_cell": {
+            "A|P0": {
+              "n_total": 20,
+              "n_included": 7,
+              "n_excluded": 13,
+              "exclusion_rate": 0.65,
+              "reasons": {
+                "censored:probe_gap": 3,
+                "vr_undetermined:no_episode": 10
+              },
+              "analysis_set": "binary_pvr_denominator",
+              "cell": "A|P0",
+              "arm": "A",
+              "pressure_band": "P0"
+            },
+            "A|P1": {
+              "n_total": 20,
+              "n_included": 13,
+              "n_excluded": 7,
+              "exclusion_rate": 0.35,
+              "reasons": {
+                "aborted_guard:guard_event": 1,
+                "censored:probe_gap": 5,
+                "censored:window_past_pressure": 1
+              },
+              "analysis_set": "binary_pvr_denominator",
+              "cell": "A|P1",
+              "arm": "A",
+              "pressure_band": "P1"
+            },
+            "A|P2": {
+              "n_total": 20,
+              "n_included": 11,
+              "n_excluded": 9,
+              "exclusion_rate": 0.45,
+              "reasons": {
+                "aborted_guard:guard_event": 2,
+                "censored:probe_gap": 6,
+                "censored:window_past_pressure": 1
+              },
+              "analysis_set": "binary_pvr_denominator",
+              "cell": "A|P2",
+              "arm": "A",
+              "pressure_band": "P2"
+            },
+            "no_action|P0": {
+              "n_total": 20,
+              "n_included": 15,
+              "n_excluded": 5,
+              "exclusion_rate": 0.25,
+              "reasons": {
+                "censored:probe_gap": 5
+              },
+              "analysis_set": "binary_pvr_denominator",
+              "cell": "no_action|P0",
+              "arm": "no_action",
+              "pressure_band": "P0"
+            },
+            "no_action|P1": {
+              "n_total": 20,
+              "n_included": 15,
+              "n_excluded": 5,
+              "exclusion_rate": 0.25,
+              "reasons": {
+                "aborted_guard:guard_event": 3,
+                "censored:probe_gap": 2
+              },
+              "analysis_set": "binary_pvr_denominator",
+              "cell": "no_action|P1",
+              "arm": "no_action",
+              "pressure_band": "P1"
+            },
+            "no_action|P2": {
+              "n_total": 20,
+              "n_included": 15,
+              "n_excluded": 5,
+              "exclusion_rate": 0.25,
+              "reasons": {
+                "aborted_guard:guard_event": 3,
+                "censored:probe_gap": 2
+              },
+              "analysis_set": "binary_pvr_denominator",
+              "cell": "no_action|P2",
+              "arm": "no_action",
+              "pressure_band": "P2"
+            }
+          }
+        }
+      },
+      "survival_analysis_set": {
+        "set": "survival_analysis_set",
+        "description": "analysis set for survival / loop-rate / recovered k-of-n tables (§6.2); membership decided by reduce.select_survival; censored durations are included, never dropped",
+        "rate": 0.15833333333333333,
+        "rate_source": "reduction_summary",
+        "rate_recounted_here": 0.15833333333333333,
+        "n_total": 120,
+        "n_included": 101,
+        "n_excluded": 19,
+        "by_reason": {
+          "aborted_guard:guard_event": 9,
+          "vr_undetermined:no_episode": 10
+        },
+        "reducer_block": {
+          "n_total": 120,
+          "n_included": 101,
+          "n_excluded": 19,
+          "exclusion_rate": 0.15833333333333333,
+          "reasons": {
+            "aborted_guard:guard_event": 9,
+            "vr_undetermined:no_episode": 10
+          },
+          "analysis_set": "survival_analysis_set",
+          "by_cell": {
+            "A|P0": {
+              "n_total": 20,
+              "n_included": 10,
+              "n_excluded": 10,
+              "exclusion_rate": 0.5,
+              "reasons": {
+                "vr_undetermined:no_episode": 10
+              },
+              "analysis_set": "survival_analysis_set",
+              "cell": "A|P0",
+              "arm": "A",
+              "pressure_band": "P0"
+            },
+            "A|P1": {
+              "n_total": 20,
+              "n_included": 19,
+              "n_excluded": 1,
+              "exclusion_rate": 0.05,
+              "reasons": {
+                "aborted_guard:guard_event": 1
+              },
+              "analysis_set": "survival_analysis_set",
+              "cell": "A|P1",
+              "arm": "A",
+              "pressure_band": "P1"
+            },
+            "A|P2": {
+              "n_total": 20,
+              "n_included": 18,
+              "n_excluded": 2,
+              "exclusion_rate": 0.1,
+              "reasons": {
+                "aborted_guard:guard_event": 2
+              },
+              "analysis_set": "survival_analysis_set",
+              "cell": "A|P2",
+              "arm": "A",
+              "pressure_band": "P2"
+            },
+            "no_action|P0": {
+              "n_total": 20,
+              "n_included": 20,
+              "n_excluded": 0,
+              "exclusion_rate": 0.0,
+              "reasons": {},
+              "analysis_set": "survival_analysis_set",
+              "cell": "no_action|P0",
+              "arm": "no_action",
+              "pressure_band": "P0"
+            },
+            "no_action|P1": {
+              "n_total": 20,
+              "n_included": 17,
+              "n_excluded": 3,
+              "exclusion_rate": 0.15,
+              "reasons": {
+                "aborted_guard:guard_event": 3
+              },
+              "analysis_set": "survival_analysis_set",
+              "cell": "no_action|P1",
+              "arm": "no_action",
+              "pressure_band": "P1"
+            },
+            "no_action|P2": {
+              "n_total": 20,
+              "n_included": 17,
+              "n_excluded": 3,
+              "exclusion_rate": 0.15,
+              "reasons": {
+                "aborted_guard:guard_event": 3
+              },
+              "analysis_set": "survival_analysis_set",
+              "cell": "no_action|P2",
+              "arm": "no_action",
+              "pressure_band": "P2"
+            }
+          }
+        }
+      }
+    },
+    "window_fit_by_cell": {
+      "analysis_set": "binary_p_vr_denominator_exclusions_window_fit",
+      "description": "rate of disposition_source in ['window_past_pressure', 'window_past_horizon'] per (arm x pressure) cell (PREREGISTRATION.md §17.4(4)); these are excluded from the binary denominator because the §4 window was not observed, and enter KM/log-rank as censored durations (§6.2)",
+      "sources": [
+        "window_past_pressure",
+        "window_past_horizon"
+      ],
+      "by_cell": {
+        "A:P0": {
+          "arm": "A",
+          "pressure_band": "P0",
+          "n_total": 20,
+          "n_window_past": 0,
+          "rate": 0.0,
+          "by_source": {
+            "window_past_pressure": 0,
+            "window_past_horizon": 0
+          }
+        },
+        "A:P1": {
+          "arm": "A",
+          "pressure_band": "P1",
+          "n_total": 20,
+          "n_window_past": 1,
+          "rate": 0.05,
+          "by_source": {
+            "window_past_pressure": 1,
+            "window_past_horizon": 0
+          }
+        },
+        "A:P2": {
+          "arm": "A",
+          "pressure_band": "P2",
+          "n_total": 20,
+          "n_window_past": 1,
+          "rate": 0.05,
+          "by_source": {
+            "window_past_pressure": 1,
+            "window_past_horizon": 0
+          }
+        },
+        "no_action:P0": {
+          "arm": "no_action",
+          "pressure_band": "P0",
+          "n_total": 20,
+          "n_window_past": 0,
+          "rate": 0.0,
+          "by_source": {
+            "window_past_pressure": 0,
+            "window_past_horizon": 0
+          }
+        },
+        "no_action:P1": {
+          "arm": "no_action",
+          "pressure_band": "P1",
+          "n_total": 20,
+          "n_window_past": 0,
+          "rate": 0.0,
+          "by_source": {
+            "window_past_pressure": 0,
+            "window_past_horizon": 0
+          }
+        },
+        "no_action:P2": {
+          "arm": "no_action",
+          "pressure_band": "P2",
+          "n_total": 20,
+          "n_window_past": 0,
+          "rate": 0.0,
+          "by_source": {
+            "window_past_pressure": 0,
+            "window_past_horizon": 0
+          }
+        }
+      }
+    },
+    "unrecognised_disposition_sources": {},
+    "disposition_source_counts": {
+      "aborted_guard:guard_event": 9,
+      "censored:down_at_horizon": 45,
+      "censored:probe_gap": 23,
+      "censored:window_past_pressure": 2,
+      "complete:trial_end": 41
+    },
+    "defect_classes": {
+      "available": true,
+      "must_not_pool": true,
+      "injector_effectiveness": {
+        "n_total": 120,
+        "n_no_episode": 10,
+        "no_episode_rate": 0.08333333333333333,
+        "injection_effective_rate": 0.9166666666666666,
+        "gates_pilot": true,
+        "metric": "injector_effectiveness",
+        "rate_denominator": "all_trials_in_cell",
+        "vr_reasons": [
+          "no_episode"
+        ],
+        "must_not_pool_with": [
+          "instrumentation_loss"
+        ],
+        "excluded_from": [
+          "binary_pvr_denominator",
+          "survival_analysis_set"
+        ],
+        "by_cell": {
+          "A|P0": {
+            "n_total": 20,
+            "n_no_episode": 10,
+            "no_episode_rate": 0.5,
+            "injection_effective_rate": 0.5,
+            "gates_pilot": true,
+            "cell": "A|P0",
+            "arm": "A",
+            "pressure_band": "P0",
+            "metric": "injector_effectiveness",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "A|P1": {
+            "n_total": 20,
+            "n_no_episode": 0,
+            "no_episode_rate": 0.0,
+            "injection_effective_rate": 1.0,
+            "gates_pilot": false,
+            "cell": "A|P1",
+            "arm": "A",
+            "pressure_band": "P1",
+            "metric": "injector_effectiveness",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "A|P2": {
+            "n_total": 20,
+            "n_no_episode": 0,
+            "no_episode_rate": 0.0,
+            "injection_effective_rate": 1.0,
+            "gates_pilot": false,
+            "cell": "A|P2",
+            "arm": "A",
+            "pressure_band": "P2",
+            "metric": "injector_effectiveness",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "no_action|P0": {
+            "n_total": 20,
+            "n_no_episode": 0,
+            "no_episode_rate": 0.0,
+            "injection_effective_rate": 1.0,
+            "gates_pilot": false,
+            "cell": "no_action|P0",
+            "arm": "no_action",
+            "pressure_band": "P0",
+            "metric": "injector_effectiveness",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "no_action|P1": {
+            "n_total": 20,
+            "n_no_episode": 0,
+            "no_episode_rate": 0.0,
+            "injection_effective_rate": 1.0,
+            "gates_pilot": false,
+            "cell": "no_action|P1",
+            "arm": "no_action",
+            "pressure_band": "P1",
+            "metric": "injector_effectiveness",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "no_action|P2": {
+            "n_total": 20,
+            "n_no_episode": 0,
+            "no_episode_rate": 0.0,
+            "injection_effective_rate": 1.0,
+            "gates_pilot": false,
+            "cell": "no_action|P2",
+            "arm": "no_action",
+            "pressure_band": "P2",
+            "metric": "injector_effectiveness",
+            "rate_denominator": "all_trials_in_cell"
+          }
+        }
+      },
+      "injector_effectiveness_rate": 0.08333333333333333,
+      "instrumentation_loss": {
+        "n_total": 120,
+        "n_probe_gap": 23,
+        "n_band5_unmeasured": 0,
+        "n_instrumentation_loss": 23,
+        "instrumentation_loss_rate": 0.19166666666666668,
+        "metric": "instrumentation_loss",
+        "rate_denominator": "all_trials_in_cell",
+        "vr_reasons": [
+          "r_ref_unavailable",
+          "throughput_unmeasurable"
+        ],
+        "disposition_sources": [
+          "probe_gap"
+        ],
+        "must_not_pool_with": [
+          "injector_effectiveness"
+        ],
+        "excluded_from": [
+          "binary_pvr_denominator"
+        ],
+        "by_cell": {
+          "A|P0": {
+            "n_total": 20,
+            "n_probe_gap": 3,
+            "n_band5_unmeasured": 0,
+            "n_instrumentation_loss": 3,
+            "instrumentation_loss_rate": 0.15,
+            "cell": "A|P0",
+            "arm": "A",
+            "pressure_band": "P0",
+            "metric": "instrumentation_loss",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "A|P1": {
+            "n_total": 20,
+            "n_probe_gap": 5,
+            "n_band5_unmeasured": 0,
+            "n_instrumentation_loss": 5,
+            "instrumentation_loss_rate": 0.25,
+            "cell": "A|P1",
+            "arm": "A",
+            "pressure_band": "P1",
+            "metric": "instrumentation_loss",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "A|P2": {
+            "n_total": 20,
+            "n_probe_gap": 6,
+            "n_band5_unmeasured": 0,
+            "n_instrumentation_loss": 6,
+            "instrumentation_loss_rate": 0.3,
+            "cell": "A|P2",
+            "arm": "A",
+            "pressure_band": "P2",
+            "metric": "instrumentation_loss",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "no_action|P0": {
+            "n_total": 20,
+            "n_probe_gap": 5,
+            "n_band5_unmeasured": 0,
+            "n_instrumentation_loss": 5,
+            "instrumentation_loss_rate": 0.25,
+            "cell": "no_action|P0",
+            "arm": "no_action",
+            "pressure_band": "P0",
+            "metric": "instrumentation_loss",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "no_action|P1": {
+            "n_total": 20,
+            "n_probe_gap": 2,
+            "n_band5_unmeasured": 0,
+            "n_instrumentation_loss": 2,
+            "instrumentation_loss_rate": 0.1,
+            "cell": "no_action|P1",
+            "arm": "no_action",
+            "pressure_band": "P1",
+            "metric": "instrumentation_loss",
+            "rate_denominator": "all_trials_in_cell"
+          },
+          "no_action|P2": {
+            "n_total": 20,
+            "n_probe_gap": 2,
+            "n_band5_unmeasured": 0,
+            "n_instrumentation_loss": 2,
+            "instrumentation_loss_rate": 0.1,
+            "cell": "no_action|P2",
+            "arm": "no_action",
+            "pressure_band": "P2",
+            "metric": "instrumentation_loss",
+            "rate_denominator": "all_trials_in_cell"
+          }
+        }
+      },
+      "instrumentation_loss_rate": 0.19166666666666668,
+      "pilot_gated_by_injector_effectiveness": true
+    }
+  },
+  "warnings": [
+    {
+      "code": "primary_scope_other_arms_excluded",
+      "where": "primary",
+      "message": "45/76 birlamchi trial arm `A` dan tashqarida -- §16.2(A) ga ko'ra trend testi arm ichida hisoblanadi (pooling `P(VR|P0)-P(VR|P2)` ni `0-0=0` ga intiltirib falsifikatsiya mezonini TRIVIAL qilardi). Bu trial'lar KM/log-rank, loop-rate va har jadvalning `k/n` qatorida QOLADI (§6.2) va §8.2 ning PSI atributsiyasi uchun ishlatiladi -- yashirilmaydi"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_arm.A.median",
+      "message": "KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=18)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_arm.A.p90",
+      "message": "KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=18)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_arm.A.p99",
+      "message": "KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=18)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_arm.no_action.median",
+      "message": "KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=0)"
+    },
+    {
+      "code": "bootstrap_no_data",
+      "where": "survival.km.by_arm.no_action.median",
+      "message": "bootstrap uchun kuzatuv yo'q -- kvantil hisoblanmaydi"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_arm.no_action.p90",
+      "message": "KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=0)"
+    },
+    {
+      "code": "bootstrap_no_data",
+      "where": "survival.km.by_arm.no_action.p90",
+      "message": "bootstrap uchun kuzatuv yo'q -- kvantil hisoblanmaydi"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_arm.no_action.p99",
+      "message": "KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=0)"
+    },
+    {
+      "code": "bootstrap_no_data",
+      "where": "survival.km.by_arm.no_action.p99",
+      "message": "bootstrap uchun kuzatuv yo'q -- kvantil hisoblanmaydi"
+    },
+    {
+      "code": "rmst_difference_degenerate",
+      "where": "survival.rmst.difference",
+      "message": "RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_pressure_band.P1.median",
+      "message": "KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=6)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_pressure_band.P1.p90",
+      "message": "KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=6)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_pressure_band.P1.p99",
+      "message": "KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=6)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_pressure_band.P2.median",
+      "message": "KM egri chizig'i median ga (0.50 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=2)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_pressure_band.P2.p90",
+      "message": "KM egri chizig'i p90 ga (0.10 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=2)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "survival.km.by_pressure_band.P2.p99",
+      "message": "KM egri chizig'i p99 ga (0.01 survival) tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap'ga qaytiladi (n_uncensored=2)"
+    },
+    {
+      "code": "rmst_pressure_difference_degenerate",
+      "where": "survival.rmst.pressure_difference",
+      "message": "RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi"
+    },
+    {
+      "code": "fail_slow_delta_degenerate",
+      "where": "survival.rmst.fail_slow",
+      "message": "RMST farqining standard error'i nol yoki aniqlanmagan -- CI MA'NOSIZ, talqin qilinmaydi"
+    },
+    {
+      "code": "fail_slow_threshold_reference_f2",
+      "where": "survival.rmst.fail_slow",
+      "message": "§11 ning fail-slow limbi §18.6 ning F2 varianti bilan hisoblandi: `thr = 0.20 x tau = 1.6 s`, REFERENS `tau` -- §18.2 matndan o'qigan `RMST(P0)` EMAS. Sabab: F1 ning chegarasi o'lchangan holda `5 x P` dan past (`P0` 0.0600 s = 0.60 x P, `P1` 0.1700 s, `P2` 0.2050 s; `docs/architecture/10-pressure-dozalash.md` §7.5), demak F1 ning INKOR shoxiga erishib bo'lmaydi. OCHIQ BIAS: kattaroq `thr` `CI95_upper[Delta] < thr` ni osonlashtiradi, ya'ni F2 fail-slow gipotezasiga nisbatan ANTI-KONSERVATIV. Ratifikatsiya: `PREREGISTRATION.md` v1.11 amendment'i"
+    },
+    {
+      "code": "fail_slow_not_evaluable",
+      "where": "survival.rmst.fail_slow",
+      "message": "§11 ning fail-slow mezoni BAHOLANMAYDI: `Delta` ning SE'si nol yoki aniqlanmagan, demak CI DEGENERAT va `CI95_upper < thr` taqqoslashi ma'lumotdan emas, ARIFMETIKADAN javob berardi (§21.1(b)). Kirishlar (`delta`, `ci_lower`, `ci_upper`) ko'rinishda qoladi, HUKM esa `null`"
+    },
+    {
+      "code": "fr_a_episodes_outside_primary",
+      "where": "false_recovery.fr_a",
+      "message": "35/112 epizod birlamchi bo'lmagan trial'ga tegishli -- FR-A birlamchi to'plamdan hisoblanadi (§12), demak ular kirmaydi"
+    },
+    {
+      "code": "fr_a_episode_without_action",
+      "where": "false_recovery.fr_a.per_action",
+      "message": "65/77 epizodda action yo'q (masalan `no_action` arm) -- per-action FR-A u yerda TA'RIFLANMAGAN va denominatorga kirmaydi; nol deb olinmaydi"
+    },
+    {
+      "code": "fr_a_undetermined",
+      "where": "false_recovery.fr_a.per_episode",
+      "message": "26/77 epizod: FR-A aniqlanmagan (None) -- VR yoki aktor da'vosi o'lchanmagan; denominatorga kirmaydi"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "downtime.d_sd.median",
+      "message": "KM egri chizig'i median ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "downtime.d_sd.p90",
+      "message": "KM egri chizig'i p90 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "downtime.d_sd.p99",
+      "message": "KM egri chizig'i p99 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=31)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "downtime.d_probe.median",
+      "message": "KM egri chizig'i median ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "downtime.d_probe.p90",
+      "message": "KM egri chizig'i p90 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)"
+    },
+    {
+      "code": "km_quantile_nan",
+      "where": "downtime.d_probe.p99",
+      "message": "KM egri chizig'i p99 ga tushmadi -- §2.3 #8 bo'yicha CENSORED BO'LMAGAN qism ustida BCa bootstrap (n_uncensored=13)"
+    },
+    {
+      "code": "bootstrap_warning",
+      "where": "downtime.d_eff.median",
+      "message": "BCa interval degenerativ (NaN) -- percentile'ga qaytildi; natijaning method maydoni 'percentile'"
+    },
+    {
+      "code": "bootstrap_method_fallback",
+      "where": "downtime.d_eff.median",
+      "message": "so'ralgan metod 'bca', ishlatilgani 'percentile' -- hisobotda ISHLATILGANI beriladi"
+    },
+    {
+      "code": "bootstrap_warning",
+      "where": "downtime.d_eff.p90",
+      "message": "BCa interval degenerativ (NaN) -- percentile'ga qaytildi; natijaning method maydoni 'percentile'"
+    },
+    {
+      "code": "bootstrap_method_fallback",
+      "where": "downtime.d_eff.p90",
+      "message": "so'ralgan metod 'bca', ishlatilgani 'percentile' -- hisobotda ISHLATILGANI beriladi"
+    },
+    {
+      "code": "bootstrap_warning",
+      "where": "downtime.d_eff.p99",
+      "message": "BCa interval degenerativ (NaN) -- percentile'ga qaytildi; natijaning method maydoni 'percentile'"
+    },
+    {
+      "code": "bootstrap_method_fallback",
+      "where": "downtime.d_eff.p99",
+      "message": "so'ralgan metod 'bca', ishlatilgani 'percentile' -- hisobotda ISHLATILGANI beriladi"
+    },
+    {
+      "code": "window_fit_exclusions_present",
+      "where": "exclusions.window_fit_by_cell",
+      "message": "§17 ning oyna-sig'ish eksklyuziyasi mavjud: eng yuqori daraja `A:P2` yacheykasida (0.050). §17.4(4): `P2` da to'plangan yuqori daraja O'ZI NATIJA -- u dizayn qiziqtirgan yacheykani o'lchay olmaganini bildiradi, va yashirilmaydi"
+    },
+    {
+      "code": "pilot_gated_by_injector_effectiveness",
+      "where": "exclusions.defect_classes.injector_effectiveness",
+      "message": "PILOT GATE QILINGAN: `no_episode` darajasi nolga teng emas (n_no_episode=10, rate=0.08333333333333333). §20.3: `no_episode` NATIJA emas, INJEKSIYA ISHLAMAGANINI bildiradi, va §9.2 ning to'rtala mexanizmi ham injeksiyaning ishlashini nazarda tutadi -- demak bu daraja nolga tushmaguncha birlamchi endpoint TALQIN QILINMAYDI"
+    }
+  ],
+  "probe_cost": {
+    "budget_percent": 1.0,
+    "by_arm": {
+      "no_action": {
+        "core_percent": [
+          0.4066906320821184,
+          0.3694560909768172,
+          0.4093400824836474,
+          0.3736267451205171,
+          0.3802433675469981,
+          0.38322921713189095,
+          0.4651783193750524,
+          0.4067935534821774,
+          0.3859429067692854,
+          0.3881084359400353,
+          0.4221705663012755,
+          0.3732190213776616,
+          0.39484153201694144,
+          0.4298145409731005,
+          0.3843635038383012,
+          0.3975773268336322,
+          0.3306174827387991,
+          0.3422944192051158,
+          0.37794617366694394,
+          0.3390204889684154,
+          0.3361211295194018,
+          0.3637199517712753,
+          0.46232441263958196,
+          0.34506833201221787,
+          0.3669861206987681,
+          0.36756194400143094,
+          0.40192296593116783,
+          0.3868569596658697,
+          0.43355057379614304,
+          0.3639699525935107,
+          0.3432535937433278,
+          0.4782831823230334,
+          0.9312761742475346,
+          0.8951049159989235,
+          0.5270332967966529,
+          0.6350579038176606,
+          0.4048083811842757,
+          0.4128113229451231,
+          0.6381550721197189,
+          0.7023675713892303,
+          0.463885590493918,
+          0.3828872029115992,
+          0.550891369706349,
+          0.6824461236299907,
+          0.7104314949206905,
+          0.3744482553582645,
+          0.34106885362209055,
+          0.38738905855712086,
+          0.4454271961340013,
+          0.4168238949694962,
+          1.0419929733227413,
+          1.2262449508853062,
+          0.47971301951640155,
+          0.3973690629417187,
+          0.43813193425961433,
+          1.2318600848402999,
+          0.5117074800537097,
+          0.38775341191971746,
+          0.4958672253206322,
+          0.4866894109648927
+        ]
+      },
+      "A": {
+        "core_percent": [
+          0.46235261386207477,
+          0.4277179705970793,
+          0.36834126670277606,
+          0.4286765923658914,
+          0.45041238289058827,
+          0.3999363052280518,
+          0.43757561189206967,
+          0.40776588873524117,
+          0.42715457904349247,
+          0.4238901030316527,
+          0.45413702720917243,
+          0.4315609444214997,
+          0.41297601893003616,
+          0.45412757314596924,
+          0.3997406741073068,
+          0.440524203954241,
+          0.395433275678016,
+          0.4279745387060243,
+          0.3746503871345144,
+          0.4150838171276987,
+          0.4495386483476758,
+          0.43358258829130436,
+          0.36565458415466806,
+          0.39078900750466994,
+          0.37795390924570194,
+          0.39381972488894307,
+          0.5053055706355053,
+          0.3936691974057,
+          0.3624662488363482,
+          0.39633792709011173,
+          0.3891902462272346,
+          0.4710102675911988,
+          0.6893106933395364,
+          0.6591122197769357,
+          0.6423296079721684,
+          0.7088231213335644,
+          0.44830166606384797,
+          0.7776035257159275,
+          1.4550703539867764,
+          0.6356857867144551,
+          0.39702975069716656,
+          0.4924708777825749,
+          1.1619500895157164,
+          0.6719390432460723,
+          0.827721552774834,
+          0.3547706947327951,
+          0.4334282085051297,
+          0.6351393399624286,
+          0.828467393269125,
+          0.4203802515205539,
+          1.3358535325591276,
+          0.7464683080674858,
+          0.7532743603901728,
+          0.4042549621343222,
+          0.4882192958517441,
+          1.153824521128005,
+          0.9565373065269837,
+          0.8516047885197324,
+          0.5819743655134657,
+          0.5633574937899861
+        ]
+      }
+    },
+    "source": "events.jsonl prober_stop.cost (--events)"
+  }
+}

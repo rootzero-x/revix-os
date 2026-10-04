@@ -1,0 +1,520 @@
+{
+  "analysis_warnings": {
+    "relevant": [],
+    "total": 38
+  },
+  "contract": "driver-contract/v1 §3",
+  "data": {
+    "cell_notes": [
+      {
+        "cells": [
+          [
+            8.0,
+            0.5
+          ],
+          [
+            8.0,
+            0.8
+          ],
+          [
+            8.0,
+            0.95
+          ],
+          [
+            10.0,
+            0.5
+          ],
+          [
+            10.0,
+            0.8
+          ],
+          [
+            10.0,
+            0.95
+          ]
+        ],
+        "index": 1,
+        "text": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "cells": [
+          [
+            30.0,
+            0.5
+          ],
+          [
+            30.0,
+            0.8
+          ],
+          [
+            30.0,
+            0.95
+          ]
+        ],
+        "index": 2,
+        "text": "window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "cells": [
+          [
+            60.0,
+            0.5
+          ],
+          [
+            60.0,
+            0.8
+          ],
+          [
+            60.0,
+            0.95
+          ]
+        ],
+        "index": 3,
+        "text": "W_stab > T_trial: W_stab = 60.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      },
+      {
+        "cells": [
+          [
+            120.0,
+            0.5
+          ],
+          [
+            120.0,
+            0.8
+          ],
+          [
+            120.0,
+            0.95
+          ]
+        ],
+        "index": 4,
+        "text": "W_stab > T_trial: W_stab = 120.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+      }
+    ],
+    "cells": [
+      {
+        "by_level": {
+          "P0": {
+            "k": 7,
+            "n": 22,
+            "p_vr": 0.3181818181818182
+          },
+          "P1": {
+            "k": 5,
+            "n": 28,
+            "p_vr": 0.17857142857142858
+          },
+          "P2": {
+            "k": 1,
+            "n": 26,
+            "p_vr": 0.038461538461538464
+          }
+        },
+        "has_cell": true,
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 1,
+        "theta": 0.5,
+        "w_stab": 8.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 7,
+            "n": 22,
+            "p_vr": 0.3181818181818182
+          },
+          "P1": {
+            "k": 5,
+            "n": 28,
+            "p_vr": 0.17857142857142858
+          },
+          "P2": {
+            "k": 1,
+            "n": 26,
+            "p_vr": 0.038461538461538464
+          }
+        },
+        "has_cell": true,
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 1,
+        "theta": 0.8,
+        "w_stab": 8.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 7,
+            "n": 22,
+            "p_vr": 0.3181818181818182
+          },
+          "P1": {
+            "k": 5,
+            "n": 28,
+            "p_vr": 0.17857142857142858
+          },
+          "P2": {
+            "k": 1,
+            "n": 26,
+            "p_vr": 0.038461538461538464
+          }
+        },
+        "has_cell": true,
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 1,
+        "theta": 0.95,
+        "w_stab": 8.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 1,
+        "theta": 0.5,
+        "w_stab": 10.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 1,
+        "theta": 0.8,
+        "w_stab": 10.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 1,
+        "theta": 0.95,
+        "w_stab": 10.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 2,
+        "theta": 0.5,
+        "w_stab": 30.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 2,
+        "theta": 0.8,
+        "w_stab": 30.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 2,
+        "theta": 0.95,
+        "w_stab": 30.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "W_stab > T_trial: W_stab = 60.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 3,
+        "theta": 0.5,
+        "w_stab": 60.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "W_stab > T_trial: W_stab = 60.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 3,
+        "theta": 0.8,
+        "w_stab": 60.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "W_stab > T_trial: W_stab = 60.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 3,
+        "theta": 0.95,
+        "w_stab": 60.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "W_stab > T_trial: W_stab = 120.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 4,
+        "theta": 0.5,
+        "w_stab": 120.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "W_stab > T_trial: W_stab = 120.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 4,
+        "theta": 0.8,
+        "w_stab": 120.0
+      },
+      {
+        "by_level": {
+          "P0": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P1": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          },
+          "P2": {
+            "k": 0,
+            "n": 15,
+            "p_vr": 0.0
+          }
+        },
+        "has_cell": true,
+        "note": "W_stab > T_trial: W_stab = 120.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+        "note_index": 4,
+        "theta": 0.95,
+        "w_stab": 120.0
+      }
+    ],
+    "horizon": {
+      "axis_value": null,
+      "seconds": 41.1,
+      "t_trial_us": 41100000
+    },
+    "levels": [
+      "P0",
+      "P1",
+      "P2"
+    ],
+    "pilot": {
+      "in_grid": true,
+      "theta": 0.8,
+      "w_stab": 8.0
+    },
+    "theta": [
+      0.5,
+      0.8,
+      0.95
+    ],
+    "w_stab_s": [
+      8.0,
+      10.0,
+      30.0,
+      60.0,
+      120.0
+    ]
+  },
+  "figure": "sensitivity_heatmap",
+  "figures_version": 1,
+  "missing": [],
+  "notes": [
+    "[1] cell note (W_stab=8 s/theta=0.5, W_stab=8 s/theta=0.8, W_stab=8 s/theta=0.95, W_stab=10 s/theta=0.5, W_stab=10 s/theta=0.8, W_stab=10 s/theta=0.95): vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+    "[2] cell note (W_stab=30 s/theta=0.5, W_stab=30 s/theta=0.8, W_stab=30 s/theta=0.95): window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+    "[3] cell note (W_stab=60 s/theta=0.5, W_stab=60 s/theta=0.8, W_stab=60 s/theta=0.95): W_stab > T_trial: W_stab = 60.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+    "[4] cell note (W_stab=120 s/theta=0.5, W_stab=120 s/theta=0.8, W_stab=120 s/theta=0.95): W_stab > T_trial: W_stab = 120.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)"
+  ],
+  "placeholder_reason": null,
+  "problems": [],
+  "source": {
+    "analysis_version": "p1/v1",
+    "file": "analysis.json",
+    "generated_mono_us": 36283227754,
+    "preregistration_sha256": "f0c45722b231687c5e73a4a41e52517a6bd0ae96669c1d244211d18d8ac7b117",
+    "schema_version": 1,
+    "sha256": "e980b3710c26e70308229a70e622405ad553a810cdc2834c67e9af8e6394d7b8"
+  },
+  "status": "ok",
+  "subtitle": "pre-registered grid (§4); one panel per pressure level",
+  "text": {
+    "main": [
+      "T_trial = 41.1 s: a cell with W_stab > horizon cannot be verified and is flagged by the analysis note [n] (drawn as n/a, never as 0 or interpolated)",
+      "bold border: pre-registered pilot parameters W_stab = 8 s, theta = 0.8 (§4)"
+    ],
+    "small": [
+      "NOTE: [1] cell note (W_stab=8 s/theta=0.5, W_stab=8 s/theta=0.8, W_stab=8 s/theta=0.95, W_stab=10 s/theta=0.5, W_stab=10 s/theta=0.8, W_stab=10 s/theta=0.95): vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+      "NOTE: [2] cell note (W_stab=30 s/theta=0.5, W_stab=30 s/theta=0.8, W_stab=30 s/theta=0.95): window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+      "NOTE: [3] cell note (W_stab=60 s/theta=0.5, W_stab=60 s/theta=0.8, W_stab=60 s/theta=0.95): W_stab > T_trial: W_stab = 60.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+      "NOTE: [4] cell note (W_stab=120 s/theta=0.5, W_stab=120 s/theta=0.8, W_stab=120 s/theta=0.95): W_stab > T_trial: W_stab = 120.0 s exceeds the trial horizon T_trial = 41100000 us, so the stabilisation window cannot be fully observed; reduce.py returns vr=None (window_truncated) and a fall in P(VR) here would be a horizon artefact, not a physical result | window_truncated for 12/120 trial(s): reduce.py returned vr=None, so these are excluded from the denominator (never counted as a failed VR) | vr undetermined for 10 further trial(s) for reasons other than window truncation (e.g. r_ref unavailable); also excluded from the denominator (PREREGISTRATION.md §20.2)",
+      "analysis.json warnings: 38 in total, 0 relevant to this figure",
+      "source: analysis.json sha256 e980b3710c26…   analysis_version = p1/v1   preregistration_sha256 = f0c45722b231…   figure = sensitivity_heatmap (figures.py v1)"
+    ]
+  },
+  "title": "Sensitivity sweep: P(VR) over W_stab x theta"
+}
