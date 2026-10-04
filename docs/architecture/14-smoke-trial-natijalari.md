@@ -467,3 +467,59 @@ Har qanday variantdan keyin `P2` smoke'i qayta bajarilishi kerak.
 - Qayta tekshirish: `zstd -d` bilan ochib,
   `python3 -m revix.validate --run-dir <dir> --sut-unit revix-sut.service --sut-target sut`;
   `python3 datasets/smoke-tools/smoke_analyze.py <dir>`.
+
+---
+
+## 10. V2 — OLDINDAN qayd etilgan mezon (yangi trial'lardan OLDIN commit qilindi)
+
+> Bu bo'lim V2 kodi yozilishidan va birorta yangi trial ishga
+> tushirilishidan **OLDIN** yozildi va o'z commit'ida qayd etildi. Keyingi
+> commit'larda **o'zgartirilmaydi**; natija §11 da alohida yoziladi.
+
+**Qaror (orkestrator, 2026-10-04):** §6 ning **V2** varianti. Generator
+`hold_start − R` da boshlanadi va `hold_s + R` ishlaydi, ya'ni
+`pressure_off` da (33.0 s) chiqadi. `R` — generatorning **o'z o'lchangan
+ramp'i**, **2.57 s** (§5.1: `pressure_start` → oxirgi `pressure_ramp`
+17.646 − 15.076 = 2.570 s va 17.646 − 15.078 = 2.568 s). `R` nomli
+konstanta, sozlanmaydi. Barcha band'lar (P0/P1/P2) va arm'lar uchun bir xil.
+`schedule.py` va frozen matn o'zgarmaydi; faqat `revix/driver.py`.
+
+**Muvaffaqiyat mezoni (orkestrator bergan, aynan):** yangi smoke
+trial'larning **`P2`** dagilarida (a) **birorta ham trial `aborted_guard`
+bilan tugamaydi** va (b) guard tezligi `≥ 0.35` bo'lgan **eng uzun uzluksiz
+oraliq ≤ 14 s**.
+
+- (b) ning o'lchovi — §4.2 dagi bilan aynan bir xil:
+  `datasets/smoke-tools/smoke_analyze.py` ning
+  `longest_user_span_ge_0.35_s` maydoni (`psi.csv` `user` scope,
+  guard algoritmi: eng tor `≥ 2 s` oyna, uzunlik = oxirgi − birinchi
+  namuna, oyna `[trial_begin, horizon + 30 s]`).
+- **To'xtash qoidasi:** birorta `P2` trial'i trip qilsa YOKI biror oraliq
+  14 s dan oshsa — **qolgan barcha trial'lar to'xtatiladi** va hisobot
+  yoziladi. `R`, dial yoki boshqa hech narsa o'zgartirilib qayta
+  urinilmaydi.
+- Mashina talablari (avvalgidek, mezonga qo'shimcha): har trial'da
+  `trial_end` = 1, `validate` O'TDI, `boot_id`/pid1/`real − mono` siljishi
+  o'zgarmagan (aks holda trial tashlanadi va yoziladi), post-flight
+  (`oom_kill` o'zgarmagan, lab swap 0, `leftover_state` PASS).
+
+**Trial'lar va tartib (oldindan qotirilgan):** har biri alohida run,
+`--blocks 1`, `--allow-pressure`, default `--run-mode pilot`, har trial
+uchun boshqa seed:
+
+| # | run | arm, band | seed |
+|---|---|---|---|
+| 1 | `smoke-08-A-P2` | A, P2 | 20261011 |
+| 2 | `smoke-09-noaction-P2` | no_action, P2 | 20261012 |
+| 3 | `smoke-10-A-P2` | A, P2 | 20261013 |
+| 4 | `smoke-11-noaction-P2` | no_action, P2 | 20261014 |
+| 5 | `smoke-12-A-P2` | A, P2 | 20261015 |
+| 6 | `smoke-13-noaction-P2` | no_action, P2 | 20261016 |
+| 7 | `smoke-14-noaction-P1` | no_action, P1 | 20261017 |
+| 8 | `smoke-15-A-P1` | A, P1 | 20261018 |
+| 9 | `smoke-16-A-P0` | A, P0 | 20261019 |
+| 10 | `smoke-17-noaction-P0` | no_action, P0 | 20261020 |
+
+`P1`/`P0` — regressiya tekshiruvi (mezonga kirmaydi, lekin ular ham trip
+qilsa yoki validate'dan o'tmasa — to'xtatiladi va yoziladi). VR, FR,
+downtime yoki birlamchi kattalik **hisoblanmaydi**.
