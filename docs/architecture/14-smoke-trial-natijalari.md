@@ -696,7 +696,7 @@ yiqilishi — har birida washout bajarilgani (`trial_end.washout`, lab
 
 ### 12.2 FAKT — `smoke-18-noaction-P0-x2` (commit `9c98e7f`): kutilganidan FARQ
 
-Qulf `~10:06Z` — `10:12:28Z` (olishda `loadavg1` 0.30). Tashqi kill
+Qulf ~`10:09Z` (pre-marker real_us 1791108520641943) — `10:12:28Z` (olishda `loadavg1` 0.30). Tashqi kill
 1-trial boshidan **22.004 s** da (`systemctl --user kill --signal=SIGKILL
 revix-sut.service`, rc 0; journal: `status=9/KILL`). `guard.jsonl`:
 faqat `guard_start`, `guard_stop` — **guard trip yo'q** (kutilgandek).
@@ -732,3 +732,30 @@ Regressiya testi (fake, ikki holat) tuzatishsiz yiqiladi.
 to'xtatilgan; 2-trial toza va tugaydi; validate O'TDI; post-flight toza.
 Agar 1-trial washout yana `washout_timeout` bo'lsa — to'xtatiladi va
 yoziladi.
+
+### 12.4 FAKT — `smoke-19-noaction-P0-x2` (commit `1a40263`): kutilgandek
+
+Qulf `10:15:55Z` — `10:17:40Z` (`loadavg1` 0.34). Tashqi kill 1-trial
+boshidan **22.001 s** da (rc 0, journal `status=9/KILL`); `guard.jsonl`:
+faqat `guard_start`, `guard_stop` — guard trip yo'q. **Bu guard trip emas,
+smoke-13 yo'lining tashqi simulyatsiyasi.**
+
+| | kutilgan (§12.3) | o'lchangan |
+|---|---|---|
+| 1-trial disposition | `harness_error` | **`harness_error`** (matched: `harness_error, measured`) |
+| injeksiya | `ConnectionRefused` | 23.001 s, `ConnectionRefusedError(111)`, `sut_ack null` |
+| generator washout'dan oldin to'xtatildi | ha | **ha**, 23.341 s (`stopped_early_mono_us`) |
+| 1-trial washout | `complete` | **`complete`**, 15.013 s, baseline 0.67 MiB (700416 B) |
+| prober | to'xtatilgan | 23.056 s; trial oynasi 23.001 s da yopildi |
+| `trial_end` soni | 1 + 1 | **1 + 1** |
+| 2-trial | toza boshlanadi va tugaydi | setup 0.045 s xatosiz, injeksiya 23.001 s (`OK armed=exit`), `censored` (`horizon_ended_down`), washout `complete` 15.014 s |
+| validate | O'TDI | **O'TDI** (0 xato, faqat `run_filtered`; 225 record, 1282 probe) |
+| post-flight | toza | `boot_id`/pid1 `653523` o'zgarmagan, `real − mono` −1 µs, `oom_kill` 0, lab swap 0, `leftover_state` PASS, `revix*` unit 0 |
+
+**NATIJA:** istisno yo'li endi (a) guard'siz holatda `harness_error`
+beradi, (b) washout'ni yakunlaydi, (c) prober va generatorni to'xtatadi,
+(d) keyingi trial'ni toza boshlaydi. Guard sababli istisno yo'li
+(`aborted_guard`) faqat fake testlarda tekshirildi — real guard trip'ini
+qasddan yaratish uchun dial yoki guard'ga tegish kerak bo'lardi, bu esa
+taqiqlangan. **CHEKLOV:** 1-trial `overhead_s = 0.0` (wall 38.4 s <
+`total_s` 53) — ta'rif bo'yicha (`max(0, wall − total_s)`), o'lchov emas.
