@@ -850,6 +850,56 @@ diagnostikasida sodir bo'ldi. Progress `du -sh <OUT_DIR>` (ota-katalog) yoki
 
 ---
 
+### 7.7 Windows host uyquga ketsa VM muzlaydi va guest buni **sezmaydi**
+
+Bu bo'limni orkestrator o'lchadi (2026-10-04), `experiment/open-params` kalibratsiya
+run'i (`open-params-cal-01`) davomida.
+
+#### FAKT
+
+`~/revix-runs/open-params-cal-01/events.jsonl` da bitta epizod (`A-P2-22`) ichidagi ikki
+ketma-ket yozuv:
+
+| yozuv | `mono_us` | `real_us` |
+|---|---|---|
+| `sut_started` | 6 472 198 275 | 1 791 060 253 618 540 |
+| `generator_started` | 6 478 211 141 | 1 791 102 348 421 289 |
+| **farq** | **6.0 s** | **42 095 s = 11.7 soat** |
+
+Monotonic soat 6 s, devor soati 11.7 soat o'tganini aytadi. Guest `/proc/uptime` ham uyquni
+sanamaydi va `boot_id` **o'zgarmadi** (`4ea15279`). Uyqudan keyin run jimgina to'xtagan: `revix*`
+unit'lar yo'q, console log'da tugash yozuvi yo'q, post-flight fayllari yo'q.
+
+#### TALQIN
+
+Windows host uxlaganda WSL2 VM'i to'xtatiladi. VM ichidagi `CLOCK_MONOTONIC` bu vaqtni
+**sanamaydi**, `CLOCK_REALTIME` esa uyg'ongach host'ga tenglashadi. Natijada:
+
+* `boot_id` va `/proc/1/stat` starttime tekshiruvi (7.6) uyquni **ushlamaydi** -- ikkisi ham o'zgarmaydi.
+* Faqat mono vaqtga tayangan o'lchov (probe, PSI `total=` delta, `t_start`) muzlashni
+  **ko'rmaydi**: VM butunlay to'xtagani uchun hamma jarayon birga to'xtaydi. Ya'ni bu **ichkaridan
+  ko'rinmas** uzilish.
+* Lekin tashqi vaqtga bog'liq narsa (devor soatiga tayangan deadline, host bilan o'zaro ta'sir) uyg'onishda
+  buziladi -- bu run shunday kesilgan. **Aynan nima kesganini o'lchamadim** (GIPOTEZA: devor soati
+  asosidagi deadline).
+
+#### OQIBAT
+
+* Uyqudan o'tgan epizod/trial **yaroqsiz**; uni mono ma'lumotdan ajratib bo'lmaydi.
+* 2.5 soatlik pilot kampaniyasi uchun bu to'g'ridan-to'g'ri xavf: kompyuter tunda yoki bo'sh turganda uxlaydi.
+
+#### Yumshatish va uning CHEKLOVI
+
+* Sessiya davomida ilova orqali uyg'oq ushlash so'raldi (`request_keep_awake`). U **faqat idle uyquni**
+  to'sadi; **qopqoqni yopish yoki qo'lda Sleep baribir uxlatadi.** Windows sozlamalari
+  o'zgartirilmadi.
+* **Aniqlash hali YO'Q.** `revix/validate.py` da `real_us` va `mono_us` farqini solishtiradigan
+  tekshiruv mavjud emas (`grep real_us` faqat maydon turini tekshiradi). Ochiq ish: ketma-ket
+  yozuvlar orasida `|Δreal − Δmono|` chegaradan oshsa run'ni fail-closed rad etish. Hozirgi
+  himoya faqat protokol: har batch'dan keyin shu farqni qo'lda tekshirish.
+* Bu 7.6 dagi `boot_id` qoidasini **to'ldiradi, almashtirmaydi**: uzun ish ochiq mijoz bilan boshlanadi,
+  `boot_id` va `real−mono` farqi har qadamdan oldin solishtiriladi.
+
 ## 8. Avvalgi mashina bilan taqqoslash
 
 Avvalgi: [`02-guard-kalibratsiyasi.md`](02-guard-kalibratsiyasi.md) sarlavhasi va
