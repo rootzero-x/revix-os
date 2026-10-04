@@ -155,6 +155,33 @@ RT_HARNESS_ERROR = "harness_error"
 # erta to'xtagan bo'lishi mumkin va to'liq hodisa to'plami talab qilinmaydi.
 MEASURED_DISPOSITIONS = ("complete", "censored")
 
+# --- disposition ustuvorligi: probe uzilishi va guard hodisasi --------------
+#
+# §14.6(4): "trial ichida probe uzilishi > 2×P yo'q (aks holda trial
+# `censored`)". §12: "`contaminated` va `aborted_guard` trial'lar birlamchi
+# analizdan chiqariladi". Bu ikki jumla `schedule.DISPOSITION_RULES` ning
+# ustuvorlik tartibi ostida BIRGA o'qiladi (`reduce.derive_disposition`,
+# `04` §8.1: avtoritet -- driver'ning `schedule.explain_disposition()` i).
+# Bu o'qish `p1-pilot-002` validatsiyadan o'tmaganidan KEYIN qabul qilingan
+# (docs/architecture/17 §2.5, §10); `v1.14` amendment'i uni qayd etadi.
+#
+# Tamoyil: probe uzilishi O'LCHANGAN NATIJA DA'VOSINI -- `complete` ni --
+# bekor qiladi. U trial'ni natija analizidan allaqachon chiqaradigan va
+# tartibda uzilish qoidasidan (`probe_gap_exceeded`) OLDIN turadigan
+# disposition'ga (`harness_error`, `aborted_guard`, `contaminated`,
+# `washout_timeout`) zid kela olmaydi; `censored` -- uzilish qoidasining o'z
+# chiqishi. Shu disposition'larda uzilish OGOHLANTIRISH bo'lib hisobot
+# qilinadi (jimgina emas); `complete` da va disposition yo'q/noma'lum bo'lsa
+# (fail-closed) -- XATO.
+GAP_WARNING_DISPOSITIONS = ("harness_error", "aborted_guard", "contaminated",
+                            "washout_timeout", "censored")
+#
+# Teskari yo'nalish, xuddi shu tartib: trial oynasida guard ishlagan bo'lsa
+# (`guard_fired`) disposition `aborted_guard` yoki tartibda undan OLDIN
+# turgan yagona `harness_error` bo'lishi SHART. Boshqa HAR disposition --
+# `contaminated` va `washout_timeout` ham -- guard'ning ustunligini buzadi.
+GUARD_REFLECTED_DISPOSITIONS = ("harness_error", "aborted_guard")
+
 # `no_action` arm (§9.3: `Restart=no`) da action BO'LMASLIGI ta'rifiga kiradi.
 NO_ACTION_ARMS = ("no_action",)
 
@@ -613,10 +640,15 @@ def check_seq(run: RawRun) -> list[Finding]:
 
 
 def check_probe_gaps(run: RawRun, probe_period_us: int = P_US) -> list[Finding]:
-    """Trial ichida probe uzilishi > 2xP bo'lsa, trial `censored` bo'lishi SHART.
+    """Trial ichida probe uzilishi > 2xP: `complete` da XATO, aks holda OGOHLANTIRISH.
 
     §4: "Probe uzilishi > 2xP -> trial `censored`, `failed` EMAS.
     Instrumentatsiya yo'qolishi hech qachon jimgina natijaga aylanmaydi."
+    §14.6(4) va §12 ustuvorlik tartibi ostida birga o'qiladi
+    (`GAP_WARNING_DISPOSITIONS` izohi): uzilish `complete` ning o'lchangan
+    natija da'vosini bekor qiladi; `censored` va uzilish qoidasidan oldin
+    turadigan, trial'ni allaqachon chiqaradigan disposition'larda u
+    ogohlantirish sifatida hisobot qilinadi.
     """
     out: list[Finding] = []
     lim = 2 * probe_period_us
@@ -629,11 +661,15 @@ def check_probe_gaps(run: RawRun, probe_period_us: int = P_US) -> list[Finding]:
         if not gaps:
             continue
         disp = t.disposition_raw
-        sev = SEVERITY_ERROR if disp != "censored" else SEVERITY_WARNING
+        sev = (SEVERITY_WARNING if disp in GAP_WARNING_DISPOSITIONS
+               else SEVERITY_ERROR)
         msg = (f"{len(gaps)} ta probe uzilishi > 2xP ({lim} us), eng katta "
                f"{max(g for _a, _b, g in gaps)} us; disposition={disp!r}")
         if sev == SEVERITY_ERROR:
             msg += " -- §4 ga ko'ra 'censored' bo'lishi SHART"
+        elif disp != "censored":
+            msg += (" -- disposition uzilish qoidasidan OLDIN turadi va trial'ni "
+                    "allaqachon chiqaradi (§12 ustuvorligi)")
         out.append(Finding("probe_gap", sev, msg, trial_id=t.trial_id,
                            record_type=RT_PROBE,
                            detail={"gaps": [{"prev_mono_us": a, "next_mono_us": b,
@@ -2324,7 +2360,8 @@ def check_probe_coverage(run: RawRun, probe_period_us: int = P_US) -> list[Findi
     kontrakt §4.3): reducer downtime'ni shu nuqtagacha hisoblaydi, demak
     probe'lar shu nuqtagacha qoplashi SHART. Bosh chegara -- `baseline_window`
     boshi (o'lchov boshlanishi; preflight o'lchov emas). Jazo mavjud
-    `probe_gap` bilan bir xil: `censored` bo'lmasa XATO, bo'lsa OGOHLANTIRISH.
+    `probe_gap` bilan bir xil: disposition `GAP_WARNING_DISPOSITIONS` da
+    bo'lsa OGOHLANTIRISH, aks holda (`complete`, noma'lum) XATO.
     """
     out: list[Finding] = []
     lim = 2 * probe_period_us
@@ -2353,7 +2390,8 @@ def check_probe_coverage(run: RawRun, probe_period_us: int = P_US) -> list[Findi
             gaps.append({"where": "trailing", "from_us": t.probes[-1].mono_us,
                          "to_us": hi, "gap_us": hi - t.probes[-1].mono_us})
         if gaps:
-            sev = SEVERITY_WARNING if disp == "censored" else SEVERITY_ERROR
+            sev = (SEVERITY_WARNING if disp in GAP_WARNING_DISPOSITIONS
+                   else SEVERITY_ERROR)
             msg = (f"probe qoplami trial chegarasida uzilgan "
                    f"({[g['where'] for g in gaps]}, > 2xP = {lim} us); "
                    f"disposition={disp!r}")
@@ -2408,10 +2446,12 @@ def check_guard_stream(run: RawRun) -> list[Finding]:
     YO'Q -- bu TO'G'RI (§14.7, §8.2: guard mustaqil jarayon); `trial_id`
     bo'lsa u mustaqil emas. Atributsiya MONOTONIC vaqt bo'yicha (reduce.
     split_trials), shuning uchun u trial oynasiga tushadi: oynasida guard
-    ishlagan trial raw disposition'da `complete`/`censored` bo'lsa --
-    driver o'z xavfsizlik guard'ining ishlaganini ko'rmagan (kill_subtree dan
-    keyingi yozuvlar axlat). Oynadan tashqaridagi guard_event atributsiya
-    qilinmaydi: OGOHLANTIRISH.
+    ishlagan trial'ning raw disposition'i `GUARD_REFLECTED_DISPOSITIONS`
+    (`aborted_guard` yoki tartibda undan oldin turgan `harness_error`) dan
+    boshqa bo'lsa -- `contaminated`/`washout_timeout` ham -- driver o'z
+    xavfsizlik guard'ining ishlaganini ko'rmagan yoki §12 ustuvorligini
+    buzgan (kill_subtree dan keyingi yozuvlar axlat). Oynadan tashqaridagi
+    guard_event atributsiya qilinmaydi: OGOHLANTIRISH.
     """
     out: list[Finding] = []
     starts, stops = run.of_type(RT_GUARD_START), run.of_type(RT_GUARD_STOP)
@@ -2456,6 +2496,7 @@ def check_guard_stream(run: RawRun) -> list[Finding]:
             windows.append((tid, lo, hi, _as_str(e.get("disposition"))))
     unattributed: list[dict[str, Any]] = []
     flagged: dict[str, list[dict[str, Any]]] = {}
+    flagged_disp: dict[str, str | None] = {}
     for g in events:
         t = _mono(g)
         if t is None:
@@ -2463,14 +2504,17 @@ def check_guard_stream(run: RawRun) -> list[Finding]:
         hit = next(((tid, d) for tid, lo, hi, d in windows if lo <= t <= hi), None)
         if hit is None:
             unattributed.append(g)
-        elif hit[1] in MEASURED_DISPOSITIONS:
+        elif hit[1] not in GUARD_REFLECTED_DISPOSITIONS:
             flagged.setdefault(hit[0], []).append(g)
+            flagged_disp[hit[0]] = hit[1]
     for tid, gl in sorted(flagged.items()):
         out.append(Finding(
             "guard_event_not_reflected", SEVERITY_ERROR,
-            f"trial oynasida {len(gl)} ta guard_event, lekin raw disposition "
-            "complete/censored -- driver guard ishlaganini ko'rmagan",
-            trial_id=tid, record_type=RT_GUARD_EVENT, **_where(gl[0])))
+            f"trial oynasida {len(gl)} ta guard_event, lekin raw disposition="
+            f"{flagged_disp[tid]!r} -- 'aborted_guard' (yoki undan oldin "
+            "turgan 'harness_error') bo'lishi SHART (§12 ustuvorligi)",
+            trial_id=tid, record_type=RT_GUARD_EVENT, **_where(gl[0]),
+            detail={"disposition": flagged_disp[tid]}))
     if unattributed:
         out.append(Finding(
             "guard_event_unattributed", SEVERITY_WARNING,
