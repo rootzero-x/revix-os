@@ -1,0 +1,46 @@
+== pre
+{"phase": "pre", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 13841740267, "real_us": 1791109711950415, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.38 0.30 0.29 1/221 9107", "uptime_s": 13841.74}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+== run smoke-21-noaction-P0 arm=no_action level=P0 seed=20261032
+driver rc=0 wall_s=56.943
+{
+  "dispositions": {
+    "censored": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 3.2507499999999965,
+    "mean": 3.2507499999999965,
+    "min": 3.2507499999999965,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-21-noaction-P0",
+  "run_id": "a9dacf5f04c14b99814f26a8fb9ee3e6",
+  "trials": [
+    {
+      "disposition": "censored",
+      "overhead_s": 3.2507499999999965,
+      "rule": "horizon_ended_down",
+      "trial_id": "b000t005"
+    }
+  ]
+}
+
+== post
+{"phase": "post", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 13898910752, "real_us": 1791109769120900, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.23 0.27 0.28 1/221 9175", "uptime_s": 13898.91}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+validate rc=0
+WARNING run_filtered: run --only ['no_action', 'P0'] bilan filtrlangan: 1/6 trial -- to'liq blok dizayni EMAS (§8.4)  [/home/snowden/revix-runs/smoke-21-noaction-P0/events.jsonl:2]
+xato: 0  ogohlantirish: 1
+NATIJA: O'TDI -- analiz qilinishi mumkin
+analysis rc=0
+total 648
+drwxr-xr-x  2 snowden snowden   4096 Oct  4 15:28 .
+drwxr-xr-x 68 snowden snowden   4096 Oct  4 15:28 ..
+-rw-r--r--  1 snowden snowden 103325 Oct  4 15:29 events.jsonl
+-rw-r--r--  1 snowden snowden   1269 Oct  4 15:29 guard.jsonl
+-rw-r--r--  1 snowden snowden  39697 Oct  4 15:29 pressure.jsonl
+-rw-rw-r--  1 snowden snowden 126372 Oct  4 15:29 probe.csv
+-rw-rw-r--  1 snowden snowden 326279 Oct  4 15:29 psi.csv
+-rw-r--r--  1 snowden snowden  46088 Oct  4 15:28 run_meta.json

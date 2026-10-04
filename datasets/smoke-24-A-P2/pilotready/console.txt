@@ -1,0 +1,47 @@
+== pre
+{"phase": "pre", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 14014658889, "real_us": 1791109884869037, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.27 0.26 0.27 1/222 9438", "uptime_s": 14014.65}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+== run smoke-24-A-P2 arm=A level=P2 seed=20261035
+driver rc=0 wall_s=57.053
+{
+  "dispositions": {
+    "aborted_guard": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 3.2523709999999966,
+    "mean": 3.2523709999999966,
+    "min": 3.2523709999999966,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-24-A-P2",
+  "run_id": "f920a3f8b9bf4d69af513bf02069fb99",
+  "trials": [
+    {
+      "disposition": "aborted_guard",
+      "overhead_s": 3.2523709999999966,
+      "rule": "guard_fired",
+      "trial_id": "b000t000"
+    }
+  ]
+}
+
+== post
+{"phase": "post", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 14071938657, "real_us": 1791109942148805, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.19 0.24 0.26 1/221 9513", "uptime_s": 14071.93}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+validate rc=0
+WARNING run_filtered: run --only ['A', 'P2'] bilan filtrlangan: 1/6 trial -- to'liq blok dizayni EMAS (§8.4)  [/home/snowden/revix-runs/smoke-24-A-P2/events.jsonl:2]
+xato: 0  ogohlantirish: 1
+NATIJA: O'TDI -- analiz qilinishi mumkin
+analysis rc=0
+total 748
+drwxr-xr-x  2 snowden snowden   4096 Oct  4 15:31 .
+drwxr-xr-x 74 snowden snowden   4096 Oct  4 15:31 ..
+-rw-r--r--  1 snowden snowden 197016 Oct  4 15:32 events.jsonl
+-rw-r--r--  1 snowden snowden   1924 Oct  4 15:32 guard.jsonl
+-rw-rw-r--  1 snowden snowden    139 Oct  4 15:31 guard.trip
+-rw-r--r--  1 snowden snowden  19014 Oct  4 15:31 pressure.jsonl
+-rw-rw-r--  1 snowden snowden 128708 Oct  4 15:32 probe.csv
+-rw-rw-r--  1 snowden snowden 344086 Oct  4 15:32 psi.csv
+-rw-r--r--  1 snowden snowden  46034 Oct  4 15:31 run_meta.json

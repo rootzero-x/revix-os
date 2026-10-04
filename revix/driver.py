@@ -137,11 +137,14 @@ DIZAYN QOIDALARI (buzilmaydi)
     ning "generator idle" sharti (§3.2), nuqson emas.
 
 
-MUZLATILMAGAN, SHUNING UCHUN OCHIQ PARAMETR (hech biri jimgina tanlanmaydi)
+OCHIQ PARAMETRLAR -- endi MUZLATILGAN (v1.12), lekin hammasi OSHKORA
 ==========================================================================
-`--watchdog-sec`, `--timeout-start-sec`, `--memory-high`, pressure band
-nishonlari: pre-registration ularni RAQAM bilan muzlatmagan. Hammasi
-`run_meta.open_parameters` da `calibration_required` belgisi bilan yoziladi.
+`--watchdog-sec` (5s), `--timeout-start-sec` (10s), `--memory-high` (192M)
+va `T_trial` (41.1 s) `preregistration/v1.12` da muzlatilgan (§16.10,
+Amendment log v1.11 -> v1.12, 1-band). `run_meta.open_parameters` har biri
+uchun amaldagi va muzlatilgan qiymatni, kalibratsiya `run_id` larini va
+manbani yozadi; `timeout_start_sec` qoida taklif bermagan OG'ISH sifatida
+(`rule_satisfied: false`, `deviation`) yoziladi.
 `step_mb` / `base_mb` ham o'sha yerda, lekin ular 10-pressure-dozalash.md
 §2.6 da O'LCHANGAN, demak `calibration_required: false`.
 `ramp_above_threshold_s` ham ENDI o'lchangan (§4.1, 29/29 epizodda 0.000 s),
@@ -410,11 +413,60 @@ MON_UNIT_MEMORY_MAX = "128M"
 # Generator cheklovlari (00-pilot-topologiya.md §1).
 PRESS_MEMORY_MAX = "1536M"       # 1.5G
 
-# Muzlatilmagan, shuning uchun flag: §9.2 (i) `TimeoutStartSec` va (iv)
-# watchdog miss -- IKKISI HAM oldindan aytilgan MEXANIZM. Ularning qiymati
-# natijaga ta'sir qiladi, demak jimgina tanlanmaydi.
+# §9.2 (i) `TimeoutStartSec` va (iv) watchdog miss -- IKKISI HAM oldindan
+# aytilgan MEXANIZM, qiymati natijaga ta'sir qiladi. Ular ENDI MUZLATILGAN
+# (`preregistration/v1.12`, Amendment log v1.11 -> v1.12, 1-band; §16.10).
+# Flag sifatida qoladi, lekin `run_meta.open_parameters` muzlatilgan qiymatni
+# ham yozadi va farq bo'lsa `matches_frozen: false` KO'RINADI.
 DEFAULT_WATCHDOG_SEC = "5s"
 DEFAULT_TIMEOUT_START_SEC = "10s"
+
+# --- muzlatilgan ochiq parametrlar (§16.10, v1.12) -------------------------
+# Har raqam KELTIRILGAN hujjatdan KO'CHIRILADI (`PRESSURE_OVERHEAD_MB`
+# uslubi): bu yerda hech narsa o'lchanmaydi va hisoblanmaydi. §16.10(1):
+# qiymat kalibratsiya run'ining `run_id` si bilan belgilanadi.
+PREREG_FROZEN_IN = "preregistration/v1.12"
+FROZEN_WATCHDOG_SEC = "5s"
+FROZEN_TIMEOUT_START_SEC = "10s"
+FROZEN_MEMORY_HIGH = "192M"
+FROZEN_T_TRIAL_S = 41.1          # v1.12 1.4-band; formula driver-contract/v1.2
+# watchdog_sec -- 13-ochiq-parametrlar-kalibratsiyasi.md §2.2 / §6.1. A qism
+# FAQAT cal-01 va cal-02 da bajarilgan (cal-03 -- faqat B; datasets/
+# open-params-cal-0*/events.jsonl.zst: A episode_end cal-01 21/21/21 (A-P0-21
+# chiqarilgan), cal-02 4/3/3, cal-03 0).
+WATCHDOG_CAL_RUN_IDS = ("open-params-cal-01", "open-params-cal-02")
+WATCHDOG_RULE = ("13 §0.5 (commit 812c989, ma'lumotdan OLDIN): "
+                 "L_wd = 2*F*M_wd, F = 3, taklif = max(5, ceil(L_wd))")
+WATCHDOG_M_WD_DELTA_S = 0.1170   # 13 §2.2 / §6.1: max(g - W/2), P2
+WATCHDOG_MAX_GAP_S = 2.6170      # 13 §2.2: max g, P2
+WATCHDOG_HALF_W_OVER_M_WD = 21.38   # 13 §6.1: (W/2)/M_wd
+WATCHDOG_EPISODES = {"P0": 24, "P1": 24, "P2": 24}   # 13 §2.2
+WATCHDOG_RESULT_WATCHDOG = 0     # 13 §2.2: Result=watchdog 0/72
+# timeout_start_sec -- 13 §3.1 / §6.2; B qism: cal-02 va cal-03 (cal-01 ning
+# B qismi umuman boshlanmagan, 13 §0A.1).
+TIMEOUT_START_CAL_RUN_IDS = ("open-params-cal-02", "open-params-cal-03")
+TIMEOUT_START_QUALIFYING = {"P0": 24, "P1": 24, "P2": 20}   # 13 §3.1
+TIMEOUT_START_REQUIRED_PER_BAND = 48                          # 13 §0.5(3)
+TIMEOUT_START_M_START_S = 0.9614    # 13 §3.1: eng sekin hisobga kirgan start
+TIMEOUT_START_OVER_MAX = 10.40      # 13 §3.1 / §6.2: 10 s / M_start
+TIMEOUT_START_RESULT_TIMEOUT = 0    # 13 §6.2: 68 qualifying + 72 bosimsiz
+# Hisobga KIRMAYDIGAN, lekin yashirilmaydigan dumlar (v1.12 1.3-band jadvali).
+TIMEOUT_START_OTHER_TAILS = (
+    {"source": "13 §3.1, open-params-smoke-01 (hisobga kirmaydi)",
+     "band": "P2", "max_t_start_s": 1.7030, "timeout_over_max": 5.87},
+    {"source": "10-pressure-dozalash.md §6.2 / §10.1 (tstart-* run'lari)",
+     "band": "P1", "max_t_start_s": 1.4807, "timeout_over_max": 6.75},
+)
+# memory_high -- 10-pressure-dozalash.md §2.2 (dose-01-dial, MemoryMax=2G),
+# kalibratsiya run'lari v1.12 1.2-band; qayta-ishlab-chiqarish 13 §4.
+MEMORY_HIGH_CAL_RUN_IDS = ("dose-01-dial", "dose-02-bands", "dose-03-p2sweep")
+MEMORY_HIGH_REPRODUCED_IN = ("open-params-cal-01", "open-params-cal-02",
+                             "open-params-cal-03")
+MEMORY_HIGH_REPRODUCTION = {     # 13 §4: high delta va full total= delta
+    "P0": {"episodes": 30, "both_zero": 30},
+    "P1": {"episodes": 30, "both_positive": 30},
+    "P2": {"episodes": 29, "both_positive": 29},
+}
 
 # Washout kuzatuvi uchun PSI namuna davri. §7/§8.4: tezlik oynasi >=2 s
 # bo'lishi SHART (`cgroup.stall_fraction` <2 s da None qaytaradi), shuning
@@ -2195,30 +2247,123 @@ class Driver:
             "run_files": list(RUN_FILES),
             # Muzlatilmagan parametrlar OSHKORA: hech biri jimgina tanlanmadi.
             "open_parameters": {
+                # §16.10 ning muzlatilgan qiymatlari (v1.12, 1-band). Har
+                # yozuv: amaldagi qiymat (`value`, CLI flag'idan), muzlatilgan
+                # qiymat, ularning mosligi, kalibratsiya `run_id` lari, manba
+                # bo'limlari va §16.10(5) mexanizm bayonoti. Raqamlar modul
+                # konstantalaridan (hujjatdan ko'chirilgan), runtime'da
+                # hisoblanmaydi.
                 "memory_high": {
                     "value": self.cfg.memory_high,
-                    "source": "docs/architecture/02-guard-kalibratsiyasi.md §3 "
-                              "(high=192M, MemoryMax=1G bilan o'lchangan); "
-                              "docs/architecture/10-pressure-dozalash.md §2.2 "
-                              "uni MemoryMax=2G ostida QAYTA o'lchadi va "
-                              "base=184 juftligini qayta ishlab chiqardi "
-                              "(08 §12 OQ-4 yopildi)",
-                    # SHUNDAY QOLADI, lekin sababi boshqa: OQ-11 -- MemoryHigh
-                    # ning O'ZI optimallashtirilmagan va ishchi base_mb oynasi
-                    # TOR (§3.6), demak boshqa MemoryHigh base_mb ni qaytadan
-                    # topishni TALAB QILADI.
-                    "calibration_required": True,
+                    "frozen_value": FROZEN_MEMORY_HIGH,
+                    "matches_frozen": self.cfg.memory_high == FROZEN_MEMORY_HIGH,
+                    "frozen_in": PREREG_FROZEN_IN,
+                    "frozen_section": "§16.10; Amendment log v1.11 -> v1.12, 1.2-band",
+                    "source": "docs/architecture/10-pressure-dozalash.md §2.2 "
+                              "(dose-01-dial: 192M MemoryMax=2G ostida QAYTA "
+                              "o'lchangan, 1G dan ko'chirilmagan; step_mb=4 -> "
+                              "base 184 erishilgan p50 0.3344) va §2.6; "
+                              "qayta-ishlab-chiqarish docs/architecture/"
+                              "13-ochiq-parametrlar-kalibratsiyasi.md §4",
+                    "calibration_required": False,
+                    "rule_satisfied": True,
+                    "calibration": {
+                        "run_ids": list(MEMORY_HIGH_CAL_RUN_IDS),
+                        "measured_in": "docs/architecture/10-pressure-dozalash.md §2.2",
+                        "run_ids_note": ("xom ma'lumot datasets/ da YO'Q, guest "
+                                         "~/revix-runs/dose-* (13 §4)"),
+                        "reproduced_in": list(MEMORY_HIGH_REPRODUCED_IN),
+                        "reproduction": {k: dict(v) for k, v in
+                                         MEMORY_HIGH_REPRODUCTION.items()},
+                        "reproduction_rule": "13 §0.7 (>= 90% epizodda)",
+                    },
+                    # Cheklov qayd yozuvining O'ZIDA ko'rinadi (v1.12 1.2).
+                    "limitation": ("OQ-11 OCHIQ: boshqa hech bir MemoryHigh "
+                                   "qiymati o'lchanmagan; ishchi base_mb oynasi "
+                                   "tor (faqat 184, 10 §3.6). Muzlatilgani -- "
+                                   "o'lchangan dial, eng yaxshisi emas"),
                 },
                 "watchdog_sec": {
                     "value": self.cfg.watchdog_sec,
-                    "source": "muzlatilmagan; §9.2 (iv) watchdog miss MEXANIZM, "
-                              "demak qiymat natijaga ta'sir qiladi",
-                    "calibration_required": True,
+                    "frozen_value": FROZEN_WATCHDOG_SEC,
+                    "matches_frozen": self.cfg.watchdog_sec == FROZEN_WATCHDOG_SEC,
+                    "frozen_in": PREREG_FROZEN_IN,
+                    "frozen_section": "§16.10; Amendment log v1.11 -> v1.12, 1.1-band",
+                    "source": "docs/architecture/13-ochiq-parametrlar-"
+                              "kalibratsiyasi.md §0.5 (qoida), §2.2, §6.1",
+                    "calibration_required": False,
+                    "rule_satisfied": True,
+                    "calibration": {
+                        "run_ids": list(WATCHDOG_CAL_RUN_IDS),
+                        "run_ids_note": ("A qism faqat cal-01 va cal-02 da; "
+                                         "cal-03 faqat B (t_start)"),
+                        "rule": WATCHDOG_RULE,
+                        "F": 3,
+                        "M_wd_delta_s": WATCHDOG_M_WD_DELTA_S,
+                        "max_gap_s": WATCHDOG_MAX_GAP_S,
+                        "halfW_over_M_wd": WATCHDOG_HALF_W_OVER_M_WD,
+                        "episodes": dict(WATCHDOG_EPISODES),
+                        "result_watchdog": WATCHDOG_RESULT_WATCHDOG,
+                        "source_sections": "13 §2.2, §6.1",
+                    },
+                    "mechanism_statement": (
+                        "§9.2 (iv) (watchdog miss) ning mavjudligi WatchdogSec "
+                        "ning muzlatilgan qiymati -- 5 s -- bilan belgilangan"),
                 },
                 "timeout_start_sec": {
                     "value": self.cfg.timeout_start_sec,
-                    "source": "muzlatilmagan; §9.2 (i) TimeoutStartSec MEXANIZM",
-                    "calibration_required": True,
+                    "frozen_value": FROZEN_TIMEOUT_START_SEC,
+                    "matches_frozen": (self.cfg.timeout_start_sec
+                                       == FROZEN_TIMEOUT_START_SEC),
+                    "frozen_in": PREREG_FROZEN_IN,
+                    "frozen_section": "§16.10; Amendment log v1.11 -> v1.12, 1.3-band",
+                    "source": "docs/architecture/13-ochiq-parametrlar-"
+                              "kalibratsiyasi.md §0.5 (qoida), §3.1, §6.2",
+                    # MUZLATILGAN, lekin KALIBRLANGAN EMAS. `calibration_required`
+                    # False -- qiymat endi o'zgarmaydi (§16.10(3)); lekin uni
+                    # qoida bermagan: `rule_satisfied` va `deviation` buni
+                    # run_meta'ning O'ZIDA aytadi (v1.12 1.3).
+                    "calibration_required": False,
+                    "rule_satisfied": False,
+                    "frozen_as": "pre_data_default_documented_deviation",
+                    "deviation": (
+                        "OG'ISH (preregistration v1.12, Amendment log v1.11 -> "
+                        "v1.12, 1.3-band): o'z oldindan yozilgan qoidasi "
+                        "(13 §0.5(3), har bandda >= 48 bosim ostidagi start) "
+                        "TAKLIF BERMAGAN -- olingan 24/24/20; 10 s ma'lumotdan "
+                        "OLDINGI driver default'i sifatida saqlangan. Bu "
+                        "KALIBRLANGAN qiymat EMAS"),
+                    "calibration": {
+                        "run_ids": list(TIMEOUT_START_CAL_RUN_IDS),
+                        "run_ids_note": ("B qism cal-02 va cal-03 da; cal-01 ning "
+                                         "B qismi boshlanmagan (13 §0A.1)"),
+                        "qualifying_starts": dict(TIMEOUT_START_QUALIFYING),
+                        "required_per_band": TIMEOUT_START_REQUIRED_PER_BAND,
+                        "rule_proposal": None,
+                        "M_start_s": TIMEOUT_START_M_START_S,
+                        "timeout_over_max": TIMEOUT_START_OVER_MAX,
+                        "result_timeout": TIMEOUT_START_RESULT_TIMEOUT,
+                        "other_observed_tails": [dict(t) for t in
+                                                 TIMEOUT_START_OTHER_TAILS],
+                        "source_sections": "13 §3.1, §6.2; v1.12 1.3",
+                    },
+                    "mechanism_statement": (
+                        "§9.2 (i) (TimeoutStartSec oshib ketdi) ning mavjudligi "
+                        "TimeoutStartSec ning muzlatilgan qiymati -- 10 s -- "
+                        "bilan belgilangan; Result=timeout ning yo'qligi "
+                        "topilma sifatida hisobot qilinmaydi (v1.12 1.3)"),
+                },
+                "t_trial_s": {
+                    # Formula natijasi (o'lchov emas); `t_trial_us` yuqorida.
+                    "value": self.t_trial_us / 1e6,
+                    "frozen_value": FROZEN_T_TRIAL_S,
+                    "matches_frozen": abs(self.t_trial_us / 1e6
+                                          - FROZEN_T_TRIAL_S) < 1e-9,
+                    "frozen_in": PREREG_FROZEN_IN,
+                    "frozen_section": "§16.10(4); Amendment log v1.11 -> v1.12, 1.4-band",
+                    "source": T_TRIAL_FORMULA,
+                    "calibration_required": False,
+                    "rule_satisfied": True,
                 },
                 "pressure_target_rate": {
                     "value": dict(PRESSURE_TARGET_RATE),
@@ -3603,7 +3748,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--dry-run", action="store_true",
                     help="hech narsa ishga tushirmaydi, jadvalni chiqaradi")
     ap.add_argument("--json", action="store_true", help="JSON chiqish")
-    # Muzlatilmagan parametrlar -- hammasi run_meta.open_parameters ga tushadi.
+    # Ochiq parametrlar (v1.12 da muzlatilgan) -- hammasi run_meta.open_parameters
+    # ga, muzlatilgan qiymat va `matches_frozen` bilan tushadi.
     ap.add_argument("--session-id", default="p1")
     ap.add_argument("--run-mode", default="pilot",
                     choices=("pilot", "smoke", "confirmatory"))

@@ -1556,13 +1556,16 @@ def test_run_meta_ochiq_parametrlarni_kalibratsiya_talab_qiladi_deb_belgilaydi(
     meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
                           encoding="utf-8"))
     op = meta["open_parameters"]
-    # HALI o'lchanmagan parametrlar. `memory_high` ro'yxatda QOLADI: 10-
-    # pressure-dozalash.md §2.2 uni `MemoryMax=2G` ostida tasdiqladi, lekin
-    # OQ-11 bo'yicha `MemoryHigh` ning O'ZI optimallashtirilmagan.
-    # `watchdog_sec` ham QOLADI -- §10.2 ning o'lchovi BAJARILMADI (OQ-8).
+    # v1.12 (1-band) dan beri uchalasi MUZLATILGAN: `calibration_required`
+    # False. Lekin `timeout_start_sec` KALIBRLANGAN EMAS -- buni
+    # `rule_satisfied` aytadi (alohida test pastda).
     for key in ("memory_high", "watchdog_sec", "timeout_start_sec"):
-        assert op[key]["calibration_required"] is True
+        assert op[key]["calibration_required"] is False
+        assert op[key]["frozen_in"] == "preregistration/v1.12"
         assert op[key]["source"]
+    assert op["memory_high"]["rule_satisfied"] is True
+    assert op["watchdog_sec"]["rule_satisfied"] is True
+    assert op["timeout_start_sec"]["rule_satisfied"] is False
     # O'LCHANDI, demak belgi YECHILDI (10-pressure-dozalash.md §2.6, §3.1).
     # `None` = o'lchanmadi, `0`/`False` = o'lchangan -- dizayn qoidasi 15.
     # `ramp_above_threshold_s` SHU RO'YXATGA KO'CHDI: §4.1 uni HAQIQIY doza
@@ -2932,3 +2935,98 @@ def test_istisno_yolida_generator_washoutdan_OLDIN_toxtatiladi(tmp_path, mode):
     te = of_type(events(run_dir), "trial_end")[0]
     assert te["detail"]["pressure"]["stopped_early_mono_us"] > 0
     assert te["washout"]["state"] == "complete"
+
+
+# ===========================================================================
+# §16.10 muzlatilgan qiymatlar run_meta'da (v1.12, 1-band; preshart 3)
+# ===========================================================================
+
+
+def _open_params(tmp_path, **cfg_kw):
+    run_dir = D.prepare_run_dir(str(tmp_path / "run"))
+    pf = FakePlatform(tmp_path)
+    cfg = D.DriverConfig(run_dir=run_dir, seed=11, blocks=1, only=("P0", "A"),
+                         sut_binary="/nonexistent/sut", **cfg_kw)
+    drv = D.Driver(cfg, pf, sch.p1_schedule(11, n_blocks=1),
+                   sch.TrialTimeline())
+    drv.run()
+    meta = json.load(open(os.path.join(run_dir, D.RUN_META_FILE),
+                          encoding="utf-8"))
+    return meta["open_parameters"], meta
+
+
+def test_open_parameters_muzlatilgan_qiymatlar_va_run_idlar(tmp_path):
+    op, meta = _open_params(tmp_path)
+    wd = op["watchdog_sec"]
+    assert (wd["value"], wd["frozen_value"], wd["matches_frozen"]) == (
+        "5s", "5s", True)
+    # A qism FAQAT cal-01 va cal-02 (cal-03 -- faqat B).
+    assert wd["calibration"]["run_ids"] == ["open-params-cal-01",
+                                            "open-params-cal-02"]
+    assert "open-params-cal-03" not in wd["calibration"]["run_ids"]
+    c = wd["calibration"]
+    assert (c["M_wd_delta_s"], c["max_gap_s"], c["halfW_over_M_wd"]) == (
+        0.1170, 2.6170, 21.38)
+    assert c["episodes"] == {"P0": 24, "P1": 24, "P2": 24}
+    assert c["result_watchdog"] == 0 and c["F"] == 3
+    assert "13-ochiq-parametrlar-kalibratsiyasi.md" in wd["source"]
+    assert "5 s" in wd["mechanism_statement"]
+
+    mh = op["memory_high"]
+    assert (mh["value"], mh["frozen_value"], mh["matches_frozen"]) == (
+        "192M", "192M", True)
+    assert mh["calibration"]["run_ids"] == ["dose-01-dial", "dose-02-bands",
+                                            "dose-03-p2sweep"]
+    assert mh["calibration"]["reproduced_in"] == [
+        "open-params-cal-01", "open-params-cal-02", "open-params-cal-03"]
+    assert "10-pressure-dozalash.md §2.2" in mh["source"]
+    assert "13-ochiq-parametrlar-kalibratsiyasi.md §4" in mh["source"]
+    assert "OQ-11" in mh["limitation"]          # cheklov KO'RINADI
+
+    tt = op["t_trial_s"]
+    assert tt["frozen_value"] == 41.1 and tt["matches_frozen"] is True
+    assert meta["t_trial_us"] == 41_100_000
+
+
+def test_open_parameters_timeout_start_sec_KALIBRLANGAN_deb_korinmaydi(
+        tmp_path):
+    """v1.12 1.3: qoida TAKLIF BERMAGAN (24/24/20 < 48). run_meta'ning
+    o'zini o'qigan odam buni kalibrlangan qiymat deb O'YLAMASLIGI kerak."""
+    op, _ = _open_params(tmp_path)
+    ts = op["timeout_start_sec"]
+    assert ts["value"] == "10s" and ts["frozen_value"] == "10s"
+    assert ts["rule_satisfied"] is False
+    assert ts["frozen_as"] == "pre_data_default_documented_deviation"
+    assert "1.3-band" in ts["deviation"]
+    assert "TAKLIF BERMAGAN" in ts["deviation"]
+    assert "KALIBRLANGAN qiymat EMAS" in ts["deviation"]
+    c = ts["calibration"]
+    assert c["run_ids"] == ["open-params-cal-02", "open-params-cal-03"]
+    assert c["qualifying_starts"] == {"P0": 24, "P1": 24, "P2": 20}
+    assert c["required_per_band"] == 48
+    assert c["rule_proposal"] is None
+    assert (c["M_start_s"], c["timeout_over_max"], c["result_timeout"]) == (
+        0.9614, 10.40, 0)
+    tails = {t["max_t_start_s"]: t["timeout_over_max"]
+             for t in c["other_observed_tails"]}
+    assert tails == {1.7030: 5.87, 1.4807: 6.75}
+
+
+def test_open_parameters_flag_muzlatilgandan_farq_qilsa_KORINADI(tmp_path):
+    op, _ = _open_params(tmp_path, watchdog_sec="7s",
+                         timeout_start_sec="20s")
+    assert op["watchdog_sec"]["value"] == "7s"
+    assert op["watchdog_sec"]["matches_frozen"] is False
+    assert op["timeout_start_sec"]["matches_frozen"] is False
+    assert op["memory_high"]["matches_frozen"] is True
+
+
+def test_open_parameters_hech_qaysi_kalibrlangan_parametr_rule_satisfied_siz_emas(
+        tmp_path):
+    """`calibration_required: False` bo'lgan §16.10 yozuvlarining har biri
+    `rule_satisfied` ni OSHKORA beradi -- jim default yo'q."""
+    op, _ = _open_params(tmp_path)
+    for key in ("memory_high", "watchdog_sec", "timeout_start_sec",
+                "t_trial_s"):
+        assert isinstance(op[key]["rule_satisfied"], bool), key
+        assert op[key]["frozen_in"] == D.PREREG_FROZEN_IN
