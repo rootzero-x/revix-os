@@ -164,11 +164,22 @@ amendment orqali qayta belgilanadi.
 | wall | 6754 s (`15` §5.2) |
 | `revix.validate` | **4 xato, 3 ogohlantirish** — *"O'TMADI — bu run ANALIZ QILINMAYDI (§14.6)"* |
 
-**Tekshirilmagan ikki bayonot (ochiq):** orkestrator post-flight'da
-`leftover_state` ham toza bo'lganini va zaxira yonida `.SHA256SUMS`
-fayli borligini aytgan; `15` bularni **qayd etmaydi**, va bu amendment
-muallifi guest'ga kirmagani uchun ularni **tekshirmagan**. Ular hech bir
-qarorga asos emas.
+**Orkestrator o'lchagan ikki fakt** (`15` ularni qayd etmaydi; amendment
+muallifi guest'ga kirmagan, shuning uchun ularni orkestrator o'zi guest'da
+o'lchab bergan, 2026-10-04):
+
+- **Qoldiq holat:** launcher post-flight'da `revix doctor`ni **ISHGA
+  TUSHIRMAGAN**, shuning uchun `leftover_state` tekshiruvining o'zi bu run
+  uchun mavjud emas. O'lchangani: `systemctl --user list-units 'revix*'
+  --all` — **0** ta unit; `user@1000.service` ostidagi `revix*` cgroup —
+  **0** ta; `oom_kill` oldin ham, keyin ham 0.
+- **Yaxlitlik:** run papkasi yaxlitlik yig'indisi bilan arxivlangan
+  (`~/revix-runs/_backup/p1-pilot-001.SHA256SUMS`, yaxlit 7 fayl) va siqilgan
+  nusxasi `p1-pilot-001.tar.zst` (5 395 648 bayt); papka **faqat-o'qish**
+  qilindi. `events.jsonl` sha256:
+  `f8fa7001fbbbe8e970f8e67f2e1e0c30c1f266253605ec26904923c46e8ceee2`.
+
+Ikkalasi ham hech bir qarorga asos emas.
 
 **Xatolar** (`15` §1):
 
