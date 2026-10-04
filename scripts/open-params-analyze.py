@@ -141,8 +141,15 @@ def load_runs(run_dirs: list[str]) -> dict[str, Any]:
         beg = {e["episode"]: e["mono_us"] for e in rev if e["record_type"] == "episode_begin"}
         end = {e["episode"]: e["mono_us"] for e in rev if e["record_type"] == "episode_end"}
         bad = set()
+        rguard = read_jsonl(os.path.join(rd, "guard.jsonl"))
+        trips = [g["mono_us"] for g in rguard if g.get("record_type") == "guard_event"]
         for eid, b in beg.items():
             e_ = end.get(eid, 10**19)
+            # 13 §0.5(4): guard trip bo'lgan epizod tashlanadi
+            for tm in trips:
+                if b <= tm <= e_:
+                    bad.add(eid)
+                    excluded[f"{rid}:{eid}"] = {"reason": "guard_trip", "trip_mono_us": tm}
             for a, z, _, dr in jumps:
                 if b <= z and e_ >= a:
                     bad.add(eid)

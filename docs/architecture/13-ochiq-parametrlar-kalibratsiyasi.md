@@ -300,3 +300,32 @@ maqsadi 24). Yetishmaydi: **`P0` 4, `P1` 3, `P2` 3**, va B qism to'liq.
   siljishi tekshiriladi (> 1 s ⇒ `episode_end` yozilmaydi, run FAIL-CLOSED
   to'xtaydi). Host'ni idle-uyqudan orkestrator `request_keep_awake` bilan
   himoya qildi (faqat idle uyqu).
+
+## 0B. OG'ISH — `cal-02` guard trip bilan to'xtadi (bu bo'lim `cal-03` dan OLDIN commit qilindi)
+
+> Yozish paytida `cal-02` dan faqat epizod sonlari, guard yozuvi va soat
+> sakrashi skani o'qildi; oraliq va `t_start` natijalariga **qaralmadi**.
+
+- **FAKT:** `cal-02` A qismi to'liq bajarildi (`P0` 4, `P1` 3, `P2` 3
+  epizod, hammasi `episode_end` bilan). B qismida `B-P2-05` epizodi
+  ichida (mono `7638.741 s`) guard trip qildi: `user_full_rate2s_runaway`,
+  `rate=0.9801941881552125`, `limit=0.98`, `window_us=2000019`,
+  `action=kill_subtree`, `kill_ok=true`. Generator 13 s o'rniga mono
+  `7638.895 s` da yo'qoldi. Controller keyingi epizod (`B-P1-05`) boshida
+  trip faylini ko'rib FAIL-CLOSED to'xtadi. Post-flight: `oom_kill 0`,
+  `lab memory.swap.current 0`, `leftover_state` PASS, `boot_id` va pid1
+  (`653523`) o'zgarmadi, `psi.csv` da soat sakrashi **yo'q**.
+- **Chiqarish:** §0.5(4) bo'yicha (oldindan yozilgan) `B-P2-05` **butunlay
+  tashlanadi** — uning 4 ta start'i ham. Tahlil skripti trip vaqti
+  epizod oralig'iga tushgan epizodni chiqaradi.
+- **Hisob:** B da yaroqli qualifying start'lar: har bandda **16**
+  (4 epizod × 4). Maqsad 48 ⇒ har bandda **32** yetishmaydi.
+- **`cal-03`:** faqat B, `--b-min-starts 32`, `--b-max-episodes 11`
+  (§0.8 ning har band uchun ≤ 16 epizod chegarasi: `P2` da 5 epizod
+  sarflangan), seed `20261005`. Agar `cal-03` ham trip bilan to'xtasa,
+  qo'shimcha run qilinmaydi va B uchun namuna yetishmasligi §0.5(3)
+  bo'yicha hisobotda yoziladi.
+- Bu trip — kalibrlangan dial'da (`base_mb=184`, nishon 0.60) **guard
+  trip'ining o'lchangan birinchi holati**: `10` §8.2 *"`base_mb=184` da 29
+  epizodda trip YO'Q"* deydi. Natija bo'limida pilot uchun oqibati bilan
+  qayta yoziladi.
