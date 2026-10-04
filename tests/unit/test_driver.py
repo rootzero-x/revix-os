@@ -104,6 +104,7 @@ class FakePlatform:
         self.dump_us = dump_us
         self.preflight_raises = preflight_raises
         self.started = {}
+        self.start_mono = {}
         self.active = {}
         self.guard_log_path = None
         self.psi_total_value = 1_000
@@ -183,6 +184,7 @@ class FakePlatform:
         t0 = self.t
         self.t += self.unit_start_us
         self.started[name] = dict(props)
+        self.start_mono[name] = t0
         if name == D.SUT_UNIT:
             self.sut_arm = props.get("Restart")
             self._restarts[name] = 0
@@ -2100,6 +2102,77 @@ def test_pressure_unit_WorkingDirectory_repo_root(tmp_path):
     assert props["WorkingDirectory"] == drv.cfg.repo_root
     assert drv._pressure_properties(17.0)["WorkingDirectory"] == \
         drv.cfg.repo_root
+
+
+def test_V2_generator_hold_start_minus_R_da_boshlanib_pressure_offda_chiqadi(
+        tmp_path):
+    """V2 (14 §10): generator `hold_start - R` da, `hold_s + R` ishlaydi.
+
+    Avval generator ramp fazasi boshida (15 s) va 18 s ishlardi -- guard
+    2/2 `P2` trial'ida `sustained_pressure` bilan trip qildi (14 §5).
+    Frozen timeline O'ZGARMAYDI: injeksiya va `pressure_off` joyida.
+    """
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "A"),
+                                   allow_pressure=True)
+    drv.run()
+    tl = drv.timeline
+    R = D.GENERATOR_OWN_RAMP_S
+    assert R == 2.57
+    recs = events(run_dir)
+    t0 = of_type(recs, "trial_begin")[0]["mono_us"]
+    start_rel = (pf.start_mono[D.PRESS_UNIT] - t0) / 1e6
+    assert start_rel == pytest.approx(tl.t_hold_start - R, abs=1e-3)
+    argv = pf.started[D.PRESS_UNIT]["ExecStart"]
+    assert float(_flag_value(argv, "--max-seconds")) == pytest.approx(
+        tl.hold_s + R, abs=1e-3)
+    assert pf.started[D.PRESS_UNIT]["RuntimeMaxSec"] == \
+        f"{int(tl.hold_s + R) + 2}s"
+    # Injeksiya va pressure_off frozen joyida.
+    fi = of_type(recs, "fault_inject")[0]
+    assert (fi["mono_us_before_call"] - t0) / 1e6 >= tl.t_inject
+    te = of_type(recs, "trial_end")[0]
+    assert te["timing"]["pressure_off_mono_us"] - t0 == round(
+        tl.t_pressure_off * 1e6)
+    w = te["detail"]["pressure"]["window"]
+    assert w["lead_s"] == R
+    assert w["planned_stop_mono_us"] - w["planned_start_mono_us"] == round(
+        (tl.hold_s + R) * 1e6)
+
+
+def test_V2_run_meta_reja_va_haqiqiy_generator_oynasini_yozadi(tmp_path):
+    """`run_meta.timeline` REJA (pressure_on_s = 18) bo'lib qoladi, yonida
+    generatorning haqiqiy oynasi (15.57 s)."""
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "A"),
+                                   allow_pressure=True)
+    drv.run()
+    meta = of_type(events(run_dir), "run_meta")[0]
+    assert meta["timeline"] == sch.TrialTimeline().as_dict()
+    assert meta["timeline"]["pressure_on_s"] == 18.0
+    gw = meta["generator_window"]
+    assert gw["planned_pressure_on_s"] == 18.0
+    assert gw["generator_on_s"] == pytest.approx(15.57)
+    assert gw["start_s"] == pytest.approx(17.43)
+    assert gw["stop_s"] == 33.0
+    assert "14-smoke-trial-natijalari.md" in gw["lead_source"]
+
+
+def test_V2_lead_ramp_fazasidan_uzun_bolsa_run_boshlanmaydi():
+    tl = sch.TrialTimeline()
+    with pytest.raises(D.DriverError, match="ramp fazasi"):
+        D.generator_window(tl, lead_s=tl.ramp_s + 0.01)
+    with pytest.raises(D.DriverError):
+        D.generator_window(tl, lead_s=-0.1)
+
+
+def test_V2_planned_timeline_validatordan_otadi(tmp_path):
+    """`check_planned_timeline` (frozen invariantlar) V2 dan keyin ham o'tadi."""
+    V = _require_strict_validator()
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "A"),
+                                   allow_pressure=True)
+    drv.run()
+    from revix import reduce as R
+    run = R.RawRun(records=events(run_dir))
+    assert V.check_planned_timeline(run) == []
 
 
 def test_har_python_modul_unit_WorkingDirectory_bilan_ishga_tushadi(tmp_path):

@@ -804,6 +804,34 @@ def test_run_ixtiyoriy_flaglar_faqat_berilganda_chiqadi(soxta):
         assert "--json" not in call
 
 
+def test_run_allow_pressure_va_run_mode_ozgartirilmay_uzatiladi(soxta):
+    """14 §7(1): `revix run` avval bu ikki bayroqni uzatmasdi -- P1/P2
+    trial'i `revix run` orqali umuman boshlanmasdi, P0 esa generatorsiz."""
+    cli.main(["run", "--run-dir", "/d/r1", "--seed", "7", "--only", "A,P2",
+              "--allow-pressure", "--run-mode", "pilot"])
+    assert soxta["driver"].calls[-1] == [
+        "--run-dir", "/d/r1", "--seed", "7", "--only", "A,P2",
+        "--allow-pressure", "--run-mode", "pilot"]
+    # Qiymat talqin qilinmaydi: driver'ning o'zi tekshiradi.
+    cli.main(["run", "--run-dir", "/d/r1", "--seed", "7",
+              "--run-mode", "confirmatory"])
+    assert soxta["driver"].calls[-1][-2:] == ["--run-mode", "confirmatory"]
+    # Berilmasa -- argv'da YO'Q (driver default'i ishlaydi).
+    cli.main(["run", "--run-dir", "/d/r1", "--seed", "7"])
+    assert "--allow-pressure" not in soxta["driver"].calls[-1]
+    assert "--run-mode" not in soxta["driver"].calls[-1]
+
+
+def test_run_cli_bayroqlari_haqiqiy_driver_parserida_mavjud(soxta):
+    """Uzatilgan har bayroq driver'ning O'Z parserida bor (shartnoma)."""
+    from revix import driver as real_driver
+    cli.main(["run", "--run-dir", "/d/r1", "--seed", "7", "--blocks", "1",
+              "--only", "A,P2", "--allow-pressure", "--run-mode", "pilot",
+              "--dry-run", "--json"])
+    args = real_driver.build_parser().parse_args(soxta["driver"].calls[-1])
+    assert args.allow_pressure is True and args.run_mode == "pilot"
+
+
 def test_run_nol_qiymatlar_yoqolmaydi(soxta):
     """`--seed 0` va `--blocks 0` falsy, lekin berilgan: `is not None` bilan uzatiladi."""
     cli.main(["run", "--run-dir", "/d/r1", "--seed", "0", "--blocks", "0"])

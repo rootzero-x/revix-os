@@ -321,6 +321,63 @@ RAMP_ABOVE_THRESHOLD_MEASURED_S = 0.000
 # ko'chardi va §3.5 ning duty cycle granularligi (250 ms tik, 2 s PSI
 # oynasi, 4 MiB blok) boshqa bo'lib qolardi. Bir xil nuqson klassi.
 PRESSURE_INTERVAL_MS = 250
+# Generatorning O'Z ramp'i (`pressure_start` -> oxirgi `pressure_ramp`),
+# O'LCHANGAN: docs/architecture/14-smoke-trial-natijalari.md §5.1 --
+# 17.646 - 15.076 = 2.570 s (smoke-05) va 17.646 - 15.078 = 2.568 s
+# (smoke-07), kalibrlangan P2 dial'ida. SOZLANMAYDI (14 §10: mezon
+# o'tmasa R o'zgartirilib qayta urinilmaydi).
+#
+# NEGA (orkestrator qarori V2, 14 §6/§10): generator avval trial timeline
+# ramp'ining BOSHIDA (15 s) ishga tushardi va `ramp_s + hold_s = 18 s`
+# yashardi. O'z ramp'i 2.57 s da tugab PI fazasi rejadagi hold'dan OLDIN
+# boshlangani uchun guard tezligi hold boshidan 1.35-1.46 s oldin 0.35 dan
+# oshdi va 15 s dan uzoq turdi: 2/2 `P2` trial `aborted_guard` (14 §5).
+# Endi generator `hold_start - R` da boshlanadi va `hold_s + R` ishlaydi,
+# ya'ni o'z ramp'i hold boshida tugaydi va u `pressure_off` da chiqadi.
+# Barcha frozen raqamlar (baseline 10, ramp 5, hold 13, injeksiya hold+3,
+# pressure_off 33.0) o'zgarmaydi; v1.11 amendment'ining (1.5) premisasi --
+# "sustain taymeri faqat hold ichida boshlanishi mumkin" -- qayta bajariladi.
+# Bir xil R barcha band va arm uchun (§16.10(2) ruhida).
+GENERATOR_OWN_RAMP_S = 2.57
+GENERATOR_OWN_RAMP_SOURCE = (
+    "docs/architecture/14-smoke-trial-natijalari.md §5.1 (pressure_start -> "
+    "oxirgi pressure_ramp: 2.570 s smoke-05, 2.568 s smoke-07; P2 dial); "
+    "V2 qarori 14 §10")
+
+
+def generator_window(timeline: sch.TrialTimeline,
+                     lead_s: float = GENERATOR_OWN_RAMP_S) -> dict[str, Any]:
+    """Generatorning REJALASHTIRILGAN oynasi, `trial_begin` dan sekundlarda.
+
+    `TrialTimeline` (frozen) o'zgarmaydi: uning `pressure_on_s` i (ramp +
+    hold = 18 s) REJA sifatida qoladi; bu esa generatorning HAQIQIY ishlash
+    oynasi (V2). Ikkalasi ham `run_meta` ga yoziladi, shunda o'quvchi reja
+    18 s ni amaldagi 15.57 s bilan solishtira oladi.
+
+    FAIL-CLOSED: `lead_s` ramp fazasidan uzun bo'lsa generator baseline
+    (R_ref) oynasiga kirib qolardi -- timeline'ni jimgina buzish o'rniga
+    `DriverError`.
+    """
+    if not (0.0 <= lead_s <= timeline.ramp_s):
+        raise DriverError(
+            f"generator lead {lead_s} s ramp fazasi [0, {timeline.ramp_s}] s "
+            "dan tashqarida -- generator R_ref baseline'iga kirardi")
+    start = timeline.t_hold_start - lead_s
+    stop = timeline.t_pressure_off
+    return {
+        "lead_s": lead_s,
+        "lead_source": GENERATOR_OWN_RAMP_SOURCE,
+        "start_s": start,
+        "stop_s": stop,
+        "max_seconds": stop - start,
+        "generator_on_s": stop - start,
+        "planned_pressure_on_s": timeline.ramp_s + timeline.hold_s,
+        "planned_ramp_start_s": timeline.t_ramp_start,
+        "planned_hold_start_s": timeline.t_hold_start,
+        "note": ("TrialTimeline frozen reja (pressure_on_s = ramp_s + hold_s) "
+                 "o'zgarmagan; generator hold_start - lead_s da boshlanadi va "
+                 "pressure_off da chiqadi (V2, 14 §10)"),
+    }
 
 # --- slice dial'lari (00-pilot-topologiya.md §1) ---------------------------
 LAB_SLICE_PROPERTIES: dict[str, Any] = {
@@ -1160,6 +1217,7 @@ def dry_run_report(
         "cell_counts": {"/".join(map(str, c)): n
                         for c, n in schedule.cell_counts().items()},
         "timeline": timeline.as_dict(),
+        "generator_window": generator_window(timeline),
         "t_trial_us": t_trial_us(timeline, probe_period_us),
         "t_trial_formula": T_TRIAL_FORMULA,
         "t_recovery_window_us": t_recovery_window_us(timeline, probe_period_us),
@@ -1543,6 +1601,9 @@ class Driver:
         self.probe_period_us = probe_period_us
         # `t_trial_us()` invariant buzilsa ISTISNO tashlaydi -> run boshlanmaydi.
         self.t_trial_us = t_trial_us(timeline, probe_period_us)
+        # V2 (14 §10): generatorning HAQIQIY oynasi; `timeline` (frozen reja)
+        # o'zgarmaydi. Noto'g'ri lead -> DriverError (run boshlanmaydi).
+        self.gen_window = generator_window(timeline)
         self.washout_policy = washout_policy
         self.selected = select_trials(schedule, config.only)
 
@@ -2097,6 +2158,10 @@ class Driver:
             "module_versions": facts.get("modules"),
             "repo_version": facts.get("repo_version"),
             "timeline": self.timeline.as_dict(),
+            # Reja (`timeline.pressure_on_s`) va generatorning HAQIQIY oynasi
+            # yonma-yon: o'quvchi 18 s rejani 15.57 s amaliy oyna bilan
+            # solishtira oladi (V2, 14 §10).
+            "generator_window": dict(self.gen_window),
             # T_trial HISOBLANADI, hech qachon jimgina konstanta emas.
             "t_trial_us": self.t_trial_us,
             "t_trial_formula": T_TRIAL_FORMULA,
@@ -2428,9 +2493,21 @@ class Driver:
             ramp_start = baseline_end
             hold_start = ramp_start + round(self.timeline.ramp_s * 1e6)
             pressure_off = hold_start + round(self.timeline.hold_s * 1e6)
+            # V2 (14 §10): generator ramp fazasining BOSHIDA emas, balki
+            # `hold_start - R` da boshlanadi, `pressure_off` gacha ishlaydi.
+            gen_start = hold_start - round(self.gen_window["lead_s"] * 1e6)
+            self._wait_until(gen_start, watchers, trial)
             if self.cfg.allow_pressure:
+                t_gen0 = self.pf.mono_us()
                 detail["pressure"] = self._start_pressure(
-                    trial, level, (pressure_off - ramp_start) / 1e6)
+                    trial, level, (pressure_off - gen_start) / 1e6)
+                detail["pressure"]["window"] = {
+                    "planned_start_mono_us": gen_start,
+                    "start_call_mono_us": t_gen0,
+                    "start_offset_s": (t_gen0 - timing.begin_mono_us) / 1e6,
+                    "planned_stop_mono_us": pressure_off,
+                    "lead_s": self.gen_window["lead_s"],
+                }
             else:
                 detail["pressure"] = {
                     "started": False,
@@ -3519,6 +3596,11 @@ def render_dry_run(report: dict[str, Any]) -> str:
         f"  T_trial={report['t_trial_us'] / 1e6:.3f} s   "
         f"(fault'dan keyin {report['t_recovery_window_us'] / 1e6:.3f} s)",
         f"  formula: {report['t_trial_formula']}",
+        f"  generator: {report['generator_window']['start_s']:.2f}"
+        f"..{report['generator_window']['stop_s']:.2f} s "
+        f"({report['generator_window']['generator_on_s']:.2f} s; reja "
+        f"pressure_on_s={report['generator_window']['planned_pressure_on_s']:.1f} s, "
+        f"lead R={report['generator_window']['lead_s']} s)",
         f"  baho: {est['total_hours']:.2f} soat "
         f"(eng yomon {est['worst_case_hours']:.2f} soat); "
         f"qo'shimcha vaqt: {report['per_trial_overhead_source']}",
