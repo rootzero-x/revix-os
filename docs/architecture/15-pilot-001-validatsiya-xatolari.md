@@ -141,8 +141,8 @@ deb belgilaydi.
   "ikki yo'l bir-birini qoplaydi" taxmini §17.4(5) ning *"`complete` deb
   yozilgan bo'lsa — validator xatosi"* qoidasi bilan **birga yashay
   olmaydi**: qoplash reducer'da bo'ladi, rad etish esa run darajasida.
-- **TALQIN:** bu klass `14` dagi smoke'larda ko'rinmagan, chunki 25 ta
-  smoke trial'ning birortasida ham `complete` + oyna/uzilish kombinatsiyasi
+- **TALQIN:** bu klass `14` dagi smoke'larda ko'rinmagan, chunki validator'dan
+  o'tgan smoke run'larining birortasida ham `complete` + oyna/uzilish kombinatsiyasi
   bo'lmagan (validator 0 xato bergan) — `P2` da kech `t_up` bilan tugagan
   `A` trial'i smoke'da `complete` bo'lmagan.
 
