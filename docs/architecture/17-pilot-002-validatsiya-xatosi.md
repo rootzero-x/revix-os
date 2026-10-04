@@ -422,3 +422,55 @@ himoyalanmagan, va yiqilsa (0.6) bo'yicha to'rtinchi amendment kerak bo'ladi.
 | `revix/schema.py` :118, :147–150; `revix/prober.py` :653, :886 | 5 s fsync |
 | `PREREGISTRATION.md` :133–141, :277, :785–788, :1059, :3003, :3112, :3486, :3593 | iqtiboslar |
 | `docs/architecture/04-driver-va-analiz-shartnomasi.md` §8.1 | avtoritet va tartib |
+
+---
+
+## 10. Tuzatish (variant (a)) — spetsifikatsiya va KUTILGAN natija, isbotdan OLDIN
+
+Orkestrator qarori: **(a)**, validator'ning ustuvorlik bilan ishlashini
+**ikki yo'nalishda simmetrik** tuzatish; uchinchi run yo'q; `v1.14`
+amendment'i alohida yoziladi (`PREREGISTRATION.md` ga bu branch tegmaydi).
+Bu bo'lim kod o'zgarishidan va har qanday isbot ishga tushirilishidan
+**oldin** commit qilinadi.
+
+**Tamoyil.** Probe uzilishi **o'lchangan natija da'vosini** — `complete` ni —
+bekor qiladi. U trial'ni natija analizidan allaqachon chiqaradigan va
+muzlatilgan tartibda uzilish qoidasidan **oldin** turadigan disposition'ga
+zid kela olmaydi (`schedule.DISPOSITION_RULES`, `reduce.derive_disposition`,
+`04` §8.1). §14.6(4) va §12 shu tartib ostida **birga** o'qiladi —
+`p1-pilot-002` dan keyin qabul qilingan qaror; §14.6(4) kodda qayta
+ifodalanmaydi.
+
+**Spetsifikatsiya (hozir belgilanadi, verdikt ko'rib emas):**
+
+1. `check_probe_gaps`, `check_probe_coverage` (`probe_coverage_gap`):
+   **XATO faqat `complete` da**; boshqa har disposition'da **OGOHLANTIRISH**
+   (uzilish baribir hisobot qilinadi).
+2. `guard_event_not_reflected`: trial oynasida guard_event bo'lsa
+   disposition `aborted_guard` yoki undan oldin turgan `harness_error`
+   bo'lishi shart; **boshqa har disposition** (`contaminated`,
+   `washout_timeout` ham) — XATO.
+3. Auditdagi boshqa tekshiruvlar o'zgarmaydi; shu tamoyil bo'yicha noto'g'ri
+   tartiblangan narsa topilsa — faqat hisobot.
+
+**Usul.** `git archive` bilan validator nusxasi (`revix/` paketi)
+`~/pilotready-scratch/p13/<before|after>/` ga; `python3 -m revix.validate
+--run-dir <run> --sut-unit revix-sut.service --sut-target sut --json`
+(launcher `pilot-run2.sh` bilan bir xil argumentlar); chiqish faqat
+`~/pilotready-scratch/p13/` ga; pilot kataloglari faqat o'qiladi.
+"Oldin" — `2849896` (o'zgarmagan validator), "keyin" — oxirgi kod commit'i.
+
+**KUTILGAN (oldindan yozildi):**
+
+| run | oldin | keyin |
+|---|---|---|
+| `p1-pilot-001` | 4 xato (`action_without_invocation_change` 1, `probe_gap` 1 — `b007t001`, `window_outside_hold_complete` 2), 3 ogohl. (`disposition_cross_check` 2, `probe_gap` 1 — `b009t000`) | **o'zgarmaydi**: 4 xato, 3 ogohl., xuddi shu kodlar va trial'lar |
+| `p1-pilot-002` | 1 xato (`probe_gap` — `b010t005`), 23 ogohl. (`probe_gap`) | **0 xato, 24 ogohl.** (`probe_gap`) |
+
+`guard_event_not_reflected` va `probe_coverage_gap` — ikkala run'da, oldin
+ham keyin ham **0**. O'zgaradigan **yagona** topilma: `b010t005` ning
+`probe_gap` i, XATO → OGOHLANTIRISH.
+
+**To'xtash qoidasi.** Boshqa har qanday farq (son, kod, trial yoki
+og'irlik) bo'lsa — to'xtayman va orkestratorga xabar beraman; kod commit
+qilinmaydi.
