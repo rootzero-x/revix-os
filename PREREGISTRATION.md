@@ -2,16 +2,21 @@
 
 | | |
 |---|---|
-| **Versiya** | `preregistration/v1.11` |
+| **Versiya** | `preregistration/v1.12` |
 | **Holat** | MUZLATILGAN — kod yozishdan oldin commit qilindi |
 | **Qamrov** | Faqat **pilot eksperiment P1**. Confirmatory eksperiment alohida pre-registration talab qiladi. |
-| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8, v1.9, v1.10, v1.11) |
+| **Muzlatilgan sana** | 2026-09-29 (v1, v1.1, v1.2, v1.3) · 2026-10-02 (v1.4, v1.5, v1.6) · 2026-10-03 (v1.7, v1.8, v1.9, v1.10, v1.11) · 2026-10-04 (v1.12) |
 | **Muhit** | Bu pre-registration **§15.1 va §16.11 da qayd etilgan o'lchangan fingerprint** uchun qo'llanadi. |
 | **✅ Qaror 1 — QABUL QILINDI (v1.11)** | **§17.5 — dizayn nuqsoni** (stabilizatsiya oynasi pressure hold'ga sig'maydi) → **O3**: `hold_cap_s` **12 s → 13 s**. Orkestrator, egasining 2026-10-03 dagi ochiq delegatsiyasi bo'yicha. Asos, narx va cheklovlar: **Amendment log, v1.10 → v1.11** va §17.5. |
 | **✅ Qaror 2 — QABUL QILINDI (v1.11)** | **§18.6 — §11 ning fail-slow limbi ishlamaydi** → **F2**: `thr = 0.20 × τ = 1.6 s`, **fiksa**. Orkestrator, o'sha delegatsiya bo'yicha. §18.2 ning `thr = 0.20 × RMST(P0)` o'qishi **bekor qilinadi**. Asos, **bias yo'nalishi** va narx: **Amendment log, v1.10 → v1.11**, §18.6, §18.7. |
 | | Ikkala qaror **birinchi pilot trial'idan OLDIN** va **birgalikda** qabul qilindi (tuguni `τ = W_stab_pilot = 8 s`; §18.6, §19.3). **Juftlik izchil:** O3 `W_stab_pilot` ni ham, `τ` ni ham **tegmasdan qoldiradi**, demak §18.6 ning O1 haqidagi ogohligi **yuzaga kelmaydi**. |
 | **🔴 Oshkora e'lon (v1.11)** | **Ikkala tanlov ham KALIBRATSIYA MA'LUMOTI KO'RILGANDAN KEYIN qabul qilindi.** P1 trial'i o'tkazilmagan, lekin `10-pressure-dozalash.md` ning o'lchovlari tanlov paytida **qo'lda edi**, va F2 holatida nomzod chegaralar **o'lchangan `P2 − P0` farqiga nisbatan** taqqoslandi. §17.6 va §18.7 ning *“ma'lumot mavjud emas”* kafolati **v1.11 ga O'TMAYDI** — Amendment log, v1.10 → v1.11, **0-band**. |
-| **⛔ Gate** | **§21.7 — generator §9.4 ning ikki invariantini majburlamaguncha hech qanday pilot trial o'tkazilmaydi** (o'lchangan: 5 s so'rov → 16.3 s epizod). |
+| **✅ Ochiq parametrlar — MUZLATILDI (v1.12)** | **§16.10:** `WatchdogSec = 5 s`, `MemoryHigh = 192M` (`MemoryMax=2G` bilan), `T_trial = 41.1 s` — oldindan yozilgan qoida / formula bo'yicha; **`TimeoutStartSec = 10 s` — ⚠️ OSHKORA OG'ISH:** o'z kalibratsiya qoidasi namuna yetmagani uchun (24/24/20 < 48) **taklif BERMAGAN**, qiymat ma'lumotdan oldingi default sifatida saqlandi. Kalibratsiya run'lari: `open-params-cal-01`, `-02`, `-03`. Orkestrator, egasining 2026-10-03 delegatsiyasi bo'yicha. **Amendment log, v1.11 → v1.12, 1-band.** |
+| **✅ Generator vaqti — V2 (v1.12)** | Generator `t_h − R` da boshlanadi (`R = 2.57 s` — o'z o'lchangan ramp'i), `hold_s + R` ishlaydi, `pressure_off` (33.0 s) da chiqadi. **§9.4 ning hech bir muzlatilgan vaqti siljimadi** — *"ramp 5 s"* ning implementatsion aniqlashtirilishi. Sabab: avvalgi 18 s li generator bilan sustain taymeri hold'dan **1.4 s oldin** boshlanib `P2` 2/2 `aborted_guard` bo'lgan — **v1.11 (1.5) ning premisasi yolg'on chiqdi**. **2-band.** |
+| **⚠️ `P2` da kutilgan yo'qotish (v1.12)** | Guard'ning **runaway** qoidasi (`0.98`) bo'yicha ba'zi `P2` trial'lari `aborted_guard` bo'ladi (1/6 … 2/7 tartibida — **o'lchangan stavka EMAS**). Ular §12 bo'yicha chiqariladi; **`(arm × pressure)` yacheyka jadvali MAJBURIY**; bias yo'nalishi (shartli: **H1 ga qarshi**) va arm'lararo **confound** xavfi oldindan e'lon qilindi. **3-band.** |
+| **🔴 Oshkora e'lon (v1.12)** | **v1.12 ning qarorlari kalibratsiya VA smoke ma'lumoti ko'rilgandan KEYIN qabul qilindi.** `TimeoutStartSec` og'ishi, V2 va `P2` yo'qotishi kutilmasi uchun *"ko'r tanlangan"* kafolati **yo'q**; qoidaga tayangan qiymatlar uchun qamrovi 0-band jadvalida. **Amendment log, v1.11 → v1.12, 0-band.** |
+| **✅ Gate — YOPILDI (v1.12), shart bilan** | **§21.7:** generator §9.4 ning ikki invariantini **o'lchov bo'yicha** majburlaydi — **faqat V2 generator vaqti bilan ishlaydigan driver uchun** (chiqish 33.075–33.245 s vs 33.0 s; eng uzun guard oralig'i ≤ 13.0 s; sustain trip 0/6; n = 6). `main` ning hozirgi (V0) driver'i bilan trial — **protokol buzilishi**. Orkestrator qarori. **5-band.** |
+| **⛔ Pilot preshartlari (v1.12)** | Birinchi pilot trial'i o'tkazilmaydi, toki `main` da: **(1)** driver istisno yo'li nuqsonining tuzatishi (guard abort'i `harness_error` bo'lib, washout o'tkazib yuborilardi); **(2)** V2 kodi; **(3)** muzlatilgan qiymatlarni `run_id` bilan olib yuradigan `run_meta.open_parameters`; **(4)** V2 ning `P1`/`P0` regressiya smoke'i merge qilingan kod bilan; **(5)** v1.12 merge qilingan va tag qilingan. **9-band.** |
 
 Bu fayl `run_meta.preregistration_sha256` orqali har bir eksperiment run'iga bog'lanadi.
 Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har doim aniqlanadi.
@@ -23,6 +28,680 @@ Fayl o'zgarsa — hash o'zgaradi, ya'ni qaysi ta'riflar ostida o'lchangani har d
 Pre-registration **jimgina tahrirlanmaydi.** Har bir o'zgarish shu yerda
 qayd etiladi, versiya oshiriladi, va oldingi versiyaning hash'i saqlanadi.
 Shunda qaysi ta'riflar ostida o'lchangani har doim tekshirilishi mumkin.
+
+### v1.11 → v1.12 (2026-10-04)
+
+| | |
+|---|---|
+| **v1.11 sha256** | `bf6a02d9de7d6383e985ae7ebdca9f7003a625300af8e4581648f202f9b66d1e` |
+| **v1.11 git tag** | `v0.1.11-preregistration` |
+| **Sabab** | §16.10 ning QAROR bandi **birinchi pilot trial'idan OLDIN** ikki narsani talab qiladi: muzlatilmagan parametrlar **kalibratsiya run'ining `run_id` si bilan** belgilanadi (1-qoida), va `T_trial` ning aniq qiymati **ochiq qaror bilan** muzlatiladi (4-qoida). Bu amendment o'sha talabni bajaradi. Qo'shimcha ravishda real driver bilan **birinchi smoke trial'lar** v1.11 (1.5) ning premisasini **o'lchov bilan rad etdi**, `P2` da guard yo'qotishining **ikkinchi yo'lini** ko'rsatdi, va kalibratsiya host uyqusi bilan bog'liq **yaroqlilik bo'shlig'ini** ochdi — bularning hammasi birinchi trial'dan oldin yozilishi shart |
+| **Qarorni kim qabul qildi** | **Orkestrator**, loyiha egasining **2026-10-03 dagi ochiq delegatsiyasi** bo'yicha (*"choose whichever is better and continue"*). Asos fayllar: `docs/architecture/13-ochiq-parametrlar-kalibratsiyasi.md` (`main`); `docs/architecture/14-smoke-trial-natijalari.md` — **amaldagi versiyasi faqat `agent/pilot-ready` branch'ida (bu yozuv tahrir qilingan paytda `9c98e7f`), `main` ga merge qilinMAGAN**; `main` da faqat §9 gacha eski nusxa bor, va bu yerda shu branch'dagi **barqaror FAKT'lar** keltiriladi (§5, §6, §10, §11, §12); `10-pressure-dozalash.md` §2.2, §4, §5.1, §6, §7.2, §10, §12; `07-wsl-muhit-tekshiruvlari.md` §7.7. Matnni `agent/amend-v112` agenti yozdi; **har bir raqam keltirilgan faylga qarshi qayta tekshirildi** |
+| **O'zgardi** | **(1)** §16.10 ning ochiq parametrlari **muzlatildi**: `watchdog_sec = 5 s`, `memory_high = 192M` (`MemoryMax=2G` bilan), `timeout_start_sec = 10 s` (**⚠️ oshkora og'ish bilan** — o'z oldindan yozilgan qoidasi taklif BERMAGAN; 1.3-band), `T_trial = 41.1 s` (ochiq qaror; formula o'zgarmadi). **(2)** Generatorning ramp oynasi **ichidagi** boshlanish nuqtasi (V2) — §9.4 ning *"ramp 5 s"* iborasining **implementatsion aniqlashtirilishi**; §9.4 ning hech bir muzlatilgan vaqti siljimadi (2-band). **(3)** `P2` da `aborted_guard` yo'qotishi **oldindan e'lon qilingan kutilma** sifatida yozildi, uning bias yo'nalishi tahlil qilindi, va `aborted_guard` ning **`(arm × pressure)` yacheyka jadvali MAJBURIY** qilindi — bu **hisobot talabi, ta'rif emas** (3-band). **(4)** Bitta yangi **yaroqlilik** qoidasi `host_clock_discontinuity` (faqat run'ni **rad etadi**) va smoke/kalibratsiya ma'lumotining pilot to'plamidan **chiqarilish** qoidasi (4-band). **(5)** §21.7 ning ⛔ gate'i **YOPILDI — faqat V2 generator vaqti bilan ishlaydigan driver uchun** (5-band) |
+| **O'zgarMADI** | **hech bir metrika ta'rifi, statistik test, arm, fault klassi, probe parametri, VR/FR ta'rifi, `disposition` enum'i, falsifikatsiya mezoni**, `W_stab_pilot`, `τ`, `injection_offset`, `θ`, `k_f`, `P`, `T_conn`, `T_rt`, blok va trial soni, **guard chegaralari** va **dial**. To'liq ro'yxat — 6-bandda |
+| **Yig'ilgan ma'lumot** | **P1 trial'i ma'lumoti — YO'Q:** birorta pilot trial'i o'tkazilmagan, birlamchi endpoint ko'rilmagan. **LEKIN** kalibratsiya (`open-params-*`) va smoke (`smoke-*`) ma'lumotlari **MAVJUD va KO'RILGAN** — 0-band; ular pilot ma'lumot to'plamiga **hech qachon kirmaydi** — 4.5-band; to'liq holat — 8-band |
+
+**0. 🔴 OSHKORA E'LON — bu qarorlar kalibratsiya VA smoke ma'lumoti ko'rilgandan KEYIN qabul qilindi.**
+
+§17.6 va §18.7 o'z qarorlarini *"hech qanday ma'lumot mavjud bo'lmaganda"*
+qabul qilingan deb himoya qilgan; v1.11 ning 0-bandi bu kafolat v1.11 ga
+**o'tmasligini** e'lon qilgan. **Xuddi shu e'lon v1.12 uchun ham — va
+ayniqsa 1.3-band (`timeout_start_sec`), 2-band (V2) va 3-band (`P2`
+yo'qotishi) uchun.** *"Ko'r tanlangan"* degan har qanday da'vo faqat
+quyidagi jadvalda ko'rsatilgan qamrovda o'qiladi:
+
+| qaror | qoida ma'lumotdan OLDIN yozilganmi? | qiymat qoidadan mexanik chiqdimi? | *"ko'r"* da'vosining qamrovi |
+|---|---|---|---|
+| `watchdog_sec = 5 s` (1.1) | **HA** — `13` §0, commit `812c989` (2026-10-03 22:34:48 +0500); o'lchov runner'i `1d344b2` (22:42:16 +0500) uning avlodi, qulf `17:42:32Z` (= 22:42:32 +0500) da olindi | **HA** — `max(5, ceil(0.70)) = 5 s` | faqat **qoida va uning chiqishi** ko'r; qoidani **muzlatish** qarori ma'lumot ko'rilgandan keyin |
+| `memory_high = 192M` (1.2) | **HA** — `13` §0.7 ning qayta-ishlab-chiqarish mezoni, o'sha commit | **HA** — mezon bajarildi; qiymat ma'lumotdan oldingi default | xuddi shunday |
+| `T_trial = 41.1 s` (1.4) | formula `driver-contract/v1.2` — ma'lumotdan oldin; tekshiruvlar `13` §0.7 da | **HA** — formula, o'lchov emas | raqam ma'lumotdan **tanlanmagan** |
+| `timeout_start_sec = 10 s` (1.3) | qoida bor edi — **u taklif BERMADI** | **YO'Q — og'ish** | **YO'Q** |
+| V2 (2) | V2 ning **muvaffaqiyat mezoni** V2 trial'laridan oldin yozildi (`14` §10, commit `8ebf130`), lekin **V2 ning o'zi** V0 ning 2/2 trip'i ko'rilgandan keyin tanlandi, va mezonning **(a) qismi BAJARILMADI** | — | **YO'Q** |
+| `P2` yo'qotishi kutilmasi (3) | 1/6 va 2/7 ko'rilgandan keyin | — | **YO'Q** — lekin **har qanday P1 ma'lumotidan OLDIN** |
+| `host_clock_discontinuity` chegarasi `1.0 s` (4) | 72 402 juft ko'rilgandan keyin | — | YO'Q; qoida faqat **rad etadi** (4.3) |
+| §21.7 gate'ining yopilishi (5) | o'lchovdan keyin | — | YO'Q |
+
+- **Nima bu xavfni CHEKLAYDI:** **(i)** hech qanday P1 trial'i
+  o'tkazilmagan — `P(VR)`, `Δ`, CI va p-qiymat **ko'rilmagan**; ko'rilgan
+  narsa mashina va kalibratsiya kattaliklari (watchdog oraliqlari,
+  `t_start`, guard tezligi, generator vaqtlari); **(ii)** bu amendment
+  **hech bir ta'rifga, testga yoki falsifikatsiya mezoniga** tegmaydi — u
+  vaqt implementatsiyasi, ikki driver default'ining muzlatilishi,
+  yaroqlilik qoidasi va hisobot talabini o'zgartiradi; **(iii)** 3-band
+  `P2` yo'qotishining **bias yo'nalishini** P1 ma'lumotidan oldin yozadi.
+- **Nima bu xavfni CHEKLAMAYDI:** V2 va 1.3-band **ularning oqibati
+  bilinib turib** tanlandi. V2 aynan **`P2` yacheykalarini bo'sh qoldiradigan**
+  sustain trip'larini (2/2) yo'q qilgani uchun saqlandi — ya'ni
+  **o'tkaziluvchanlik (feasibility) ma'lumotiga qarab tanlov**. 1.3-band
+  esa o'z qoidasi taklif bermagan joyda default'ni ushlab qoladi. O'quvchi
+  buni **ko'rishi shart**.
+
+> **Maqolada shunday yoziladi:** *"`WatchdogSec`, `MemoryHigh` va
+> `T_trial` oldindan yozilgan qoida bo'yicha muzlatilgan; `TimeoutStartSec`
+> qoida taklif bermagani uchun ma'lumotdan oldingi default'da **og'ish
+> sifatida** saqlangan; generatorning boshlanish nuqtasi va `P2` dagi
+> kutilgan guard yo'qotishi **kalibratsiya va smoke ma'lumoti ko'rilgandan
+> keyin, lekin birinchi pilot trial'idan OLDIN** belgilangan."*
+
+**1. §16.10 NING OCHIQ PARAMETRLARI MUZLATILDI.**
+
+**(1.0) Qaysi run'lar, qaysi qoida.** O'lchov `experiment/open-params`
+branch'ida bajarildi (§16.10(1) `experiment/pressure-cal` ni nomlaydi —
+**nom farqi** `13` §8(5) da qayd etilgan; qoidaning mazmuni —
+kalibratsiya run'ining `run_id` si — shu yerda bajariladi). Qoida — `13`
+§0 (commit `812c989`, ma'lumotdan oldin); og'ishlar `13` §0A va §0B —
+har biri **keyingi run'dan oldin** commit qilingan (`8c3607c`, `c45de9f`).
+`13` §1 bo'yicha:
+
+| `run_id` | commit | nima | nimaga ishlatildi |
+|---|---|---|---|
+| `open-params-cal-01` | `1d344b2` | A (watchdog) + B (boshlanmadi — host uyqusi, `13` §0A) | watchdog: yaroqli A epizodlari `P0` 20, `P1` 21, `P2` 21 |
+| `open-params-cal-02` | `8c3607c` | A `P0:4,P1:3,P2:3` + B | watchdog: A 4 / 3 / 3; `t_start`: B (guard trip `B-P2-05`, §0B) |
+| `open-params-cal-03` | `c45de9f` | faqat B | `t_start`: B (guard trip `B-P2-02`); `M_start = 0.9614 s` shu run'dan |
+| `open-params-smoke-01` | `1d344b2` | protokol sinovi | **hisobga KIRMAYDI**; uning `1.7030 s` i 1.3-band jadvalida **oshkoralik uchun** keltiriladi |
+
+Chiqarilgan epizodlar (va **faqat shular**, `13` §1): `cal-01:A-P0-21`,
+`cal-01:A-P2-22` (soat sakrashi), `cal-02:B-P2-05`, `cal-03:B-P2-02`
+(guard trip, `13` §0.5(4)).
+
+**(1.1) `watchdog_sec = 5 s` — qoida bo'yicha (`13` §2.2, §6.1).**
+
+```
+g     = WatchdogTimestampMonotonic ning ketma-ket ikki turli qiymati orasidagi oraliq
+delta = g - W/2 = g - 2.5 s           (miss sharti: delta > W/2)
+72 yaroqli epizod (P0 24, P1 24, P2 24; cal-01 + cal-02 ning A qismi)
+1008 ping oralig'i (336 x 3) + 72 arm -> birinchi ping oralig'i
+max g = 2.6170 s (P2);   M_wd = max delta = 0.1170 s (P2)
+Result=watchdog: 0/72;   NRestarts: 0;   poller interval max 0.0699 s (< 1.0 s)
+L_wd  = 2 x F x M_wd = 2 x 3 x 0.1170 = 0.70 s  ->  ceil = 1 s
+U_wd  = 18.0 - M_start = 18.0 - 0.9614 = 17.04 s       (1 <= 17.04, ziddiyat yo'q)
+qiymat = max(5, 1) = 5 s
+zaxira: (W/2) / M_wd = 2.5 / 0.1170 = 21.4x   (oldindan qo'yilgan talab F = 3)
+```
+
+`cal-03` A qismini o'z ichiga olmaydi; u `U_wd` dagi `M_start` ni beradi.
+`F = 3` `10` §10.2 (OQ-8) ning *"kamida 2–3 karrasi"* talabining yuqori
+cheti (`13` §0.3). G2 (watchdog `READY=1` bilan birga qurollanadi)
+tasdiqlandi (`13` §2.1).
+
+> **§16.10(5) bayonoti:** *"§9.2 mexanizm **(iv)** (watchdog miss) ning
+> mavjudligi `WatchdogSec` ning muzlatilgan qiymati — **5 s** — bilan
+> belgilangan."* Kalibrlangan dozada miss uchun SUT ish tsikli (ping
+> qabul kechikishi bilan birga) **≥ 2.5 s** ushlanishi kerak — o'lchangan
+> eng yomon holatning **21.4×** i. **Kalibrlangan dozada bosimning o'zi
+> (iv) ni YARATMADI (0/72).** Shuning uchun pilotda (iv) ning **yo'qligi**
+> bu mexanizm haqida **ma'lumot bermaydi**, uning **paydo bo'lishi** esa
+> pilot sharoiti kalibratsiyadan `F×` dan ortiq chetga chiqqanini bildiradi.
+
+**CHEKLOV (`13` §9):** watchdog oraliqlari **bosimdan oldin** ishga
+tushgan SUT da o'lchandi — pilotdagi arm `A` restart'i esa **bosim
+ichida**; bystander va prober kalibratsiyada lab'da **yo'q** edi; G1
+(`δ` davrga bog'liq emas) tekshirilmadi; bitta kernel.
+
+**(1.2) `memory_high = 192M` (`MemoryMax=2G` bilan) — §16.10(6) bajarildi.**
+§16.10(6): *"`MemoryHigh` dial `MemoryMax=2G` topologiyasida **qayta
+o'lchanadi**; 1G ostida o'lchangan 192 M ko'chirilmaydi."* `10` §2.2
+(`dose-01-dial`, `MemoryMax=2G` ostida): `step_mb=16 → base 160` nol doza
+(`memory.current` max 185.3 MiB — `08` §3.4 bilan aynan bir xil),
+`step_mb=4 → base 184` erishilgan p50 **0.3344**; `10` §2.6 dial'ni 2G
+ostida qotirgan. **Ya'ni 192M 2G ostida qayta o'lchangan, ko'chirilmagan.**
+Qayta-ishlab-chiqarish tekshiruvi (`13` §4, mezon `13` §0.7, `≥ 90%`):
+`P0` **30/30** epizodda `memory.events high` va lab `full total=` deltasi
+**0**; `P1` **30/30**, `P2` **29/29** da ikkalasi `> 0`. Kalibratsiya
+run'lari: `dose-01-dial`, `dose-02-bands`, `dose-03-p2sweep` (xom
+ma'lumoti `datasets/` da **yo'q**, guest'da `~/revix-runs/dose-*`);
+qayta-ishlab-chiqarish: `open-params-cal-01/-02/-03`.
+
+> **⚠️ CHEKLOV — OQ-11 ochiq qoladi:** bu `192M` ning **optimal** ekanini
+> ko'rsatmaydi — **boshqa hech bir `MemoryHigh` qiymati o'lchanmagan**
+> (`10` §11 OQ-11), va ishchi `base_mb` oynasi **tor** (faqat 184,
+> `10` §3.6). §16.10(6) optimallikni talab qilmaydi; muzlatilgan narsa —
+> **o'lchangan dial**, eng yaxshi dial emas.
+
+**(1.3) `timeout_start_sec = 10 s` — ⚠️ OSHKORA OG'ISH: o'z qoidasi taklif BERMAGAN.**
+
+**Birinchi navbatda:** `13` §0.5(3) har bandda **≥ 48** bosim ostidagi
+(PRESSURED) start'ni talab qiladi. Olingani **24 / 24 / 20** (`13` §3.1).
+**Qoida o'z shartiga ko'ra TAKLIF BERMADI** (`13` §6.2: *"taklif
+BERILMAYDI"*), va bu band buni **yashirmaydi**.
+
+**Nega namuna to'lmadi:** `cal-01` ning B qismi host uyqusi va guest init
+restart'i tufayli **umuman boshlanmadi** (`13` §0A); `cal-02` va `cal-03`
+ikkalasi ham kalibrlangan `P2` da **bosim ostidagi SUT start'i paytida**
+guard'ning runaway chegarasini urdi (`B-P2-05`: `rate 0.9802`; `B-P2-02`:
+`rate 0.9889`; `limit 0.98`) va controller **oldindan yozilgandek**
+FAIL-CLOSED to'xtadi; `13` §0B oldindan yozgan: *"`cal-03` ham trip bilan
+to'xtasa, qo'shimcha run qilinmaydi"*.
+
+**Orkestratorning qarori:** ma'lumotdan **oldingi** driver default'i —
+**10 s** — saqlanadi va muzlatiladi. U tayangan o'lchovlar:
+
+| manba | run | band | eng katta o'lchangan `t_start` | `10 s / max` |
+|---|---|---|---|---|
+| `13` §3.1 (hisobga kirgan, `M_start`) | `open-params-cal-03` (B) | `P1` | **0.9614 s** | **10.40×** |
+| `13` §3.1 (hisobga **kirmaydi**) | `open-params-smoke-01` (B) | `P2` | **1.7030 s** | **5.87×** |
+| `10` §6.2 / §10.1 | `10` ning `tstart-*` run'lari | `P1` | **1.4807 s** | **6.75×** |
+
+`Result=timeout`: kalibratsiyada **0** (68 qualifying + 72 bosimsiz start,
+`13` §6.2), `10` da **0/78**.
+
+> **Bu QOIDANING bajarilishi EMAS — bu hujjatlashtirilgan OG'ISH.** U
+> ikki sababga tayanadi: **(a)** o'lchangan **har bir** dum 10 s dan
+> uzoq pastda (eng yomoni `5.87×`); **(b)** qiymat birinchi trial'dan
+> oldin muzlatilishi **shart** (§16.10(1), (4)) va P1 ma'lumotidan keyin
+> uni o'zgartirish **taqiqlangan** (§16.10(3)) — namunani to'ldirish esa
+> aynan guard'ni urgan `P2` B epizodlarini (2/7) qaytadan talab qilardi,
+> `13` §0B esa buni oldindan taqiqlagan. `13` §6.2 ning *"ma'lumot
+> uchun"* arifmetikasi (har uch dum bilan qoida `max(10, 3 | 6 | 5) = 10 s`
+> berardi) **dalil sifatida ishlatilmaydi**: u namuna sharti bajarilmagan
+> arifmetika.
+
+> **§16.10(5) bayonoti:** *"§9.2 mexanizm **(i)** (`TimeoutStartSec`
+> oshib ketdi) ning mavjudligi `TimeoutStartSec` ning muzlatilgan
+> qiymati — **10 s** — bilan belgilangan."* (i) uchun start o'lchangan
+> eng sekin start'dan kamida **5.87×** (hisobga kirgan kalibratsiyaga
+> nisbatan **10.40×**) sekin bo'lishi kerak.
+
+> **O'quvchi nima xulosa qilishi kerak:** `Result=timeout` pilotda
+> **bosimning o'zidan kutilmaydi.** Uning **yo'qligi** mexanizm (i)
+> haqida ham, arm `A` (systemd restart) haqida ham **topilma sifatida
+> hisobot qilinMAYDI** — u parametr tanlovi bilan belgilangan. §11(c)
+> mexanizm (i) ga tayansa, yuqoridagi bayonot, muzlatilgan qiymat **va
+> shu og'ish** hisobotda **majburiy**.
+
+(v1.11 (4.5) ning kuzatuvi — §17.3 (b) chegarasi `t_start > ~9.9 s` 10 s
+dan **biroz pastda** — o'z kuchida qoladi; xulosa chiqarilmaydi.)
+
+**(1.4) `T_trial = 41.1 s` — §16.10(4) talab qilgan OCHIQ QAROR.**
+Formula **o'zgarmadi**: `T_trial = t_pressure_off + w_stab_s + P =
+33.0 + 8.0 + 0.1 = 41.1 s` (`driver-contract/v1.2`; qiymat `hold_cap_s =
+13 s` dan chiqadi, v1.11 4-band). `13` §5 ning tekshiruvlari (oldindan
+`13` §0.7 da yozilgan):
+
+```
+(a) eng sekin start + verifikatsiya oynasi:
+    t_inject + RestartSec + M_start + W_stab_pilot + P = 23.0 + 0.1 + 0.9614 + 8.0 + 0.1 = 32.16 s <= 41.1
+    (open-params-smoke-01 ning 1.7030 s i bilan: 32.90 s <= 41.1)
+(b) eng uzun o'lchangan tiklanish (10 §7.2, P2, D_probe proxy max 2.2 s):
+    23.0 + 2.2 + 8.0 + 0.1 = 33.3 s <= 41.1
+(c) 72 A epizodida pressure_stop dan keyin lab full total= BIRORTA marta ham o'smagan;
+    pressure'dan keyingi max delta <= 0.0011 s  ->  [33.0, 41.1] s ga bosim qoldig'i sizmaydi
+```
+
+Chegaralar: `41.1 ≥ t_verify_end_earliest = 31` ✓ (v1.11 4.2), `41.1 ≤
+total_s = 53` ✓, va §16.10 ning 6-qatori (`τ ≤ T_trial`) **endi
+tekshiriladi**: `8 ≤ 41.1` ✓. V2 (2-band) `T_trial` ga **tegmaydi** —
+`t_pressure_off` o'zgarmadi. **Raqam ma'lumotdan tanlanmagan**; uni
+**muzlatish qarori** ma'lumot ko'rilgandan keyin (0-band).
+
+**(1.5) §16.10 jadvalining qolgan qatorlari.** 4-qator (`P2` nishoni
+0.70) — v1.11 dan **oldin** kodda 0.60 ga tuzatilgan (v1.11 log,
+9.6-band), bu amendment'ning qarori emas. §16.10(2) — **bir qiymat barcha
+arm va daraja uchun** — bajariladi: yuqoridagi to'rt qiymatning hammasi
+arm/band'ga bog'liq emas. §16.10(1) ning ikkinchi yarmi — qiymatlarni
+`run_id` lari bilan **`run_meta.open_parameters` ga yozish** — **kod
+ishi, va u hali bajarilmagan**: `main` da ham, `agent/pilot-ready` da ham
+uchala yozuv hamon `calibration_required: true` (9-band, pilot preshart 3).
+`run_meta` olib yurishi kerak bo'lgan mazmun: har parametr uchun qiymat,
+kalibratsiya `run_id` lari (yuqoridagi jadval), §16.10(5) bayonoti, va
+`timeout_start_sec` uchun **shu og'ishga havola**.
+
+**2. GENERATOR VAQTI (V2) — §9.4 ning "ramp 5 s" iborasining IMPLEMENTATSION aniqlashtirilishi.**
+
+**(2.1) FAKT — V0 (`14` §4, §5; `P2` n = 2).** Driver generatorni
+rejadagi ramp boshidan (15.0 s) **`ramp_s + hold_s = 18 s`** ishlatgan.
+Generatorning **o'z** ramp'i 17.646 s da tugagan (2.57 s), PI fazasi esa
+hold'dan (20.0 s) **oldin** boshlangan. Guard kuzatadigan `user` 2 s
+tezligi `≥ 0.35` ga **18.544 / 18.647 s** da chiqqan — hold'dan
+**1.35–1.46 s OLDIN** — va guard'ning sustain taymeri
+(`sustain_rate_threshold = 0.35`, `sustain_max_seconds = 15.0`,
+`revix/guard.py` `DEFAULTS`) **15 s dan keyin** tugagan: **2/2 `P2`
+trial `aborted_guard`**, `sustained_s` **15.10 / 15.00**, trip
+33.634 / 33.553 s da (generator 33.127 / 33.120 s da to'xtagandan keyin,
+2 s oynaning qoldig'ida). Eng uzun uzluksiz `≥ 0.35` oraliq **15.4 /
+14.9 s**. `P1` da 2/2 trip yo'q (oraliq 2.7 / 2.3 s).
+
+**(2.2) Bu v1.11 (1.5) NING PREMISASIGA ZID.** v1.11 (1.5) guard
+qayta kalibratsiyasini shunday rad etgan edi: *"`ramp_above_threshold_s
+= 0` bo'lgani uchun sustain taymeri faqat hold ichida boshlanishi
+mumkin"*. **Pilot timeline'ida bu yolg'on bo'lib chiqdi.** Sabab:
+`ramp_above_threshold_s = 0.000` (`10` §4.1, 29/29) **generatorning o'z
+ramp oynasida** (`pressure_start` → oxirgi `pressure_ramp`, 2.55–2.61 s)
+o'lchangan; §9.4 ning invarianti esa **timeline ramp'iga** (5 s)
+tegishli. Rejadagi 5 s ramp oynasida `[15.0, 20.0] s` o'lchangan qiymat
+**2.0–2.1 s** (`14` §4.3) ⇒ `13 + 2.1 = 15.1 > 15`. v1.11 log yozuvi
+**qayta yozilmaydi** (7-band); tuzatish — shu band.
+
+**(2.3) QAROR — V2.** Generator **`t_h − R = 20.0 − 2.57 = 17.43 s`** da
+boshlanadi, **`hold_s + R = 15.57 s`** ishlaydi, va **`t_pressure_off =
+33.0 s`** da — avvalgidek — chiqadi. `R = 2.57 s` — generatorning **o'z
+o'lchangan ramp'i** (`14` §5.1: `17.646 − 15.076 = 2.570 s`,
+`17.646 − 15.078 = 2.568 s`), **nomli konstanta, sozlanmaydi**, barcha arm
+va band uchun **bir xil** (§16.10(2) ruhida). Kod: `11fca44`
+(`agent/pilot-ready`, **merge qilinMAGAN**); `run_meta.generator_window`
+rejani (`planned_pressure_on_s = 18`) ham, amaldagi oynani (`15.57 s`)
+ham yozadi.
+
+**(2.4) Nega bu implementatsion aniqlashtirish, ta'rif o'zgarishi emas.**
+§9.4 ning **muzlatilgan vaqtlari — hammasi o'zgarmadi**:
+
+| kattalik | qiymat (`trial_begin` dan) | V2 dan keyin |
+|---|---|---|
+| pre-flight | 5 s | o'zgarmadi |
+| `R_ref` baseline | 10 s (5.0–15.0) | o'zgarmadi |
+| ramp | 5 s (15.0–20.0) | o'zgarmadi |
+| hold (`hold_cap_s`) | 13 s (20.0–33.0) | o'zgarmadi |
+| injeksiya | `t_h + 3 = 23.0 s` | o'zgarmadi |
+| pressure off | `t_h + 13 = 33.0 s` | o'zgarmadi |
+| `T_trial` | 41.1 s | o'zgarmadi |
+| washout | `≥ 20 s` | o'zgarmadi |
+| **generatorning ramp oynasi ichidagi boshlanishi** | 15.0 s | **17.43 s** |
+
+O'qish: *"ramp 5 s"* — bosim **ko'tariladigan** 5 s li oyna; generatorning
+o'z ramp'i uning **oxirgi 2.57 s** ini egallaydi, birinchi ~2.43 s da
+generator ishlamaydi (bu `R_ref` baseline'iga kirmaydi — u 15.0 s da
+tugaydi). **Oqibati:** `run_meta.timeline.pressure_on_s = 18` (reja)
+endi generatorning amaldagi ishlash vaqtining (**≈ 15.57 s**; o'lchangan
+`elapsed` 15.568–15.697 s) **yuqori chegarasi**, uning o'zi emas.
+
+**Narxi, ochiq:** injeksiya paytida PI fazasining "yoshi" o'zgaradi.
+V0 da `≥ 0.35` injeksiyadan ~4.4 s oldin boshlangan; V2 da 20.95–21.05 s
+da, ya'ni injeksiyadan ~2 s oldin, generatorning o'z ramp'i tugaganidan
+~2.9 s keyin. (TALQIN: bu kalibratsiyaning B protokoli bilan bir xil
+ofset — `13` §0.8 da start'lar generator ramp'idan **3 s keyin**
+boshlanadi.) Injeksiya lahzasidagi **erishilgan** doza §9.4 bo'yicha
+**o'lchanadi** (*"analiz ERISHILGAN pressure'dan foydalanadi"*), taxmin
+qilinmaydi.
+
+**(2.5) FAKT — V2 natijasi (`14` §11; `P2`, n = 6: 3 × `A`, 3 × `no_action`).**
+
+| kattalik | 6 trial (min–max) | reja |
+|---|---|---|
+| generator `pressure_start` | 17.494–17.547 s | 17.43 s |
+| generatorning o'z ramp'i tugadi | 20.056–20.115 s | 20.0 s |
+| `user` `≥ 0.35` birinchi marta | 20.946–21.051 s | hold ichida |
+| `ramp_above_threshold_s`, **rejadagi** ramp oynasi `[15, 20] s` | **0.0 (6/6)** | 0.0 |
+| eng uzun uzluksiz `≥ 0.35` oraliq | **5.0–13.0 s** (`smoke-13` kill bilan 2.1 s da kesilgan) | `< 15 s` |
+| `sustained_pressure` trip'i | **0/6** (V0 da 2/2) | 0 |
+| generator chiqishi (5 tugagan trial) | **33.075–33.245 s** (`overrun` 0.000–0.127 s) | 33.0 s |
+| `user_full_rate2s_runaway` trip'i | **1/6** (`smoke-13`) | — (3-band) |
+
+**V2 ning OLDINDAN yozilgan mezoni** (`14` §10, `8ebf130`, V2 kodi va
+trial'laridan oldin): (a) *"birorta ham `P2` trial'i `aborted_guard`
+bilan tugamaydi"* — **BAJARILMADI** (`smoke-13`, runaway); (b) eng uzun
+oraliq `≤ 14 s` — **6/6 bajarildi**. To'xtash qoidasi qo'llandi: `P1`/`P0`
+regressiya trial'lari (`smoke-14`…`smoke-17`) **bajarilmadi** (`14` §11.3).
+**Orkestrator qarori** (`14` §11.7): V2 **saqlanadi**, dial va guard'ga
+**tegilmaydi**; (a) ning muvaffaqiyatsizligi **boshqa mexanizm**
+(runaway) — u V2 dan oldin kalibratsiyada ham ishlagan. **Ya'ni V2 o'z
+mezonining so'zma-so'z matni bajarilmagan holda saqlandi** — 0-band.
+
+Zaxira tor: `smoke-11` ning **13.0 s** i 15 s dan atigi **2.0 s** past
+(`14` §11.5). **n = 6.**
+
+**(2.6) Rad etilgan variantlar (`14` §6).**
+
+| # | variant | nega rad etildi |
+|---|---|---|
+| V0 | hech narsa o'zgarmaydi | `P2` 2/2 `aborted_guard`; `P2` yacheykalari bo'sh, `3 × 2` dizayn amalda `P0/P1` ga qisqaradi; §9.4 invariant 2 o'lchov bilan buzilgan holda qoladi |
+| V1 | generator umri `= hold_s` (13 s), ramp boshidan | generator ~28.1 s da to'xtaydi — `W_stab_pilot` oynasining (23–31 s) bir qismi **bosimsiz** (§17.4); `pressure_off` ni 28 s ga surish aynan §9.4 rad etgan `hold ≤ 8 s` o'qishi (`3 + 8 = 11 > 8`) — **frozen matnga zid** |
+| V3 | `P2` dozasini pasaytirish | §9.3 ning `P2` bandi (60–80%) 0.35 dan yuqori; dial muzlatilgan (1.2-band, `10` §2.6), ishchi oyna tor; qayta kalibratsiya kerak va 15 s chegarasi baribir PI tebranishiga bog'liq qoladi |
+| **V4** | guard chegaralarini (`0.35 / 15 s`) o'zgartirish | **CHIQARIB TASHLANDI** — guard pilotning **yagona** containment mexanizmi (§15.3; v1.11 1.7: oomd yo'q); xavfsizlik mexanizmi natijaga moslab sozlanmaydi |
+
+**(2.7) CHEKLOV.** n = 6, faqat `P2`; `R` ikki trial'dan va `P2` dial'ida
+o'lchangan (`P0` da generatorning o'z ramp'i 2.245–2.264 s — u hold'dan
+~0.3 s oldin tugaydi, `P0` da stall yo'q); **V2 real driver bilan `P1`/`P0`
+da hech qachon ishlamagan**; guard tezligi `psi.csv` dan qayta qurilgan;
+`P2` PI nazoratining yo'qolishi (`14` §5.2(b)) hal qilinmadi; validator
+invariantni hamon **reja** ustida tekshiradi (v1.11 3-band CHEKLOV 2 —
+9.1-band).
+
+**3. `P2` DA KUTILGAN YO'QOTISH — BOSHQA GUARD QOIDASI BO'YICHA. OLDINDAN E'LON, P1 MA'LUMOTIDAN OLDIN.**
+
+**(3.1) FAKT.** Guard'ning **runaway** qoidasi
+(`user_full_rate2s_max = 0.98`) uch marta ishladi:
+
+| run | epizod / trial | `rate` | qachon | kontekst |
+|---|---|---|---|---|
+| `open-params-cal-02` | `B-P2-05` | **0.9802** | bosim ostidagi SUT start'lari paytida | kalibratsiya, driver yo'q, V2 yo'q |
+| `open-params-cal-03` | `B-P2-02` | **0.9889** | bosim ostidagi SUT start'lari paytida | xuddi shunday |
+| `smoke-13-noaction-P2` | V2 trial | **0.9817** | `trial_begin` dan 22.526 s — **injeksiyadan OLDIN**, restart'siz | real driver, V2 |
+
+Kalibratsiyada: B-`P2` (bosim ostida ketma-ket start) **2/7** epizodda
+trip; A-`P2` (bosim ostida start yo'q) **0/24**; B-`P0`/`P1` **0/12**
+(`13` §6.3). V2 smoke'da **1/6**. V0 smoke'da (`P2`, n = 2) max tezlik
+0.96 / 0.93 — runaway yo'q.
+
+**(3.2) V2 bilan bog'liqligi — ANIQ ifoda.** Runaway mexanizmi V2 dan
+**mustaqil mavjud**: u kalibratsiyada, driver ham, V2 ham bo'lmagan
+holda, ikki marta ishlagan. Lekin **V2 uning chastotasini o'zgartirdimi —
+o'lchanmagan** (`14` §11.5: V2 dan oldin faqat 2 trial). Shuning uchun
+*"V2 sabab emas"* deb emas, **"V2 bu mexanizmni yaratmagan; uning
+chastotasiga ta'siri noma'lum"** deb yoziladi.
+
+**(3.3) MUZLATILGAN KUTILMA (birorta pilot ma'lumotidan OLDIN).**
+
+1. **Ba'zi `P2` trial'lari `aborted_guard` bilan tugaydi.**
+2. Stavka **1/6 dan 2/7 gacha tartibda** — **bu O'LCHANGAN STAVKA EMAS:**
+   n = 6–7, ikki xil protokol (real driver trial'i vs epizodda 4 ta
+   ketma-ket bosim ostidagi start), va Clopper–Pearson 95% intervallari `1/6 → [0.004, 0.641]`,
+   `2/7 → [0.037, 0.710]` — ya'ni amalda **har qanday** stavka bilan mos.
+   Bu raqam hech qanday chegara yoki qaror uchun **ishlatilmaydi**.
+3. `aborted_guard` — §12 ning **yopiq enum** qiymati; u birlamchi
+   analizdan **chiqariladi** (§12; §16.2(B) — birlamchi to'plam
+   `(disposition, disposition_source)` bilan aniqlanadi va `aborted_guard`
+   unga kirmaydi). **Yangi qoida kerak emas, hech bir qoida o'zgarmadi.**
+4. Chiqarilish darajasi **natija sifatida** beriladi (§12: *"Yuqori
+   eksklyuziya darajasi o'zi natija — yashirilmaydi"*;
+   `04-driver-va-analiz-shartnomasi.md` §2.3, 5-majburiyat).
+   **v1.12 qo'shadi (hisobot talabi, ta'rif EMAS):** `aborted_guard`
+   soni va ulushi **har `(arm × pressure)` yacheykasi bo'yicha ALOHIDA**,
+   **guard qoidasi** bo'yicha (`sustained_pressure` / runaway / boshqa)
+   va **injeksiyaga nisbatan vaqti** bo'yicha (injeksiyadan oldin /
+   keyin) — **MAJBURIY jadval** (§17.4(4) ning `window_past_pressure`
+   uchun qo'ygan yacheyka qoidasining aynan shu shakli).
+
+**(3.4) BIAS YO'NALISHI — mulohaza, va uning chegarasi.**
+
+- **Mexanizm.** Runaway qoidasi **eng yuqori oniy** 2 s stall'da
+  (`≥ 0.98`) ishlaydi. Demak u qo'zg'atgan trial'lar — konstruksiya
+  bo'yicha — `P2` yacheykasining **eng og'ir stall epizodli** trial'lari;
+  ularning chiqarilishi `P2` ning **erishilgan pressure taqsimotining
+  yuqori dumini kesadi**.
+- **H1 to'g'ri bo'lsa.** §9.2 ning to'rt mexanizmi ham og'irlikka bog'liq
+  (start kechikishi, OOM, brownout, watchdog), va `10` §6.5 ning
+  CHEKLOV'i *"`t_start` faqat to'yinishga yaqin dozada portlaydi"* degan
+  (TALQIN, o'lchanmagan) chiziqsiz javobni ko'rsatadi. Agar effekt
+  og'irlik bilan monoton o'ssa, chiqarilgan trial'lar — **VR
+  muvaffaqiyatsizligi eng ehtimoliy** va tiklanishi **eng uzun** bo'lgan
+  trial'lar. Ularni olib tashlash `P(VR|P2)` ni **oshiradi** va
+  `RMST(P2)` ni **kamaytiradi** ⇒ `P0`–`P2` kontrastini **null tomonga
+  susaytiradi** ⇒ **H1 GA QARSHI** (§11 ning kuchli shaklining *"yolg'on"*
+  hukmi va *"fail-slow qo'llab-quvvatlanmaydi"* hukmi tomon). Agar effekt
+  faqat to'yinish yaqinida bo'lsa, kesilgan dum **aynan effekt
+  yashaydigan** soha bo'lishi mumkin — susayish **kuchli** bo'ladi.
+- **H1 yolg'on bo'lsa** (effekt yo'q), og'irlik bo'yicha chiqarish nuqta
+  bahosiga **bias kiritmaydi**.
+- **Qarama-qarshi ta'sir — aniqlik.** Kamroq `P2` trial'i ⇒ kengroq CI.
+  §11 ning kuchli shakli *"yolg'on"* uchun Newcombe yuqori chegarasi
+  `< 0.15`, fail-slow limbi uchun `CI95_upper[Δ] < 1.6 s` talab qiladi;
+  kengroq CI **ikkala "yolg'on/qo'llab-quvvatlanmaydi" hukmini ham
+  QIYINLASHTIRADI**. Ya'ni nuqta bahosi H1 ga qarshi og'adi, aniqlik esa
+  noto'g'ri inkordan himoya qiladi; **hukmga sof ta'sir oldindan
+  aniqlanmaydi.**
+- **Bu mulohazaning tayanchi:** og'irlik–effekt monotonligi — **H1 ning
+  o'z premisasi, o'lchanmagan.** Shuning uchun yo'nalish **shartli
+  mulohaza**, o'rnatilgan fakt emas.
+- **Injeksiyagacha va keyingi abort'lar farq qiladi.** `smoke-13` kabi
+  **injeksiyadan oldingi** abort natija paydo bo'lishidan oldin trial'ni
+  olib tashlaydi — tanlov **faqat pressure og'irligi** (davolanishdan
+  oldingi kovariata) bo'yicha. Arm `A` da **restart paytidagi** abort
+  (kalibratsiyaning 2/7 i shu turdagi) esa H1 aynan o'lchamoqchi bo'lgan
+  jarayon — **bosim ostidagi restart** — eng og'ir bo'lgan trial'larni
+  olib tashlaydi: bu **mexanizm bo'yicha tanlov**, va u ham H1 ga qarshi
+  og'adi. Shu sababli injeksiyaga nisbatan vaqt jadvalda **majburiy**.
+
+**(3.5) NOMA'LUM — arm'lar orasidagi farq, va u confound.** Abort
+ehtimoli arm `A` va `no_action` orasida farq qiladimi — **o'lchanmagan;
+namuna buni ayta olmaydi.** **GIPOTEZA (o'lchanmagan):** kalibratsiya
+bosim ostidagi start'ning o'zi runaway'ni qo'zg'atishi mumkinligini
+ko'rsatadi (B-`P2` 2/7 vs A-`P2` 0/24), arm `A` esa injeksiyadan keyin
+bosim ostida restart qiladi, `no_action` qilmaydi — ya'ni arm `A` da
+**ikkinchi qo'zg'atuvchi** bo'lishi mumkin; `smoke-13` esa `no_action`
+da injeksiyadan oldin ham abort bo'lishini ko'rsatdi. **Oqibat:**
+§10.1 ning trend testi arm `A` ichida (§16.2(A)), shuning uchun
+arm'lararo farq unga **to'g'ridan-to'g'ri kirmaydi** — lekin §10.2 ning
+arm'lararo KM/log-rank taqqoslashi va §8.2 ning PSI atributsiyasi
+(`no_action` taqqoslovchi) uchun **arm'lar orasida differentsial
+chiqarilish CONFOUND** bo'ladi. **Shuning uchun `(arm × pressure)`
+jadvali majburiy**, va yuqoridagi yo'nalish mulohazasi **o'rnatilgan
+deb taqdim etilmaydi.**
+
+**4. YAROQLILIK QOIDASI `host_clock_discontinuity` (ta'rif EMAS), va smoke/kalibratsiya ma'lumotining CHIQARILISHI.**
+
+**(4.1) FAKT** (`07` §7.7, `13` §0A.1). Windows host uyqusi WSL VM ni
+kalibratsiya epizodi (`cal-01:A-P2-22`) **o'rtasida** muzlatdi: ikki
+ketma-ket yozuv orasida `Δmono = 6.0 s`, `Δreal = 42 094.8 s` = **11.7
+soat**. Guest'ning `boot_id` i **o'zgarmadi** — ya'ni muzlashning o'zini
+**ichkaridan hech narsa ko'rmadi** (uyg'ongandan keyingi guest PID 1
+restart'ini pid1 markeri ushladi, `13` §0A.1, lekin muzlashni emas).
+
+**(4.2) QOIDA.** Validator (`revix/validate.py`,
+`HOST_CLOCK_DISCONTINUITY_US = 1_000_000`; `main` da — commit `cb8d16d`, merge `5f5c873`):
+**yozish lahzasida** o'qilgan `(mono, real)` juftlari mono bo'yicha
+tartiblanadi, va **ketma-ket juftda `|Δreal − Δmono| > 1.0 s` bo'lsa —
+ERROR, run rad etiladi** (`14` §2.3). Chegara **haqiqiy ma'lumotdan**
+tanlangan: `~/revix-runs` dagi barcha soat oqimlari bo'yicha **72 402**
+ketma-ket juft; qonuniy maksimum **0.000386 s** (`cal-01`, birinchi
+sakrashdan oldin; `cal-01` siz 0.000206 s), p99.9 0.000099 s (`14`
+§2.2). `1.0 s` — qonuniy maksimumdan **2590×** yuqori, 11.7 soatlik
+hodisadan **42 088×** past. 28 tarixiy run katalogidan **faqat
+`open-params-cal-01`** belgilandi.
+
+**(4.3) MAQOMI — yaroqlilik qoidasi, TA'RIF EMAS.** U **faqat run'ni
+rad eta oladi**; hech qachon metrikani, disposition'ni yoki ta'rifni
+**o'zgartirmaydi** (test: uyquli va uyqusiz sintetik run'ning
+`reduce_run(...).trials` i aynan teng, `14` §2.3). U §14.6 ga
+**yangi invariant raqami sifatida emas**, §16.11 ning pid1 qoidasi kabi
+**qo'shimcha shart** sifatida yoziladi (§14.6 qayta raqamlanmaydi).
+§14.6: *"Validatsiyadan o'tmagan run analiz qilinmaydi"* — demak bitta
+uyqu **butun run'ni** yo'qotadi, bitta trial'ni emas.
+
+**(4.4) NIMANI USHLAY OLMAYDI.** **1 s dan qisqa muzlash** ushlanmaydi;
+driver uyquni **runtime'da sezmaydi** — qoida faqat validatsiyada
+ishlaydi (`14` §2.4 CHEKLOV), ya'ni uxlagan kampaniya davom etadi va
+keyin butunlay rad etiladi; host realtime'ni `> 1 s` qadam bilan
+tuzatsa, run **soxta** rad etiladi (o'lchangan ma'lumotda bunday hodisa
+yo'q; guest'da NTP daemon yo'q, `14` §2.2). Yumshatish — host'ni uyg'oq
+ushlash — faqat **idle** uyquni to'sadi (`07` §7.7).
+
+**(4.5) QOIDA — smoke va kalibratsiya ma'lumoti pilot to'plamiga HECH
+QACHON kirmaydi.** `datasets/smoke-*`, `datasets/open-params-*` va `10`
+ning kalibratsiya run'lari (`dose-*`, `tstart-*`, `dprobe-*`, guest'da)
+**pilot ma'lumot to'plamining qismi emas**: ular pilot bilan
+**birlashtirilmaydi**, hech qanday P1 endpoint'ini hisoblashda
+ishlatilmaydi va pilot natijasi sifatida **hisobot qilinmaydi**.
+**Nega yozilishi shart:** smoke run'lar `run_meta` da **`run_mode =
+"pilot"`** bilan yozilgan (validator `"smoke"` ni qabul qilmaydi, `14`
+§7.2) va pilot bilan bir xil pre-registration hash'ini olib yuradi —
+ya'ni **`run_meta` ularni pilotdan ajrata olmaydi**; ajratuvchi faqat
+`run_id` / katalog nomi. **Mexanik majburlash (masalan validator yoki
+analiz tekshiruvi) mavjud emas** — 9.9-band.
+
+**5. §21.7 NING GATE'I — YOPILDI, faqat V2 generator vaqti bilan ishlaydigan driver uchun.**
+
+**(5.1) Gate sharti.** §21.7: *"Generator §9.4 ning ikki invariantini
+majburlamaguncha hech qanday pilot trial o'tkazilmaydi."* Invariantlar:
+(1) `hold_s ≤ hold_cap_s = 13 s`; (2) `hold_s + ramp_above_threshold_s ≤
+guard_sustain_s = 15 s`. Gate `08` §5 ning topilmasidan tug'ilgan: 5 s
+so'ralgan epizod 0.35 dan yuqorida **16.3 s** turgan va uni **faqat
+guard** to'xtatgan.
+
+**(5.2) Invariant 1 — generator bosimni O'ZI tugatadi (o'lchangan).**
+
+| manba | n | o'lchov |
+|---|---|---|
+| `10` §5.1 | 34 epizod | `overrun_s` p50 0.0619, max **0.2899 s** (kalibrlangan dial'da max 0.1766 s) |
+| `13` §4 | 30 / 30 / 29 `pressure_stop` | `overrun_s` max 0.0954 / 0.1373 / 0.1210 s |
+| `14` §11.2 (V2, real driver) | 5 tugagan `P2` trial | chiqish **33.075–33.245 s** (`pressure_off` 33.0); `overrun` 0.000–0.127 s, qolgani start kechikishi (start 17.494–17.547 vs 17.43 s) |
+
+Tugagan V2 trial'larining **birortasida ham** bosimni guard
+tugatmagan. **Harfan:** jismoniy hold (20.0 s dan generator chiqishigacha)
+**13.075–13.245 s**, ya'ni 13 s dan **≤ 0.245 s** ortiq. **Nega bu gate'ni
+ochiq qoldirmaydi:** (i) ortiqcha **chegaralangan** — start kechikishi +
+bitta uzilmas page fault (`10` §5.1 ning `pressure.py` izohi), va har
+trial'da `pressure_stop` record'i bilan **o'lchanadi**, yashirilmaydi;
+(ii) 13 s ning v1.11 dagi asosi (`3 + 8 = 11 ≤ 13`) **tegilmaydi** —
+`W_stab_pilot` oynasi 31.0 s da, `pressure_off` dan oldin tugaydi;
+(iii) invariant 2 jismoniy eng yomon holat bilan ham bajariladi:
+`13.245 + 0.0 = 13.245 ≤ 15`.
+
+**(5.3) Invariant 2 — reja va o'lchov.** Reja: `13 + 0.0 = 13 ≤ 15`
+(v1.11). O'lchov (V2, n = 6): rejadagi ramp oynasida
+`ramp_above_threshold_s = 0.0` (**6/6**), guard'ga tegishli eng uzun
+`≥ 0.35` oraliq **≤ 13.0 s**, `sustained_pressure` trip'i **0/6**.
+
+**(5.4) QAROR (orkestrator, egasining 2026-10-03 delegatsiyasi bo'yicha):
+gate YOPILDI — LEKIN faqat V2 ni o'z ichiga olgan driver uchun.** `main`
+dagi **hozirgi** driver (V0, 18 s generator) uchun invariant 2 o'lchov
+bilan **buzilgan** (`13 + 2.1 = 15.1 > 15`; `P2` 2/2 sustain trip) —
+shuning uchun **u bilan pilot trial'i protokol buzilishi.** Shart: pilot
+run'ining `run_meta.git_commit` i `11fca44` ni (yoki uning `main` ga
+merge'ini) ajdod sifatida o'z ichiga oladi va `run_meta.generator_window`
+`lead_s = 2.57` ni ko'rsatadi.
+
+**(5.5) Gate'ning yopilishi NIMANI QAMRAMAYDI.** (i) **runaway qoidasi** —
+u §9.4 ning invarianti emas, 3-band uni kutilma sifatida e'lon qiladi;
+(ii) **`P1`/`P0` da V2 real driver bilan ishlamagan** — `P1` uchun dalil
+V0 smoke'dan (18 s generator bilan oraliq 2.7 / 2.3 s, n = 2) va
+kalibratsiyadan (`P1` oraliqlari ≤ 2.9 s, n = 24, `14` §5.2); V2 ning
+qisqaroq oynasi ularni uzaytirmasligi — **TALQIN**, o'lchov emas;
+(iii) n = 6, zaxira 2.0 s; (iv) validator invariantni **reja** ustida
+tekshiradi (9.1-band).
+
+**6. NIMA O'ZGARMADI — to'liq ro'yxat.**
+
+**Hech bir metrika ta'rifi** (§4 VR va uning invalidator'lari, §5 FR-A /
+FR-B, §6.1 ning uch downtime o'lchovi `D_sd` / `D_probe` / `D_eff`, §6.2
+censoring, §6.3 latency, §6.4 recovery loop, §7 pressure o'lchovi);
+**hech bir statistik test** (§10.1 Cochran–Armitage, Fisher/Barnard,
+Newcombe/Wilson, Clopper–Pearson; §10.2 Kaplan–Meier / log-rank / **RMST
+difference** / Cox-HR taqiqi / BCa; §10.4 Holm); **hech bir arm** (`A`:
+`Restart=on-failure`, `RestartSec=100ms`; `no_action`: `Restart=no`);
+**hech bir fault klassi** (faqat `clean_crash`, trial'ga bitta injeksiya);
+**`P0`/`P1`/`P2` bandlari** (§9.3); **`disposition` ning yopiq enum'i**
+va *"aynan bitta"* qoidasi (§12); §16.2 (A)/(B) va `(disposition,
+disposition_source)` qoidasi; §17.4 ning ikki `disposition_source` qiymati
+va besh bandi; **§11 butunlay** — kuchli shakl (`trend p > 0.05` VA
+Newcombe yuqori chegarasi `< 0.15`), fail-slow limbi (`thr = 0.20 × τ =
+1.6 s`, v1.11), halol power bayonoti, davom etish mezonlari (a)(b)(c),
+null bo'lsa burilish; **§14 data schema** (record turlari, majburiy
+maydonlar; §14.6 invariantlari **qayta raqamlanmadi**); §0 va §13 —
+**tegilmadi**; §15–§22 ning qarorlari **o'z kuchida**.
+
+| qiymat | holat |
+|---|---|
+| `W_stab_pilot = 8 s`, `W_stab = 60 s` | **O'ZGARMADI** |
+| `τ = 8 s` (§10.2, §11) | **O'ZGARMADI** |
+| `injection_offset = 3 s` | **O'ZGARMADI** |
+| `θ = 0.8` | **O'ZGARMADI** |
+| `k_f = 3` (`D_f = 300 ms`) | **O'ZGARMADI** |
+| `P = 100 ms`, `T_conn = 50 ms`, `T_rt = 50 ms` | **O'ZGARMADI** |
+| **20 blok / 120 trial** (`3 × 2 × 20`) | **O'ZGARMADI** |
+| `hold_cap_s = 13 s`, `ramp_s = 5 s`, baseline 10 s, pre-flight 5 s, washout `≥ 20 s` | **O'ZGARMADI** |
+| `ε = 32 MiB`, quiescence `0.05`, `T_q = 5 s`, `T_w = 15 s`, `T_w_max = 120 s` | **O'ZGARMADI** |
+| `ramp_above_threshold_s = 0.0` (reja; v1.11) | **O'ZGARMADI** (2-band uning **o'lchov** bilan mosligini tiklaydi) |
+| guard: `sustain_rate_threshold = 0.35`, `sustain_max_seconds = 15.0`, `user_full_rate2s_max = 0.98`, `user_full_avg10_max = 85.0`, `user_some_avg10_max = 90.0`, `host_mem_available_min_kb = 1 500 000` (`revix/guard.py` `DEFAULTS`); `guard_sustain_s = 15 s` (§9.4) | **O'ZGARMADI** (V4 rad etildi) |
+| dial: slice `MemoryMax = 2G`, `MemoryHigh = 192M`, `CPUQuota = 400%`, `TasksMax = 256`; generator `step_mb = 4`, `base_mb` 160 / 184 / 184, `target_rate` 0.0 / 0.30 / 0.60, `interval_ms = 250`, generator unit `MemoryMax = 1536M` (`10` §2.6; `driver.py` `PRESSURE_*`) | **O'ZGARMADI** — 1.2-band uni **muzlatadi**, siljitmaydi |
+| `WatchdogSec = 5 s`, `TimeoutStartSec = 10 s` | **qiymat o'zgarmadi** (driver default'lari) — endi **muzlatilgan** (1.1, 1.3) |
+| `T_trial` formulasi `t_pressure_off + w_stab_s + P` | **O'ZGARMADI** — raqam (41.1 s) endi **muzlatilgan** (1.4) |
+| generatorning ramp oynasi ichidagi boshlanishi | **15.0 s → 17.43 s** (V2, 2-band); `pressure_off` 33.0 s **o'zgarmadi** |
+
+**7. TARIXIY BO'LIMLAR QAYTA YOZILMADI** (v1.11 ning 7-band siyosati).
+**v1.11 log yozuvi** — jumladan uning (1.5) bandi (*"sustain taymeri faqat
+hold ichida boshlanishi mumkin"*), 9.1 va 9.8 bandlari — **o'zgartirilmadi**:
+u `v0.1.11-preregistration` tag'i bilan **e'lon qilingan** versiyaning
+bayonoti. (v1.11 o'z yozuvini joyida tuzatgan edi, chunki u paytda tag
+**yo'q** edi — v1.11 log, 8.5-band; bu yerda tag **bor**, shuning uchun
+tuzatish yangi versiyada.) §16.10 ning jadvali va QAROR ro'yxati, §21.7
+ning matni, §21.10 ning ro'yxati ham **tegilmadi**. Buning o'rniga
+**normativ** joylarga **belgilangan `v1.12` ko'rsatkichi** qo'yildi:
+sarlavha jadvali, §9.4 (V2), §12 (yacheyka jadvali), §14.6 (yaroqlilik
+qoidasi), §16.10 (muzlatilgan qiymatlar), §21.7 (gate).
+
+**8. NEGA BU AMENDMENT QONUNIY — va MA'LUMOT HOLATI.**
+
+1. **Hech qanday P1 trial'i o'tkazilmagan** — birlamchi endpoint
+   ko'rilmagan, `DEVELOPMENT.md` §7 ning *"ma'lumot yig'ilgandan keyin"*
+   qoidasi **qo'llanmaydi**. **Lekin kalibratsiya va smoke ma'lumoti
+   ko'rilgan** — 0-bandning e'loni, va bu **kafolat emas, e'lon**.
+2. **Hujjatning O'ZI talab qilgan:** §16.10 ning 1-, 4-, 5- va
+   6-qoidalari; §21.7 ning gate'i; §9.4 ning invariantlari.
+3. **O'lchov bilan asoslangan, taxmin bilan emas** (v1.3 qoidasi) —
+   1.3-banddan tashqari, va u **og'ish** sifatida belgilangan.
+4. **Protsedura** (`DEVELOPMENT.md` §7): sana, sabab, nima o'zgardi,
+   **nima o'zgarMAdi**, ma'lumot holati, **v1.11 ning `sha256` i va git
+   tag'i saqlandi**. Hash hujjatdan ko'chirilmadi: tahrirdan oldin
+   `sha256sum PREREGISTRATION.md` ishga tushirildi va
+   `v0.1.11-preregistration` tag xabari bilan solishtirildi (**mos**).
+   v1.12 ning o'z hash'i bu yerda yozilmaydi — u merge'dan keyin
+   `v0.1.12-preregistration` tag xabarida qayd etiladi.
+
+**MA'LUMOT HOLATI:**
+
+| to'plam | holat | pilot to'plamiga |
+|---|---|---|
+| **P1 pilot trial'lari** | **YO'Q (0)** | — |
+| `open-params-cal-01/-02/-03`, `open-params-smoke-01` | `datasets/` da (`main`) | **HECH QACHON** (4.5) |
+| `10` ning `dose-*`, `tstart-*`, `dprobe-*` | guest `~/revix-runs` da | **HECH QACHON** |
+| `smoke-01`…`smoke-07` (V0) | `datasets/` da (`main`) | **HECH QACHON** |
+| `smoke-08`…`smoke-13` (V2) | `agent/pilot-ready` da, merge qilinMAGAN | **HECH QACHON** |
+
+Smoke run'larida analiz moduli **mashina zanjirini tekshirish** uchun
+ishga tushirilgan va bitta trial'lik `analysis.json` fayllari mavjud
+(`14` §9). Bu amendment'ning hech bir qarori ularga **tayanmaydi**, va
+ular gipoteza haqida **o'qilmaydi**.
+
+**9. BU AMENDMENT NIMANI YOPMAYDI — va pilotni hozir nima to'xtatadi.**
+
+1. **Reja va o'lchangan ramp.** `validate.check_planned_timeline` hamon
+   **rejalashtirilgan** `ramp_above_threshold_s` ni tekshiradi, trial
+   bo'yicha **o'lchanganini emas** (v1.11 3-band, CHEKLOV 2 — o'z
+   kuchida). V2 ning o'lchangan mosligi faqat smoke'da (n = 6). Har trial
+   uchun rejadagi ramp oynasida o'lchangan qiymatni yozish va tekshirish
+   — **bajarilmagan**.
+2. **OQ-11** — boshqa `MemoryHigh` qiymatlari o'lchanmagan (1.2).
+3. **`P2` abort stavkasi o'lchanmagan**, arm'lar orasidagi farqi ham
+   (3-band). U pilotning **natijasi** sifatida hisobot qilinadi.
+4. **Bitta kernel.** Barcha kalibratsiya va smoke
+   `6.6.87.2-microsoft-standard-WSL2`, systemd 257, bitta mashina, VM'siz
+   host'da (`13` §9, `14` §8). **Boshqa kernel'da hech qanday kalibratsiya
+   o'tkazilmagan**; `R = 2.57 s`, dial va to'rt muzlatilgan qiymatning
+   asoslari boshqa muhitga **ko'chmaydi**.
+5. **🔴 Driver istisno yo'lining nuqsoni — OCHIQ, merge qilinmaguncha.**
+   V2 smoke partiyasi (`smoke-13`) topdi: guard abort'i injeksiyadan oldin
+   SUT ni o'ldirganda `run_trial` ning istisno yo'li `guard_fired` ni
+   tekshirmaydi, trial'ga §12 ning ustuvorligi (`aborted_guard`) o'rniga
+   **`harness_error`** yoziladi va **washout o'tkazib yuboriladi** (`14`
+   §11.4). Tuzatish `agent/pilot-ready` branch'ida (bu yozuv tahrir
+   qilingan paytda `9c98e7f`; `14` §12, uning empirik tekshiruvi §12.1 da
+   oldindan rejalashtirilgan) — **merge qilinMAGAN**. **Pilot u `main` ga
+   merge qilinmaguncha BOSHLANMAYDI.**
+6. **`timeout_start_sec` ning namunasi to'lmagan** — og'ish o'z kuchida
+   (1.3); uni yopish faqat **yangi pre-registration**'da mumkin, P1
+   ma'lumotidan keyin emas.
+7. **Watchdog** bosim ichida ishga tushgan SUT da o'lchanmagan;
+   kalibratsiyada bystander va prober yo'q edi (1.1).
+8. **V2 cheklovlari** — `P1`/`P0` real driver bilan ishlamagan, zaxira
+   2.0 s, `P2` PI nazoratining yo'qolishi (2.7, 5.5).
+9. **Smoke/kalibratsiya chiqarilishi mexanik majburlanmaydi** (4.5).
+10. **Host uyqusini runtime'da aniqlash yo'q** (4.4).
+11. v1.11 dan meros: §18.8, §17.7 va `window_past_pressure` (v1.11 9.2,
+    9.3, 9.5) — **ochiq qoladi**. Kampaniya bahosi o'lchangan trial
+    wall'idan ~3.3 s/trial past (`14` §4.4) — ochiq, pilotni
+    to'xtatmaydi.
+
+**PILOTNI HOZIR NIMA TO'XTATADI** (v1.12 dan keyin, `main` bo'yicha):
+
+1. **Driver istisno yo'li tuzatishi `main` da emas** (9.5-band).
+2. **V2 kodi (`11fca44`) `main` da emas** — 5.4-band: `main` ning
+   hozirgi driver'i bilan trial — protokol buzilishi.
+3. **`run_meta.open_parameters`** muzlatilgan qiymatlarni kalibratsiya
+   `run_id` lari bilan **olib yurmaydi** (1.5-band; §16.10(1)) — kod ishi.
+4. **V2 hech qachon `P1`/`P0` da real driver bilan ishlamagan**, va
+   (1)–(3) driver'ni o'zgartiradi: `14` §10 ning bajarilmagan regressiya
+   trial'lari (`P1`, `P0`, ikkala arm) **merge qilingan kod bilan**
+   birinchi pilot trial'idan oldin o'tkaziladi. Bu shart **shu
+   amendment'da qo'yiladi** (5.5-band ning (ii) bandi sababli) — u
+   mashina tekshiruvi, tadqiqot ma'lumoti emas, va 4.5 bo'yicha pilot
+   to'plamiga kirmaydi.
+5. **Bu amendment `main` ga merge qilinmagan va tag qilinmagan** — pilot
+   run'larining `run_meta.preregistration_sha256` i v1.12 niki bo'lishi
+   shart.
+
+**To'xtatmaydigan narsalar:** OQ-11 (e'lon qilingan cheklov), `P2` abort
+stavkasining noma'lumligi (oldindan e'lon qilingan kutilma), bitta
+kernel (qamrov cheklovi), kampaniya bahosi.
 
 ### v1.10 → v1.11 (2026-10-03)
 
@@ -2259,6 +2938,25 @@ hold'ga 3 s kirgach → pressure off → washout ≥20 s.
 > CHEKLOV (validator **rejalashtirilgan**, o'lchangan emas, qiymatni
 > tekshiradi).
 
+> **⚠️ v1.12 — yuqoridagi `0.000 s` GENERATORNING O'Z ramp oynasida
+> o'lchangan; rejadagi 5 s ramp oynasida esa avvalgi driver bilan 2.0–2.1 s
+> chiqdi.** Real driver bilan smoke trial'lar generatorning **ramp boshidan
+> (15.0 s) `ramp_s + hold_s = 18 s`** ishlaganini, guard'ning sustain
+> taymeri hold'dan **1.35–1.46 s OLDIN** boshlanganini va `P2` ning 2/2
+> trial'i `aborted_guard` bo'lganini ko'rsatdi (`13 + 2.1 = 15.1 > 15`).
+> **Implementatsion aniqlashtirish (V2):** generator **`t_h − R`** da
+> boshlanadi (`R = 2.57 s` — generatorning o'z o'lchangan ramp'i, nomli
+> konstanta, barcha arm va band uchun bir xil), **`hold_s + R`** ishlaydi
+> va **`t_pressure_off`** da chiqadi. Yuqoridagi jadvalning **hech bir
+> vaqti o'zgarmadi** (pre-flight 5, baseline 10, ramp 5, hold 13,
+> injeksiya `t_h + 3`, pressure off `t_h + 13`); *"ramp 5 s"* — bosim
+> ko'tariladigan oyna, generatorning o'z ramp'i uning oxirgi 2.57 s ini
+> egallaydi. Shuning uchun rejadagi `pressure_on_s = 18 s` amaldagi
+> generator vaqtining (≈ 15.57 s) **yuqori chegarasi**. V2 bilan (`P2`,
+> **n = 6**): rejadagi ramp oynasida o'lchangan qiymat **0.0 (6/6)**,
+> guard'ga tegishli eng uzun `≥ 0.35` oraliq **≤ 13.0 s**, sustain trip
+> **0/6**. Amendment log, v1.11 → v1.12, **2-band**.
+
 **Kampaniya vaqti:** fazalar yig'indisi = pre-flight + 10 + 5 + 13 + 20 ≈ 53 s
 (**v1.11**: `hold_cap_s` 12 → 13 s, demak 52 → 53 s — bu **chiqarilgan baho**,
 muzlatilgan parametr emas).
@@ -2394,6 +3092,15 @@ Har trial'ga **aynan bitta** disposition. Bu jimgina eksklyuziyaning oldini olad
 ularning ulushi natija sifatida beriladi.** Yuqori eksklyuziya darajasi o'zi natija —
 yashirilmaydi.
 
+> **v1.12 — hisobot talabi (ta'rif EMAS, enum'ga tegilmadi):** `aborted_guard`
+> soni va ulushi **har `(arm × pressure)` yacheykasi bo'yicha ALOHIDA**, guard
+> qoidasi (`sustained_pressure` / runaway / boshqa) va **injeksiyaga nisbatan
+> vaqti** (oldin / keyin) bilan **majburiy jadvalda** beriladi. `P2` da guard'ning
+> runaway qoidasi bo'yicha bunday trial'lar **kutiladi** (oldindan e'lon
+> qilingan; stavka **o'lchanmagan**); ularning chiqarilishi shartli ravishda
+> **H1 ga qarshi** og'adi, arm'lar orasidagi farqi esa **confound** bo'ladi.
+> Amendment log, v1.11 → v1.12, **3-band**.
+
 ---
 
 ## 13. Bu pre-registration NIMANI muzlatmaydi
@@ -2495,6 +3202,17 @@ trial_id  block_index  seq  mono_us  real_us  emitter
 8. confirmatory run uchun `run_meta.git_dirty == false` (pilot uchun ogohlantirish)
 
 **Validatsiyadan o'tmagan run analiz qilinmaydi.**
+
+> **v1.12 — qo'shimcha yaroqlilik qoidasi (yangi invariant EMAS; §14.6 qayta
+> raqamlanmaydi — §16.11 ning pid1 qoidasi kabi): `host_clock_discontinuity`.**
+> Yozish lahzasida o'qilgan `(mono_us, real_us)` juftlarining ketma-ket ikkitasi
+> orasida `|Δreal − Δmono| > 1.0 s` bo'lsa run **rad etiladi** — host uyqusi VM ni
+> muzlatadi va `boot_id` buni ko'rmaydi (`docs/architecture/07-wsl-muhit-tekshiruvlari.md`
+> §7.7). Bu qoida **faqat rad etadi**: hech bir metrika, disposition yoki ta'rifni
+> o'zgartirmaydi; 1 s dan qisqa muzlashni **ushlamaydi**. Smoke va kalibratsiya
+> run'lari (`smoke-*`, `open-params-*`) — `run_mode` dan qat'i nazar — pilot
+> ma'lumot to'plamiga **hech qachon** kirmaydi. Amendment log, v1.11 → v1.12,
+> **4-band**.
 
 ### 14.7 Ochiq bo'shliqlar (implementatorlar aniqlagan, kelajakdagi amendment uchun)
 
@@ -3119,6 +3837,22 @@ buzardi. Shuning uchun **qiymat emas, qoida muzlatiladi:**
    parametrini natija deb ko'rsatish.
 6. `MemoryHigh` dial `MemoryMax=2G` topologiyasida **qayta o'lchanadi**;
    1G ostida o'lchangan 192 M ko'chirilmaydi.
+
+> **✅ v1.12 — 1-, 2-, 3- va 5-qatorlar MUZLATILDI** (1- va 4-qoida bajarildi;
+> kalibratsiya run'lari `open-params-cal-01`, `-02`, `-03` —
+> `docs/architecture/13-ochiq-parametrlar-kalibratsiyasi.md`):
+> `WatchdogSec = 5 s` (qoida bo'yicha, zaxira **21.4×**, `Result=watchdog` 0/72);
+> `MemoryHigh = 192M` (`MemoryMax=2G` ostida **qayta o'lchangan** —
+> `10-pressure-dozalash.md` §2.2, `dose-01-dial` — demak 6-qoida bajarildi; OQ-11
+> ochiq); `T_trial = 41.1 s` (ochiq qaror, formula o'zgarmadi; 6-qator endi
+> tekshiriladi: `τ = 8 ≤ 41.1`); **`TimeoutStartSec = 10 s` — ⚠️ OG'ISH:** o'z
+> kalibratsiya qoidasi namuna yetmagani uchun **taklif bermagan**, qiymat
+> ma'lumotdan oldingi default sifatida saqlandi. 5-qoidaning (i) va (iv) uchun
+> bayonotlari: Amendment log, v1.11 → v1.12, **1.1 va 1.3-band**. 4-qator (`P2`
+> nishoni) v1.11 dan oldin kodda 0.60 ga tuzatilgan. **1-qoidaning ikkinchi
+> yarmi — qiymatlarni `run_id` lari bilan `run_meta.open_parameters` ga yozish —
+> kod ishi, va u hali bajarilmagan** (1.5 va 9-band). Yuqoridagi jadval va QAROR
+> matni **tarix sifatida** o'zgartirilmadi.
 
 #### CHEKLOV — `P2` bandi hali erishiladigan deb ko'rsatilMAGAN
 
@@ -4991,6 +5725,19 @@ lekin **doza nol bo'lgan** konfiguratsiyada (`08` §3.4). Hujjatning
 o'zi aytadi: bu raqam **pilotga ko'chirilmaydi**. **Tasdiqlanadi** —
 §9.4 *"`ramp_above_threshold_s` kalibratsiyadan olinadi, taxmin
 qilinmaydi"* deydi, va nol dozadagi qiymat kalibratsiya **emas**.
+
+> **✅ v1.12 — GATE YOPILDI, faqat V2 generator vaqti bilan ishlaydigan driver
+> uchun** (orkestrator qarori, egasining 2026-10-03 delegatsiyasi bo'yicha).
+> Invariant 1: generator bosimni **o'zi** tugatadi — `overrun_s` max 0.2899 s
+> (`10` §5.1, n = 34), V2 real driver'da chiqish **33.075–33.245 s**
+> (`pressure_off` 33.0 s; n = 5), ya'ni jismoniy hold 13 s dan **≤ 0.245 s**
+> ortiq — chegaralangan, har trial'da o'lchanadi, va `3 + 8 = 11 ≤ 13` hamda
+> `13.245 + 0.0 ≤ 15` ni buzmaydi. Invariant 2: rejadagi ramp oynasida
+> o'lchangan qiymat **0.0 (6/6)**, guard'ga tegishli eng uzun oraliq **≤ 13.0 s**,
+> sustain trip **0/6**. `main` ning hozirgi (V0, 18 s generator) driver'i bilan
+> invariant 2 o'lchov bo'yicha **buzilgan** — u bilan trial **protokol
+> buzilishi**. Runaway qoidasi (`0.98`) gate'ga **kirmaydi**. Amendment log,
+> v1.11 → v1.12, **5-band**.
 
 ### 21.8 FAKT — `P2` fizik jihatdan erishiladigan, lekin USHLAB TURILMAGAN
 
