@@ -8,13 +8,17 @@ ALOHIDA sinaladi.
 Har test toza run'dan boshlanadi (u XATOSIZ o'tishi kerak) va AYNAN BITTA
 buzilish kiritadi.
 """
+import gzip
 import json
+import os
 
 import pytest
 
+from revix import driver as D
 from revix import reduce as R
 from revix import validate as V
-from revix.schedule import Factor, TrialTimeline, make_schedule
+from revix.schedule import (DISPOSITION_RULES, Factor, TrialTimeline,
+                            make_schedule)
 from revix.schema import DISPOSITIONS
 
 T0 = 1_000_000
@@ -2279,3 +2283,258 @@ def test_soat_uzilishi_probe_csv_qatorlaridan_ham_tutiladi():
     _shift_real_after(b, T0 + 15 * P, 3_000_000)
     out = V.check_host_clock_discontinuity(b.run())
     assert out and out[0].detail["jumps"][0]["before"]["record_type"] == R.RT_PROBE
+
+
+# --- disposition ustuvorligi: probe uzilishi va guard hodisasi (17 §10) ------
+#
+# `p1-pilot-002` dan keyin qabul qilingan qaror (docs/architecture/17 §10):
+# §14.6(4) va §12 `schedule.DISPOSITION_RULES` tartibi ostida BIRGA o'qiladi.
+# Probe uzilishi o'lchangan natija da'vosini (`complete`) bekor qiladi --
+# XATO; trial'ni allaqachon chiqaradigan yoki `censored` disposition'da --
+# OGOHLANTIRISH. Teskari yo'nalish: guard ishlagan trial faqat
+# `aborted_guard` yoki undan oldin turgan `harness_error` bo'lishi mumkin.
+
+# `p1-pilot-002` `b010t005` (no_action/P2) ning HAQIQIY qiymatlari: driver
+# yozgan `trial_begin`/`baseline_window`/`trial_end`/`guard_event` va 407 ta
+# SUT probe qatorining yuborish vaqtlari va natijalari (`trial_begin` ga
+# nisbatan, mikrosekund, aniq). Faqat shu tekshiruvlar o'qiydigan maydonlar
+# olingan; manba -- `~/revix-runs/p1-pilot-002` (faqat o'qish), ajratish
+# skripti 17 §11 da.
+B010T005 = {
+    "begin_mono_us": 29628374213,
+    "baseline_us": (5000000, 15000000),
+    "end_us": 41100000,
+    "disposition": "aborted_guard",
+    "reason": "guard_fired",
+    "matched_rules": ("guard_fired", "bystander_lost_contract", "probe_gap_exceeded", "horizon_ended_down", "measured"),
+    "guard_event_us": 27274918,
+    "guard_reason": "user_full_rate2s_runaway",
+    "probe_outcomes": (  # (outcome, birinchi indeks, oxirgi indeks)
+        ("ok", 0, 207),
+        ("rt_timeout", 208, 208),
+        ("ok", 209, 220),
+        ("rt_timeout", 221, 232),
+        ("conn_refused", 233, 406),
+    ),
+    "probe_offsets_us": (  # 407 qator
+        65757, 165875, 265884, 365869, 465878, 565893, 665874, 765883, 865865,
+        965871, 1065866, 1165885, 1265881, 1365869, 1465871, 1565868, 1665865,
+        1765865, 1865877, 1965959, 2065903, 2165884, 2265878, 2365861,
+        2465870, 2565870, 2665881, 2765868, 2865859, 2965890, 3065856,
+        3165863, 3265889, 3365867, 3465866, 3565861, 3665861, 3765868,
+        3865882, 3965866, 4065865, 4165903, 4265868, 4365877, 4465868,
+        4565893, 4665872, 4765868, 4865874, 4965871, 5065877, 5743996,
+        5744529, 5765859, 5865873, 5965873, 6065874, 6165905, 6265869,
+        6365874, 6465920, 6565874, 6665867, 6765853, 6865884, 6965879,
+        7065863, 7165873, 7265921, 7365896, 7465862, 7565868, 7665954,
+        7765895, 7865886, 7965867, 8065866, 8165899, 8265878, 8365887,
+        8465863, 8565868, 8665861, 8765859, 8865861, 8965871, 9065867,
+        9165873, 9265859, 9365875, 9465864, 9565875, 9665861, 9765843,
+        9865846, 9965854, 10065886, 10165888, 10265902, 10365917, 10465868,
+        10565870, 10665874, 10765885, 10865886, 10965879, 11065883, 11165886,
+        11265865, 11365865, 11465863, 11565876, 11665876, 11765871, 11865894,
+        11965871, 12065882, 12165864, 12265872, 12365874, 12465904, 12565955,
+        12665904, 12765880, 12865915, 12965933, 13065911, 13165947, 13265906,
+        13365875, 13465872, 13565927, 13665912, 13765888, 13865870, 13965867,
+        14065901, 14165877, 14265874, 14365862, 14465878, 14565887, 14665854,
+        14765875, 14865882, 14965882, 15065890, 15165870, 15265871, 15365868,
+        15465881, 15565896, 15665869, 15765870, 15865898, 15965883, 16065878,
+        16165876, 16265875, 16365875, 16465878, 16565900, 16665893, 16765866,
+        16865913, 16965886, 17065886, 17165892, 17265876, 17365900, 17465892,
+        17565892, 17665986, 17765874, 17865898, 17965875, 18065874, 18165867,
+        18265886, 18365877, 18465887, 18565930, 18665877, 18765873, 18865881,
+        18965886, 19065873, 19165895, 19265878, 19365879, 19465876, 19565882,
+        19665876, 19765870, 19865884, 19965887, 20065863, 20165873, 20265878,
+        20365901, 20465884, 20565888, 20665861, 20765866, 20865875, 20965876,
+        21065877, 21165867, 21265870, 21365927, 21465876, 21565874, 21665858,
+        21765879, 21865877, 21965868, 22065871, 22165872, 22265863, 22365863,
+        22465862, 22565874, 22665882, 22765880, 22865843, 22965885, 23066505,
+        23165894, 23265875, 23366458, 23465853, 23565874, 23665870, 23765893,
+        23865931, 23965888, 24065895, 24165886, 24265881, 24365894, 24465891,
+        24565898, 24665888, 24765900, 24865875, 24965881, 25065874, 25165868,
+        25265872, 25365918, 25465904, 25565883, 25665874, 25765896, 25865971,
+        25965886, 26065878, 26165884, 26265880, 26365874, 26465876, 26565890,
+        26665900, 26765906, 26865875, 26965937, 27065857, 27165915, 27265879,
+        27365902, 27465953, 27565902, 27665923, 27765893, 27865931, 27965917,
+        28065984, 28165870, 28265917, 28365932, 28465943, 28565953, 28665945,
+        28765957, 28865969, 28965986, 29065920, 29165940, 29265937, 29365948,
+        29465956, 29565948, 29665948, 29765936, 29865953, 29965947, 30065935,
+        30166022, 30267819, 30365957, 30465970, 30565920, 30665957, 30765951,
+        30865959, 30965967, 31065961, 31165928, 31265946, 31365949, 31465940,
+        31565949, 31665994, 31765993, 31865959, 31965946, 32066050, 32165965,
+        32265971, 32365937, 32465998, 32566000, 32665939, 32766004, 32865973,
+        32965927, 33065982, 33165943, 33265967, 33365913, 33465925, 33565974,
+        33665950, 33765935, 33865950, 33965980, 34065965, 34165949, 34265928,
+        34365970, 34465957, 34565931, 34665927, 34765950, 34865941, 34965939,
+        35065953, 35165934, 35265961, 35365959, 35465947, 35565955, 35665911,
+        35765933, 35865961, 35965957, 36065953, 36165943, 36265943, 36365969,
+        36465946, 36565954, 36665924, 36765931, 36866034, 36965942, 37065947,
+        37165959, 37265955, 37366003, 37465947, 37565945, 37665953, 37765954,
+        37865931, 37965968, 38065951, 38165924, 38265953, 38365926, 38465954,
+        38565935, 38665936, 38765959, 38865945, 38965961, 39065935, 39165975,
+        39265955, 39365947, 39465961, 39565946, 39665945, 39766027, 39865934,
+        39965979, 40065946, 40165962, 40265959, 40365939, 40465955, 40565964,
+        40665961, 40765924, 40865929, 40965939, 41065953,
+    ),
+}
+
+
+def _b010t005_run(disposition=None):
+    d = B010T005
+    b0 = d["begin_mono_us"]
+    outcome = {}
+    for name, lo, hi in d["probe_outcomes"]:
+        for i in range(lo, hi + 1):
+            outcome[i] = name
+    probes = [{"record_type": R.RT_PROBE, "stream": R.RT_PROBE,
+               "trial_id": "b010t005", "target": "sut", "seq": i + 1,
+               "mono_us": b0 + o, "mono_us_send": b0 + o,
+               "outcome": outcome[i]}
+              for i, o in enumerate(d["probe_offsets_us"])]
+
+    def rec(rt, off, **kw):
+        r = {"record_type": rt, "stream": rt, "trial_id": "b010t005",
+             "mono_us": b0 + off}
+        r.update(kw)
+        return r
+
+    lo, hi = d["baseline_us"]
+    records = [
+        rec(R.RT_TRIAL_BEGIN, 0, arm="no_action", pressure_band="P2"),
+        rec(R.RT_BASELINE_WINDOW, hi, mono_us_begin=b0 + lo,
+            mono_us_end=b0 + hi),
+        rec(R.RT_TRIAL_END, d["end_us"],
+            disposition=disposition or d["disposition"], reason=d["reason"],
+            matched_rules=list(d["matched_rules"])),
+        rec(V.RT_GUARD_EVENT, d["guard_event_us"], trial_id=None,
+            reason=d["guard_reason"], action="kill_subtree"),
+    ]
+    return R.RawRun(records=records, probes=probes, sources=["<b010t005>"])
+
+
+def test_b010t005_haqiqiy_uzilish_aborted_guard_da_ogohlantirish():
+    """17 §2.3: uzilish 5.066 -> 5.744 s (baseline'da), guard 27.275 s da;
+    driver uzilishni ko'rgan (`probe_gap_exceeded` `matched_rules` da) va
+    disposition'ni undan oldin turgan `guard_fired` bergan."""
+    run = _b010t005_run()
+    gaps = V.check_probe_gaps(run)
+    assert [(f.code, f.severity, f.trial_id) for f in gaps] == [
+        ("probe_gap", V.SEVERITY_WARNING, "b010t005")]
+    assert [g["gap_us"] for g in gaps[0].detail["gaps"]] == [678_119]
+    assert gaps[0].detail["disposition"] == "aborted_guard"
+    assert V.check_probe_coverage(run) == []
+    assert "guard_event_not_reflected" not in [
+        f.code for f in V.check_guard_stream(run)]
+
+
+def test_b010t005_haqiqiy_recordlar_complete_deb_yozilsa_ikki_xato():
+    """Xuddi shu xom record'lar, lekin `complete` da'vosi: uzilish ham, guard
+    ham uni bekor qiladi -- ikki yo'nalish bir trial'da."""
+    run = _b010t005_run("complete")
+    assert [f.severity for f in V.check_probe_gaps(run)] == [V.SEVERITY_ERROR]
+    f = next(f for f in V.check_guard_stream(run)
+             if f.code == "guard_event_not_reflected")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.detail["disposition"] == "complete"
+
+
+def _b007t001_run(disposition):
+    """`p1-pilot-001` `b007t001` ning HAQIQIY record'lari (test_driver bilan
+    umumiy fixture); `trial_end` ning disposition'i parametr."""
+    path = os.path.join(os.path.dirname(__file__),
+                        "data_p1_pilot_001_b007t001.json.gz")
+    with gzip.open(path, "rt", encoding="utf-8") as fh:
+        d = json.load(fh)
+    te = d["recorded_trial_end"]
+    end = {"record_type": "trial_end", "trial_id": "b007t001",
+           "mono_us": te["mono_us"], "timing": te["timing"],
+           "disposition": disposition}
+    run = R.RawRun(records=d["records"] + [end],
+                   probes=[D.normalise_probe_row(p) for p in d["probe_rows"]])
+    return V.reducer_view(run, D.SUT_UNIT, "sut")
+
+
+def test_b007t001_haqiqiy_complete_uzilish_hali_ham_xato():
+    """Tuzatish `complete` ni yumshatmaydi: `p1-pilot-001` ning `b007t001`
+    xatosi (492 256 us, 15 §2.2) joyida qoladi."""
+    gaps = V.check_probe_gaps(_b007t001_run("complete"))
+    assert [(f.code, f.severity, f.trial_id) for f in gaps] == [
+        ("probe_gap", V.SEVERITY_ERROR, "b007t001")]
+    assert gaps[0].detail["gaps"][0]["gap_us"] == 492_256
+    assert "censored" in gaps[0].message
+
+
+def _with_inner_gap(disp):
+    b = clean()
+    b.probes = [p for p in b.probes
+                if not (T0 + 20 * P <= p["mono_us_send"] <= T0 + 24 * P)]
+    renumber_probes(b)
+    recs(b, R.RT_TRIAL_END)[0]["disposition"] = disp
+    return b
+
+
+@pytest.mark.parametrize("disp", DISPOSITIONS)
+def test_probe_uzilishi_ogirligi_har_disposition_uchun(disp):
+    """XATO faqat `complete` da; qolgan BESHTASIDA ogohlantirish, uzilish
+    baribir hisobot qilinadi."""
+    f = find(V.validate_run(_with_inner_gap(disp).run()), "probe_gap")
+    assert f.detail["disposition"] == disp
+    assert f.severity == (V.SEVERITY_ERROR if disp == "complete"
+                          else V.SEVERITY_WARNING)
+
+
+@pytest.mark.parametrize("disp", DISPOSITIONS)
+def test_probe_qoplami_uzilishi_ogirligi_har_disposition_uchun(disp):
+    b = clean()
+    b.probes = b.probes[:300]               # prober trial o'rtasida o'ldi
+    recs(b, R.RT_TRIAL_END)[0]["disposition"] = disp
+    f = find(V.validate_run(b.run()), "probe_coverage_gap")
+    assert f.detail["disposition"] == disp
+    assert f.severity == (V.SEVERITY_ERROR if disp == "complete"
+                          else V.SEVERITY_WARNING)
+
+
+def test_probe_uzilishi_disposition_yoq_bolsa_xato():
+    """Fail-closed: disposition yo'q -- natija da'vosi ham, chiqarish ham
+    isbotlanmagan, demak uzilish XATO bo'lib qoladi."""
+    b = _with_inner_gap("complete")
+    del recs(b, R.RT_TRIAL_END)[0]["disposition"]
+    f = find(V.validate_run(b.run()), "probe_gap")
+    assert f.severity == V.SEVERITY_ERROR
+
+
+@pytest.mark.parametrize("disp", ("contaminated", "washout_timeout"))
+def test_guard_ishlagan_trial_contaminated_yoki_washout_timeout_bolsa_xato(disp):
+    """`guard_fired` tartibda `contaminated` va `washout_timeout` dan OLDIN:
+    guard ishlagan trial bu disposition'larni ololmaydi."""
+    b = clean()
+    _guard_event(b, T0 + 5_000_000)
+    recs(b, R.RT_TRIAL_END)[0]["disposition"] = disp
+    f = find(V.validate_run(b.run()), "guard_event_not_reflected")
+    assert f.severity == V.SEVERITY_ERROR
+    assert f.trial_id == TID
+    assert f.detail["disposition"] == disp
+
+
+@pytest.mark.parametrize("disp", DISPOSITIONS)
+def test_guard_ishlagan_trial_har_disposition_uchun(disp):
+    b = clean()
+    _guard_event(b, T0 + 5_000_000)
+    recs(b, R.RT_TRIAL_END)[0]["disposition"] = disp
+    errs = codes(V.validate_run(b.run()), V.SEVERITY_ERROR)
+    assert ("guard_event_not_reflected" in errs) == (
+        disp not in ("aborted_guard", "harness_error"))
+
+
+def test_ustuvorlik_toplamlari_disposition_rules_tartibidan_kelib_chiqadi():
+    """Ikki to'plam qo'lda yozilgan, lekin `schedule.DISPOSITION_RULES`
+    tartibidan CHIQARILADIGAN to'plam bilan aynan teng bo'lishi shart:
+    tartib o'zgarsa bu test validator'ni ham qayta ko'rishga majbur qiladi."""
+    names = [n for n, _p, _d in DISPOSITION_RULES]
+
+    def upto(rule):
+        return {d for _n, _p, d in DISPOSITION_RULES[:names.index(rule) + 1]}
+
+    assert set(V.GAP_WARNING_DISPOSITIONS) == upto("probe_gap_exceeded")
+    assert set(V.GUARD_REFLECTED_DISPOSITIONS) == upto("guard_fired")
+    assert set(DISPOSITIONS) - set(V.GAP_WARNING_DISPOSITIONS) == {"complete"}
