@@ -3030,3 +3030,72 @@ def test_open_parameters_hech_qaysi_kalibrlangan_parametr_rule_satisfied_siz_ema
                 "t_trial_s"):
         assert isinstance(op[key]["rule_satisfied"], bool), key
         assert op[key]["frozen_in"] == D.PREREG_FROZEN_IN
+
+
+# ===========================================================================
+# t_issue: eskirgan ActiveExitTimestamp (p1-pilot-001 b010t001, 15 §3.2)
+# ===========================================================================
+
+_B010 = os.path.join(os.path.dirname(__file__),
+                     "data_p1_pilot_001_b010t001.json")
+
+
+def _replay_unit_states(tmp_path, records):
+    """Haqiqiy `_note_unit_state` ni record'lar ustida yuritadi."""
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "A"),
+                                   allow_pressure=True)
+    trial = drv.selected[0]
+    for r in records:
+        if r.get("record_type") == "unit_state":
+            drv._note_unit_state(trial, D.SCOPE_SUT, dict(r))
+    drv.writer.flush()
+    return [e for e in events(run_dir) if e["record_type"] == "action"]
+
+
+def test_t_issue_b010t001_HAQIQIY_recordlari_bilan_ikki_action_farqli(
+        tmp_path):
+    """p1-pilot-001 `b010t001`: ikkinchi restart'dan oldingi invocation
+    (`ca2a0c11`) `active` ga yetmay guard tomonidan o'ldirildi; uning
+    record'ida `ActiveExitTimestamp` eskirgan (23.023 s), `ExecMainExit`
+    27.134 s. Avval IKKALA action ham 19629521595 bilan yozildi va
+    `check_actions` oynasi bo'sh bo'lib run'ni yiqitdi."""
+    data = json.load(open(_B010, encoding="utf-8"))
+    recs = data["records"]
+    recorded = [r for r in recs if r["record_type"] == "action"]
+    assert [a["t_issue_mono_us"] for a in recorded] == [19629521595,
+                                                       19629521595]
+    acts = _replay_unit_states(tmp_path, recs)
+    assert [a["t_issue_mono_us"] for a in acts] == [19629521595,
+                                                   19633632690]
+    assert [a["invocation_id"] for a in acts] == [
+        "ca2a0c1128664dedb39579ad2c48f5e5",
+        "c50262b1b49740b6959d017a2c5c8b39"]
+    # Ikkinchi t_issue = o'lgan jarayonning ExecMainExit'i (record'dan).
+    killed = [r for r in recs if r["record_type"] == "unit_state"
+              and r.get("invocation_id") == "ca2a0c1128664dedb39579ad2c48f5e5"
+              and r.get("result") == "signal"][0]
+    assert killed["exec_main_exit_ts_mono_us"] == 19633632690
+    assert killed["active_exit_ts_mono_us"] == 19629521595
+
+
+def test_exit_ts_candidate_oddiy_restartda_active_exit_ozgarmaydi():
+    # Invocation active'ga yetgan: ExecMainStart ActiveExit'dan OLDIN.
+    assert D.exit_ts_candidate({
+        "active_exit_ts_mono_us": 23_000_000,
+        "exec_main_start_ts_mono_us": 1_000_000,
+        "exec_main_exit_ts_mono_us": 23_000_100,
+        "recv_mono_us": 23_001_000}) == 23_000_000
+    # Yangi invocation'ning birinchi record'i: yangi jarayon hali chiqmagan.
+    assert D.exit_ts_candidate({
+        "active_exit_ts_mono_us": 23_000_000,
+        "exec_main_start_ts_mono_us": 23_144_000,
+        "exec_main_exit_ts_mono_us": 23_000_100,
+        "recv_mono_us": 23_145_000}) == 23_000_000
+    # Eskirgan: jarayon ActiveExit'dan KEYIN boshlanib chiqqan.
+    assert D.exit_ts_candidate({
+        "active_exit_ts_mono_us": 23_000_000,
+        "exec_main_start_ts_mono_us": 23_144_000,
+        "exec_main_exit_ts_mono_us": 27_134_000,
+        "recv_mono_us": 27_135_000}) == 27_134_000
+    # Maydonlar yo'q: avvalgi zaxira tartibi.
+    assert D.exit_ts_candidate({"recv_mono_us": 5}) == 5

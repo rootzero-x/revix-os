@@ -1116,6 +1116,38 @@ def reducer_input(
     return out_records, out_probes
 
 
+def exit_ts_candidate(payload: dict[str, Any]) -> int | None:
+    """`unit_state` dan chiqayotgan invocation'ning EXIT vaqti (`t_issue`).
+
+    systemd xatti-harakati (p1-pilot-001 `b010t001`, 15 §3.2):
+    `ActiveExitTimestamp` faqat unit `active` dan CHIQQANDA yangilanadi.
+    Restart qilingan invocation `active` ga yetmay o'lsa (u yerda guard
+    uni `activating/start` da o'ldirdi), maydon ESKI qiymatda qoladi. O'sha
+    record'da (`trial_begin` dan): `ActiveExitTimestampMonotonic` = 23.023 s
+    (oldingi invocation), `InactiveExitTimestampMonotonic` = 23.024 s,
+    `ExecMainStartTimestampMonotonic` = 23.144 s,
+    `ExecMainExitTimestampMonotonic` = 27.134 s, `ExecMainCode 2`,
+    `ExecMainStatus 9`. Ya'ni eng so'nggi asosiy jarayon ActiveExit'dan
+    KEYIN boshlangan VA chiqqan -- uning chiqishini `ActiveExit` qamramaydi,
+    va driver ikkinchi `action` ga birinchisining vaqtini (23.023 s) berdi.
+
+    Qoida (vaqt manbaini tuzatish, yangi qoida emas): odatda
+    `active_exit_ts_mono_us` (avvalgidek). FAQAT `exec_main_start >
+    active_exit` VA `exec_main_exit >= exec_main_start` bo'lsa (eng so'nggi
+    jarayon eskirgan ActiveExit'dan keyin boshlanib chiqqan) --
+    `exec_main_exit_ts_mono_us`. Yangi invocation'ning birinchi record'ida
+    `exec_main_exit < exec_main_start` (yangi jarayon hali chiqmagan), demak
+    oddiy restart'da qiymat O'ZGARMAYDI.
+    """
+    ae = payload.get("active_exit_ts_mono_us")
+    ems = payload.get("exec_main_start_ts_mono_us")
+    eme = payload.get("exec_main_exit_ts_mono_us")
+    if (isinstance(ae, int) and isinstance(ems, int) and isinstance(eme, int)
+            and ems > ae and eme >= ems):
+        return eme
+    return ae or eme or payload.get("recv_mono_us")
+
+
 def check_restart_steps_pairing(props: dict[str, Any]) -> None:
     """`RestartSteps=` va `RestartMaxDelaySec=` JUFTLIGINI majburlaydi.
 
@@ -3291,10 +3323,18 @@ class Driver:
             # Chiqayotgan invocation'ning exit vaqti -- `action` ning
             # `t_issue` i uchun YAGONA to'g'ri manba (yangi invocation'ning
             # record'ida `ActiveExit` BO'SH bo'ladi).
-            state["last_exit_ts"] = (
-                payload.get("active_exit_ts_mono_us")
-                or payload.get("exec_main_exit_ts_mono_us")
-                or payload.get("recv_mono_us"))
+            #
+            # `exit_ts_candidate`: `ActiveExitTimestamp` eskirgan holatni
+            # (invocation `active` ga yetmay o'lgan) `ExecMainExit` bilan
+            # tuzatadi (15 §3.2, `b010t001`). `max`: exit vaqti faqat OLDINGA
+            # siljiydi -- yangi invocation'ning birinchi record'i hali eski
+            # `ActiveExit` ni olib yuradi va aniqroq qiymatni bosib
+            # o'tmasligi kerak. Eskirmagan holatda barcha record'lar bir xil
+            # qiymat beradi, ya'ni `max` = avvalgi "oxirgisi" (o'zgarishsiz).
+            cand = exit_ts_candidate(payload)
+            prev = state.get("last_exit_ts")
+            state["last_exit_ts"] = (cand if prev is None or cand is None
+                                     else max(prev, cand)) or prev
         if inv and state["invocation"] and inv != state["invocation"]:
             # `action` uchun CHIQISH DALILI SHART: restart ta'rifan unit
             # `active` dan chiqqanidan keyin bo'ladi. Dalil bo'lmasa bu
