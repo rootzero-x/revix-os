@@ -1480,3 +1480,66 @@ page-cache'ga sezgir; 6144 MB da `memory_headroom` PASS va WARN soni
 DIQQAT: `revix-os` VM (holati `aborted`) aynan shu o'chirilgan ISO'ni DVD
 sifatida ulagan edi — uni qayta ulash kerak
 (`C:\Users\snowden\revix-iso-final\...iso`).
+
+### 10.8 Addendum — menyu yorlig'i tuzatilgandan keyingi qayta build (`main` `4d01e4a`)
+
+§10.7 da topilgan kamchilik (ISOLINUX 80 ustunda ikkinchi band yorlig'ini
+kesadi va `[NO AUTH]` ko'rinmaydi) `main` da tuzatildi (`4d01e4a`: yorliq
+`REVIX live - dashboard on network [NO AUTH]`, 43 belgi). Shu sababli image
+yana qurildi; qolgan hamma narsa o'zgarmagan, shuning uchun §10.7 ning to'liq
+tekshiruvi o'z kuchida va bu yerda **qisqartirilgan** tekshiruv bajarildi.
+
+**FAKT — build.** Toza klon, `HEAD` =
+`4d01e4adcabd1fd15eed4290ea7e9133c705713a`, `git status --porcelain` bo'sh.
+Ekskluziv lock build va VM fazasi uchun olindi va VM fazasi tugashi bilan
+(11:02:41Z) bo'shatildi. `boot_id`=`4ea15279-acba-44ff-a533-6d7cd11924e5`,
+`/proc/1/stat` 22-maydon=653523 build boshida, har qadam oldida va oxirida
+bir xil; VM fazasi boshida ham bir xil, oxirida faqat `boot_id` tekshirildi.
+
+```
+10: 2m34s   20: 0m00s   30: 3m37s   40: 0m01s   50: 0m02s   JAMI 6m14s
+iso        : 573 571 072 bayt (547 MiB)
+sha256     : be8c9639dd7d80a650b381864602097461f9ad63d7e11494e45d0832328ceec0
+manifest   : 61a8db3ac174a2a686c7898004c3d04875c97420abdac9200279c2dc5692933d  (O'ZGARMAGAN)
+fingerprint: d9173956a0b6640d92068796b06164882edcb7a94cc363d51a3ab157da668a15
+git_commit : 4d01e4adcabd1fd15eed4290ea7e9133c705713a   git_dirty_at_build: false
+paket soni : 354
+```
+
+**FAKT — menyu** (ISOLINUX serial capture): ikkinchi band endi **to'liq**:
+
+```
+REVIX research appliance (live)
+REVIX live - dashboard on network [NO AUTH]
+Press [Tab] to edit options   Automatic boot in 5 seconds...
+```
+
+**FAKT — ikkala band, VirtualBox 4096 MB** (o'z VM'im; `Down`+`Enter` ikkinchi
+bandni tanladi, `/proc/cmdline` da `revix.dashboard=remote` bilan tasdiqlandi):
+
+```
+                     default band          NO AUTH bandi
+is-system-running    running               running
+systemctl --failed   bo'sh                 bo'sh
+dashboard listener   127.0.0.1:8787        0.0.0.0:8787
+curl (guest ichida)  HTTP 200, 8529 B      HTTP 200, 8482 B
+revix doctor --json  rc=0, 14/4/0          rc=0, 14/4/0     (PASS/WARN/FAIL)
+memory_headroom      WARN, +49 MB          WARN, +49 MB     (3 646 356 / 3 646 068 kB; talab 3 597 152)
+git -C /opt/revix    4d01e4a, toza         4d01e4a, toza ; import revix OK
+```
+
+Windows -> NAT forward (127.0.0.1:8788 -> guest 8787), NO AUTH bandida:
+`HTTP 200, 8482 bytes, <title>REVIX &mdash; Boshqaruv paneli</title>`.
+
+**FAKT — nusxalar.** Yakuniy ISO, `SHA256SUMS`, manifest va fingerprint
+`C:\Users\snowden\revix-iso-final\` ga qo'yildi (oldingilar o'rniga;
+oldingi ISO faqat `Get-FileHash` yangisini tasdiqlagandan KEYIN o'chirildi).
+`revix-os` VM'ining DVD'i (`aborted`, ishga tushirilmadi) shu ISO'ga qayta
+ulandi: `showvminfo` -> `"IDE-0-0"="C:\Users\snowden\revix-iso-final\
+revix-appliance-trixie-20261001T000000Z.iso"`. `snowden` ga tegilmadi
+(`poweroff`).
+
+**CHEKLOV — sinalmadi (§10.7 dagi ro'yxat o'zgarmaydi):** GRUB/UEFI menyusi
+(yangi qisqa yorliq ham), 6144 MB da bu image, yakuniy image'da `pytest`,
+yuk ostida dashboard. 4096 MB da `memory_headroom` zaxirasi +49 MB bo'lib
+qoldi (yupqa).
