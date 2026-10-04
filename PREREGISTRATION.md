@@ -527,6 +527,20 @@ dan ko'rilgan narsa — 0.1-banddagi ro'yxat.
    da; v1.14 uni muzlatilgan matnga **ko'chirmaydi**.
 9. `p1-pilot-002` ham ko'rilmagan klassni ochgani kabi, **keyingi run**
    ham yangi klass ochishi mumkin; uning ehtimolini baholab bo'lmaydi.
+10. **Validator `disposition` ni o'qiydi, `reason` ni emas** (`17` §11,
+    3-band; tuzatuvchi agent topgan, **o'zgartirilmadi**). `censored` +
+    sabab `horizon_ended_down` — §16.2(B) bo'yicha *kuzatilgan nol-hodisa*,
+    ya'ni natija da'vo qiladi; shu tamoyil bo'yicha probe uzilishi uni ham
+    bekor qilishi kerak. Hozirgi validator buni ko'ra olmaydi.
+    **Ta'siri:** `p1-pilot-002` da **0** (23 ta `censored` uzilishli trial'ning
+    hammasida sabab `probe_gap_exceeded`); `p1-pilot-001` da `b009t000` aynan
+    shu holat — sababni tekshirish uni **beshinchi xato** qilardi, ya'ni
+    **pilot-001 hech qaysi variantda qutqarilmaydi**. Tuzatilgan driver bu
+    holatni ishlab chiqara olmaydi (probe-gap qoidasi horizon qoidasidan
+    oldin). Bu band ochiq qoladi va ataylab tuzatilmaydi: tuzatish yana bir
+    darvoza o'zgarishi bo'lardi.
+11. **`trial_without_probes` faqat `complete` uchun** — nol probe'li
+    `censored` trial uni ushlamaydi; ikkala pilotda bunday trial yo'q.
 
 **10. `p1-pilot-002` NI ANALIZ QILISH PRESHARTLARI.** `p1-pilot-002`
 ustida birorta natija (VR, FR, downtime, `t_up` taqsimoti, yacheyka
