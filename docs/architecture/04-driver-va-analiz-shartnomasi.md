@@ -136,6 +136,43 @@ sanalangan tuzatma qo'shildi, shunda o'quvchi ikkala qatlamni ham ko'radi:
 > 41.1 s ni talab qiladi, hujjat esa 40.1 s ni aytib turardi — ya'ni hujjat
 > kod bilan **ziddiyatda** qolardi.
 
+#### v1.2 uchinchi revizyasi (2026-10-04) — §8.1 ning BO'SHLIG'I qayd etildi va implementatsiyada yopildi, QOIDA o'zgarmadi
+
+**Versiya OSHIRILMADI.** §8.1 ning uch qoidasi (driver avtoritet,
+reducer kross-tekshiruv, kelishmovchilik validator topilmasi) **aynan
+o'sha**; §1.1 ning majburiy maydonlari, §1.3 ning majburiyatlari, §4 ning
+normativ jadvali, `SCHEMA_VERSION` va har bir record turi/enum qiymati
+o'zgarmadi. O'zgargan narsa — driver'ning **implementatsiyasi**, u endi
+`PREREGISTRATION.md` allaqachon talab qilgan ikki faktni hisoblaydi.
+
+| | |
+|---|---|
+| **Sana** | 2026-10-04 |
+| **Sabab** | `p1-pilot-001` validatsiyadan o'tmadi (`docs/architecture/15-pilot-001-validatsiya-xatolari.md` §2.4). **§8.1 driver'ni `trial_end.disposition` uchun avtoritet qildi, lekin undan §4 ning probe-uzilish faktini (probe qatorlari orasida `> 2×P`) va `PREREGISTRATION.md` §17.4(2),(5) ning oyna faktini (`t_up + W_stab_pilot ≤ T_h`) hisoblashni talab qilmadi.** Driver bu ikkisini reducer'ga qoldirgan edi ("ikki yo'l bir-birini qoplaydi"), validator esa §14.6(4) va §17.4(5) bo'yicha driver'ning `complete` ini run darajasida rad etadi — ya'ni qoplash reducer'da, rad etish run'da edi. Natija: ikki trial (`b007t001`, `b013t004`) `complete` deb yozildi va run yiqildi. Uchinchi nuqson — `action.t_issue` uchun eskirgan `ActiveExitTimestamp` (`b010t001`, `15` §3) |
+| **Qaror** | `preregistration/v1.13` 3-band (V-A) va orkestrator qarori Q1 (`docs/architecture/16-pilot-002-tuzatishlar.md` §2, §6) |
+| **O'zgardi (implementatsiya)** | (1) `driver.measured_trial_facts` — trial oynasi **yopilgandan keyin** shu trial'ning xom record'laridan, validator/reducer bilan **aynan bir xil** funksiyalar (`reduce.probe_gaps`, `build_episodes` → `classify_window_containment`) va ko'rinish (SUT `unit_state`, `target == "sut"` probe) bilan; (2) `probe_gap_exceeded` = prober horizon'da tirik emas **OR** `reduce.probe_gaps`; (3) yangi `schedule.TrialFacts.window_outside_hold` (default `False`) va `DISPOSITION_RULES` da `censored` qoidasi (`probe_gap_exceeded` dan keyin, `horizon_ended_down` dan oldin — `reduce.derive_disposition` tartibi); (4) `t_issue`: `ActiveExit` eskirgan bo'lsa `ExecMainExit` (`driver.exit_ts_candidate`); (5) **qo'shimcha payload maydonlari**: `run_meta.disposition_facts` (hisoblash usuli va funksiya nomlari), `trial_end.facts.window_outside_hold`, `trial_end.detail.facts.measured`. §8.1 ning kelishmovchiligi shu ikki fakt bo'yicha endi **konstruksiya bo'yicha** yuzaga kelmaydi |
+| **O'zgarMADI** | §8.1 ning uch qoidasi; `schedule.DISPOSITION_RULES` ning mavjud qoidalari va ustuvorligi (yangi fakt default bilan oldingi har fakt to'plamining disposition'i aynan bir xil — `tests/unit/test_schedule.py`); §12 enum'i; §1.1 majburiy maydonlari; `SCHEMA_VERSION` (faqat payload maydoni qo'shildi, yangi record turi yo'q); `PREREGISTRATION.md` ning hech bir ta'rifi |
+| **Yig'ilgan ma'lumot** | `p1-pilot-001` (yaroqsiz, v1.13 1-band; saqlanadi). Uning xom record'lari ustidagi oflayn replay (`16` §3): faqat `b007t001`, `b013t004` (`complete → censored`) va `b010t001` ning 2-action `t_issue` i o'zgaradi, boshqa 118 trial'ning disposition'i o'zgarmaydi |
+
+**§8.1 dagi §1.5 eslatmasi.** Bu revizyadan keyin `build_episodes` (va
+uning ichidagi `evaluate_vr` / `window_throughput`) driver'ning **post-oyna**
+qadamida ishlaydi; `reduce` faqat `measured_trial_facts` ichida import
+qilinadi, natija faqat `trial_end` ga oqadi — ikkalasi AST testlari bilan
+qulflangan (`test_driver_VR_va_FR_tariflarini_CHAQIRMAYDI`,
+`test_measured_facts_faqat_trial_end_ga_oqadi`). Batafsil: `16` §6.
+
+| | |
+|---|---|
+| v1.2 (ikkinchi revizyadan keyin, **shu revizyadan oldingi** matn; commit `1d28cc2`) | `f514394e960ba5d647d8be0854f312510c9bd6c0245e7358e9e189710ac218ff` |
+| v1.2 (shu revizyadan keyin) | commit xabarida beriladi |
+
+> **NEGA versiya oshirilmaydi:** shu faylning qoidasi (*"ta'rif, metrika
+> yoki talab o'zgarganda"*) — bu yerda shartnomaning **talabi** o'zgarmadi:
+> §8.1 hamon driver'ni avtoritet qiladi, §12 va §14.6 talablari
+> `PREREGISTRATION.md` da edi va o'zgarmadi. Driver o'sha talablarni endi
+> **bajaradi**. Qo'shilgan maydonlar shartnomaning §1.1 majburiy ro'yxatiga
+> kiritilmadi.
+
 ### v1 → v1.1 (2026-10-02)
 
 | | |

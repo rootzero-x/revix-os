@@ -119,3 +119,130 @@ ham 1124 passed, 1 skipped).
 - Replay prototip mantig'i bilan bajarildi; yakuniy kod Q1 bo'yicha
   qabul qilinsa, xuddi shu replay yakuniy kod bilan qayta bajariladi.
 - Smoke hech qachon ko'rsatmagan klasslar (`15` §5.2 CHEKLOV) o'z kuchida.
+
+---
+
+## 6. Q1 — qaror va yakuniy implementatsiya (`f576c79`)
+
+**Qaror (orkestrator, loyiha egasining delegatsiyasi bo'yicha):** Q1 — §1.5
+qulfi **toraytiriladi** va toraytirishning o'zi **qulflanadi**.
+
+**FAKT — kod:**
+- `driver.measured_trial_facts` — yagona post-oyna funksiyasi; `reduce`
+  **faqat shu funksiya ichida** import qilinadi. Kirish: shu trial'ning
+  setup'dan oldingi ofsetlardan keyin yozilgan `events.jsonl`,
+  `guard.jsonl`, `probe.csv` qatorlari (validator'ning `reducer_view`
+  filtri bilan). Chiqish: `probe_gap_exceeded` (`reduce.probe_gaps`) va
+  `window_outside_hold` (`reduce.classify_window_containment` holati
+  `window_past_pressure` / `window_past_horizon`).
+- Chaqiruv `run_trial` da, `PROBER_UNIT` to'xtatilgandan va
+  `horizon_end_mono_us` belgilangandan keyin, washout'dan oldin; natija
+  `_collect_facts(measured=)` → `TrialFacts` → `explain_disposition` →
+  `trial_end`.
+- `schedule.TrialFacts.window_outside_hold` (default `False`);
+  `DISPOSITION_RULES` da `("window_outside_hold", …, "censored")` —
+  `probe_gap_exceeded` dan keyin, `horizon_ended_down` dan oldin.
+  **Ishlatadigan tarmoq:** `explain_disposition` ning shu qoidasi; u faqat
+  harness / guard / kontaminatsiya / washout / probe-gap qoidalari mos
+  kelmaganda yutadi va natija `censored`.
+- `run_meta.disposition_facts`: `method: post_window_reducer_facts`,
+  `driver_function: revix.driver.measured_trial_facts`, `reducer_module`,
+  `reducer_functions`, `since: preregistration/v1.13 … 3.1-band`,
+  `t_issue_source`. `p1-pilot-001` da bu maydon **yo'q** — ikki run shu
+  bilan ajraladi. `SCHEMA_VERSION` o'zgarmadi (faqat payload maydoni).
+
+**FAKT — qulflar (`tests/unit/test_driver.py`):**
+- `test_driver_VR_va_FR_tariflarini_CHAQIRMAYDI` — toraytirildi:
+  `build_episodes`, `probe_gaps`, `split_trials`, `fault_effective_us`,
+  `reference_throughput`, `classify_window_containment` faqat
+  `measured_trial_facts` ichida; `evaluate_vr`, `fr_a`, `evaluate_fr_b`,
+  `reduce_trial`, `window_throughput` **hech qayerda** to'g'ridan-to'g'ri
+  chaqirilmaydi; `reduce` modul darajasida import qilinmaydi; PSI fakti
+  yo'q. Docstring nima, nega, kim qaror qilgani va v1.13 3.1 ni yozadi.
+- **Yangi** `test_measured_facts_faqat_trial_end_ga_oqadi` (AST): yagona
+  chaqiruv joyi `run_trial`; u `PROBER_UNIT` stop va horizon
+  belgilanishidan **keyingi** qatorda; `measured` `run_trial` da faqat
+  `_collect_facts(measured=)` da o'qiladi; `_collect_facts` ichida faqat
+  ikki fakt kalitidan o'qiladi; washout, pressure, lab/SUT/prober start,
+  injeksiya, guard, overhead, setup, teardown, `_note_unit_state`,
+  `_emit_action` va boshqa 20 ta boshqaruv funksiyasi bu nomlarning
+  (`measured`, `measured_trial_facts`, `window_outside_hold`,
+  `probe_gap_exceeded`, `facts_kw`, `verdict`, `_disposition_counts`, …)
+  **hech birini** o'qimaydi; `_washout` faqat `trial` ni oladi; `run()`
+  `run_trial` natijasini faqat `summary["trials"].append` ga beradi.
+- Haqiqiy record'lardan testlar: `b007t001` (probe uzilishi + oyna) va
+  `b013t004` (oyna) → `censored`; validator'ning o'z ikki tekshiruvi xuddi
+  shu fixture'da bir xil javob beradi.
+
+**TAN OLINADI (oshkora):** `build_episodes` → `evaluate_vr` /
+`window_throughput` zanjiri endi driver'ning **post-oyna** qadamida
+ishlaydi — ya'ni VR oynasi mantig'i driver jarayoni ichida bajariladi. Shu
+sababli driver va reducer'ning disposition'i (bu ikki fakt bo'yicha)
+**konstruksiya bo'yicha** mos.
+
+### 6.1 Skeptik reviewer nimaga e'tiroz bildiradi — va dalil
+
+| e'tiroz | dalil / javob |
+|---|---|
+| "Asbob natija ta'rifini o'z ichiga oldi — o'lchov natijaga moslasha oladi" | Faktlar trial oynasi yopilgandan keyin hisoblanadi va faqat `trial_end` ga oqadi; washout, generator, guard, SUT/prober start, injeksiya vaqti va keyingi trial ularni o'qimaydi (AST testi). Jadval seed'dan oldindan qotgan (`schedule_digest`). |
+| "PSI endi disposition'ga kirdi (§1.5 sirkulyarligi)" | `measured_trial_facts` PSI'ni o'qimaydi (kirish: `events.jsonl` / `guard.jsonl` / `probe.csv`); `psi.csv` ochilmaydi; `TrialFacts` da PSI fakti yo'qligi testda qoldi. |
+| "Safeguard ma'lumot ko'rilgandan keyin bo'shatildi" | Ha — oshkora: p1-pilot-001 dan keyin, v1.13 0-band e'loni bilan. Toraytirish **bitta funksiya** bilan chegaralangan va AST bilan qulflangan; ruxsat etilgan chaqiruvlar muzlatilgan matn (§4, §17.4(2),(5)) talab qilgan faktlarni hisoblaydi, yangi qoida yo'q. |
+| "Driver o'z `t_up` ta'rifini yozdi" | Yo'q: `t_up` reducer'ning `build_episodes` idan; driver'da mustaqil ta'rif yo'q; replay validator bilan mos (§7). |
+| "Bu disposition'larni qulay tomonga o'zgartiradi" | Yo'nalish muzlatilgan matnda: §17.4(2) va §4 — `censored`. p1-pilot-001 replay: faqat ikki `complete → censored` (A/P2), qolgan 118 o'zgarishsiz. |
+| "`t_issue` tuzatishi o'lchangan vaqtlarni o'zgartiradi" | Faqat `ActiveExit` eskirgan holatda; replay: 1 action (`b010t001` #2); eski mantiq yozilgan barcha `t_issue` larni aynan qayta chiqaradi. |
+| "Validator endi ma'nosiz (driver bilan bir xil)" | Validator o'zgartirilmadi; u hamon xom ma'lumotdan mustaqil qayta hisoblaydi va §14.6 darvozasini ushlab turadi. |
+
+## 7. NATIJA — oflayn replay, YAKUNIY kod bilan
+
+`datasets/smoke-tools/p1_replay.py` endi yakuniy `driver.measured_trial_facts`
+ni chaqiradi (shu trial record'lari + guard record'lari, probe qatorlari);
+`p1-pilot-001` faqat o'qildi (`dr-xr-xr-x`). Natija §3 dagi bilan **aynan
+bir xil**:
+
+| | natija |
+|---|---|
+| `b007t001` | `complete` → `censored` (`probe_gap_exceeded`; oyna `past_pressure`) |
+| `b013t004` | `complete` → `censored` (`window_outside_hold`) |
+| `b010t001` | `aborted_guard` (o'zgarmadi); action 2 `t_issue` 19629521595 → 19633632690 |
+| o'zgargan disposition | A/P2: 2; boshqa yacheykalar: 0 (120 trial) |
+| validator'ning ikki sharti replay'dan keyin | 0 buzilish |
+| eski `t_issue` mantig'i vs yozilgan | 0 nomuvofiqlik |
+
+**To'liq `tests/`:** `7842c25` da **1124 passed, 1 skipped**; `f576c79` da
+**1131 passed, 1 skipped**.
+
+## 8. OLDINDAN qayd etilgan smoke mezoni (trial'lardan OLDIN commit qilindi)
+
+> Bu bo'lim birorta yangi trial'dan **oldin** commit qilinadi va keyin
+> **o'zgartirilmaydi**.
+
+**Kod:** `agent/pilot-ready` ning shu commit'i (`main` `bccd118` + uch
+tuzatish), ext4 clone, `git_dirty: false`. **Kirish nuqtasi:**
+`python3 -m revix.cli run --run-dir … --seed … --blocks 1 --only <arm>,<band>
+--allow-pressure`; har run'dan keyin `python3 -m revix.validate --run-dir …
+--sut-unit revix-sut.service --sut-target sut`.
+
+| # | run | arm, band | seed |
+|---|---|---|---|
+| 1 | `smoke-26-A-P2` | A, P2 | 20261041 |
+| 2 | `smoke-27-noaction-P2` | no_action, P2 | 20261042 |
+| 3 | `smoke-28-A-P2` | A, P2 | 20261043 |
+| 4 | `smoke-29-noaction-P2` | no_action, P2 | 20261044 |
+| 5 | `smoke-30-A-P2` | A, P2 | 20261045 |
+| 6 | `smoke-31-A-P2` | A, P2 | 20261046 |
+| 7 | `smoke-32-A-P1` | A, P1 | 20261047 |
+| 8 | `smoke-33-A-P0` | A, P0 | 20261048 |
+
+**Mezon (orkestrator bergan, aynan):** har run `validate` dan **0 xato**
+bilan o'tadi, **aynan bitta** `trial_end`, **sustain trip yo'q**,
+**`harness_error` yo'q**. `P2` dagi runaway `aborted_guard` — e'lon
+qilingan kutilma, xato emas. Qo'shimcha: `boot_id`, pid1, `real − mono`
+siljishi o'zgarmagan, `oom_kill` o'zgarmagan, `leftover_state` PASS,
+`run_meta.disposition_facts` bor. **Birinchi buzilishda to'xtatiladi** va
+hisobot qilinadi; tuzatish jonli tizimga qarshi sinov-xato bilan
+takrorlanmaydi.
+
+**Oldindan aytilgan CHEKLOV:** 8 trial'da §4 probe uzilishi yoki §17.4
+oyna holati **yuzaga kelishi kafolatlanmagan** (p1-pilot-001 da A/P2 dagi
+20 trial'dan 2 tasida); yuzaga kelmasa, bu yo'llar faqat unit test va
+oflayn replay bilan tekshirilgan bo'ladi.
