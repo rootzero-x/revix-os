@@ -157,10 +157,12 @@ class ScheduleError(ValueError):
 class PressureCapExceeded(ScheduleError):
     """Pressure-on vaqti xavfsizlik chegarasidan oshadi.
 
-    Bu XOHISH emas, QATTIQ cheklov: `systemd-oomd` 20 s sustained pressure
-    ko'rsa foydalanuvchining ilovalarini (brauzer, editor, desktop sessiyasi)
-    o'ldiradi. Shuning uchun har pressure epizodi shu chegaradan past
-    bo'lishi kerak. Ko'ring PREREGISTRATION.md §9.4 va revix/guard.py.
+    Bu XOHISH emas, QATTIQ cheklov. Tarixiy sabab: `systemd-oomd` 20 s
+    sustained pressure ko'rsa foydalanuvchining ilovalarini o'ldiradi (12 s
+    cap shundan kelgan). Bu host'da oomd YO'Q (07 §6.4), shuning uchun HOZIRGI
+    chegaralovchi -- §9.4 2-invariant (`hold_s + ramp_above_threshold_s <=
+    guard sustain_max`) va §15.3 ning shartnomaviy chegarasi; cap 13 s
+    (preregistration/v1.11, §17.5 O3). Ko'ring revix/guard.py.
     """
 
 
@@ -908,11 +910,12 @@ class TrialTimeline:
             if getattr(self, name) < 0:
                 raise ScheduleError(f"{name} >= 0 bo'lishi kerak")
 
-        # --- XAVFSIZLIK: oomd oynasi ---
+        # --- XAVFSIZLIK: pressure cap (§9.4 1-invariant) ---
         if self.hold_s > self.hold_cap_s:
             raise PressureCapExceeded(
                 f"sustained pressure-on {self.hold_s} s > cap {self.hold_cap_s} s "
-                "(systemd-oomd 20 s sustained'da foydalanuvchi ilovasini o'ldiradi)"
+                "(cap'ni endi oomd emas, §9.4 2-invariant va guard sustain_max "
+                "chegaralaydi; §17.5 O3)"
             )
         if self.ramp_above_threshold_s > self.ramp_s:
             raise ScheduleError(
@@ -986,7 +989,7 @@ class TrialTimeline:
 
     @property
     def sustained_pressure_on_s(self) -> float:
-        """oomd uchun ahamiyatli qiymat: nishonda ushlangan vaqt."""
+        """Nishonda ushlangan vaqt (tarixan oomd kriteriyasi uchun; hozir guard sustain_max uchun)."""
         return self.hold_s
 
     @property
