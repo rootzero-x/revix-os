@@ -474,3 +474,99 @@ ham keyin ham **0**. O'zgaradigan **yagona** topilma: `b010t005` ning
 **To'xtash qoidasi.** Boshqa har qanday farq (son, kod, trial yoki
 og'irlik) bo'lsa — to'xtayman va orkestratorga xabar beraman; kod commit
 qilinmaydi.
+
+---
+
+## 11. Isbot — tuzatish `dfd6d93` (§10 dagi kutilgan natija bilan)
+
+### 11.1 FAKT — kod
+
+`revix/validate.py`: ikki yangi konstanta — `GAP_WARNING_DISPOSITIONS =
+(harness_error, aborted_guard, contaminated, washout_timeout, censored)` va
+`GUARD_REFLECTED_DISPOSITIONS = (harness_error, aborted_guard)`, ustida
+§14.6(4) va §12 iqtibosi va tamoyil (§10). `check_probe_gaps` va
+`probe_coverage_gap`: OGOHLANTIRISH faqat `GAP_WARNING_DISPOSITIONS` da,
+aks holda XATO — ya'ni `complete` da va disposition yo'q/noma'lum bo'lsa
+(**fail-closed**; spetsifikatsiyaning "boshqa har disposition" i enum'ning
+besh qiymati deb o'qildi). `guard_event_not_reflected`:
+`GUARD_REFLECTED_DISPOSITIONS` dan tashqari har disposition'da XATO;
+topilmaga `detail.disposition` qo'shildi. Boshqa tekshiruvlarga tegilmadi.
+
+### 11.2 FAKT — testlar
+
+25 yangi holat (`tests/unit/test_validate.py`): `b010t005` ning haqiqiy
+qiymatlari (407 probe vaqti va natijasi, begin/baseline/end/guard —
+`~/pilotready-scratch/p13/extract_b010t005.py` bilan ajratildi) — uzilish
++ `aborted_guard` → ogohlantirish; xuddi shu record'lar `complete` bilan →
+uzilish XATO **va** `guard_event_not_reflected` XATO; 6 disposition × ichki
+uzilish; 6 × chegaradagi uzilish; disposition yo'q → XATO; guard qoidasi
+`contaminated`, `washout_timeout` uchun alohida va butun enum bo'yicha;
+`b007t001` ning mavjud haqiqiy fixture'i (`data_p1_pilot_001_b007t001.json.gz`,
+o'zgartirilmagan) — `complete` + 492 256 µs uzilish **hali ham XATO**; ikki
+to'plam `DISPOSITION_RULES` tartibidan chiqariladigan to'plamga teng.
+
+| | natija |
+|---|---|
+| yangi test fayli + **eski** `validate.py` (`40afbca4…`) | **15 failed**, 206 passed |
+| yangi test fayli + yangi `validate.py` (`a91b2141…`) | 221 passed |
+| `tests/` to'liq, o'zgarishdan oldin (`2849896`) | **1131 passed, 1 skipped** |
+| `tests/` to'liq, o'zgarishdan keyin | **1156 passed, 1 skipped** (+25 = yangi holatlar) |
+
+### 11.3 NATIJA — ikkala pilot, validator nusxasi bilan
+
+`~/pilotready-scratch/p13_proof.sh`: validator nusxasi `p13/before/`
+(`git archive 2849896`) va `p13/after/` (commit'dan oldingi ishchi fayl;
+`validate.py` sha256 `a91b2141b6518299` — `dfd6d93` dagi fayl bilan
+**aynan bir xil**), `python3 -m revix.validate --run-dir … --sut-unit
+revix-sut.service --sut-target sut --json`, chiqish faqat
+`~/pilotready-scratch/p13/`. Pilot kataloglari keyin ham `dr-xr-xr-x`.
+
+| run | oldin | keyin | farq (severity, kod, trial) |
+|---|---|---|---|
+| `p1-pilot-001` | rc 1; 4 xato: `action_without_invocation_change` 1, `probe_gap` 1, `window_outside_hold_complete` 2; 3 ogohl.: `disposition_cross_check` 2, `probe_gap` 1 | rc 1; **aynan bir xil** | **yo'q** |
+| `p1-pilot-002` | rc 1; 1 xato `probe_gap`; 23 ogohl. `probe_gap` | rc 0; **0 xato; 24 ogohl.** `probe_gap` | `(error, probe_gap, b010t005)` → `(warning, probe_gap, b010t005)` — **yagona** |
+
+`guard_event_not_reflected` va `probe_coverage_gap`: ikkala run'da, oldin
+ham keyin ham 0. **Natija §10 dagi kutilgan qiymat bilan to'liq mos;
+to'xtash qoidasi ishga tushmadi.**
+
+### 11.4 Savol 3 — shu tamoyil bo'yicha boshqa noto'g'ri tartib (FAQAT hisobot, o'zgartirilmadi)
+
+1. **`censored`, manbasi `horizon_ended_down`.** §16.2(B) (:3993):
+   *"Horizon down — kuzatilgan NO'L-HODISA, censoring EMAS"* — bunday trial
+   birlamchi to'plamga **kuzatilgan natija** sifatida kiradi. Tamoyil
+   bo'yicha uzilish bu da'voni ham bekor qilishi kerak edi, lekin validator
+   faqat `disposition` ni ko'radi (`reason`/`disposition_source` ni emas) va
+   spetsifikatsiyaning 1-bandi `censored` ni ogohlantirishda qoldiradi.
+   Tuzatilgan driver'da bu holat **konstruksiya bo'yicha** yuzaga kelmaydi
+   (`probe_gap_exceeded` `horizon_ended_down` dan oldin). `p1-pilot-002`:
+   23 uzilishli `censored` ning hammasi `reason probe_gap_exceeded` —
+   ta'siri 0. `p1-pilot-001`: `b009t000` aynan shu holat — tekshiruv
+   `reason` ga bog'lansa u XATO bo'lardi (4 → 5); `p1-pilot-001` ni
+   qutqarmaydi.
+2. **`trial_without_probes`** faqat `complete` da — 1-banddagi
+   horizon-`censored` trial'da bitta ham probe bo'lmasa, ushlanmaydi. Xuddi
+   shu sabab, xuddi shu cheklov; ikkala pilotda bunday trial yo'q
+   (`probe_coverage_gap` va `trial_without_probes` 0).
+3. Auditning qolgan tekshiruvlari (§3) shu tamoyil bo'yicha ham izchil;
+   `check_trial_horizon` ning erta yopish yo'llari tekshirilmagan (§3)
+   bo'lib qoladi.
+
+### 11.5 CHEKLOV va oshkora e'lon
+
+- **Lock:** `~/.revix-exclusive` §10 commit'idan keyin, `16:10:28Z` da
+  `iso-dash gui-proto` tomonidan olindi. Mening **keyingi** to'liq `tests/`
+  ishga tushirishim (~16:14:30Z → 16:16Z) shu lock **band** paytida bo'ldi —
+  men lock'ni tekshirmasdan boshladim. Ishga tushirishdan oldin ham, keyin
+  ham `revix*` unit'lari 0, `revix` jarayonlari yo'q edi. Lock band ekan,
+  qayta ishga tushirmadim. Oldingi to'liq ishga tushirish (1131) va
+  validator isbotlari (faqat o'qish, unit ochmaydi) — ularning lock'ga
+  nisbatan vaqti: "oldin" isboti va oldingi to'liq test lock olinishidan
+  oldin; "keyin" isboti — aniq vaqti yozilmagan.
+- "Keyin" isboti commit'dan **oldin** ishchi fayl ustida bajarildi (to'xtash
+  qoidasi bo'yicha kod faqat isbotdan keyin commit qilinadi); bir xilligi
+  sha256 bilan tasdiqlangan, `git archive dfd6d93` bilan qayta
+  ishga tushirilmagan.
+- Darvoza **`p1-pilot-002` muvaffaqiyatsiz bo'lgandan keyin** o'zgardi,
+  orkestrator ikkala run'ning yacheyka hisoblarini ko'rgan holda (§0, §6.4).
+  Bu `v1.14` da yozilishi shart; bu branch `PREREGISTRATION.md` ga tegmadi.
