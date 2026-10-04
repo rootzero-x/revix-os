@@ -1,0 +1,1 @@
+{"phase": "post", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 9499063578, "real_us": 1791105369273725, "real_minus_mono_us": 1791095870210147, "oom_kill": 0, "loadavg": "0.10 0.14 0.11 1/222 2748", "uptime_s": 9499.06}

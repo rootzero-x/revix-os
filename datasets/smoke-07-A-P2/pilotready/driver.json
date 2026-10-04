@@ -1,0 +1,23 @@
+{
+  "dispositions": {
+    "aborted_guard": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 3.2684780000000018,
+    "mean": 3.2684780000000018,
+    "min": 3.2684780000000018,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-07-A-P2",
+  "run_id": "7a3e5ea55a3545098a6ca0a3adfa2d9a",
+  "trials": [
+    {
+      "disposition": "aborted_guard",
+      "overhead_s": 3.2684780000000018,
+      "rule": "guard_fired",
+      "trial_id": "b000t000"
+    }
+  ]
+}

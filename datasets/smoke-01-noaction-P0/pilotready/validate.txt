@@ -1,0 +1,7 @@
+WARNING run_filtered: run --only ['no_action', 'P0'] bilan filtrlangan: 1/6 trial -- to'liq blok dizayni EMAS (§8.4)  [/home/snowden/revix-runs/smoke-01-noaction-P0/events.jsonl:2]
+ERROR   guard_stop_missing: guard_stop yo'q -- guard to'g'ri to'xtamagan yoki log tugamagan
+
+record: 144  probe: 822  trial: 1  run_mode: pilot
+xato: 1  ogohlantirish: 1
+NATIJA: O'TMADI -- bu run ANALIZ QILINMAYDI (§14.6)
+validate rc=1
