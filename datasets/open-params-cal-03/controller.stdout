@@ -1,0 +1,6 @@
+Running as unit: revix-opmeas.service; invocation ID: a6bb41c242ac45e897084ff3619163ea
+Finished with result: exit-code
+Main processes terminated with: code=exited, status=3/NOTIMPLEMENTED
+Service runtime: 3min 14.923s
+CPU time consumed: 2.880s
+Memory peak: 19.8M (swap: 0B)

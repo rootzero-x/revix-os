@@ -384,7 +384,7 @@ def main(run_dirs: list[str]) -> dict[str, Any]:
         mx = max(tsv) if tsv else None
         b_band[band] = {
             "starts": len(rows), "qualifying": len(q), "failures": len(fails),
-            "results": dict(Counter((r.get("active_state"), r.get("result")) for r in rows)),
+            "results": dict(Counter(f"{r.get('active_state')}/{r.get('result')}" for r in rows)),
             "t_start": stats(tsv),
             "timeout_over_max": (DEFAULT_TIMEOUT_START_S / mx) if mx else None,
             "le_0_8": sum(1 for t in tsv if t <= 0.8),

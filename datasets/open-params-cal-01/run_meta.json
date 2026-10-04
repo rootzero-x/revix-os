@@ -1,0 +1,74 @@
+{
+ "run_id": "open-params-cal-01",
+ "kind": "open-params calibration (docs/architecture/13-ochiq-parametrlar-kalibratsiyasi.md)",
+ "not_a_pilot_trial": true,
+ "git_commit": "1d344b2",
+ "rule_commit": "812c989",
+ "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5",
+ "pid1_starttime_ticks": 156737,
+ "started_mono_us": 3988602077,
+ "started_real_us": 1791049604990790,
+ "kernel": "6.6.87.2-microsoft-standard-WSL2",
+ "systemd": "systemd 257 (257.7-1)",
+ "controller_args": {
+  "out": "/home/snowden/revix-runs/open-params-cal-01",
+  "run_id": "open-params-cal-01",
+  "parts": [
+   "A",
+   "B"
+  ],
+  "a_episodes": 24,
+  "b_min_starts": 48,
+  "b_max_episodes": 16,
+  "seed": 20261003
+ },
+ "gen_max_seconds": 13.0,
+ "gen_runtime_max": "15s",
+ "dial": {
+  "P0": {
+   "target_rate": 0.0,
+   "base_mb": 160,
+   "step_mb": 4,
+   "interval_ms": 250
+  },
+  "P1": {
+   "target_rate": 0.3,
+   "base_mb": 184,
+   "step_mb": 4,
+   "interval_ms": 250
+  },
+  "P2": {
+   "target_rate": 0.6,
+   "base_mb": 184,
+   "step_mb": 4,
+   "interval_ms": 250
+  }
+ },
+ "sut_properties": {
+  "Description": "REVIX sut (open-params calibration)",
+  "Slice": "revixlab.slice",
+  "Type": "notify",
+  "ExecStart": [
+   "/home/snowden/openparams-work/revix/sut"
+  ],
+  "WorkingDirectory": "/home/snowden/openparams-work",
+  "Environment": [
+   "REVIX_SUT_SOCKET=/run/user/1000/revix-sut.sock",
+   "REVIX_SUT_RATE_HZ=2000"
+  ],
+  "MemoryMax": "256M",
+  "MemorySwapMax": 0,
+  "TasksMax": 64,
+  "WatchdogSec": "5s",
+  "TimeoutStartSec": "10s",
+  "Collect": true,
+  "StandardOutput": "null",
+  "StandardError": "null",
+  "Restart": "no",
+  "StartLimitBurst": 0
+ },
+ "lab_memory_high": "201326592\n",
+ "lab_memory_max": "2147483648\n",
+ "lab_swap_max": "0\n",
+ "controller_end": "missing -- run interrupted by host sleep + guest init restart (13 §0A)"
+}
