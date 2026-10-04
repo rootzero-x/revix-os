@@ -24,6 +24,8 @@ PARTS="${PARTS:-A,B}"
 A_EP="${A_EP:-24}"
 B_MIN="${B_MIN:-48}"
 B_MAXEP="${B_MAXEP:-16}"
+A_COUNTS="${A_COUNTS:-}"
+SEED="${SEED:-20261003}"
 GIT_COMMIT="${GIT_COMMIT:-unknown}"
 OUT="$RUNS/$RUN_ID"
 UID_N="$(id -u)"
@@ -92,7 +94,7 @@ mkdir -p "$OUT"
 exec > >(tee -a "$OUT/runner.log") 2>&1
 trap 'say "EXIT trap: teardown"; teardown; clear_dropins' EXIT
 
-say "RUN $RUN_ID  parts=$PARTS A_EP=$A_EP B_MIN=$B_MIN B_MAXEP=$B_MAXEP total=${TOTAL}s commit=$GIT_COMMIT"
+say "RUN $RUN_ID  parts=$PARTS A_EP=$A_EP A_COUNTS=$A_COUNTS SEED=$SEED B_MIN=$B_MIN B_MAXEP=$B_MAXEP total=${TOTAL}s commit=$GIT_COMMIT"
 read -r L1 _ < /proc/loadavg
 if python3 -c "import sys; sys.exit(0 if float('$L1') < 0.3 else 1)"; then
   say "loadavg1=$L1 < 0.3"
@@ -169,7 +171,7 @@ systemd-run --user --slice=revixmon.slice --unit=revix-opmeas --collect --wait \
   -E DBUS_SESSION_BUS_ADDRESS="$BUS" \
   python3 "$WORK/scripts/open-params-measure.py" --out "$OUT" --run-id "$RUN_ID" \
     --parts "$PARTS" --a-episodes "$A_EP" --b-min-starts "$B_MIN" \
-    --b-max-episodes "$B_MAXEP" > "$OUT/controller.stdout" 2>&1
+    --b-max-episodes "$B_MAXEP" --a-counts "$A_COUNTS" --seed "$SEED" > "$OUT/controller.stdout" 2>&1
 CRC=$?
 say "controller tugadi rc=$CRC"; tail -5 "$OUT/controller.stdout"
 grep '"controller_end"\|"abort"\|"error"' "$OUT/events.jsonl" | tail -3

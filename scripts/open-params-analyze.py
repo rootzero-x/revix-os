@@ -94,28 +94,109 @@ def rates_2s(samples: list[tuple[int, int]]) -> list[tuple[int, float]]:
     return out
 
 
-def main(run_dir: str) -> dict[str, Any]:
-    ev = read_jsonl(os.path.join(run_dir, "events.jsonl"))
-    ts_rows = read_jsonl(os.path.join(run_dir, "tstart.jsonl"))
-    press = read_jsonl(os.path.join(run_dir, "pressure.jsonl"))
-    ustate = read_jsonl(os.path.join(run_dir, "unitstate.jsonl"))
-    guard = read_jsonl(os.path.join(run_dir, "guard.jsonl"))
+CLOCK_JUMP_LIMIT_US = 200_000   # 13 §0A: psi.csv qo'shni qatorlarida |dreal - dmono|
 
+
+def clock_jumps(run_dir: str) -> list[tuple[int, int, float, float]]:
+    """psi.csv (10 Hz, mono_us + real_us) dagi host-uyqu sakrashlari."""
+    out = []
+    try:
+        fh = open_text(os.path.join(run_dir, "psi.csv"))
+    except FileNotFoundError:
+        return out
+    with fh:
+        rd = csv.reader(fh)
+        next(rd)
+        prev = None
+        for r in rd:
+            try:
+                m, t = int(r[0]), int(r[1])
+            except (ValueError, IndexError):
+                continue
+            if prev is not None:
+                dm, dr = m - prev[0], t - prev[1]
+                if abs(dr - dm) > CLOCK_JUMP_LIMIT_US:
+                    out.append((prev[0], m, dm / 1e6, dr / 1e6))
+            prev = (m, t)
+    return out
+
+
+def load_runs(run_dirs: list[str]) -> dict[str, Any]:
+    """Bir nechta run -- epizod kalitlari `run_id:episode` bilan PREFIKSLANADI.
+
+    Xom fayllar birlashtirilmaydi; faqat tahlil xotirasida yonma-yon turadi.
+    Sakrash (uyqu) oralig'ini kesib o'tgan epizod CHIQARILADI (13 §0A) --
+    bu yagona chiqarish mezoni.
+    """
+    ev, ts_rows, press, ustate, guard = [], [], [], [], []
     poll: dict[str, list[dict[str, Any]]] = defaultdict(list)
     poll_t0: list[int] = []
-    with open_text(os.path.join(run_dir, "wdpoll.csv")) as fh:
-        for r in csv.DictReader(fh):
-            t0 = int(r["t0_us"])
-            poll_t0.append(t0)
-            if r["episode"]:
-                poll[r["episode"]].append(r)
+    excluded: dict[str, Any] = {}
+    jumps_all = {}
+    for rd in run_dirs:
+        rid = os.path.basename(rd.rstrip("/"))
+        jumps = clock_jumps(rd)
+        jumps_all[rid] = jumps
+        rev = read_jsonl(os.path.join(rd, "events.jsonl"))
+        beg = {e["episode"]: e["mono_us"] for e in rev if e["record_type"] == "episode_begin"}
+        end = {e["episode"]: e["mono_us"] for e in rev if e["record_type"] == "episode_end"}
+        bad = set()
+        for eid, b in beg.items():
+            e_ = end.get(eid, 10**19)
+            for a, z, _, dr in jumps:
+                if b <= z and e_ >= a:
+                    bad.add(eid)
+                    excluded[f"{rid}:{eid}"] = {"reason": "spans_clock_jump",
+                                                "jump_real_s": dr}
+        for e in rev:
+            if "episode" in e:
+                if e["episode"] in bad:
+                    continue
+                e["episode"] = f"{rid}:{e['episode']}"
+            e["_run"] = rid
+            ev.append(e)
+        for r in read_jsonl(os.path.join(rd, "tstart.jsonl")):
+            if r["episode"] in bad:
+                continue
+            r["episode"] = f"{rid}:{r['episode']}"
+            ts_rows.append(r)
+        for r in read_jsonl(os.path.join(rd, "pressure.jsonl")):
+            if r.get("session_id") in bad:
+                continue
+            r["session_id"] = f"{rid}:{r.get('session_id')}"
+            press.append(r)
+        for r in read_jsonl(os.path.join(rd, "unitstate.jsonl")):
+            if r.get("episode") in bad:
+                continue
+            r["episode"] = f"{rid}:{r.get('episode')}"
+            ustate.append(r)
+        guard += read_jsonl(os.path.join(rd, "guard.jsonl"))
+        with open_text(os.path.join(rd, "wdpoll.csv")) as fh:
+            for r in csv.DictReader(fh):
+                poll_t0.append(int(r["t0_us"]))
+                if r["episode"] and r["episode"] not in bad:
+                    poll[f"{rid}:{r['episode']}"].append(r)
+    return {"ev": ev, "ts_rows": ts_rows, "press": press, "ustate": ustate,
+            "guard": guard, "poll": poll, "poll_t0": poll_t0,
+            "excluded": excluded, "clock_jumps": jumps_all}
+
+
+def main(run_dirs: list[str]) -> dict[str, Any]:
+    L_ = load_runs(run_dirs)
+    ev, ts_rows, press, ustate, guard = (L_["ev"], L_["ts_rows"], L_["press"],
+                                         L_["ustate"], L_["guard"])
+    poll, poll_t0 = L_["poll"], L_["poll_t0"]
+    run_dir = ",".join(run_dirs)
 
     by_ep: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
     for e in ev:
         if "episode" in e:
             by_ep[e["episode"]][e["record_type"]] = e
     ctrl_start = next((e for e in ev if e["record_type"] == "controller_start"), {})
-    ctrl_end = next((e for e in ev if e["record_type"] == "controller_end"), {})
+    ctrl_ends = [e for e in ev if e["record_type"] == "controller_end"]
+    ctrl_end = {"status": [(e["_run"], e.get("status")) for e in ctrl_ends],
+                "poll_max_interval_us": max((e.get("poll_max_interval_us") or 0 for e in ctrl_ends), default=0),
+                "poll_errors": sum((e.get("poll_errors") or 0) for e in ctrl_ends)}
     aborts = [e for e in ev if e["record_type"] in ("abort", "error", "guest_changed",
                                                      "guard_problem", "postflight_failed")]
 
@@ -133,11 +214,12 @@ def main(run_dir: str) -> dict[str, Any]:
 
     out: dict[str, Any] = {"run_dir": run_dir, "rule_commit": "812c989",
                            "controller_status": ctrl_end.get("status"),
-                           "aborts": aborts}
+                           "aborts": aborts, "excluded_episodes": L_["excluded"],
+                           "clock_jumps": L_["clock_jumps"]}
 
     # --- poller rezolyutsiyasi (§0.5(2)) --------------------------------------
     poll_t0.sort()
-    a_eps = sorted(k for k in by_ep if k.startswith("A-"))
+    a_eps = sorted(k for k in by_ep if by_ep[k].get("episode_begin", {}).get("part") == "A")
     max_int_a = 0
     for eid in a_eps:
         rows = [r for r in poll.get(eid, []) if r["loaded"] == "1"]
@@ -309,7 +391,7 @@ def main(run_dir: str) -> dict[str, Any]:
 
     # --- doza / memory_high qayta-ishlab-chiqarish tekshiruvi ---------------------
     for eid, e in by_ep.items():
-        if not eid.startswith("B-") or "generator_gone" not in e:
+        if e.get("episode_begin", {}).get("part") != "B" or "generator_gone" not in e:
             continue
         band = e["episode_begin"]["band"]
         ev_b = e["episode_begin"].get("lab_events", {})
@@ -423,7 +505,9 @@ def render(s: dict[str, Any]) -> str:
     L = []
     f = lambda v, d=4: "-" if v is None else (f"{v:.{d}f}" if isinstance(v, float) else str(v))  # noqa: E731
     L.append(f"run: {s['run_dir']}  controller: {s['controller_status']}")
-    L.append(f"aborts/errors: {len(s['aborts'])}")
+    L.append(f"aborts/errors: {[(a.get('_run'), a['record_type'], str(a.get('reason'))[:120]) for a in s['aborts']]}")
+    L.append(f"clock jumps: {s['clock_jumps']}")
+    L.append(f"excluded episodes (spans_clock_jump): {s['excluded_episodes']}")
     L.append(f"poll: {s['poll']}")
     L.append("\nA -- watchdog oraliqlari (ping, barcha fazalar)")
     L.append("band  ep(valid) gaps  n_ping   p50     p90     p99     max   | during n  max   | W/maxg  maxdelta (W/2)/maxd  postmaxd")
@@ -452,8 +536,12 @@ def render(s: dict[str, Any]) -> str:
 
 
 if __name__ == "__main__":
-    summary = main(sys.argv[1])
+    args = sys.argv[1:]
+    out_json = None
+    if "--json" in args:
+        i = args.index("--json"); out_json = args[i + 1]; del args[i:i + 2]
+    summary = main(args)
     print(render(summary))
-    if len(sys.argv) > 2:
-        with open(sys.argv[2], "w") as fh:
+    if out_json:
+        with open(out_json, "w") as fh:
             json.dump(summary, fh, indent=1, default=str)

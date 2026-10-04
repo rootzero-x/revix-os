@@ -229,3 +229,74 @@ bo'lardi — aynan §16.10 ning birinchi xavfi.
   `tstart.py` dagi `pct()` bilan bir xil); `max` — namunaning o'zi.
 - Bu **pilot trial emas**: `revix run` yo'q, fault yo'q, VR/FR/downtime
   yoki birlamchi endpoint hisoblanmaydi (§16.10(3), §21).
+
+---
+
+## 0A. OG'ISH — `cal-01` host uyqusi bilan uzildi (bu bo'lim `cal-02` dan OLDIN commit qilindi)
+
+> §0 **o'zgartirilmadi**. Bu bo'lim uzilishdan keyin, `cal-02` ishga
+> tushirilishidan **oldin** yozildi. Yozish paytida `cal-01` dan men faqat
+> **epizod sonlari**, **soat sakrashlari** va **guest belgilari**ni o'qidim;
+> watchdog oraliqlari va `t_start` natijalariga **qaralmadi**.
+
+### 0A.1 FAKT — nima bo'ldi
+
+- Windows host uyquga ketdi va WSL VM ni muzlatdi. Guest monotonic soati
+  uyquni sanamaydi, real soat sanaydi; shuning uchun `boot_id`
+  (`4ea15279-acba-44ff-a533-6d7cd11924e5`) **o'zgarmadi** va controller'ning
+  `boot_id`/pid1 tekshiruvi uyquni **ko'rmadi**.
+- `psi.csv` (10 Hz, `mono_us` + `real_us`) qo'shni qatorlarida
+  `|Δreal − Δmono| > 0.2 s` bo'lgan **5 ta sakrash** (mono 0.1 s, real):
+  `6463.779 s` da **+1699.7 s**, `6468.779 s` da **+94.4 s**,
+  `6469.779 s` da **+6371.2 s** (uchalasi `A-P0-21` ichida),
+  `6472.479 s` da **+42 088.2 s** va `6472.679 s` da **+0.761 s**
+  (ikkalasi `A-P2-22` ichida). Birinchi sakrashdan oldin 24 758 qator
+  bo'yicha eng katta `|Δreal − Δmono|` = **0.000386 s**.
+- `events.jsonl` da `A-P2-22` ning ikki ketma-ket yozuvi: `mono_us`
+  6472198275 → 6478211141 (**6.0 s**), `real_us` 1791060253618540 →
+  1791102348421289 (**42 094.8 s = 11.7 soat**) — orkestrator o'lchagan
+  raqam bilan mos.
+- Uyg'ongandan keyin oxirgi yozuv mono `6482.228 s` (`wdpoll.csv`), keyin
+  guest'ning **PID 1 qayta ishga tushdi**: `/proc/1/stat` 22-maydon
+  `156737 → 653523`, `/sbin/init` start vaqti `2026-10-04 13:26:45`
+  (mahalliy), user manager `13:26:48`. Ya'ni run'ni uyquning o'zi emas,
+  uyqudan keyingi **guest init restart'i** o'ldirdi (`07` §7.6 ning
+  xatti-harakati). Orkestratorning "guest'da hech narsa sezmadi" degan
+  bahosi `boot_id` uchun to'g'ri, **pid1 uchun emas**.
+- Qoldiq: `revix*` unit **yo'q**; `revixlab.slice`/`revixmon.slice` ostida
+  7 ta **bo'sh** cgroup katalogi qoldi (`revix-sut`, `revix-press`,
+  `revix-psi`, `revix-opmeas`, `revix-guard`) — `units.teardown()` va
+  `rmdir` bilan o'chirildi; keyin `units.preflight()` `clean: true`,
+  `revix doctor --json` `leftover_state` **PASS**, `oom_kill 0`,
+  `memory.swap.current` ikkala slice'da **0**, runtime/persistent drop-in
+  **yo'q**.
+- `cal-01` ning B qismi **umuman boshlanmadi** (`tstart.jsonl` 0 bayt):
+  bosim ostidagi `t_start` `cal-01` da **o'lchanmagan**. A qismdagi har
+  epizodning SUT start'i bosimdan **oldin** (bosimsiz) — u B ning o'rnini
+  bosmaydi.
+
+### 0A.2 Chiqarish mezoni — YAGONA, natijaga qaramasdan
+
+Epizod **chiqariladi** faqat agar uning `episode_begin..episode_end`
+oralig'i (tugamagan bo'lsa — cheksiz) `psi.csv` dagi `|Δreal − Δmono| >
+0.2 s` sakrashini kesib o'tsa, yoki u tugamagan bo'lsa. Boshqa hech qanday
+mezon yo'q; epizodlar marja qulayligiga qarab **tanlanmaydi**.
+
+`cal-01` da: 63 ta tugagan A epizodi; `A-P0-21` sakrashni kesib o'tadi,
+`A-P2-22` tugamagan ⇒ **yaroqli: `P0` 20, `P1` 21, `P2` 21** (§0.5(3)
+maqsadi 24). Yetishmaydi: **`P0` 4, `P1` 3, `P2` 3**, va B qism to'liq.
+
+### 0A.3 `cal-02` — faqat yetishmagan qism
+
+- `open-params-cal-02`: A — `--a-counts P0:4,P1:3,P2:3`, seed `20261004`
+  (protokol §0.8 bilan aynan bir xil, faqat sonlar); B — to'liq (har bandda
+  ≥ 48 qualifying, ≤ 16 epizod).
+- Ma'lumot **ikki run'dan**. Xom fayllar **birlashtirilmaydi**: har run
+  `datasets/<run_id>/` da alohida; tahlil ikkalasini yonma-yon yuklaydi va
+  epizod kalitlarini `run_id:` bilan prefikslaydi. §0.2 dagi "shu run'dagi"
+  so'zi endi **"`cal-01` va `cal-02` ning yaroqli epizodlari"** deb o'qiladi
+  — bu yagona ma'noviy og'ish; §0.5 formulasi, `F`, `U`, grid **o'zgarmadi**.
+- Controller'ga qo'shildi: har epizod boshida **va oxirida** `real − mono`
+  siljishi tekshiriladi (> 1 s ⇒ `episode_end` yozilmaydi, run FAIL-CLOSED
+  to'xtaydi). Host'ni idle-uyqudan orkestrator `request_keep_awake` bilan
+  himoya qildi (faqat idle uyqu).

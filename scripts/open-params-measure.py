@@ -273,6 +273,7 @@ class Controller:
         self.press_log = os.path.join(self.out, "pressure.jsonl")
         self.boot0 = read_boot_id()
         self.pid1_0 = pid1_starttime()
+        self.off0 = real_us() - mono_us()
         self.oom0 = vmstat_oom_kill()
         self.dumped: set[str] = set()
         self.poller: Poller | None = None
@@ -287,8 +288,14 @@ class Controller:
     # -- fail-closed tekshiruvlar --
     def check_guest(self, where: str) -> dict[str, Any]:
         b, p = read_boot_id(), pid1_starttime()
-        ok = (b == self.boot0 and p == self.pid1_0)
-        info = {"where": where, "boot_id": b, "pid1_starttime": p, "ok": ok}
+        # Host uyqusi (cal-01 da o'lchangan): guest monotonic soati uyquni
+        # sanamaydi, real soat sanaydi -- boot_id va pid1 buni KO'RMAYDI.
+        # `real - mono` siljishi 1 s dan oshsa FAIL-CLOSED.
+        off = real_us() - mono_us()
+        drift_s = (off - self.off0) / 1e6
+        ok = (b == self.boot0 and p == self.pid1_0 and abs(drift_s) < 1.0)
+        info = {"where": where, "boot_id": b, "pid1_starttime": p,
+                "real_minus_mono_drift_s": drift_s, "ok": ok}
         if not ok:
             self.emit("guest_changed", **info)
             raise Abort(f"guest o'zgardi ({where}): boot_id {self.boot0}->{b}, "
@@ -522,7 +529,9 @@ class Controller:
             r["episode"] = eid
             jdump(self.units_fh, r)
         pf = self.postflight_episode(eid)
+        guest_end = self.check_guest(eid + ":end")   # uyqu/guest restart -> episode_end YOZILMAYDI
         self.emit("episode_end", part="A", band=band, episode=eid,
+                  guest_end=guest_end,
                   sut_info_uptime_us=info_up, sut_info=info_raw,
                   final_state=stop["final_state_before_stop"],
                   unit_state_records=len(recs), watcher_dropped=watcher.dropped,
@@ -603,7 +612,9 @@ class Controller:
         self.emit("quiescence", part="B", band=band, episode=eid, **q)
         self.poller.episode = ""
         pf = self.postflight_episode(eid)
+        guest_end = self.check_guest(eid + ":end")
         self.emit("episode_end", part="B", band=band, episode=eid, starts=k,
+                  guest_end=guest_end,
                   qualifying=qualifying, postflight=pf)
         return qualifying
 
@@ -629,10 +640,22 @@ class Controller:
         status = "ok"
         try:
             if "A" in a.parts:
-                for rnd in range(a.a_episodes):
+                # --a-counts: band bo'yicha AYNAN shuncha epizod (cal-02: faqat
+                # cal-01 da yetishmagan epizodlar). Bo'lmasa har bandga a_episodes.
+                need = {b: a.a_episodes for b in BANDS}
+                if a.a_counts:
+                    need = {b: 0 for b in BANDS}
+                    for tok in a.a_counts.split(","):
+                        b, n = tok.split(":")
+                        need[b.strip()] = int(n)
+                done = {b: 0 for b in BANDS}
+                for rnd in range(max(need.values())):
                     order = list(BANDS)
                     random.Random(a.seed * 1000 + rnd).shuffle(order)
                     for band in order:
+                        if done[band] >= need[band]:
+                            continue
+                        done[band] += 1
                         self.episode_a(band, rnd + 1, rnd)
             if "B" in a.parts:
                 counts = {b: 0 for b in BANDS}
@@ -678,6 +701,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--run-id", required=True)
     ap.add_argument("--parts", default="A,B")
     ap.add_argument("--a-episodes", type=int, default=24)
+    ap.add_argument("--a-counts", default="",
+                    help="masalan 'P0:4,P1:3,P2:3' -- band bo'yicha A epizodlari")
     ap.add_argument("--b-min-starts", type=int, default=48)
     ap.add_argument("--b-max-episodes", type=int, default=16)
     ap.add_argument("--seed", type=int, default=20261003)
