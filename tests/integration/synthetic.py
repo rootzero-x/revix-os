@@ -139,8 +139,15 @@ def write_run(run_dir: str, *, n_blocks: int = 2, seed: int = SEED,
     CsvWriter(j("psi.csv"), ("mono_us", "scope", "some_total", "full_total")).close()
 
     def emit(w, em, rt, mono, trial=None, block=None, **kw):
-        w.write(em.record(rt, kw, stream=rt, trial_id=trial,
-                          block_index=block, mono=mono))
+        rec = em.record(rt, kw, stream=rt, trial_id=trial,
+                        block_index=block, mono=mono)
+        # real_us mono_us bilan MOS bo'lishi SHART: Emitter real_us ni HAQIQIY devor
+        # soatidan oladi, mono esa bu yerda sintetik (trial'lar 60 s oraliqda). Moslashtirilmasa
+        # validator `host_clock_discontinuity` (|dreal - dmono| > 1 s) sintetik sakrashni host
+        # uyqusi deb o'qiydi va run'ni rad etadi. Probe/unit_state yozuvlari allaqachon
+        # SYNTHETIC_REAL_BASE_US + mono ishlatadi -- bu yerda ham shu qoida.
+        rec["real_us"] = SYNTHETIC_REAL_BASE_US + mono
+        w.write(rec)
 
     try:
         emit(ev, drv, "run_meta", 0, **{k: v for k, v in payload.items()
