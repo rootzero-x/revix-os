@@ -86,9 +86,15 @@ class FakePlatform:
         guest_generation=None,
         guest_generation_after=None,
         preflight_raises=False,
+        real_jump_at_us=None,
+        real_jump_us=0,
     ):
         self.tmp = tmp_path
         self.t = 1_000_000
+        # Host uyqusi modeli (07 §7.7): mono `real_jump_at_us` dan o'tgach
+        # CLOCK_REALTIME `real_jump_us` ga oldinga sakraydi, mono esa YO'Q.
+        self.real_jump_at_us = real_jump_at_us
+        self.real_jump_us = real_jump_us
         self.calls = []
         self.state_queue = {}
         self.guard_ok = guard_ok
@@ -134,7 +140,12 @@ class FakePlatform:
         return self.t
 
     def real_us(self):
-        return 1_700_000_000_000_000 + self.t
+        return self.real_at(self.t)
+
+    def real_at(self, mono):
+        jump = (self.real_jump_us if self.real_jump_at_us is not None
+                and mono >= self.real_jump_at_us else 0)
+        return 1_700_000_000_000_000 + mono + jump
 
     def boot_id(self):
         return "boot-fake"
@@ -221,9 +232,10 @@ class FakePlatform:
         if name == D.GUARD_UNIT and self.guard_ok and self.guard_log_path:
             # Guard `finally` da `guard_stop` yozadi -- u guard to'g'ri
             # to'xtaganining yagona dalili (kontrakt §1.3-1).
-            _append_jsonl(self.guard_log_path, _guard_rec(
+            _append_jsonl(self.guard_log_path, dict(_guard_rec(
                 "guard_stop", self.t, self._gseq("guard_stop"), self.run_id,
-                self.session_id, tripped=False, iterations=100))
+                self.session_id, tripped=False, iterations=100),
+                real_us=self.real_us()))
         return {"unit": name, "job_result": "done"}
 
     def reset_failed(self, name):
@@ -369,7 +381,11 @@ class FakePlatform:
                                  else base)) / 500) + 1
                 rows.append({
                     "mono_us_send": t, "mono_us_recv": t + 500 if ok else "",
-                    "real_us_send": self.real_us(), "target": target,
+                    # Haqiqiy prober `real_us_send` ni `mono_us_send` bilan
+                    # BIR LAHZADA o'qiydi (prober.py:444-445); flush vaqtidagi
+                    # soat soxta "soat uzilishi" yasardi.
+                    "real_us_send": self.real_at(t),
+                    "target": target,
                     "outcome": "ok" if ok else "conn_refused",
                     "clause_failed": "" if ok else "a_conn",
                     "rt_us": 300 if ok else "",
@@ -1293,6 +1309,47 @@ def test_validator_driver_oqimida_xato_topmaydi(tmp_path):
     assert not codes, [str(f) for f in rep.errors]
 
 
+def test_trial_ichidagi_host_uyqusi_driver_oqimidan_RAD_ETILADI(tmp_path):
+    """Majburiyat (14 §1.3): driver yozgan soatlar uyquni ko'rsatishga yetadi.
+
+    Fake soat trial o'rtasida (hold fazasida) realtime'ni 07 §7.7 ning
+    o'lchangan miqdoriga (+42 088.789883 s, mono o'zgarmaydi) sakratadi.
+    `boot_id` va guest generation o'zgarmaydi -- aynan haqiqiy holat.
+    Driver o'zi hech narsa sezmaydi (disposition `complete`), lekin
+    validator run'ni rad etadi va aynan shu trial'ni ko'rsatadi.
+    """
+    V = _require_strict_validator()
+    drv, pf, run_dir = make_driver(tmp_path, blocks=1)
+    pf.real_jump_us = 42_088_789_883      # 07 §7.7: Δreal − Δmono
+    pf.real_jump_at_us = None             # run boshida sakrash YO'Q
+    t_trial0 = {}
+    orig = drv._emit_trial_begin
+
+    def _begin(trial, index, arm, level, mono):
+        # Birinchi trial boshlanishidan 20 s keyin (hold ichida) uyqu.
+        t_trial0.setdefault(trial.trial_id, mono)
+        if len(t_trial0) == 1:
+            pf.real_jump_at_us = mono + 20_000_000
+        return orig(trial, index, arm, level, mono)
+
+    drv._emit_trial_begin = _begin
+    summary = drv.run()
+    assert summary["ok"] and set(summary["dispositions"]) == {"complete"}
+    rep = V.validate_run_dir(run_dir, run_mode="pilot",
+                             sut_unit=D.SUT_UNIT, sut_target="sut")
+    errs = [f for f in rep.errors]
+    assert [f.code for f in errs] == ["host_clock_discontinuity"], \
+        [str(f) for f in errs]
+    f = errs[0]
+    first_tid = next(iter(t_trial0))
+    assert f.detail["trials_affected"][0] == first_tid
+    assert f.detail["max_abs_jump_us"] == 42_088_789_883
+    # Har trial'ning trial_end'i yozish-lahzali juftni olib yuradi.
+    for te in of_type(events(run_dir), "trial_end"):
+        assert isinstance(te["mono_us_record_written"], int)
+        assert isinstance(te["real_us"], int)
+
+
 def test_validator_sut_filtrisiz_aralashuvni_RAD_ETADI(tmp_path):
     """Filtrsiz xom katalog RAD ETILISHI kerak -- bu kutilgan xatti-harakat.
 
@@ -1985,6 +2042,41 @@ def test_pressure_dial_trial_recordida_ham_korinadi(tmp_path):
     argv = pf.started[D.PRESS_UNIT]["ExecStart"]
     assert _flag_value(argv, "--step-mb") == "4"
     assert _flag_value(argv, "--base-mb") == "184"
+
+
+def test_pressure_unit_WorkingDirectory_repo_root(tmp_path):
+    """REGRESSIYA: generator unit'i `WorkingDirectory` siz edi.
+
+    Guest'da O'LCHANDI (14-smoke-trial-natijalari.md §1): user manager
+    unit'i `$HOME` da boshlanadi, `PYTHON*` muhiti yo'q, demak
+    `python3 -m revix.pressure` -> `No module named 'revix'`, exit 1.
+    """
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "A"),
+                                   allow_pressure=True)
+    drv.setup_run()
+    drv._start_pressure(drv.selected[0], "P2", 17.0)
+    props = pf.started[D.PRESS_UNIT]
+    assert props["WorkingDirectory"] == drv.cfg.repo_root
+    assert drv._pressure_properties(17.0)["WorkingDirectory"] == \
+        drv.cfg.repo_root
+
+
+def test_har_python_modul_unit_WorkingDirectory_bilan_ishga_tushadi(tmp_path):
+    """`-m revix.<modul>` bilan boshlanadigan HAR unit repo root'da.
+
+    Guard, psi_sampler, prober (`_mon_unit_properties`) va generator --
+    to'liq trial davomida `start_transient` ga yuborilgan HAQIQIY property
+    to'plami tekshiriladi, ya'ni yangi unit qo'shilsa ham qulf ishlaydi.
+    """
+    drv, pf, run_dir = make_driver(tmp_path, only=("P1", "A"),
+                                   allow_pressure=True)
+    drv.run()
+    py_units = {name: props for name, props in pf.started.items()
+                if "-m" in list(props.get("ExecStart") or [])}
+    assert set(py_units) >= {D.GUARD_UNIT, D.PSI_UNIT, D.PROBER_UNIT,
+                             D.PRESS_UNIT}, sorted(py_units)
+    for name, props in py_units.items():
+        assert props.get("WorkingDirectory") == drv.cfg.repo_root, name
 
 
 # ===========================================================================

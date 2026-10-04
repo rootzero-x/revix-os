@@ -19,6 +19,7 @@ from revix.schema import DISPOSITIONS
 
 T0 = 1_000_000
 P = R.P_US
+REAL0 = 1_791_000_000_000_000   # CLOCK_REALTIME - CLOCK_MONOTONIC siljishi
 
 # Bir yacheykali jadval: toza run'dagi YAGONA trial shu jadvaldan (§8.4).
 SCHED = make_schedule([Factor("arm", ("A",)),
@@ -57,7 +58,11 @@ class Builder:
             "stream": rt,       # kontrakt v1.1 §4.2-3: stream = record_type
             "run_id": "run1", "session_id": "sess1", "boot_id": boot_id,
             "trial_id": trial_id, "block_index": 0, "seq": self._seq[key],
-            "mono_us": mono_us, "real_us": 0, "emitter": emitter,
+            # real_us = REAL0 + mono_us: soatlar BIR XIL tezlikda yuradi
+            # (haqiqiy guest'dagidek). Avval doimiy 0 edi -- bu "realtime
+            # to'xtagan" degani, va `host_clock_discontinuity` uni to'g'ri
+            # ravishda uzilish deb ko'radi.
+            "mono_us": mono_us, "real_us": REAL0 + mono_us, "emitter": emitter,
         }
 
     def add(self, rt, mono_us=0, *, trial_id="__default__", emitter="driver:1",
@@ -74,7 +79,8 @@ class Builder:
         if trial_id == "__default__":
             trial_id = self.tid
         rec = self._env(R.RT_PROBE, T0 + k * P, trial_id, "prober:2")
-        rec.update({"mono_us_send": T0 + k * P, "outcome": outcome,
+        rec.update({"mono_us_send": T0 + k * P,
+                    "real_us_send": REAL0 + T0 + k * P, "outcome": outcome,
                     "progress": progress, "invocation_id_seen": invocation,
                     "pid_seen": 4711, "rt_us": 900})
         self.probes.append(rec)
@@ -1791,7 +1797,10 @@ def two_trials(offset=60_000_000):
     keys = ("mono_us", "mono_us_send", "recv_mono_us", "mono_us_begin",
             "mono_us_end", "mono_us_before_call", "mono_us_after_call",
             "active_enter_ts_mono_us", "active_exit_ts_mono_us",
-            "ActiveEnterTimestampMonotonic", "ActiveExitTimestampMonotonic")
+            "ActiveEnterTimestampMonotonic", "ActiveExitTimestampMonotonic",
+            # Realtime ham BIRGA siljiydi: 60 s keyin yozilgan record'ning
+            # devor soati ham 60 s keyin (aks holda bu soat uzilishi).
+            "real_us", "real_us_send")
 
     def shifted(r):
         r = dict(r)
@@ -2173,3 +2182,100 @@ def test_timing_nol_hech_qachon_ornatilmagan_xato_emas():
     b = clean()
     _set_timing(b, pressure_off_mono_us=0, horizon_end_mono_us=0)
     assert "trial_timing_invalid" not in codes(V.validate_run(b.run()))
+
+
+# --- host soat uzilishi (YANGI tekshiruv, 14-smoke-trial-natijalari.md §2) ---
+
+# 07 §7.7 / 13 §0A.1: open-params-cal-01 events.jsonl, A-P2-22 ning ikki
+# ketma-ket yozuvi (host uyqusi). O'LCHANGAN raqamlar, o'zgartirilmagan.
+SLEEP_MONO = (6_472_198_275, 6_478_211_141)
+SLEEP_REAL = (1_791_060_253_618_540, 1_791_102_348_421_289)
+
+
+def _shift_real_after(b, mono_from, jump_us):
+    """`mono_from` dan keyingi har namunaning realtime'iga `jump_us` qo'shadi
+    (mono o'zgarmaydi) -- host uyqusining aynan o'zi."""
+    for r in b.records + b.probes:
+        m = r.get("mono_us_send", r.get("mono_us"))
+        if isinstance(m, int) and m >= mono_from:
+            if isinstance(r.get("real_us"), int):
+                r["real_us"] += jump_us
+            if isinstance(r.get("real_us_send"), int):
+                r["real_us_send"] += jump_us
+    return b
+
+
+def test_soat_uzilishi_haqiqiy_uyqu_raqamlaridan_xato():
+    """Ikki record -- cal-01 dagi AYNAN o'sha mono/real qiymatlar."""
+    b = Builder()
+    a = b.add("generator_heartbeat", SLEEP_MONO[0], trial_id=None)
+    c = b.add("generator_heartbeat", SLEEP_MONO[1], trial_id=None)
+    a["real_us"], c["real_us"] = SLEEP_REAL
+    out = V.check_host_clock_discontinuity(b.run())
+    assert [f.code for f in out] == ["host_clock_discontinuity"]
+    f = out[0]
+    assert f.severity == V.SEVERITY_ERROR
+    j = f.detail["jumps"][0]
+    assert j["d_mono_us"] == 6_012_866
+    assert j["d_real_us"] == 42_094_802_749
+    assert j["jump_us"] == 42_088_789_883          # 11.69 soat
+
+
+def test_soat_uzilishi_trial_ichida_runni_rad_etadi_va_trialni_korsatadi():
+    """Uyqu hold ichida: FAQAT shu finding, boshqa hech narsa o'zgarmaydi."""
+    b = _shift_real_after(clean(), T0 + 20_000_000, 42_088_789_883)
+    rep = V.validate_run(b.run())
+    assert codes(rep) == ["host_clock_discontinuity"], [str(f) for f in rep.findings]
+    assert not rep.ok
+    f = find(rep, "host_clock_discontinuity")
+    assert f.detail["trials_affected"] == [TID]
+    assert f.detail["n_jumps"] == 1
+    assert f.trial_id == TID
+
+
+def test_soat_uzilishi_disposition_va_metrikaga_tegmaydi():
+    """Yaroqlilik qoidasi, ta'rif EMAS: reducer ko'rinishi bir xil."""
+    clean_run = clean().run()
+    slept = _shift_real_after(clean(), T0 + 20_000_000, 42_088_789_883).run()
+    # Reducer (sintetik fixture) ikkala run uchun AYNAN bir xil chiqish
+    # beradi: tekshiruv faqat validatorda, metrika yo'lida emas.
+    assert R.reduce_run(clean_run).trials == R.reduce_run(slept).trials
+
+
+@pytest.mark.parametrize("jump_us,flagged", [
+    (386, False),           # o'lchangan qonuniy max (cal-01 psi.csv)
+    (999_999, False),
+    (1_000_000, False),     # chegara: > 1 s, >= emas
+    (1_000_001, True),
+    (-5_000_000, True),     # realtime orqaga qadam
+])
+def test_soat_uzilishi_chegarasi(jump_us, flagged):
+    b = _shift_real_after(clean(), T0 + 20_000_000, jump_us)
+    got = "host_clock_discontinuity" in codes(V.validate_run(b.run()))
+    assert got is flagged
+
+
+def test_soat_uzilishi_orqaga_sanalgan_record_turlarini_hisoblamaydi():
+    """Driver `trial_end` ni horizon mono bilan, real'ni washout'dan keyin
+    yozadi (~20 s) -- bu soat uzilishi EMAS. Yozish-lahzali juft
+    `mono_us_record_written` + `real_us` ishlatiladi."""
+    b = clean()
+    te = recs(b, R.RT_TRIAL_END)[0]
+    te["real_us"] += 20_000_000                     # washout'dan keyin yozildi
+    te["mono_us_record_written"] = te["mono_us"] + 20_000_000
+    for rt in ("unit_state", "actor_signal", "env_snapshot"):
+        for r in recs(b, rt):
+            r["real_us"] += 3_000_000              # kech drenaj
+    assert "host_clock_discontinuity" not in codes(V.validate_run(b.run()))
+    # ...lekin yozish-lahzali juft ham uzilgan bo'lsa -- tutiladi.
+    te["mono_us_record_written"] = te["mono_us"]
+    assert "host_clock_discontinuity" in codes(V.validate_run(b.run()))
+
+
+def test_soat_uzilishi_probe_csv_qatorlaridan_ham_tutiladi():
+    """Faqat probe qatorlari (CSV oqimi): uyqu prober ishlayotganda."""
+    b = clean()
+    b.records = [r for r in b.records if r["record_type"] == R.RT_RUN_META]
+    _shift_real_after(b, T0 + 15 * P, 3_000_000)
+    out = V.check_host_clock_discontinuity(b.run())
+    assert out and out[0].detail["jumps"][0]["before"]["record_type"] == R.RT_PROBE

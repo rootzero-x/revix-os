@@ -1607,6 +1607,14 @@ class Driver:
             block_index=trial.block_index if trial is not None else None,
             mono=mono if mono is not None else self.pf.mono_us(),
         )
+        # `real_us` ham PLATFORMADAN (yuqoridagi mono bilan bir xil sabab):
+        # envelope uni `schema.real_us()` dan oladi. Ishlab chiqarishda
+        # `Platform.real_us()` aynan o'sha funksiya (bir necha us keyin
+        # o'qiladi), lekin fake soat ostida envelope real soati fake mono
+        # bilan aralashib `validate.check_host_clock_discontinuity` ni
+        # yolg'on yiqitardi. Bu maydon envelope'da QOLADI, faqat manbasi
+        # yagona bo'ladi.
+        rec["real_us"] = self.pf.real_us()
         self.writer.write(rec)
         return rec
 
@@ -1778,10 +1786,27 @@ class Driver:
         ]
 
     def _pressure_properties(self, max_seconds: float) -> dict[str, Any]:
+        """Generator unit'i (`revixlab.slice`).
+
+        `WorkingDirectory` -- `_mon_unit_properties` va `_sut_properties`
+        bilan BIR XIL (`self.cfg.repo_root`). NEGA SHART: ExecStart
+        `python3 -m revix.pressure`, va `-m` paketni `sys.path[0]` = joriy
+        katalogdan qidiradi. Repo `pip install` qilinmaydi (INSTALLATION.md
+        §3) va user manager muhitida `PYTHON*` o'zgaruvchisi YO'Q, demak
+        `WorkingDirectory` bo'lmasa systemd user unit'i `$HOME` da boshlanadi
+        va modul TOPILMAYDI. Bu guest'da O'LCHANGAN (agent/pilot-ready,
+        `systemd-run --user --slice=revixlab.slice ... python3 -m
+        revix.pressure --help`): `WorkingDirectory` siz -> `No module named
+        'revix'`, `status=1/FAILURE`, cwd=`/home/snowden`; bilan -> rc=0.
+        Driver `start_transient` job'i `done` bo'ladi (jarayon ishga tushadi
+        va o'ladi), ya'ni bu nuqson trial ichida JIMGINA "pressure yo'q"
+        bo'lardi. `docs/architecture/13-...` §8(3), `14-...` §1.
+        """
         return {
             "Description": "REVIX pressure generator",
             "Slice": LAB_SLICE,
             "ExecStart": self._pressure_argv("P0", max_seconds),  # o'rniga qo'yiladi
+            "WorkingDirectory": self.cfg.repo_root,
             "MemoryMax": PRESS_MEMORY_MAX,
             "MemorySwapMax": 0,
             # Generator trial'dan UZOQ YASHAMAYDI (00-pilot-topologiya.md §2).

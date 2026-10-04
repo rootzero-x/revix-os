@@ -62,6 +62,10 @@ funksiyasida):
  16.  `harness_error_not_reflected`
  17.  PREREGISTRATION.md v1.6 §17.4-5: `window_outside_hold_complete` (xato),
       `window_containment_not_evaluated` (ogohlantirish), `trial_timing_invalid`
+ 18.  YANGI (agent/pilot-ready, v1.11 dan keyin): `host_clock_discontinuity`
+      -- ketma-ket yozish-lahzali soat namunalari orasida |Δreal − Δmono| > 1 s
+      (host uyqusi; boot_id va guest generation uni ko'rmaydi). Yaroqlilik
+      qoidasi, ta'rif emas -- metrika va disposition'ga tegmaydi.
 
 Bu invariantlar pre-registration'ning ruhini bajaradi: o'lchov ma'lumotining
 jimgina yo'qolishi natijaga aylanmasligi kerak.
@@ -1454,6 +1458,173 @@ def check_monotonic_order(run: RawRun) -> list[Finding]:
     return out
 
 
+# --- host soat uzilishi (YANGI tekshiruv, agent/pilot-ready) ------------------
+
+# |Δreal_us − Δmono_us| chegarasi ketma-ket ikki soat namunasi orasida.
+# MA'LUMOTDAN tanlangan (docs/architecture/14-smoke-trial-natijalari.md §2):
+#   * qonuniy tarqalish: ~/revix-runs dagi barcha yozish-lahzali oqimlar
+#     (JSONL envelope'lar emitter bo'yicha, psi.csv, probe.csv) -- 72 402
+#     ketma-ket juft; uyqu oynasidan tashqarida max |d| = 0.000386 s
+#     (open-params-cal-01 psi.csv), cal-01 siz max 0.000206 s. Guest'da NTP
+#     daemon yo'q (timesyncd/chrony/ntp inactive), faqat hv_utils timesync;
+#     804 s lik bo'shliqli guard juftlarida ham |d| <= 5 us.
+#   * host uyqusi (07 §7.7, 13 §0A.1): psi.csv da +1699.6, +94.3, +6371.1,
+#     +42 088.1 va +0.661 s sakrashlar; events.jsonl da bitta juft
+#     Δmono 6.0 s, Δreal 42 094.8 s (d = +42 088.8 s).
+#   * 1.0 s = qonuniy max'dan 2590x yuqori, 11.7 soatlik hodisadan 42 088x
+#     past, va open-params controller'ining runtime chegarasi bilan bir xil
+#     (13 §0A.3: "> 1 s => FAIL-CLOSED").
+HOST_CLOCK_DISCONTINUITY_US = 1_000_000
+
+# Driver bu record turlarini envelope `mono_us` i YOZISH LAHZASI EMAS
+# (o'tgan hodisa vaqti) bilan yozadi -- `driver._emit(..., mono=...)`:
+# trial_begin/env_snapshot/baseline_window/fault_inject/cgroup_events
+# (faza chegarasi), unit_state (`recv_mono_us`), action (`t_issue`),
+# actor_signal (systemd `ActiveEnterTimestampMonotonic`), trial_end
+# (horizon, washout'dan ~15-20 s OLDIN). Ularning `real_us` i esa yozish
+# lahzasida olinadi, demak `real_us - mono_us` yozish kechikishi qadar
+# SUN'IY katta -- soat namunasi EMAS. `trial_end` uchun yozish lahzasi
+# payload'da bor (`mono_us_record_written`) va o'sha juft ishlatiladi.
+CLOCK_BACKDATED_RECORD_TYPES = (
+    "trial_begin", "env_snapshot", "baseline_window", "fault_inject",
+    "cgroup_events", "unit_state", "action", "actor_signal",
+)
+
+
+def _clock_samples(run: RawRun) -> list[tuple[int, int, dict[str, Any]]]:
+    """Bir lahzada o'qilgan (mono_us, real_us) juftlari, mono bo'yicha.
+
+    Manbalar: (1) envelope'li JSONL record'lar, `CLOCK_BACKDATED_RECORD_TYPES`
+    dan tashqari (`schema.Emitter.envelope` avval mono, keyin real o'qiydi);
+    (2) `trial_end` -- `mono_us_record_written` + `real_us`; (3) probe
+    qatorlari -- `mono_us_send` + `real_us_send` (prober.py ularni ketma-ket
+    o'qiydi), CSV'da `real_us_send` bo'lmasa envelope `mono_us`/`real_us`.
+    Har jarayon bir xil kernel soatlarini o'qiydi, shuning uchun
+    `real - mono` siljishi GLOBAL va namunalar birlashtirilib mono bo'yicha
+    tartiblanadi.
+    """
+    out: list[tuple[int, int, dict[str, Any]]] = []
+    for rec in run.records:
+        rt = rec.get("record_type")
+        if not isinstance(rt, str) or rt.startswith("__"):
+            continue
+        if rt in CLOCK_BACKDATED_RECORD_TYPES:
+            continue
+        mono_v = (rec.get("mono_us_record_written") if rt == RT_TRIAL_END
+                  else rec.get("mono_us"))
+        real_v = rec.get("real_us")
+        if isinstance(mono_v, bool) or isinstance(real_v, bool):
+            continue
+        mono, real = _as_int(mono_v), _as_int(real_v)
+        if mono is None or real is None:
+            continue
+        out.append((mono, real, rec))
+    for pr in run.probes:
+        mono, real = _as_int(pr.get("mono_us_send")), _as_int(pr.get("real_us_send"))
+        if mono is None or real is None:
+            mono, real = _as_int(pr.get("mono_us")), _as_int(pr.get("real_us"))
+        if mono is None or real is None:
+            continue
+        out.append((mono, real, pr))
+    out.sort(key=lambda s: s[0])
+    return out
+
+
+def check_host_clock_discontinuity(
+    run: RawRun, threshold_us: int = HOST_CLOCK_DISCONTINUITY_US
+) -> list[Finding]:
+    """Host uyqusi / VM muzlashi: `|Δreal_us − Δmono_us| > 1 s` -> XATO.
+
+    YANGI TEKSHIRUV (agent/pilot-ready, PREREGISTRATION v1.11 dan keyin).
+    Bu YAROQLILIK qoidasi, TA'RIF EMAS: hech qanday metrika, disposition
+    yoki muzlatilgan ta'rifni o'zgartirmaydi, faqat soati uzilgan run'ni
+    analizdan oldin rad etadi (§14.6 "validatsiyadan o'tmagan run analiz
+    qilinmaydi").
+
+    NEGA: §1 barcha davomiylikni CLOCK_MONOTONIC da muzlatgan va
+    taqqoslanuvchanlikni `boot_id` (§14.6-5) bilan, guest restart'ini
+    `check_guest_generation` bilan himoya qiladi. Windows host uyquga
+    ketsa WSL2 VM muzlaydi: guest CLOCK_MONOTONIC uyquni SANAMAYDI,
+    CLOCK_REALTIME esa uyg'ongach host'ga tenglashadi. O'LCHANGAN
+    (07 §7.7, 13 §0A.1, open-params-cal-01): `boot_id` O'ZGARMADI, PID 1
+    o'sha paytda o'zgarmadi, mono +6.0 s, real +42 094.8 s (11.7 soat).
+    Ya'ni `check_boot_id` ham, `check_guest_generation` ham, `check_seq`
+    ham uyquni KO'RMAYDI -- trial ichidagi 11.7 soatlik muzlash mono
+    vaqtda ko'rinmas. Uyqudan o'tgan trial'ning muhiti (host yuki, VM
+    tiklanishi, uyg'onishdan keyingi guest init restart'i) o'lchanmagan;
+    uni mono ma'lumotdan ajratib bo'lmaydi. Yagona iz -- ikki soat
+    orasidagi siljish, va har envelope ikkalasini ham yozadi.
+
+    Qoida: `_clock_samples` (yozish lahzasidagi juftlar, mono bo'yicha)
+    ichida ketma-ket ikki namuna uchun `|Δreal − Δmono| > threshold_us`.
+    Ishora ikkala tomonga: musbat = uyqu/muzlash, manfiy = realtime orqaga
+    qadam. Barcha sakrashlar BITTA finding'da (qoida 7), har biri qaysi
+    trial oynasiga tushgani bilan.
+
+    CHEKLOV: (a) 1 s dan qisqa muzlash tutilmaydi; (b) yozish-lahzali
+    namuna bo'lmagan oraliqda sakrash joyi faqat ikki namuna orasida
+    aniqlanadi; (c) guest restart'ida (mono nolga qaytadi) bu tekshiruv ham
+    yonadi -- u holda birlamchi finding `guest_restarted` /
+    `monotonic_origin_regression`; (d) host realtime'ni > 1 s qadam bilan
+    tuzatsa (hv_utils timesync) run ham rad etiladi -- fail-closed
+    yo'nalish, o'lchangan ma'lumotda bunday hodisa YO'Q.
+    """
+    samples = _clock_samples(run)
+    jumps: list[dict[str, Any]] = []
+    for (m0, r0, a), (m1, r1, b) in zip(samples, samples[1:]):
+        d = (r1 - r0) - (m1 - m0)
+        if abs(d) > threshold_us:
+            jumps.append({
+                "mono_us_before": m0, "mono_us_after": m1,
+                "real_us_before": r0, "real_us_after": r1,
+                "d_mono_us": m1 - m0, "d_real_us": r1 - r0, "jump_us": d,
+                "before": {"record_type": _as_str(a.get("record_type")),
+                           **_where(a)},
+                "after": {"record_type": _as_str(b.get("record_type")),
+                          **_where(b)},
+            })
+    if not jumps:
+        return []
+    begin: dict[str, int] = {}
+    end: dict[str, int] = {}
+    for r in run.of_type(RT_TRIAL_BEGIN):
+        m = _mono(r)
+        t = _as_str(r.get("trial_id"))
+        if m is not None and t:
+            begin.setdefault(t, m)
+    for r in run.of_type(RT_TRIAL_END):
+        m = _mono(r)
+        t = _as_str(r.get("trial_id"))
+        if m is not None and t:
+            end.setdefault(t, m)
+    affected: set[str] = set()
+    for j in jumps:
+        hit = sorted(t for t, b0 in begin.items()
+                     if b0 <= j["mono_us_after"]
+                     and end.get(t, 2 ** 63) >= j["mono_us_before"])
+        j["trials_spanning"] = hit
+        affected.update(hit)
+    worst = max(jumps, key=lambda j: abs(j["jump_us"]))
+    first = jumps[0]
+    return [Finding(
+        "host_clock_discontinuity", SEVERITY_ERROR,
+        f"{len(jumps)} ta soat uzilishi: ketma-ket namunalar orasida "
+        f"|Δreal − Δmono| > {threshold_us / 1e6:g} s (eng kattasi "
+        f"{worst['jump_us'] / 1e6:+.3f} s, Δmono {worst['d_mono_us'] / 1e6:.3f} s) "
+        "-- host uyqusi / VM muzlashi yoki realtime qadami; boot_id va guest "
+        "generation buni KO'RMAYDI. Run RAD ETILADI (yaroqlilik qoidasi, "
+        f"metrika emas). Ta'sirlangan trial'lar: {sorted(affected) or '(trial oynasidan tashqarida)'}",
+        trial_id=(first["trials_spanning"][0] if first["trials_spanning"]
+                  else None),
+        record_type=first["after"].get("record_type"),
+        source=first["after"].get("source"),
+        index=first["after"].get("index"),
+        detail={"threshold_us": threshold_us, "n_jumps": len(jumps),
+                "n_samples": len(samples), "jumps": jumps[:100],
+                "trials_affected": sorted(affected),
+                "max_abs_jump_us": abs(worst["jump_us"])})]
+
+
 # --- maydonlar ---------------------------------------------------------------
 
 
@@ -2480,6 +2651,7 @@ def validate_run(run: RawRun, *, run_mode: str | None = None,
         ("run_identity", check_run_identity, (run,)),
         ("guest_generation", check_guest_generation, (run,)),
         ("monotonic_order", check_monotonic_order, (run,)),
+        ("host_clock_discontinuity", check_host_clock_discontinuity, (run,)),
         ("schema_version", check_schema_version, (run,)),
         ("boot_id", check_boot_id, (run,)),
         ("trial_pairs", check_trial_pairs, (run,)),
