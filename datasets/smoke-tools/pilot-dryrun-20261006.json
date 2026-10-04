@@ -1,0 +1,908 @@
+{
+  "campaign_estimate": {
+    "n_blocks": 20,
+    "n_trials": 120,
+    "per_trial_overhead_s": 0.0,
+    "per_trial_s": 53.0,
+    "pressure_on_total_s": 2160.0,
+    "sustained_pressure_on_total_s": 1560.0,
+    "total_hours": 1.7666666666666666,
+    "total_s": 6360.0,
+    "worst_case_hours": 5.1,
+    "worst_case_total_s": 18360.0
+  },
+  "cell_counts": {
+    "A/P0": 20,
+    "A/P1": 20,
+    "A/P2": 20,
+    "no_action/P0": 20,
+    "no_action/P1": 20,
+    "no_action/P2": 20
+  },
+  "cells_per_block": 6,
+  "driver_contract": "driver-contract/v1.1",
+  "driver_version": 1,
+  "dry_run": true,
+  "generator_window": {
+    "generator_on_s": 15.57,
+    "lead_s": 2.57,
+    "lead_source": "docs/architecture/14-smoke-trial-natijalari.md §5.1 (pressure_start -> oxirgi pressure_ramp: 2.570 s smoke-05, 2.568 s smoke-07; P2 dial); V2 qarori 14 §10",
+    "max_seconds": 15.57,
+    "note": "TrialTimeline frozen reja (pressure_on_s = ramp_s + hold_s) o'zgarmagan; generator hold_start - lead_s da boshlanadi va pressure_off da chiqadi (V2, 14 §10)",
+    "planned_hold_start_s": 20.0,
+    "planned_pressure_on_s": 18.0,
+    "planned_ramp_start_s": 15.0,
+    "start_s": 17.43,
+    "stop_s": 33.0
+  },
+  "n_blocks": 20,
+  "n_trials_selected": 120,
+  "n_trials_total": 120,
+  "only": [],
+  "per_trial_overhead_source": "not_measured_dry_run",
+  "rng": "python-random-mt19937",
+  "rng_seed": 20261006,
+  "schedule_digest": "69ae399edbb20b5a0271d4b6657a3b5c1ec45b61b19a04a2bf9e0b6e8decb2dc",
+  "t_recovery_window_us": 18100000,
+  "t_trial_formula": "T_trial = TrialTimeline.t_pressure_off + TrialTimeline.w_stab_s + P   (P = probe davri 100 ms, PREREGISTRATION.md §2); invariant: t_verify_end_earliest <= T_trial <= total_s",
+  "t_trial_us": 41100000,
+  "timeline": {
+    "baseline_s": 10.0,
+    "guard_sustain_window_s": 15.0,
+    "hold_cap_s": 13.0,
+    "hold_s": 13.0,
+    "injection_offset_s": 3.0,
+    "preflight_s": 5.0,
+    "pressure_on_s": 18.0,
+    "ramp_above_threshold_s": 0.0,
+    "ramp_s": 5.0,
+    "sustained_pressure_on_s": 13.0,
+    "t_inject_s": 23.0,
+    "t_pressure_off_s": 33.0,
+    "total_s": 53.0,
+    "w_stab_s": 8.0,
+    "washout_s": 20.0
+  },
+  "trials": [
+    {
+      "arm": "no_action",
+      "block_index": 0,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b000t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 0,
+      "position_in_block": 1,
+      "pressure_level": "P2",
+      "trial_id": "b000t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 0,
+      "position_in_block": 2,
+      "pressure_level": "P0",
+      "trial_id": "b000t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 0,
+      "position_in_block": 3,
+      "pressure_level": "P2",
+      "trial_id": "b000t003"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 0,
+      "position_in_block": 4,
+      "pressure_level": "P0",
+      "trial_id": "b000t004"
+    },
+    {
+      "arm": "A",
+      "block_index": 0,
+      "position_in_block": 5,
+      "pressure_level": "P1",
+      "trial_id": "b000t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 1,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b001t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 1,
+      "position_in_block": 1,
+      "pressure_level": "P2",
+      "trial_id": "b001t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 1,
+      "position_in_block": 2,
+      "pressure_level": "P0",
+      "trial_id": "b001t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 1,
+      "position_in_block": 3,
+      "pressure_level": "P0",
+      "trial_id": "b001t003"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 1,
+      "position_in_block": 4,
+      "pressure_level": "P1",
+      "trial_id": "b001t004"
+    },
+    {
+      "arm": "A",
+      "block_index": 1,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b001t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 2,
+      "position_in_block": 0,
+      "pressure_level": "P2",
+      "trial_id": "b002t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 2,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b002t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 2,
+      "position_in_block": 2,
+      "pressure_level": "P0",
+      "trial_id": "b002t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 2,
+      "position_in_block": 3,
+      "pressure_level": "P1",
+      "trial_id": "b002t003"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 2,
+      "position_in_block": 4,
+      "pressure_level": "P2",
+      "trial_id": "b002t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 2,
+      "position_in_block": 5,
+      "pressure_level": "P1",
+      "trial_id": "b002t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 3,
+      "position_in_block": 0,
+      "pressure_level": "P2",
+      "trial_id": "b003t000"
+    },
+    {
+      "arm": "A",
+      "block_index": 3,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b003t001"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 3,
+      "position_in_block": 2,
+      "pressure_level": "P2",
+      "trial_id": "b003t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 3,
+      "position_in_block": 3,
+      "pressure_level": "P1",
+      "trial_id": "b003t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 3,
+      "position_in_block": 4,
+      "pressure_level": "P1",
+      "trial_id": "b003t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 3,
+      "position_in_block": 5,
+      "pressure_level": "P0",
+      "trial_id": "b003t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 4,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b004t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 4,
+      "position_in_block": 1,
+      "pressure_level": "P1",
+      "trial_id": "b004t001"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 4,
+      "position_in_block": 2,
+      "pressure_level": "P0",
+      "trial_id": "b004t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 4,
+      "position_in_block": 3,
+      "pressure_level": "P2",
+      "trial_id": "b004t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 4,
+      "position_in_block": 4,
+      "pressure_level": "P2",
+      "trial_id": "b004t004"
+    },
+    {
+      "arm": "A",
+      "block_index": 4,
+      "position_in_block": 5,
+      "pressure_level": "P0",
+      "trial_id": "b004t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 5,
+      "position_in_block": 0,
+      "pressure_level": "P2",
+      "trial_id": "b005t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 5,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b005t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 5,
+      "position_in_block": 2,
+      "pressure_level": "P0",
+      "trial_id": "b005t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 5,
+      "position_in_block": 3,
+      "pressure_level": "P1",
+      "trial_id": "b005t003"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 5,
+      "position_in_block": 4,
+      "pressure_level": "P1",
+      "trial_id": "b005t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 5,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b005t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 6,
+      "position_in_block": 0,
+      "pressure_level": "P2",
+      "trial_id": "b006t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 6,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b006t001"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 6,
+      "position_in_block": 2,
+      "pressure_level": "P1",
+      "trial_id": "b006t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 6,
+      "position_in_block": 3,
+      "pressure_level": "P2",
+      "trial_id": "b006t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 6,
+      "position_in_block": 4,
+      "pressure_level": "P0",
+      "trial_id": "b006t004"
+    },
+    {
+      "arm": "A",
+      "block_index": 6,
+      "position_in_block": 5,
+      "pressure_level": "P1",
+      "trial_id": "b006t005"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 7,
+      "position_in_block": 0,
+      "pressure_level": "P2",
+      "trial_id": "b007t000"
+    },
+    {
+      "arm": "A",
+      "block_index": 7,
+      "position_in_block": 1,
+      "pressure_level": "P2",
+      "trial_id": "b007t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 7,
+      "position_in_block": 2,
+      "pressure_level": "P1",
+      "trial_id": "b007t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 7,
+      "position_in_block": 3,
+      "pressure_level": "P0",
+      "trial_id": "b007t003"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 7,
+      "position_in_block": 4,
+      "pressure_level": "P1",
+      "trial_id": "b007t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 7,
+      "position_in_block": 5,
+      "pressure_level": "P0",
+      "trial_id": "b007t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 8,
+      "position_in_block": 0,
+      "pressure_level": "P0",
+      "trial_id": "b008t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 8,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b008t001"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 8,
+      "position_in_block": 2,
+      "pressure_level": "P2",
+      "trial_id": "b008t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 8,
+      "position_in_block": 3,
+      "pressure_level": "P1",
+      "trial_id": "b008t003"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 8,
+      "position_in_block": 4,
+      "pressure_level": "P1",
+      "trial_id": "b008t004"
+    },
+    {
+      "arm": "A",
+      "block_index": 8,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b008t005"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 9,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b009t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 9,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b009t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 9,
+      "position_in_block": 2,
+      "pressure_level": "P0",
+      "trial_id": "b009t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 9,
+      "position_in_block": 3,
+      "pressure_level": "P2",
+      "trial_id": "b009t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 9,
+      "position_in_block": 4,
+      "pressure_level": "P2",
+      "trial_id": "b009t004"
+    },
+    {
+      "arm": "A",
+      "block_index": 9,
+      "position_in_block": 5,
+      "pressure_level": "P1",
+      "trial_id": "b009t005"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 10,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b010t000"
+    },
+    {
+      "arm": "A",
+      "block_index": 10,
+      "position_in_block": 1,
+      "pressure_level": "P2",
+      "trial_id": "b010t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 10,
+      "position_in_block": 2,
+      "pressure_level": "P0",
+      "trial_id": "b010t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 10,
+      "position_in_block": 3,
+      "pressure_level": "P0",
+      "trial_id": "b010t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 10,
+      "position_in_block": 4,
+      "pressure_level": "P1",
+      "trial_id": "b010t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 10,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b010t005"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 11,
+      "position_in_block": 0,
+      "pressure_level": "P0",
+      "trial_id": "b011t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 11,
+      "position_in_block": 1,
+      "pressure_level": "P2",
+      "trial_id": "b011t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 11,
+      "position_in_block": 2,
+      "pressure_level": "P1",
+      "trial_id": "b011t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 11,
+      "position_in_block": 3,
+      "pressure_level": "P0",
+      "trial_id": "b011t003"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 11,
+      "position_in_block": 4,
+      "pressure_level": "P1",
+      "trial_id": "b011t004"
+    },
+    {
+      "arm": "A",
+      "block_index": 11,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b011t005"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 12,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b012t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 12,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b012t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 12,
+      "position_in_block": 2,
+      "pressure_level": "P0",
+      "trial_id": "b012t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 12,
+      "position_in_block": 3,
+      "pressure_level": "P1",
+      "trial_id": "b012t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 12,
+      "position_in_block": 4,
+      "pressure_level": "P2",
+      "trial_id": "b012t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 12,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b012t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 13,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b013t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 13,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b013t001"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 13,
+      "position_in_block": 2,
+      "pressure_level": "P1",
+      "trial_id": "b013t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 13,
+      "position_in_block": 3,
+      "pressure_level": "P0",
+      "trial_id": "b013t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 13,
+      "position_in_block": 4,
+      "pressure_level": "P2",
+      "trial_id": "b013t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 13,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b013t005"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 14,
+      "position_in_block": 0,
+      "pressure_level": "P2",
+      "trial_id": "b014t000"
+    },
+    {
+      "arm": "A",
+      "block_index": 14,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b014t001"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 14,
+      "position_in_block": 2,
+      "pressure_level": "P1",
+      "trial_id": "b014t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 14,
+      "position_in_block": 3,
+      "pressure_level": "P1",
+      "trial_id": "b014t003"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 14,
+      "position_in_block": 4,
+      "pressure_level": "P0",
+      "trial_id": "b014t004"
+    },
+    {
+      "arm": "A",
+      "block_index": 14,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b014t005"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 15,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b015t000"
+    },
+    {
+      "arm": "A",
+      "block_index": 15,
+      "position_in_block": 1,
+      "pressure_level": "P2",
+      "trial_id": "b015t001"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 15,
+      "position_in_block": 2,
+      "pressure_level": "P2",
+      "trial_id": "b015t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 15,
+      "position_in_block": 3,
+      "pressure_level": "P0",
+      "trial_id": "b015t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 15,
+      "position_in_block": 4,
+      "pressure_level": "P0",
+      "trial_id": "b015t004"
+    },
+    {
+      "arm": "A",
+      "block_index": 15,
+      "position_in_block": 5,
+      "pressure_level": "P1",
+      "trial_id": "b015t005"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 16,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b016t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 16,
+      "position_in_block": 1,
+      "pressure_level": "P2",
+      "trial_id": "b016t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 16,
+      "position_in_block": 2,
+      "pressure_level": "P1",
+      "trial_id": "b016t002"
+    },
+    {
+      "arm": "A",
+      "block_index": 16,
+      "position_in_block": 3,
+      "pressure_level": "P0",
+      "trial_id": "b016t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 16,
+      "position_in_block": 4,
+      "pressure_level": "P2",
+      "trial_id": "b016t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 16,
+      "position_in_block": 5,
+      "pressure_level": "P0",
+      "trial_id": "b016t005"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 17,
+      "position_in_block": 0,
+      "pressure_level": "P1",
+      "trial_id": "b017t000"
+    },
+    {
+      "arm": "A",
+      "block_index": 17,
+      "position_in_block": 1,
+      "pressure_level": "P2",
+      "trial_id": "b017t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 17,
+      "position_in_block": 2,
+      "pressure_level": "P1",
+      "trial_id": "b017t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 17,
+      "position_in_block": 3,
+      "pressure_level": "P0",
+      "trial_id": "b017t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 17,
+      "position_in_block": 4,
+      "pressure_level": "P0",
+      "trial_id": "b017t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 17,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b017t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 18,
+      "position_in_block": 0,
+      "pressure_level": "P2",
+      "trial_id": "b018t000"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 18,
+      "position_in_block": 1,
+      "pressure_level": "P2",
+      "trial_id": "b018t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 18,
+      "position_in_block": 2,
+      "pressure_level": "P0",
+      "trial_id": "b018t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 18,
+      "position_in_block": 3,
+      "pressure_level": "P1",
+      "trial_id": "b018t003"
+    },
+    {
+      "arm": "A",
+      "block_index": 18,
+      "position_in_block": 4,
+      "pressure_level": "P1",
+      "trial_id": "b018t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 18,
+      "position_in_block": 5,
+      "pressure_level": "P0",
+      "trial_id": "b018t005"
+    },
+    {
+      "arm": "A",
+      "block_index": 19,
+      "position_in_block": 0,
+      "pressure_level": "P2",
+      "trial_id": "b019t000"
+    },
+    {
+      "arm": "A",
+      "block_index": 19,
+      "position_in_block": 1,
+      "pressure_level": "P0",
+      "trial_id": "b019t001"
+    },
+    {
+      "arm": "A",
+      "block_index": 19,
+      "position_in_block": 2,
+      "pressure_level": "P1",
+      "trial_id": "b019t002"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 19,
+      "position_in_block": 3,
+      "pressure_level": "P0",
+      "trial_id": "b019t003"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 19,
+      "position_in_block": 4,
+      "pressure_level": "P1",
+      "trial_id": "b019t004"
+    },
+    {
+      "arm": "no_action",
+      "block_index": 19,
+      "position_in_block": 5,
+      "pressure_level": "P2",
+      "trial_id": "b019t005"
+    }
+  ]
+}

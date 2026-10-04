@@ -1,0 +1,46 @@
+== pre
+{"phase": "pre", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 13784053829, "real_us": 1791109654263977, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.21 0.28 0.29 1/227 8991", "uptime_s": 13784.05}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+== run smoke-20-A-P0 arm=A level=P0 seed=20261031
+driver rc=0 wall_s=57.048
+{
+  "dispositions": {
+    "complete": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 3.259939000000003,
+    "mean": 3.259939000000003,
+    "min": 3.259939000000003,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-20-A-P0",
+  "run_id": "21e98dca1c514d478cad484f1306d385",
+  "trials": [
+    {
+      "disposition": "complete",
+      "overhead_s": 3.259939000000003,
+      "rule": "measured",
+      "trial_id": "b000t002"
+    }
+  ]
+}
+
+== post
+{"phase": "post", "boot_id": "4ea15279-acba-44ff-a533-6d7cd11924e5", "pid1_starttime_ticks": 653523, "mono_us": 13841344300, "real_us": 1791109711554448, "real_minus_mono_us": 1791095870210148, "oom_kill": 0, "loadavg": "0.38 0.30 0.29 2/221 9066", "uptime_s": 13841.34}
+PASS | qoldiq yo'q (unit ham, cgroup ham)
+validate rc=0
+WARNING run_filtered: run --only ['A', 'P0'] bilan filtrlangan: 1/6 trial -- to'liq blok dizayni EMAS (§8.4)  [/home/snowden/revix-runs/smoke-20-A-P0/events.jsonl:2]
+xato: 0  ogohlantirish: 1
+NATIJA: O'TDI -- analiz qilinishi mumkin
+analysis rc=0
+total 716
+drwxr-xr-x  2 snowden snowden   4096 Oct  4 15:27 .
+drwxr-xr-x 66 snowden snowden   4096 Oct  4 15:27 ..
+-rw-r--r--  1 snowden snowden 163556 Oct  4 15:28 events.jsonl
+-rw-r--r--  1 snowden snowden   1268 Oct  4 15:28 guard.jsonl
+-rw-r--r--  1 snowden snowden  39696 Oct  4 15:28 pressure.jsonl
+-rw-rw-r--  1 snowden snowden 136908 Oct  4 15:28 probe.csv
+-rw-rw-r--  1 snowden snowden 324991 Oct  4 15:28 psi.csv
+-rw-r--r--  1 snowden snowden  46036 Oct  4 15:27 run_meta.json

@@ -759,3 +759,87 @@ beradi, (b) washout'ni yakunlaydi, (c) prober va generatorni to'xtatadi,
 qasddan yaratish uchun dial yoki guard'ga tegish kerak bo'lardi, bu esa
 taqiqlangan. **CHEKLOV:** 1-trial `overhead_s = 0.0` (wall 38.4 s <
 `total_s` 53) — ta'rif bo'yicha (`max(0, wall − total_s)`), o'lchov emas.
+
+---
+
+## 13. v1.12 preshartlari: `open_parameters` va regressiya smoke'i
+
+### 13.1 `run_meta.open_parameters` (v1.12 1-band, §16.10(1); commit `65b902f`)
+
+`watchdog_sec`, `memory_high`, `timeout_start_sec` va `t_trial_s` endi har
+biri: `value` (amaldagi, CLI flag'idan), `frozen_value`, `matches_frozen`,
+`frozen_in = "preregistration/v1.12"`, `frozen_section`, `source`,
+`calibration_required: false`, `rule_satisfied`, `calibration` (run_id'lar
+va hujjatdan ko'chirilgan raqamlar — nomli konstantalar, runtime'da
+hisoblanmaydi) va §16.10(5) `mechanism_statement` bilan yoziladi.
+
+| parametr | qiymat | `rule_satisfied` | kalibratsiya `run_id` lari | manba |
+|---|---|---|---|---|
+| `watchdog_sec` | 5s | **true** | `open-params-cal-01`, `-02` (A qism faqat shularda; `cal-03` — faqat B) | `13` §0.5, §2.2, §6.1 |
+| `memory_high` | 192M | **true** | `dose-01-dial`, `dose-02-bands`, `dose-03-p2sweep`; qayta: `cal-01/02/03` | `10` §2.2, §2.6; `13` §4; `limitation` — OQ-11 |
+| `timeout_start_sec` | 10s | **false** — `frozen_as: pre_data_default_documented_deviation`, `deviation` → v1.12 1.3-band | `open-params-cal-02`, `-03` (24/24/20 < 48, `rule_proposal: null`) | `13` §3.1, §6.2 |
+| `t_trial_s` | 41.1 | true (formula) | — | v1.12 1.4 |
+
+**FAKT:** `open_parameters` ni faqat `revix/driver.py` va
+`tests/unit/test_driver.py` o'qiydi (`grep`); `validate.py` va `analyze.py`
+unga tegmaydi — validate natijasi o'zgarmadi (quyidagi 6 run). `SCHEMA_VERSION`
+siljimaydi: `04` shartnomasi uni faqat yangi record turi yoki enum qiymati
+uchun siljitadi.
+
+### 13.2 FAKT — pilot jadvali MUZLATILDI (dry-run, hech narsa ishga tushmadi)
+
+`python3 -m revix.cli run --run-dir … --seed 20261006 --dry-run [--json]`
+(`65b902f`; seed **20261006** — pilot seed'i, hech bir smoke'da
+ishlatilmagan):
+
+| | |
+|---|---|
+| `schedule_digest` | **`69ae399edbb20b5a0271d4b6657a3b5c1ec45b61b19a04a2bf9e0b6e8decb2dc`** |
+| `rng` | `python-random-mt19937`, seed 20261006 |
+| bloklar / trial | 20 / **120** (`cells_per_block` 6) |
+| yacheykalar | `A/P0` 20, `A/P1` 20, `A/P2` 20, `no_action/P0` 20, `no_action/P1` 20, `no_action/P2` 20 |
+| 0-blok tartibi | `no_action/P1`, `no_action/P2`, `A/P0`, `A/P2`, `no_action/P0`, `A/P1` |
+| `T_trial` | 41.100 s; generator 17.43–33.00 s (15.57 s; reja 18.0 s, R 2.57 s) |
+| baho | 1.77 soat (eng yomon 5.10 soat), qo'shimcha vaqt `not_measured_dry_run` |
+
+To'liq chiqish: `datasets/smoke-tools/pilot-dryrun-20261006.json`
+(sha256 `0e3a3c63…15a3`) va `.txt`.
+
+### 13.3 FAKT — regressiya smoke'i (v1.12 9.4-band)
+
+Kod `65b902f` (= `main` `ebf0e7e` + 13.1), ext4 clone, `git_dirty: false`.
+Kirish nuqtasi: **`python3 -m revix.cli run --run-dir … --seed … --blocks 1
+--only <arm>,<band> --allow-pressure`** (CLI uzatishi ishladi). Qulf
+`10:27:29Z` — `10:33:40Z`. Har run `run_meta`: `preregistration/v1.12`,
+sha256 `ccb6186e…4ad2` (= tag `v0.1.12-preregistration`),
+`generator_window.lead_s 2.57`, `open_parameters` hammasi
+`matches_frozen: true`.
+
+| run | arm, band | seed | disposition | guard | eng uzun `≥ 0.35` | eng uzun `≥ 0.05` | validate |
+|---|---|---|---|---|---|---|---|
+| smoke-20 | A, P0 | 20261031 | `complete` | trip yo'q | 0.0 s | 0.0 s | O'TDI |
+| smoke-21 | no_action, P0 | 20261032 | `censored` (`horizon_ended_down`) | trip yo'q | 0.0 s | 0.0 s | O'TDI |
+| smoke-22 | A, P1 | 20261033 | `complete` | trip yo'q | 2.6 s | 6.5 s | O'TDI |
+| smoke-23 | no_action, P1 | 20261034 | `censored` (`horizon_ended_down`) | trip yo'q | 9.0 s | 10.3 s | O'TDI |
+| smoke-24 | A, P2 | 20261035 | **`aborted_guard`** (`guard_fired`; matched + `unsolicited_kill`, `bystander_lost_contract`) | **`user_full_rate2s_runaway`**, rate 0.98004 / 0.98, oyna 2.000 s, trial boshidan **29.23 s** — injeksiyadan (23.056 s) **keyin**, restart'dan (24.345 s) 4.9 s keyin | 9.6 s | 10.8 s | O'TDI |
+| smoke-25 | no_action, P2 | 20261036 | `censored` (`horizon_ended_down`) | trip yo'q | 4.6 s | 5.9 s | O'TDI |
+
+- `trial_end` har run'da **1**; validate har run'da 0 xato, yagona
+  ogohlantirish `run_filtered`.
+- **`sustained_pressure` trip'i 0/6.** smoke-24 dagi runaway trip — v1.12
+  3-bandning e'lon qilingan kutilmasi; trial §12 bo'yicha `aborted_guard`,
+  istisno yo'li ishga tushmadi (injeksiya oldin bo'lgan), washout
+  `complete` 15.011 s; guard kill'idan keyin arm `A` SUT'ni 29.366 s da
+  qayta ko'tardi.
+- Rejadagi ramp oynasida `ramp_above_threshold_s` (user) **0.0** (6/6);
+  generator 17.493–17.516 s da boshlandi, o'z ramp'i 19.723–20.080 s da
+  tugadi, `pressure_stop` 33.076–33.182 s (smoke-24 da guard o'ldirgani
+  uchun yo'q).
+- `trial_end.overhead_s` 3.243–3.327 s; washout 6/6 `complete`
+  (15.011–15.015 s).
+- **Post-flight 6/6:** `boot_id` va pid1 `653523` o'zgarmagan, `real −
+  mono` siljishi −1…+1 µs, `oom_kill` 0 → 0, lab swap max 0,
+  `leftover_state` PASS; oxirida `revix*` unit 0.
+
+**CHEKLOV:** har yacheykadan bitta trial; `P1` uchun bu V2 ning real driver
+bilan birinchi o'lchovi (n = 2: oraliqlar 2.6 / 9.0 s).
