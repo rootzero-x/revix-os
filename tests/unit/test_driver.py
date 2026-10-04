@@ -2913,3 +2913,22 @@ def test_washout_ozi_yiqilsa_washout_timeout(tmp_path):
     te = of_type(events(run_dir), "trial_end")[0]
     assert te["washout"]["timed_out"] is True
     assert "washout_exception" in te["washout"]["reason"]
+
+
+@pytest.mark.parametrize("mode", ["guard_on_probe", "dead_no_guard"])
+def test_istisno_yolida_generator_washoutdan_OLDIN_toxtatiladi(tmp_path, mode):
+    """REGRESSIYA (smoke-18, 14 §12.2): istisno pressure_off dan OLDIN --
+    generator tirik edi, washout baseline'i 169.4 MiB bilan o'qildi va
+    120 s cap'da `washout_timeout` bo'ldi. Generator kill'dan OLDIN
+    to'xtatilishi SHART."""
+    drv, pf, run_dir = make_driver(tmp_path, only=("P2", "no_action"),
+                                   allow_pressure=True)
+    setattr(pf, "guard_trip_on_probe" if mode == "guard_on_probe"
+            else "sut_dead_no_guard", True)
+    drv.run()
+    i_stop = pf.calls.index(("stop", D.PRESS_UNIT))
+    i_kill = pf.calls.index(("kill", pf.cgroup_path(D.LAB_SLICE)))
+    assert i_stop < i_kill, pf.calls
+    te = of_type(events(run_dir), "trial_end")[0]
+    assert te["detail"]["pressure"]["stopped_early_mono_us"] > 0
+    assert te["washout"]["state"] == "complete"

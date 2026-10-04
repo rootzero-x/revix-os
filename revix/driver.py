@@ -2414,6 +2414,7 @@ class Driver:
         host_before: dict[str, Any] = {}
         setup_error: BaseException | None = None
         prober_stopped = False
+        pressure_stopped = False
 
         # --- SETUP: record oynasidan TASHQARIDA ---------------------------
         try:
@@ -2542,6 +2543,7 @@ class Driver:
             timing.pressure_off_mono_us = pressure_off
             if self.cfg.allow_pressure:
                 self.pf.stop(PRESS_UNIT)
+            pressure_stopped = True
 
             # --- horizon: T_trial gacha kuzatuv davom etadi ----------------
             # `pressure_off` dan keyin yana `w_stab_s + P`: §4 VR oynasining
@@ -2615,6 +2617,21 @@ class Driver:
                     self.pf.stop(PROBER_UNIT)
                 except Exception as exc:  # noqa: BLE001
                     self._harness_error("prober_stop", exc, trial=trial)
+                    facts_kw["harness_error"] = True
+            if self.cfg.allow_pressure and not pressure_stopped:
+                # Istisno pressure_off DAN OLDIN: generator hali tirik. U
+                # oddiy yo'ldagidek washout'dan OLDIN to'xtatiladi. NEGA
+                # (14 §12.2, smoke-18 O'LCHADI): washout `memory.current`
+                # baseline'ini o'z boshida o'qiydi; tirik generator bilan
+                # baseline 169.4 MiB bo'ldi, kill'dan keyin 0.1 MiB -- ±32 MiB
+                # sharti hech qachon bajarilmadi va washout 120 s cap'da
+                # `washout_timeout` bilan tugadi.
+                try:
+                    self.pf.stop(PRESS_UNIT)
+                    detail.setdefault("pressure", {})["stopped_early_mono_us"] = (
+                        self.pf.mono_us())
+                except Exception as exc:  # noqa: BLE001
+                    self._harness_error("pressure_stop", exc, trial=trial)
                     facts_kw["harness_error"] = True
             t_w0 = self.pf.mono_us()
             try:

@@ -693,3 +693,42 @@ yiqilishi — har birida washout bajarilgani (`trial_end.washout`, lab
   injeksiya bilan oxiriga yetadi (`no_action` P0 da odatdagi natija
   `censored` / `horizon_ended_down`); run `validate` dan o'tadi;
   post-flight toza.
+
+### 12.2 FAKT — `smoke-18-noaction-P0-x2` (commit `9c98e7f`): kutilganidan FARQ
+
+Qulf `~10:06Z` — `10:12:28Z` (olishda `loadavg1` 0.30). Tashqi kill
+1-trial boshidan **22.004 s** da (`systemctl --user kill --signal=SIGKILL
+revix-sut.service`, rc 0; journal: `status=9/KILL`). `guard.jsonl`:
+faqat `guard_start`, `guard_stop` — **guard trip yo'q** (kutilgandek).
+
+| | kutilgan (§12.1) | o'lchangan |
+|---|---|---|
+| 1-trial disposition | `harness_error` | **`harness_error`** (matched: `harness_error, washout_timed_out, measured`) |
+| injeksiya | `ConnectionRefused` | `fault_inject` 23.001 s, `error ConnectionRefusedError(111)` |
+| `trial_end` soni | 1 + 1 | **1 + 1** |
+| prober to'xtatildi | ha | ha, 23.054 s (trial oynasi 23.001 s da yopildi) |
+| **1-trial washout** | `complete` | **`washout_timeout`**, `reason t_w_max`, 120.118 s, `memory_baseline 177651712` (169.4 MiB) |
+| 2-trial | toza boshlanadi va tugaydi | setup xatosiz, injeksiya 23.001 s, `censored` (`horizon_ended_down`), washout `complete` 15.014 s |
+| validate | O'TDI | **O'TDI** (0 xato, faqat `run_filtered`) |
+| post-flight | toza | `boot_id`/pid1 o'zgarmagan, `real − mono` −1 µs, `oom_kill` 0, lab swap 0, `leftover_state` PASS |
+
+**Sabab (FAKT):** istisno `pressure_off` dan (33 s) OLDIN — generator
+(P0, 160 MiB) hali tirik edi. `_washout` `memory.current` baseline'ini o'z
+boshida o'qiydi: 169.4 MiB; `cgroup.kill` dan keyin lab 0.1 MiB, ya'ni §8.4
+ning "baseline ±32 MiB" sharti hech qachon bajarilmadi va washout 120 s
+cap'da `washout_timeout` bilan tugadi. Talab bajarildi ("washout
+yakunlangan YOKI oshkora yiqilgan"), lekin bu artefakt: har bunday trial
+120 s yo'qotardi. Oddiy yo'lda generator `pressure_off` da to'xtatiladi,
+shuning uchun bu u yerda ko'rinmaydi.
+
+**Tuzatish:** istisno yo'lida, generator hali to'xtatilmagan bo'lsa, u
+washout'dan OLDIN to'xtatiladi (`detail.pressure.stopped_early_mono_us`).
+Regressiya testi (fake, ikki holat) tuzatishsiz yiqiladi.
+
+### 12.3 Empirik qayta tekshiruv — OLDINDAN yozilgan
+
+`smoke-19-noaction-P0-x2`, xuddi shu protokol (seed 20261022). **Kutilgan:**
+1-trial `harness_error`, washout **`complete`**, generator kill'dan oldin
+to'xtatilgan; 2-trial toza va tugaydi; validate O'TDI; post-flight toza.
+Agar 1-trial washout yana `washout_timeout` bo'lsa — to'xtatiladi va
+yoziladi.
