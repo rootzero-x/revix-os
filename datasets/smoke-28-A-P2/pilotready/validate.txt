@@ -1,0 +1,6 @@
+WARNING run_filtered: run --only ['A', 'P2'] bilan filtrlangan: 1/6 trial -- to'liq blok dizayni EMAS (§8.4)  [/home/snowden/revix-runs/smoke-28-A-P2/events.jsonl:2]
+
+record: 146  probe: 822  trial: 1  run_mode: pilot
+xato: 0  ogohlantirish: 1
+NATIJA: O'TDI -- analiz qilinishi mumkin
+validate rc=0

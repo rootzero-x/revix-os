@@ -1,0 +1,23 @@
+{
+  "dispositions": {
+    "censored": 1
+  },
+  "n_trials": 1,
+  "ok": true,
+  "per_trial_overhead_s_measured": {
+    "max": 3.266095,
+    "mean": 3.266095,
+    "min": 3.266095,
+    "n": 1
+  },
+  "run_dir": "/home/snowden/revix-runs/smoke-29-noaction-P2",
+  "run_id": "93958577e92a46478e638b00cff398e8",
+  "trials": [
+    {
+      "disposition": "censored",
+      "overhead_s": 3.266095,
+      "rule": "horizon_ended_down",
+      "trial_id": "b000t005"
+    }
+  ]
+}

@@ -246,3 +246,48 @@ takrorlanmaydi.
 oyna holati **yuzaga kelishi kafolatlanmagan** (p1-pilot-001 da A/P2 dagi
 20 trial'dan 2 tasida); yuzaga kelmasa, bu yo'llar faqat unit test va
 oflayn replay bilan tekshirilgan bo'ladi.
+
+---
+
+## 9. NATIJA — smoke partiyasi (§8 mezoni BAJARILDI)
+
+**Ketma-ketlik (FAKT):** VM handshake — `READY FOR VM SHUTDOWN` `main` ga
+yuborildi; host'da `VirtualBoxVM` (3 PID) `2026-10-04T13:37:45Z` da yo'qoldi
+(faqat bo'sh `VBoxSVC` qoldi; VirtualBox Windows host'da ishlaydi, shuning
+uchun tekshiruv PowerShell `Get-Process` bilan, guest `pgrep` emas). Qulf
+`13:37:57Z` — `13:46:09Z`; olishda `loadavg1` 0.04. Kod `7ae27f7` (ext4
+clone, `git_dirty: false`), kirish nuqtasi `revix.cli run … --allow-pressure`.
+
+| run | disposition | guard | eng uzun `≥ 0.35` / `≥ 0.05` | post-oyna faktlari (`measured`) | action `t_issue` | validate |
+|---|---|---|---|---|---|---|
+| smoke-26 A,P2 | `complete` | trip yo'q | 5.1 / 13.4 s | gap yo'q, `inside_hold` | 1 ta | 0 xato |
+| smoke-27 no_action,P2 | `censored` (`horizon_ended_down`) | trip yo'q | 10.7 / 14.7 s | gap yo'q, `inside_hold` | — | 0 xato |
+| smoke-28 A,P2 | `complete` | trip yo'q | 9.1 / 14.7 s | gap yo'q, `inside_hold` | 1 ta | 0 xato |
+| smoke-29 no_action,P2 | `censored` (`horizon_ended_down`) | trip yo'q | 8.9 / 14.8 s | gap yo'q, `no_t_up` | — | 0 xato |
+| smoke-30 A,P2 | `complete` | trip yo'q | 13.5 / 14.8 s | gap yo'q, `inside_hold` | 1 ta | 0 xato |
+| smoke-31 A,P2 | `complete` | trip yo'q | 9.7 / 14.8 s | gap yo'q, `inside_hold` | 1 ta | 0 xato |
+| smoke-32 A,P1 | `complete` | trip yo'q | 6.4 / 7.7 s | gap yo'q, `inside_hold` | 1 ta | 0 xato |
+| smoke-33 A,P0 | `complete` | trip yo'q | 0.0 / 0.0 s | gap yo'q, `no_t_up` | 1 ta | 0 xato |
+
+- **Mezon:** 8/8 `validate` **0 xato** (yagona ogohlantirish `run_filtered`),
+  har birida **bitta** `trial_end`, **sustain trip 0**, **`harness_error` 0**
+  ⇒ **§8 mezoni BAJARILDI.**
+- Post-flight 8/8: `boot_id` va pid1 `653523` o'zgarmagan, `real − mono`
+  siljishi 0/+1 µs, `oom_kill` 0 → 0, lab swap max 0, `leftover_state` PASS;
+  oxirida `revix*` unit 0. Har `run_meta` da `disposition_facts.method =
+  post_window_reducer_facts`; har `trial_end.facts` da
+  `window_outside_hold`.
+- **Kuzatuv (talqin qilinmaydi):** smoke-30 ning `≥ 0.35` oralig'i 13.5 s
+  (guard chegarasi 15 s; V2 smoke'larida max 13.0 s edi).
+
+**CHEKLOV — jonli ishlatilMAGAN yo'llar:** bu partiyada (a) §4 probe
+uzilishi, (b) §17.4 oyna hold'dan tashqarida, (c) eskirgan `ActiveExit`
+(restart qilingan SUT `active` ga yetmay o'lishi), (d) runaway guard trip va
+undan keyingi istisno yo'li **yuzaga kelmadi**. Bu to'rt yo'l faqat unit
+testlar (haqiqiy p1-pilot-001 record'laridan) va oflayn replay bilan
+tekshirilgan. 120 trial'lik run smoke ko'rsatmagan klassni ochishi mumkin
+(`15` §5.2).
+
+**04 revizya yozuvi:** shu revizyadan keyingi `sha256` —
+`778134ae4f6116e5db5c9027853c709d8baa517033aab9303088bd025d2ed2c1`
+(oldingi `f514394e…18ff`).

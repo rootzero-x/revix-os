@@ -1,0 +1,138 @@
+{
+ "run_dir": "/home/snowden/revix-runs/smoke-33-A-P0",
+ "n_trial_begin": 1,
+ "n_trial_end": 1,
+ "guard_records": [
+  {
+   "record_type": "guard_start",
+   "mono_us": 25616447549,
+   "reason": null,
+   "detail": null,
+   "action": null,
+   "kill_ok": null,
+   "tripped": null,
+   "trip_summary": null,
+   "iterations": null,
+   "elapsed_s": null
+  },
+  {
+   "record_type": "guard_stop",
+   "mono_us": 25673147840,
+   "reason": null,
+   "detail": null,
+   "action": null,
+   "kill_ok": null,
+   "tripped": false,
+   "trip_summary": [],
+   "iterations": 567,
+   "elapsed_s": 56.700172708002356
+  }
+ ],
+ "harness_errors": [],
+ "psi_rows": 565,
+ "trials": [
+  {
+   "trial_id": "b000t000",
+   "arm": "A",
+   "pressure_level": "P0",
+   "disposition": "complete",
+   "reason": "measured",
+   "matched_rules": [
+    "measured"
+   ],
+   "facts": {
+    "harness_error": false,
+    "guard_fired": false,
+    "unsolicited_kill": false,
+    "foreign_oom_kill": false,
+    "bystander_lost_contract": false,
+    "washout_timed_out": false,
+    "probe_gap_exceeded": false,
+    "window_outside_hold": false,
+    "horizon_ended_down": false
+   },
+   "anomalies": [],
+   "overhead_s": 3.2753569999999996,
+   "timing": {
+    "begin_mono_us": 25616719925,
+    "setup_us": 71495,
+    "baseline_start_mono_us": 25621719925,
+    "pressure_off_mono_us": 25649719925,
+    "horizon_end_mono_us": 25657819925,
+    "washout_us": 15011562,
+    "teardown_us": 15216,
+    "dump_us": 55762,
+    "end_mono_us": 25672995282,
+    "wall_us": 56275357
+   },
+   "washout": {
+    "state": "complete",
+    "timed_out": false,
+    "done": true,
+    "reason": null,
+    "elapsed_s": 15.010986,
+    "quiet_for_s": 5.003864999999999,
+    "memory_baseline": 1220608,
+    "kill_ok": true,
+    "observations": 30
+   },
+   "pressure_detail": {
+    "started": true,
+    "level": "P0",
+    "target_rate": 0.0,
+    "base_mb": 160,
+    "step_mb": 4,
+    "max_seconds": 15.57,
+    "units_show_valid": true,
+    "reason": null
+   },
+   "timeline_rel_s": {
+    "trial_begin": 0.0,
+    "planned_ramp_start": 15.0,
+    "planned_hold_start": 20.0,
+    "planned_pressure_off": 33.0,
+    "horizon(trial_end.mono_us)": 41.1,
+    "generator_pressure_start": 17.51,
+    "generator_last_ramp_record": 19.733,
+    "generator_first_pi_sample": 19.783,
+    "generator_pressure_stop": 33.084,
+    "fault_inject": 23.001,
+    "action_t_issue": [
+     23.002
+    ],
+    "actor_signal_active": [
+     23.218
+    ]
+   },
+   "user_rate_spans_ge_0.35": [],
+   "user_rate_spans_ge_0.05": [],
+   "lab_rate_spans_ge_0.35": [],
+   "lab_rate_spans_ge_0.05": [],
+   "user_rate_max": 0.0,
+   "user_rate_n_ge_runaway_0.98": 0,
+   "longest_user_span_ge_0.35_s": 0.0,
+   "guard_sustain_limit_s": 15.0,
+   "ramp_above_threshold_s_generator_ramp_window(10§4)": 0.0,
+   "ramp_above_threshold_s_planned_ramp_window_lab": 0.0,
+   "ramp_above_threshold_s_planned_ramp_window_user": 0.0,
+   "generator_stop": {
+    "elapsed_s": 15.573740083997109,
+    "max_seconds": 15.57,
+    "overrun_s": 0.0037400839971084565,
+    "touched_mb_at_stop": 160
+   },
+   "generator_pi_samples": 54,
+   "generator_pi_rate_median": 0.0
+  }
+ ],
+ "per_trial_overhead_preflight": {
+  "source": "measured_preflight_cycle",
+  "measured_setup_teardown_s": 0.091525,
+  "setup_us": 61528,
+  "dump_us": 24971,
+  "teardown_us": 5026,
+  "planned_preflight_s": 5.0,
+  "per_trial_overhead_s": 0.0,
+  "note": "o'lchov: fault YO'Q, pressure YO'Q; `estimate_campaign` ta'rifi bo'yicha fazalar yig'indisidan oshgan qism"
+ }
+}
