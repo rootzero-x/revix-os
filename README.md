@@ -104,7 +104,7 @@ backoff'iga nisbatan kam downtime va kam false-recovery beradi.
 
 ```
 make -C revix all              -> rc=0, ogohlantirishsiz (-Werror, C11)
-python3 -m pytest tests/ -q    -> 1156 passed, 1 skipped (106.81s; 2026-10-05, commit `7f3354c`)
+python3 -m pytest tests/ -q    -> 1186 passed, 1 skipped (91.46s; 2026-10-05, commit `c4e68c3`)
 python3 -m revix.cli doctor    -> 15 PASS, 3 WARN, 0 FAIL (exit 0)
 ```
 
