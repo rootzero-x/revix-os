@@ -1,0 +1,129 @@
+# REVIX: grafik sessiya -- VM oynasi ichida kiosk brauzerda dashboard.
+#
+# ==========================================================================
+# BU NIMA -- va NIMA EMAS
+# ==========================================================================
+# `revix/gui.py` dashboard'ini (http://127.0.0.1:8787/) VirtualBox oynasining
+# O'ZIDA ko'rsatadi: `cage` (Wayland kiosk kompozitor) ichida to'liq ekranli
+# Firefox. Image headless (serial + tty1 login) edi; bu unit uchinchi boot
+# bandi (`REVIX live - GUI window (inspection only)`) uchun grafik sessiya beradi.
+#
+# BU TEKSHIRUV (INSPECTION) UCHUN, O'LCHOV UCHUN EMAS. Firefox + kompozitor
+# o'lchangan: MemAvailable ~0.4 GiB ga kamayadi (4096 MB VM: 3.64 -> 3.24 GiB; 6144 MB: ~0.4 GiB) va
+# doimiy CPU/IO bosimi qo'shadi; PREREGISTRATION.md §8 confound nazorati shuni
+# taqiqlaydi. Bu band orqali boot qilingan image'da HECH QANDAY timing o'lchovi
+# o'tkazilmaydi (NEM ostida u baribir haqiqiy emas, 11-iso-qurilish-jurnali.md
+# §7; bu esa uni YANA yomonlashtiradi). `revix doctor`'ning memory_headroom
+# tekshiruvi bu bandda 4096 MB VM'da FAIL berishi MUMKIN va bu kutilgan.
+#
+# ==========================================================================
+# (1) NEGA FAQAT KERNEL BUYRUQ SATRIDA (`revix.gui=1`)
+# ==========================================================================
+# `ConditionKernelCommandLine=revix.gui=1`: ikkita mavjud band (default va
+# `revix.dashboard=remote`) bu unit'ni UMUMAN ishga tushirmaydi -- unit
+# `skipped`, jarayon yo'q. `seatd` ham ishga tushmaydi, lekin buning uchun
+# `disable` YETARLI EMAS: `Wants=` Condition'dan OLDIN bajariladi va seatd
+# default bandda ham ishga tushdi (O'LCHANDI). Shu sababli `seatd.service.d/
+# 10-revix-gui.conf` seatd'ning O'ZIGA ham shu Condition'ni qo'yadi. Image live
+# bo'lgani uchun fayl-flag qayta boot'da yo'qoladi; buyruq satri qoladi
+# (xuddi `revix-dashboard.service` dagi `revix.dashboard=remote` kabi).
+#
+# ==========================================================================
+# (2) NEGA SYSTEM MANAGER, `user@1000.service` ICHIDA EMAS
+# ==========================================================================
+# O'lchov qamrovi `user@1000.service` ostida (revixlab.slice/revixmon.slice).
+# Grafik sessiya u yerda tug'ilsa uning RSS/CPU'si guard kuzatadigan scope'ga
+# tushardi, va `revix-*` nomi `systemctl --user list-units "revix-*"` ga mos
+# kelib `require_clean_env`/doctor #leftover_state uni BLOKLOVCHI qoldiq deb
+# sanardi (qarang: revix-dashboard.service (1)). System manager'da unit
+# `system.slice` ostida -- `user.slice` ning QO'SHNISI. Bu image'da O'LCHANDI
+# (11-iso-qurilish-jurnali.md §11: `/proc/<cage>/cgroup` =
+# `/system.slice/revix-gui.service`).
+#
+# ==========================================================================
+# (3) NEGA `seatd`, `logind` EMAS; NEGA PAM YO'Q
+# ==========================================================================
+# Kompozitor input (libinput) va DRM (KMS) qurilmalariga SEAT orqali kiradi.
+# Avval `logind` backend'i (`PAMName=` + `TTYPath=`) SINALDI: render ishladi,
+# lekin Ctrl+Alt+F2 bosilganda libseat yozdi
+#     [libseat] logind.c:199 Could not switch session: Permission denied
+# (image'da polkit yo'q, logind VT almashtirishga ruxsat bermaydi) va matn
+# konsoliga o'tib bo'lmadi -- talab qilingan QOCHISH YO'LI buzilgan edi.
+# `seatd` (0.9.1) bilan Ctrl+Alt+F2 -> tty2 `login:` ga o'tadi va Ctrl+Alt+F1
+# GUI'ni qaytaradi (ikkalasi ham skrinshot bilan tasdiqlangan). `polkitd`
+# qo'shish ikki band uchun ham image'ga yana servis keltirardi; `seatd` bitta
+# kichik paket va u bu unit bilan birga keladi.
+# `SupplementaryGroups=video`: seatd soketi `root:video` (`seatd -g video`).
+# `RuntimeDirectory=revix-gui`: Wayland soketi `/run/revix-gui` da, o'lchov
+# foydalanuvchisining `/run/user/1000` iga hech narsa yozilmaydi.
+# `TTYPath=/dev/tty1`: tty1 shu sessiyaga beriladi. getty@tty1 grafik bandda o'zini o'tkazib
+# yuboradi (getty@tty1.service.d/10-revix-gui.conf: `Conflicts=` default bandda ham tty1 login'ini o'ldirardi, o'lchandi). Ctrl+Alt+F2 -> logind autovt@tty2 -> getty@tty2.
+# Root EMAS (harness privilegiyasiz: INSTALLATION.md §1).
+#
+# ==========================================================================
+# (4) NEGA LOOPBACK, `NO AUTH` EMAS
+# ==========================================================================
+# Brauzer guest ICHIDA, demak dashboard default (127.0.0.1) bind'ida qoladi
+# va `--allow-remote` KERAK EMAS. Bu band tarmoqqa hech narsa ochmaydi.
+#
+# ==========================================================================
+# (5) YENGILLIK VA RESURS SIYOSATI
+# ==========================================================================
+# `cage -s` (VT almashtirish yoqilgan) + Firefox `--kiosk`. Render
+# `WLR_RENDERER=pixman` (GL'siz, dasturiy). Resurs chegaralari ATAYLAB yo'q:
+# Firefox xotirasi o'zgaruvchan va MemoryMax uni OOM bilan o'ldirib "bo'sh
+# ekran" beradi; buning o'rniga OOMScoreAdjust=500 va Nice=5 -- tanqislikda
+# kernel avval shuni o'ldiradi, harness'ni emas.
+#
+# SAHIFA O'Z-O'ZIDAN YANGILANMAYDI: dashboard statik HTML, har so'rov doctor/PSI
+# uchun CPU sarflaydi. Eskirgan o'qish sahifada `stale` (qizil) bo'lib
+# ko'rinadi; yangilash uchun F5.
+
+[Unit]
+Description=REVIX GUI kiosk (cage + Firefox: dashboard) -- INSPECTION ONLY, not for measuring
+Documentation=file:///opt/revix/docs/architecture/11-iso-qurilish-jurnali.md
+ConditionKernelCommandLine=revix.gui=1
+Wants=revix-dashboard.service seatd.service
+After=systemd-user-sessions.service revix-dashboard.service seatd.service
+# Soxta restart loop bo'lmasin: 3 urinishdan keyin FAILED qoladi va
+# `is-system-running` buni halol ko'rsatadi (qarang: revix-dashboard.service).
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=revix
+SupplementaryGroups=video
+WorkingDirectory=/home/revix
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+RuntimeDirectory=revix-gui
+RuntimeDirectoryMode=0700
+
+Environment=HOME=/home/revix
+Environment=XDG_RUNTIME_DIR=/run/revix-gui
+Environment=LIBSEAT_BACKEND=seatd
+Environment=WLR_RENDERER=pixman
+Environment=WLR_NO_HARDWARE_CURSORS=1
+Environment=MOZ_ENABLE_WAYLAND=1
+
+# Dashboard tinglamaguncha kutish (`--retry-connrefused`); birinchi so'rov ~4 s
+# (PSI + doctor), shu bilan kesh isiydi va brauzer birinchi ochilishda kutib
+# qolmaydi. `-f` 4xx/5xx'da xato beradi (jim "muvaffaqiyat" yo'q).
+ExecStartPre=/usr/bin/curl -sf -o /dev/null --retry 40 --retry-delay 1 --retry-connrefused --max-time 30 http://127.0.0.1:8787/
+ExecStart=/usr/bin/cage -s -- /usr/bin/firefox-esr --kiosk --no-remote --new-instance http://127.0.0.1:8787/
+
+Restart=on-failure
+RestartSec=5
+OOMScoreAdjust=500
+Nice=5
+
+[Install]
+# Hook (iso/hooks/customize-20-systemd.sh) uni yoqadi; Condition uni kernel
+# buyruq satriga bog'laydi, shuning uchun default bandlarda ishga tushmaydi.
+WantedBy=multi-user.target

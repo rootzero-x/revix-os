@@ -224,7 +224,32 @@ PKGS_REPO="git ca-certificates"
 # kutubxonalar soni manifest'da (20-record-manifest.sh) o'lchanadi.
 PKGS_TOOLS="procps util-linux kmod less jq ca-certificates dmsetup iproute2 acl sudo curl"
 
-PKGS_ALL="${PKGS_BASE} ${PKGS_KERNEL} ${PKGS_LIVE} ${PKGS_BOOT} ${PKGS_TOOLCHAIN} ${PKGS_PYTHON} ${PKGS_REPO} ${PKGS_TOOLS}"
+# --- grafik sessiya (uchinchi boot bandi: `revix.gui=1`) --------------------
+#
+# NEGA: foydalanuvchi dashboard'ni VirtualBox oynasining O'ZIDA ko'rishni
+# so'radi (host brauzeri emas). `packaging/systemd/revix-gui.service` shu
+# paketlar bilan `cage` (Wayland kiosk kompozitor) ichida to'liq ekranli
+# Firefox'ni ishga tushiradi. Bu paketlar HAR UCHALA bandda ham image'da bor
+# (live image'da bandga qarab paket tanlab bo'lmaydi), lekin FAQAT
+# `revix.gui=1` bandida ishlaydi: unit `ConditionKernelCommandLine=` bilan
+# o'zini o'tkazib yuboradi, `seatd` esa hook'da `disable` qilinadi.
+#
+# Har paket O'LCHANGAN holatdan keladi (ishlayotgan live VM'da qo'lda o'rnatib
+# sinalgan, 11-iso-qurilish-jurnali.md §11):
+#   cage       -- Wayland kiosk kompozitor (wlroots, pixman render; vmwgfx KMS).
+#   firefox-esr-- kiosk brauzer (`--kiosk`). Eng og'ir: image ichida MemAvailable ~0.4 GiB ga kamaydi (4096 MB: 3.64 -> 3.24 GiB; o'lchangan).
+#   seatd      -- seat boshqaruvi. `logind` backend'i SINALDI va YIQILDI:
+#                 libseat "Could not switch session: Permission denied" (polkit
+#                 yo'q) -> Ctrl+Alt+F2 matn konsoliga o'tmadi. seatd'da o'tadi.
+#   fonts-dejavu-core -- shriftsiz Firefox matnni chizmaydi (`--no-install-recommends`
+#                 uni tortmaydi).
+#   xkb-data   -- wlroots klaviatura xaritasi.
+#   libgl1-mesa-dri, libegl1 -- Firefox/Mesa dasturiy GL yo'li.
+# CHEKLOV: `libgl1-mesa-dri`/`libegl1`/`xkb-data` ning HAR BIRI alohida
+# "shu kerak, bu emas" deb o'chirib SINALMADI -- ular bilan to'plam ishladi.
+PKGS_GUI="cage firefox-esr seatd fonts-dejavu-core xkb-data libgl1-mesa-dri libegl1"
+
+PKGS_ALL="${PKGS_BASE} ${PKGS_KERNEL} ${PKGS_LIVE} ${PKGS_BOOT} ${PKGS_TOOLCHAIN} ${PKGS_PYTHON} ${PKGS_REPO} ${PKGS_TOOLS} ${PKGS_GUI}"
 
 # NEGA systemd-oomd ATAYLAB YO'Q: 09 §4.4. Image'da desktop sessiyasi yo'q,
 # demak oomd himoya qiladigan narsa yo'q; oomd o'rnatilsa u slice'larni
