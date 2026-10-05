@@ -40,6 +40,11 @@ DIZAYN QOIDALARI (buzilmaydi):
      (`CONTRIBUTING.md` §4 kontrol ro'yxati, `PREREGISTRATION.md` §15.4).
      Shu sababli `value_html(None)` chiqishida BIRORTA RAQAM BO'LMAYDI --
      bu `tests/unit/test_gui.py` da qulflangan.
+     KO'RINISH (jurnal 19, `docs/architecture/19-gui-soddalashtirish.md`):
+     semantika o'zgarmagan, faqat balandligi pasaytirilgan -- `None` ->
+     "—" + kichik "i" + oddiy tildagi sabab `title` da; `0` -> oddiy "0".
+     Matnli belgilar (`o'lchanmadi n/m reason=...`, "o'lchangan nol") DOM da
+     qoladi va "Tadqiqotchi uchun" sahifalarida matn bo'lib ko'rinadi.
 
   3. **HAR PANEL O'Z MANBASINI VA O'QILGAN VAQTINI AYTADI**, ishonch darajasi
      bilan (1 tirik / 2 run artifact / 3 derived / hujjat / konfig). Eskirgan
@@ -152,6 +157,7 @@ TEXT_NOT_MEASURED = "o'lchanmadi"
 TEXT_NOT_YET_RUN = "hali ishga tushirilmadi"
 TEXT_NO_SOURCE = "manba yo'q"
 TEXT_MEASURED_ZERO = "o'lchangan nol"
+TIP_MEASURED_ZERO = "O'lchangan qiymat: aniq nol (o'lchov bo'ldi)."
 
 # Zich teglar (`docs/branding/state-indicators.md` §5). Mashina qiymatlari
 # (`data-state`) INGLIZCHA va yopiq enum -- tarjima QILINMAYDI; ekranda
@@ -187,6 +193,26 @@ MISSING_REASONS: frozenset[str] = frozenset({
     REASON_TIME_UNIT_NOT_DECLARED,
     REASON_PROBE_GAP,
 })
+
+# Har sabab kodining ODDIY TILDAGI bir jumlali izohi. Ekranda u `title`
+# (sichqoncha bilan ustiga borganda) va "Yordam" sahifasida ko'rinadi;
+# mashina kodi (`reason=<kod>`) esa DOM da qoladi va tadqiqotchi
+# sahifalarida ko'rinadi. NEGA alohida lug'at: kod tadqiqotchi uchun aniq,
+# lekin oddiy foydalanuvchiga hech narsa aytmaydi (jurnal 19 §3).
+REASON_PLAIN: dict[str, str] = {
+    REASON_NOT_REPORTED: "manba bu qiymatni bermadi.",
+    REASON_KEY_ABSENT: "manbada bu maydon umuman yo'q.",
+    REASON_SYSFS_ABSENT: "bu tizimda kerakli kernel interfeysi (fayl) yo'q.",
+    REASON_SCOPE_NO_DATA: "bu guruh uchun bosim (PSI) ma'lumoti berilmadi.",
+    REASON_SOURCE_ERROR: "ma'lumotni o'qishda xato yuz berdi.",
+    REASON_HORIZON_NOT_REPORTED: "kuzatuv muddati (horizon) e'lon qilinmagan.",
+    REASON_TIME_UNIT_NOT_DECLARED: "vaqt birligi e'lon qilinmagan.",
+    REASON_PROBE_GAP: "tekshiruv signallari orasida uzilish bo'lgan.",
+}
+
+# Bo'sh qiymat belgisi. NEGA em dash: u raqam emas (ko'rinadigan matnda
+# raqam yo'q -- qoida 2), qisqa va "yo'q" ning odatiy tipografik belgisi.
+DASH = "—"
 
 SYNTHETIC_BANNER_TEXT = (
     "SINTETIK MA'LUMOT -- HAQIQIY O'LCHOV EMAS. Bu sahifadagi raqamlar "
@@ -311,16 +337,27 @@ def missing_html(reason: str = REASON_NOT_REPORTED) -> str:
 
     `role="img"` + `aria-label`: ekran o'quvchi `n/m` ni "n slash m" deb
     o'qimaydi (§4.5-4).
+
+    KO'RINISH (jurnal 19 §3): oddiy sahifada katakda faqat "—" va kichik
+    "i" belgisi turadi; sabab ODDIY TILDA `title` da (sichqoncha bilan
+    ustiga borganda). Matnli tafsilot (`o'lchanmadi n/m reason=<kod>`)
+    DOM dan OLIB TASHLANMAYDI: u `.detail` ichida qoladi, tadqiqotchi
+    sahifalarida ko'rinadi, oddiy sahifada esa vizual yashiriladi. Semantika
+    o'zgarmadi -- faqat qanchalik baland ko'rinishi o'zgardi.
     """
     if reason not in MISSING_REASONS:
         raise ValueError(
             f"noma'lum `not_measured` sababi: {reason!r}; "
             f"yopiq lug'at: {', '.join(sorted(MISSING_REASONS))}")
     label = f"not measured, reason: {reason}"
+    tip = f"O'lchanmadi: {REASON_PLAIN[reason]} (reason={reason})"
     return (f'<span class="val v-missing" data-state="{STATE_NOT_MEASURED}"'
-            f' role="img" aria-label="{esc(label)}">'
-            f'<span class="plate">{esc(TEXT_NOT_MEASURED)}'
-            f'<span class="tag">{esc(TAG_NOT_MEASURED)}</span>'
+            f' data-reason="{esc(reason)}"'
+            f' role="img" aria-label="{esc(label)}" title="{esc(tip)}">'
+            f'<span class="dash" aria-hidden="true">{DASH}</span>'
+            f'<span class="info" aria-hidden="true">i</span>'
+            f'<span class="detail">{esc(TEXT_NOT_MEASURED)} '
+            f'<span class="tag">{esc(TAG_NOT_MEASURED)}</span> '
             f'<span class="reason">reason={esc(reason)}</span>'
             f"</span></span>")
 
@@ -334,8 +371,10 @@ def norun_html() -> str:
     (§4.3-3).
     """
     label = "not run"
+    tip = ("Hali ishga tushirilmadi: bu ma'lumotni beradigan tajriba hali "
+           "o'tkazilmagan.")
     return (f'<span class="val v-norun" data-state="{STATE_NOT_YET_RUN}"'
-            f' role="img" aria-label="{esc(label)}">'
+            f' role="img" aria-label="{esc(label)}" title="{esc(tip)}">'
             f"{esc(TEXT_NOT_YET_RUN)}"
             f'<span class="tag">{esc(TAG_NOT_YET_RUN)}</span></span>')
 
@@ -349,9 +388,13 @@ def nosource_html() -> str:
     birlashtirish mavjud bo'lmagan ishni rejadagi ish deb ko'rsatardi.
     """
     label = "no source: no module produces this value"
+    tip = ("Manba yo'q: REVIX bu qiymatni umuman o'lchamaydi -- uni "
+           "chiqaradigan modul yo'q. Bu xato emas.")
     return (f'<span class="val v-nosource" data-state="no_source"'
-            f' role="img" aria-label="{esc(label)}">'
-            f"{esc(TEXT_NO_SOURCE)}</span>")
+            f' role="img" aria-label="{esc(label)}" title="{esc(tip)}">'
+            f'<span class="dash" aria-hidden="true">{DASH}</span>'
+            f'<span class="info" aria-hidden="true">i</span>'
+            f'<span class="detail">{esc(TEXT_NO_SOURCE)}</span></span>')
 
 
 def _default_fmt(v: Any) -> str:
@@ -395,7 +438,11 @@ def value_html(value: Any, unit: str | None = None,
     text = esc(render(value))
     suffix = f' <span class="unit">{esc(unit)}</span>' if unit else ""
     if isinstance(value, (int, float)) and value == 0:
-        return (f'<span class="val v-zero">{text}{suffix}'
+        # Ko'rinish (jurnal 19 §3): nol ODDIY son kabi ko'rinadi; "o'lchangan
+        # nol" belgisi DOM da qoladi -- tadqiqotchi sahifasida kichik matn,
+        # oddiy sahifada `title`. `v-zero` klassi `None` dan farqni saqlaydi.
+        return (f'<span class="val v-zero" title="{esc(TIP_MEASURED_ZERO)}">'
+                f'{text}{suffix}'
                 f'<span class="zmark">{esc(TEXT_MEASURED_ZERO)}</span></span>')
     return f'<span class="val v-num">{text}{suffix}</span>'
 
@@ -484,7 +531,11 @@ def source_badge(src: Source, now_real_us: int) -> str:
         f'<span class="tier">{esc(tier)}</span>',
         f'<span class="src-name">{esc(src.name)}</span>',
     ]
-    if src.read_real_us is None:
+    if src.read_real_us is None and src.kind == "document":
+        # Hujjat fakti o'qish vaqtiga ega emas -- "o'qilmadi" deyish uni
+        # buzilgan manba kabi ko'rsatardi (Yordam skrinshotida ko'rildi).
+        pass
+    elif src.read_real_us is None:
         parts.append(' <span class="read-at">o\'qilmadi</span>')
     else:
         parts.append(f' <span class="read-at">{esc(_iso(src.read_real_us))}</span>'
@@ -507,8 +558,16 @@ def panel(title: str, src: Source | None, body: str, now_real_us: int) -> str:
             f'<div class="body">{body}</div></section>')
 
 
-def notice(kind: str, heading: str, *paragraphs: str) -> str:
+def notice(kind: str, heading: str, *paragraphs: str,
+           collapsed: bool | None = None) -> str:
     """Izoh bloki. `kind`: honesty | critical | empty.
+
+    YIG'ILADIGAN (jurnal 19 §3): `honesty` izohlari default bo'yicha
+    `<details>` -- sarlavha ko'rinadi, uzun tushuntirish bosilganda
+    ochiladi. NEGA: uzun izohlar sahifani bosib ketardi va asosiy
+    qiymatlar ko'rinmay qolardi. Matn DOM dan olib tashlanMAYDI -- faqat
+    yig'iladi. `critical` HECH QACHON yig'ilmaydi: xato yashirilmaydi.
+    Ochiq/yopiq holat `app.js` da `data-key` bo'yicha eslab qolinadi.
 
     SHARTNOMA: `heading` MATN (bu yerda escape qilinadi), `paragraphs` esa
     ALLAQACHON HTML -- chaqiruvchi ularni `esc()` yoki `esc_paragraph()` dan
@@ -519,6 +578,13 @@ def notice(kind: str, heading: str, *paragraphs: str) -> str:
     uzatiladi (qoida 5).
     """
     body = "".join(f"<p>{p}</p>" for p in paragraphs)
+    if collapsed is None:
+        collapsed = kind == "honesty"
+    if kind == "critical":
+        collapsed = False
+    if collapsed:
+        return (f'<details class="notice {esc(kind)}" data-key="{esc(heading)}">'
+                f'<summary>{esc(heading)}</summary>{body}</details>')
     return (f'<div class="notice {esc(kind)}"><h3>{esc(heading)}</h3>{body}</div>')
 
 
@@ -547,7 +613,8 @@ def empty_notice(what: str, producer: str, how: str) -> str:
 def nosource_notice(key: str) -> str:
     """`MISSING_SOURCES` dagi maydon uchun izoh: NIMA kerak, NEGA yo'q."""
     what, why = MISSING_SOURCES[key]
-    return notice("empty", f"{what} -- {TEXT_NO_SOURCE}", esc_paragraph(why))
+    return notice("empty", f"{what} -- {TEXT_NO_SOURCE}", esc_paragraph(why),
+                  collapsed=True)
 
 
 def esc_paragraph(text: str) -> str:
@@ -558,10 +625,22 @@ def esc_paragraph(text: str) -> str:
     return "".join(out)
 
 
-def kv(rows: list[tuple[str, str]]) -> str:
-    """Kalit/qiymat ro'yxati. Qiymat ALLAQACHON HTML (renderdan o'tgan)."""
-    items = "".join(f"<dt>{esc(k)}</dt><dd>{v}</dd>" for k, v in rows)
-    return f'<dl class="kv">{items}</dl>'
+def kv(rows: list[tuple[str, str] | tuple[str, str, str]]) -> str:
+    """Kalit/qiymat ro'yxati. Qiymat ALLAQACHON HTML (renderdan o'tgan).
+
+    Qator `(yorliq, qiymat)` yoki `(yorliq, qiymat, xom_nom)`. Uchinchi
+    element -- manbadagi XOM maydon nomi (`MemTotal`, `cpu.some`): u
+    yorliq yonida kichik ikkilamchi matn bo'lib turadi. NEGA: oddiy
+    foydalanuvchi odam tilidagi yorliqni o'qiydi, tadqiqotchi esa aynan
+    qaysi maydon ekanini ko'radi (jurnal 19 §3).
+    """
+    items: list[str] = []
+    for row in rows:
+        k, v = row[0], row[1]
+        raw = row[2] if len(row) > 2 else None
+        rawhtml = f'<span class="rawkey">{esc(raw)}</span>' if raw else ""
+        items.append(f"<dt>{esc(k)}{rawhtml}</dt><dd>{v}</dd>")
+    return f'<dl class="kv">{"".join(items)}</dl>'
 
 
 def table(headers: list[str], rows: list[list[str]],
@@ -582,20 +661,51 @@ def status_badge(status: str | None) -> str:
 
     Rang MA'NO tashiydi (`style.css` qoida 2): yashil = o'tdi, qizil = FAIL.
     Noma'lum holat neytral -- yashil deb HISOBLANMAYDI (fail-closed ruhi).
+
+    BELGI + SO'Z (jurnal 19 §5): rang hech qachon yagona kanal emas -- har
+    nishonda belgi (✓ ! ✗ •) va o'zbekcha so'z bor; manbadagi xom qiymat
+    (`PASS`, `active`) kichik ikkilamchi matn bo'lib qoladi.
     """
     if status is None:
         return missing_html()
     s = str(status)
     low = s.lower()
+    cls = status_class(low)
+    word = STATUS_WORDS.get(low)
+    icon = STATUS_ICONS[cls]
+    raw = (f'<span class="raw">{esc(s)}</span>'
+           if word is not None and word != low else "")
+    shown = word if word is not None else s
+    return (f'<span class="badge {cls}"><span class="ico" aria-hidden="true">'
+            f'{icon}</span>{esc(shown)}{raw}</span>')
+
+
+# Manba holat qiymati -> o'zbekcha so'z. Faqat MA'LUM qiymatlar tarjima
+# qilinadi; noma'lumi xom holda ko'rsatiladi (o'ylab topilgan tarjima yo'q).
+STATUS_WORDS: dict[str, str] = {
+    "pass": "o'tdi", "ok": "yaxshi", "warn": "diqqat", "warning": "diqqat",
+    "fail": "xato", "failed": "xato", "error": "xato",
+    "active": "faol", "running": "ishlayapti", "loaded": "yuklangan",
+    "inactive": "faol emas", "dead": "to'xtagan", "exited": "tugagan",
+    "activating": "ishga tushmoqda", "deactivating": "to'xtamoqda",
+    "degraded": "qisman ishlayapti", "not-found": "topilmadi",
+    "listening": "kutyapti", "waiting": "kutyapti",
+}
+
+STATUS_ICONS: dict[str, str] = {
+    "ok": "✓", "fail": "✗", "warn": "!", "neutral": "•",
+}
+
+
+def status_class(low: str) -> str:
+    """Holat -> `ok` | `fail` | `warn` | `neutral`. Noma'lum -- NEYTRAL."""
     if low in ("pass", "ok", "active", "running"):
-        cls = "ok"
-    elif low in ("fail", "failed", "error"):
-        cls = "fail"
-    elif low in ("warn", "warning", "degraded"):
-        cls = "warn"
-    else:
-        cls = "neutral"
-    return f'<span class="badge {cls}">{esc(s)}</span>'
+        return "ok"
+    if low in ("fail", "failed", "error"):
+        return "fail"
+    if low in ("warn", "warning", "degraded"):
+        return "warn"
+    return "neutral"
 
 
 # ===========================================================================
@@ -854,6 +964,72 @@ class Gateway:
 # ===========================================================================
 
 
+# --- TAXMINIY TALQIN (jurnal 19 §4) ---------------------------------------
+#
+# PSI `some` stall ulushi (0..1: oynaning qancha qismida KAMIDA BITTA vazifa
+# resursni kutib turdi) -> oddiy so'z. Bu chegaralar O'LCHOV EMAS va
+# `PREREGISTRATION.md` da YO'Q: ular FAQAT ekrandagi so'z uchun, hech qaysi
+# qaror, guard yoki analiz ularni ishlatmaydi. Ekranda har doim
+# "taxminiy talqin" deb yoziladi va xom son yonida turadi.
+#
+# NEGA shu qiymatlar (konservativ): bo'sh desktopda `some` odatda 0.01 dan
+# past; 0.05 (oynaning 5 %) kutish allaqachon sezilarli, shuning uchun
+# "o'rta" erta boshlanadi; 0.25 (chorak vaqt kutish) -- "yuqori". Ya'ni
+# shubhali holatda so'z YUQORIROQ darajani beradi, "hammasi joyida" ni emas.
+STALL_LEVEL_MID = 0.05
+STALL_LEVEL_HIGH = 0.25
+STALL_INTERP_LABEL = "taxminiy talqin"
+
+# Darajaning so'zi va bir jumlali ma'nosi (resurs nomi `{r}` o'rniga).
+STALL_WORDS: dict[str, tuple[str, str]] = {
+    "low": ("past", "Dasturlar {r} navbatini deyarli kutmayapti."),
+    "mid": ("o'rta", "Dasturlar ba'zan {r} navbatini kutyapti."),
+    "high": ("yuqori", "Dasturlar ko'p vaqt {r} navbatini kutyapti."),
+}
+
+
+def stall_level(rate: Any) -> str | None:
+    """`some` ulushi -> `low` | `mid` | `high`; o'lchanmagan bo'lsa `None`.
+
+    `None` HECH QACHON "past" ga aylanmaydi: o'lchanmagan narsa haqida
+    talqin yo'q (qoida 2).
+    """
+    if rate is None or isinstance(rate, bool):
+        return None
+    try:
+        r = float(rate)
+    except (TypeError, ValueError):
+        return None
+    if r >= STALL_LEVEL_HIGH:
+        return "high"
+    if r >= STALL_LEVEL_MID:
+        return "mid"
+    return "low"
+
+
+def stall_html(rate: Any, reason: str = REASON_NOT_REPORTED) -> str:
+    """Xom stall soni + uning taxminiy talqini (so'z). `None` -> "—"."""
+    lvl = stall_level(rate)
+    if lvl is None:
+        return rate_html(rate, reason=reason)
+    word = STALL_WORDS[lvl][0]
+    return (rate_html(rate, reason=reason)
+            + f' <span class="interp" data-level="{lvl}" '
+            f'title="{esc(STALL_INTERP_LABEL)}: chegaralar Yordam sahifasida">'
+            f"{esc(word)} <small>({esc(STALL_INTERP_LABEL)})</small></span>")
+
+
+def _host_psi(live: dict[str, Any], resource: str) -> dict[str, Any]:
+    """Host scope'ining bitta resursi uchun PSI yozuvi (yo'q bo'lsa `{}`)."""
+    psi = ((live.get("status") or {}).get("psi") or {}).get("scopes") or {}
+    return ((psi.get("host") or {}).get("resources") or {}).get(resource) or {}
+
+
+# Resurs mashina nomi -> ekrandagi nom (xom nom qavsda qoladi).
+RESOURCE_LABELS = {"cpu": "protsessor (cpu)", "memory": "xotira (memory)",
+                   "io": "disk (io)"}
+
+
 def _psi_scope_rows(psi: dict[str, Any] | None) -> list[list[str]]:
     """PSI scope'lari jadvali. Tezlik `total=` delta'sidan (§7), avgN EMAS."""
     if not isinstance(psi, dict):
@@ -863,16 +1039,17 @@ def _psi_scope_rows(psi: dict[str, Any] | None) -> list[list[str]]:
         resources = (info or {}).get("resources") or {}
         for res in cli.PSI_RESOURCES:
             entry = resources.get(res)
+            res_label = esc(RESOURCE_LABELS.get(res, res))
             if entry is None:
                 # Scope bu resursni BERMADI -- o'lchanmadi, nol emas.
-                rows.append([esc(scope), esc(res),
+                rows.append([esc(scope), res_label,
                              missing_html(REASON_SCOPE_NO_DATA),
                              missing_html(REASON_SCOPE_NO_DATA),
                              missing_html(REASON_SCOPE_NO_DATA)])
                 continue
             rows.append([
-                esc(scope), esc(res),
-                rate_html(entry.get("some_rate")),
+                esc(scope), res_label,
+                stall_html(entry.get("some_rate")),
                 rate_html(entry.get("full_rate")),
                 value_html(entry.get("window_us"), unit="us"),
             ])
@@ -883,6 +1060,7 @@ def panel_psi(live: dict[str, Any], src: Source, now_us: int) -> str:
     psi = (live.get("status") or {}).get("psi")
     rows = _psi_scope_rows(psi)
     body = [
+        f'<p class="lead">{esc_paragraph(PSI_PLAIN)}</p>',
         notice("honesty", "Tezlik `total=` delta'sidan, `avgN` dan EMAS",
                esc_paragraph(
                    "`PREREGISTRATION.md` §7 muzlatilgan qarori: `avgN` "
@@ -893,24 +1071,35 @@ def panel_psi(live: dict[str, Any], src: Source, now_us: int) -> str:
                    "HISOBLAMAYDI.")),
     ]
     interval = (psi or {}).get("interval_s")
-    body.append(kv([("o'lchov oynasi", value_html(interval, unit="s")),
-                    ("usul", text_html((psi or {}).get("method")))]))
-    body.append(table(["scope", "resurs", "some tezlik", "full tezlik", "oyna"],
+    body.append(kv([("o'lchov oynasi", value_html(interval, unit="s"), "interval_s"),
+                    ("usul", text_html((psi or {}).get("method")), "method")]))
+    body.append(table(["guruh (scope)", "resurs", "kimdir kutdi (some)",
+                       "hamma kutdi (full)", "oyna"],
                       rows, "PSI scope o'qilmadi"))
-    return panel("PSI STALL TEZLIKLARI", src, "".join(body), now_us)
+    return panel("Bosim (PSI): resursni kutish ulushi", src, "".join(body), now_us)
+
+
+# PSI ni oddiy tilda bir jumla bilan tushuntirish (Resurslar sahifasi).
+PSI_PLAIN = (
+    "Har son -- o'lchov oynasining qancha qismida dasturlar shu resursni "
+    "KUTIB turgani (0 = hech kim kutmadi, 1 = butun vaqt kutildi). \"Kimdir "
+    "kutdi\" -- kamida bitta dastur kutgan, \"hamma kutdi\" -- barcha "
+    "dasturlar bir vaqtda to'xtab qolgan. Bu band foizi (CPU %) EMAS."
+)
 
 
 def card_cpu(live: dict[str, Any]) -> str:
     """CPU karta -- cpu_count va PSI CPU stall tezligi. Foiz YO'Q (manba yo'q)."""
     host = (live.get("status") or {}).get("host") or {}
-    psi = ((live.get("status") or {}).get("psi") or {}).get("scopes") or {}
-    hostpsi = ((psi.get("host") or {}).get("resources") or {}).get("cpu") or {}
+    hostpsi = _host_psi(live, "cpu")
     rows = [
-        ("CPU soni", value_html(host.get("cpu_count"))),
-        ("arxitektura", text_html(host.get("machine"))),
-        ("host cpu some stall", rate_html(hostpsi.get("some_rate") if hostpsi else None)),
-        ("host cpu full stall", rate_html(hostpsi.get("full_rate") if hostpsi else None)),
-        ("foydalanish %", nosource_html()),
+        ("Yadrolar soni", value_html(host.get("cpu_count")), "cpu_count"),
+        ("Arxitektura", text_html(host.get("machine")), "machine"),
+        ("Kutish: kimdir kutdi", stall_html(hostpsi.get("some_rate") if hostpsi else None),
+         "host cpu some"),
+        ("Kutish: hamma kutdi", rate_html(hostpsi.get("full_rate") if hostpsi else None),
+         "host cpu full"),
+        ("Band foizi (%)", nosource_html(), "cpu utilization"),
     ]
     return kv(rows) + nosource_notice("cpu_utilization")
 
@@ -918,28 +1107,31 @@ def card_cpu(live: dict[str, Any]) -> str:
 def card_memory(live: dict[str, Any]) -> str:
     """MEMORY karta -- `cli.health_report()["memory"]` (= `/proc/meminfo`)."""
     mem = (live.get("health") or {}).get("memory") or {}
-    psi = ((live.get("status") or {}).get("psi") or {}).get("scopes") or {}
-    hostmem = ((psi.get("host") or {}).get("resources") or {}).get("memory") or {}
+    hostmem = _host_psi(live, "memory")
     return kv([
-        ("MemTotal", kb_html(mem.get("mem_total_kb"))),
-        ("MemAvailable", kb_html(mem.get("mem_available_kb"))),
-        ("eksperiment uchun kerak", kb_html(mem.get("required_kb"))),
-        ("SwapTotal", kb_html(mem.get("swap_total_kb"))),
-        ("SwapFree", kb_html(mem.get("swap_free_kb"))),
-        ("host memory some stall", rate_html(hostmem.get("some_rate") if hostmem else None)),
-        ("host memory full stall", rate_html(hostmem.get("full_rate") if hostmem else None)),
+        ("Jami xotira", kb_html(mem.get("mem_total_kb")), "MemTotal"),
+        ("Bo'sh (ishlatsa bo'ladigan)", kb_html(mem.get("mem_available_kb")),
+         "MemAvailable"),
+        ("Tajriba uchun kerak", kb_html(mem.get("required_kb")), "required_kb"),
+        ("Swap (diskdagi zaxira) jami", kb_html(mem.get("swap_total_kb")), "SwapTotal"),
+        ("Swap bo'sh", kb_html(mem.get("swap_free_kb")), "SwapFree"),
+        ("Kutish: kimdir kutdi", stall_html(hostmem.get("some_rate") if hostmem else None),
+         "host memory some"),
+        ("Kutish: hamma kutdi", rate_html(hostmem.get("full_rate") if hostmem else None),
+         "host memory full"),
     ])
 
 
 def card_disk(live: dict[str, Any]) -> str:
     """DISK karta -- O'LCHOV MANBASI YO'Q. Faqat PSI IO stall tezligi bor."""
-    psi = ((live.get("status") or {}).get("psi") or {}).get("scopes") or {}
-    hostio = ((psi.get("host") or {}).get("resources") or {}).get("io") or {}
+    hostio = _host_psi(live, "io")
     rows = [
-        ("sig'im / band", nosource_html()),
-        ("o'qish / yozish tezligi", nosource_html()),
-        ("host io some stall", rate_html(hostio.get("some_rate") if hostio else None)),
-        ("host io full stall", rate_html(hostio.get("full_rate") if hostio else None)),
+        ("Sig'im / band joy", nosource_html(), "statvfs"),
+        ("O'qish / yozish tezligi", nosource_html(), "diskstats"),
+        ("Kutish: kimdir kutdi", stall_html(hostio.get("some_rate") if hostio else None),
+         "host io some"),
+        ("Kutish: hamma kutdi", rate_html(hostio.get("full_rate") if hostio else None),
+         "host io full"),
     ]
     return kv(rows) + nosource_notice("disk")
 
@@ -947,9 +1139,9 @@ def card_disk(live: dict[str, Any]) -> str:
 def card_network(live: dict[str, Any]) -> str:
     """NETWORK karta -- O'LCHOV MANBASI YO'Q. `live` ataylab ishlatilmaydi."""
     return kv([
-        ("interfeyslar", nosource_html()),
-        ("bayt / paket", nosource_html()),
-        ("socket holati", nosource_html()),
+        ("Interfeyslar", nosource_html(), "/proc/net/dev"),
+        ("Bayt / paket", nosource_html(), "/proc/net/dev"),
+        ("Ulanishlar (socket)", nosource_html(), "ss"),
     ]) + nosource_notice("network")
 
 
@@ -961,16 +1153,50 @@ def panel_system_health(live: dict[str, Any], src: Source, now_us: int) -> str:
     """
     health = live.get("health") or {}
     summary = [kv([
-        ("umumiy holat", status_badge(health.get("status"))),
-        ("muammolar", value_html(len(health["problems"]) if isinstance(
-            health.get("problems"), list) else None)),
-        ("ogohliklar", value_html(len(health["warnings"]) if isinstance(
-            health.get("warnings"), list) else None)),
+        ("Umumiy holat", status_badge(health.get("status")), "health.status"),
+        ("Muammolar soni", value_html(len(health["problems"]) if isinstance(
+            health.get("problems"), list) else None), "problems"),
+        ("Ogohliklar soni", value_html(len(health["warnings"]) if isinstance(
+            health.get("warnings"), list) else None), "warnings"),
     ])]
-    for name, card in (("CPU", card_cpu(live)), ("MEMORY", card_memory(live)),
-                       ("DISK", card_disk(live)), ("NETWORK", card_network(live))):
-        summary.append(f"<h3>{esc(name)}</h3>{card}")
-    return panel("SYSTEM HEALTH", src, "".join(summary), now_us)
+    summary.append('<div class="subgrid">')
+    for name, card in (("Protsessor (CPU)", card_cpu(live)),
+                       ("Xotira (RAM)", card_memory(live)),
+                       ("Disk", card_disk(live)),
+                       ("Tarmoq", card_network(live))):
+        summary.append(f'<div class="subcard"><h3>{esc(name)}</h3>{card}</div>')
+    summary.append("</div>")
+    return panel("Tizim holati va resurslar", src, "".join(summary), now_us)
+
+
+# Unit holati -> (klass, belgi, oddiy so'z). Bosh sahifadagi xizmatlar
+# ro'yxati va Xizmatlar jadvali uchun. Shakl ham farq qiladi (to'la doira,
+# bo'sh doira, xoch) -- rang yagona kanal emas.
+UNIT_PLAIN: dict[str, tuple[str, str, str]] = {
+    "running": ("ok", "●", "ishlayapti"),
+    "active": ("ok", "●", "ishlayapti"),
+    "exited": ("neutral", "○", "ishini tugatgan"),
+    "failed": ("fail", "✗", "xato bilan to'xtagan"),
+    "dead": ("neutral", "○", "to'xtagan"),
+    "inactive": ("neutral", "○", "to'xtagan"),
+    "activating": ("neutral", "◐", "ishga tushmoqda"),
+    "auto-restart": ("neutral", "◐", "qayta ishga tushmoqda"),
+    "deactivating": ("neutral", "◐", "to'xtamoqda"),
+}
+
+
+def unit_plain(u: dict[str, Any]) -> tuple[str, str, str]:
+    """Unit -> (klass, belgi, so'z). `failed` HAR DOIM ustun; noma'lum -- neytral."""
+    active = str(u.get("active") or "").lower()
+    sub = str(u.get("sub") or "").lower()
+    if active == "failed" or sub == "failed":
+        return UNIT_PLAIN["failed"]
+    if sub in UNIT_PLAIN:
+        return UNIT_PLAIN[sub]
+    if active in UNIT_PLAIN:
+        return UNIT_PLAIN[active]
+    raw = sub or active
+    return ("neutral", "?", raw if raw else "holat noma'lum")
 
 
 def panel_services(live: dict[str, Any], src: Source, now_us: int) -> str:
@@ -978,51 +1204,71 @@ def panel_services(live: dict[str, Any], src: Source, now_us: int) -> str:
     units = (live.get("status") or {}).get("units") or {}
     rows: list[list[str]] = []
     for u in units.get("units") or []:
+        cls, icon, word = unit_plain(u)
         rows.append([
             text_html(u.get("name")),
+            (f'<span class="svc-state {cls}"><span class="dot" aria-hidden="true">'
+             f"{icon}</span>{esc(word)}</span>"),
             status_badge(u.get("load")),
             status_badge(u.get("active")),
             status_badge(u.get("sub")),
         ])
-    body: list[str] = []
+    body: list[str] = [f'<p class="lead">{esc_paragraph(SERVICES_PLAIN)}</p>']
     if not units.get("ok", False):
         body.append(notice("critical", "Unit ro'yxati o'qilmadi",
                            esc(units.get("error") or TEXT_NOT_MEASURED)))
-    body.append(table(["unit", "load", "active", "sub"], rows,
-                      "hozirda birorta `revix*` unit yo'q -- eksperiment "
-                      "ishlamayotganda bu NORMAL holat"))
-    return panel("SERVICES", src, "".join(body), now_us)
+    body.append(table(["xizmat (unit)", "holati", "yuklanganmi (load)",
+                       "faolmi (active)", "aniq holat (sub)"], rows,
+                      "Hozir birorta REVIX xizmati (revix* unit) yo'q -- "
+                      "tajriba o'tkazilmayotganda bu NORMAL holat."))
+    return panel("REVIX xizmatlari", src, "".join(body), now_us)
+
+
+SERVICES_PLAIN = (
+    "Xizmat (systemd unit) -- fonda ishlaydigan dastur. REVIX tajriba "
+    "paytida o'z xizmatlarini (`revix*`) ishga tushiradi, ularni ataylab "
+    "to'xtatadi va systemd ularni qanday qayta tiklashini kuzatadi."
+)
 
 
 def panel_slices(live: dict[str, Any], src: Source, now_us: int) -> str:
     """Lab/mon slice holati -- `cli.slice_state()` (cgroup snapshot'i)."""
     slices = (live.get("status") or {}).get("slices") or {}
-    body: list[str] = []
+    body: list[str] = [
+        '<p class="lead">Slice -- tajriba dasturlari uchun ajratilgan, xotira '
+        "chegarasi qo'yiladigan alohida guruh. Tajriba bo'lmaganda ular "
+        "odatda mavjud emas.</p>"]
     for name in (cli.LAB_SLICE, cli.MON_SLICE):
         st = slices.get(name) or {}
         snap = st.get("snapshot")
         rows = [
-            ("mavjud", value_html(st.get("exists"))),
-            ("yo'l", text_html(st.get("path"))),
-            ("jarayonlar", value_html(len(st["procs"]) if isinstance(
-                st.get("procs"), list) else None)),
+            ("Mavjudmi", value_html(st.get("exists")), "exists"),
+            ("Joylashuv", text_html(st.get("path")), "cgroup path"),
+            ("Ichidagi jarayonlar soni", value_html(len(st["procs"]) if isinstance(
+                st.get("procs"), list) else None), "procs"),
         ]
         if isinstance(snap, dict):
             rows += [
-                ("memory.current", kb_html(
+                ("Hozir ishlatilayotgan xotira", kb_html(
                     None if snap.get("memory_current") is None
-                    else int(snap["memory_current"]) // 1024)),
-                ("memory.max", text_html(snap.get("memory_max"))),
-                ("memory.peak", text_html(snap.get("memory_peak"))),
+                    else int(snap["memory_current"]) // 1024), "memory.current"),
+                ("Xotira chegarasi", text_html(snap.get("memory_max")), "memory.max"),
+                ("Eng yuqori ishlatilgan", text_html(snap.get("memory_peak")),
+                 "memory.peak"),
             ]
         else:
             # Slice yo'q -> cgroup fayllari yo'q, demak sabab `sysfs_absent`
             # (snapshot O'LCHANMADI, nol EMAS).
-            rows += [("memory.current", missing_html(REASON_SYSFS_ABSENT)),
-                     ("memory.max", missing_html(REASON_SYSFS_ABSENT)),
-                     ("memory.peak", missing_html(REASON_SYSFS_ABSENT))]
-        body.append(f"<h3>{esc(name)}</h3>{kv(rows)}")
-    return panel("LAB / MON SLICE'LARI", src, "".join(body), now_us)
+            rows += [("Hozir ishlatilayotgan xotira",
+                      missing_html(REASON_SYSFS_ABSENT), "memory.current"),
+                     ("Xotira chegarasi", missing_html(REASON_SYSFS_ABSENT),
+                      "memory.max"),
+                     ("Eng yuqori ishlatilgan", missing_html(REASON_SYSFS_ABSENT),
+                      "memory.peak")]
+        role = ("tajriba dasturlari" if name == cli.LAB_SLICE
+                else "o'lchov vositalari")
+        body.append(f"<h3>{esc(name)} <small>({esc(role)})</small></h3>{kv(rows)}")
+    return panel("Tajriba guruhlari (slice)", src, "".join(body), now_us)
 
 
 def _last_record(events: dict[str, Any] | None,
@@ -1059,7 +1305,7 @@ def panel_recovery_engine(run: dict[str, Any] | None, src: Source,
         body.append(kv([("oxirgi hodisa", norun_html()),
                         ("qaror (aktor)", norun_html()),
                         ("natija (disposition)", norun_html())]))
-        return panel("RECOVERY ENGINE", src, "".join(body), now_us)
+        return panel("Recovery: systemd nima qildi", src, "".join(body), now_us)
 
     events = run.get("events")
     last = _last_record(events)
@@ -1086,12 +1332,12 @@ def panel_recovery_engine(run: dict[str, Any] | None, src: Source,
                 "boshqa qiymat beradi. Bu panel harakatni AYNAN shu aktorga "
                 "atributsiya qiladi va uni REVIX ning qarori deb "
                 "ko'rsatMAYDI -- arm C hali yo'q (§13).")))
-    return panel("RECOVERY ENGINE", src, "".join(body), now_us)
+    return panel("Recovery: systemd nima qildi", src, "".join(body), now_us)
 
 
 def panel_doctor(doctor: dict[str, Any] | None, src: Source, now_us: int,
                  only_keys: tuple[str, ...] | None = None,
-                 title: str = "DOCTOR TEKSHIRUVLARI") -> str:
+                 title: str = "Avtomatik tekshiruvlar (revix doctor)") -> str:
     """18 doctor tekshiruvi (yoki nomlangan qism-to'plami).
 
     Har tekshiruv TO'RTTA narsani beradi (`cli.py` qoida 2): holat,
@@ -1106,10 +1352,19 @@ def panel_doctor(doctor: dict[str, Any] | None, src: Source, now_us: int,
     checks = doctor.get("checks") or []
     if only_keys is not None:
         checks = [c for c in checks if c.get("key") in only_keys]
+    # Tartib: avval FAIL, keyin WARN, keyin PASS -- muammo yuqorida turadi.
+    # Bu faqat TARTIB, hech bir qator tushirib qoldirilmaydi.
+    order = {"FAIL": 0, "WARN": 1}
+    checks = sorted(checks, key=lambda c: order.get(str(c.get("status")), 2))
     rows: list[list[str]] = []
     for c in checks:
+        key = c.get("key")
+        plain = CHECK_PLAIN.get(str(key))
+        name = (f'<span class="plain-name">{esc(plain)}</span>'
+                f'<span class="rawkey">{esc(key)}</span>' if plain
+                else text_html(key))
         rows.append([
-            text_html(c.get("key")),
+            name,
             status_badge(c.get("status")),
             text_html(c.get("observed")),
             text_html(c.get("required")),
@@ -1117,11 +1372,11 @@ def panel_doctor(doctor: dict[str, Any] | None, src: Source, now_us: int,
         ])
     summary = doctor.get("summary") or {}
     body = [kv([
-        ("tekshiruvlar", value_html(summary.get("total"))),
-        ("PASS", value_html(summary.get("pass"))),
-        ("WARN", value_html(summary.get("warn"))),
-        ("FAIL", value_html(summary.get("fail"))),
-        ("xulosa", status_badge("ok" if summary.get("ok") else "fail")),
+        ("Jami tekshiruvlar", value_html(summary.get("total")), "total"),
+        ("O'tdi", value_html(summary.get("pass")), "PASS"),
+        ("Diqqat talab qiladi", value_html(summary.get("warn")), "WARN"),
+        ("Xato", value_html(summary.get("fail")), "FAIL"),
+        ("Xulosa", status_badge("ok" if summary.get("ok") else "fail"), "summary.ok"),
     ])]
     if only_keys is not None:
         body.append(notice(
@@ -1134,9 +1389,76 @@ def panel_doctor(doctor: dict[str, Any] | None, src: Source, now_us: int,
                 "chiqarib bo'lmaydi.")))
         body.append(kv([("tanlangan tekshiruvlar",
                          text_html(", ".join(only_keys)))]))
-    body.append(table(["kalit", "holat", "kuzatilgan", "kerak", "buzilsa"],
+    body.append(table(["tekshiruv", "natija", "hozirgi holat", "talab",
+                       "buzilsa nima bo'ladi"],
                       rows, "tekshiruv qatori yo'q"))
     return panel(title, src, "".join(body), now_us)
+
+
+# `revix doctor` tekshiruv kaliti -> oddiy tildagi savol. Kalit o'zi
+# (`memory_headroom`) yonida kichik matn bo'lib qoladi. Kalitlar
+# `cli.CHECKS` dagi `check_<kalit>` funksiyalaridan; ro'yxatda yo'q kalit
+# xom holda ko'rsatiladi (o'ylab topilgan nom yo'q).
+CHECK_PLAIN: dict[str, str] = {
+    "systemd_version": "systemd versiyasi yetarlimi?",
+    "cgroup_v2": "Resurs guruhlari (cgroup v2) yoqilganmi?",
+    "delegated_controllers": "Foydalanuvchiga resurs boshqaruvi berilganmi?",
+    "io_delegation": "Disk (IO) boshqaruvi berilganmi?",
+    "psi_host": "Tizim bosim o'lchagichi (PSI) bormi?",
+    "psi_cgroup": "Guruh darajasida bosim o'lchagichi bormi?",
+    "oomd": "Xotira qo'riqchisi (systemd-oomd) xavfli emasmi?",
+    "leftover_state": "Oldingi tajribadan qoldiq yo'qmi?",
+    "cgroup_write": "Resurs guruhini yaratib bo'ladimi?",
+    "memory_headroom": "Bo'sh xotira yetarlimi?",
+    "swap_headroom": "Swap (diskdagi zaxira xotira) holati",
+    "cpu_governor": "Protsessor chastota rejimi",
+    "toolchain_cc": "C kompilyatori bormi?",
+    "python_version": "Python versiyasi yetarlimi?",
+    "python_modules": "Kerakli Python modullari bormi?",
+    "kvm_access": "Virtualizatsiya (KVM) ruxsati bormi?",
+    "git_present": "git o'rnatilganmi?",
+    "git_clean": "Kod o'zgartirilmaganmi (git toza)?",
+}
+
+
+# `cli.health_report()` muammo/ogohlik matnining BOSHI -> oddiy jumla.
+# Xom matn har doim yonida qoladi; mos kelmagan matn xom holda beriladi.
+# Tartib muhim: aniqroq prefiks oldin.
+HEALTH_PLAIN: tuple[tuple[str, str], ...] = (
+    ("MemAvailable o'qilmadi", "Bo'sh xotira miqdorini o'qib bo'lmadi."),
+    ("MemAvailable", "Bo'sh xotira tajriba uchun yetmaydi."),
+    ("xotira zaxirasi yupqa", "Bo'sh xotira tajriba uchun zo'rg'a yetadi."),
+    ("qoldiq unit ro'yxati o'qilmadi",
+     "Oldingi tajribadan qoldiq bor-yo'qligini tekshirib bo'lmadi."),
+    ("qoldiq holat", "Oldingi tajribadan qolgan obyektlar yangi tajribaga xalal beradi."),
+    ("boshqa revix* obyektlar", "Tizimda boshqa REVIX obyektlari bor (xalal bermaydi)."),
+    ("oomd kill authority, duration ANIQLANMADI",
+     "Xotira qo'riqchisi (systemd-oomd) dasturlarni o'chira oladi, sozlamasi noma'lum."),
+    ("oomd duration",
+     "Xotira qo'riqchisi (systemd-oomd) tajriba dasturlarini juda tez o'chirishi mumkin."),
+    ("oomd kill authority",
+     "Xotira qo'riqchisi (systemd-oomd) yoqilgan: tajribada REVIX guard majburiy."),
+)
+
+
+def plain_health_item(text: Any) -> str | None:
+    """Health muammo/ogohlik matni -> oddiy jumla (topilmasa `None`)."""
+    s = str(text)
+    for prefix, plain in HEALTH_PLAIN:
+        if s.startswith(prefix):
+            return plain
+    if "memory.full tezligi" in s:
+        return "Kompyuter hozir xotira bosimi ostida."
+    return None
+
+
+def health_item_html(text: Any) -> str:
+    """Bitta muammo/ogohlik: oddiy jumla + xom matn (kichik). Escape bilan."""
+    plain = plain_health_item(text)
+    raw = f'<span class="rawline">{esc(text)}</span>'
+    if plain is None:
+        return f'<span class="plainline">{esc(text)}</span>'
+    return f'<span class="plainline">{esc(plain)}</span>{raw}'
 
 
 def panel_health_detail(live: dict[str, Any], src: Source, now_us: int) -> str:
@@ -1146,28 +1468,37 @@ def panel_health_detail(live: dict[str, Any], src: Source, now_us: int) -> str:
     left = health.get("leftover") or {}
     problems = health.get("problems")
     warnings = health.get("warnings")
-    body = [kv([
-        ("holat", status_badge(health.get("status"))),
-        ("user memory.full tezligi",
-         rate_html((health.get("psi") or {}).get("user_memory_full_rate"))),
-        ("oomd kill authority", value_html(oom.get("kill_authority"))),
-        ("oomd rejimi", text_html(oom.get("mode"))),
-        ("oomd limit %", value_html(oom.get("limit_percent"))),
-        ("oomd davomiyligi", value_html(oom.get("duration_s"), unit="s")),
-        ("guard sustain max", value_html(oom.get("guard_sustain_max_s"), unit="s")),
-        ("yumshatilgan", value_html(oom.get("mitigated"))),
-        ("qoldiq unit so'rovi ok", value_html(left.get("unit_query_ok"))),
-    ])]
-    for label, items in (("MUAMMOLAR", problems), ("OGOHLIKLAR", warnings)):
+    body: list[str] = []
+    for label, items in (("Muammolar", problems), ("Ogohliklar", warnings)):
         body.append(f"<h3>{esc(label)}</h3>")
         if items is None:
             body.append(f"<p>{missing_html()}</p>")
         elif not items:
             body.append(f"<p>{value_html(0)} -- ro'yxat o'qildi va bo'sh edi</p>")
         else:
-            body.append("<ul>" + "".join(
-                f"<li>{esc(x)}</li>" for x in items) + "</ul>")
-    return panel("SOG'LIQ TAFSILOTI", src, "".join(body), now_us)
+            body.append('<ul class="items">' + "".join(
+                f"<li>{health_item_html(x)}</li>" for x in items) + "</ul>")
+    body.append("<h3>Tafsilot</h3>")
+    body.append(kv([
+        ("Umumiy xulosa", status_badge(health.get("status")), "health.status"),
+        ("Foydalanuvchi sessiyasida xotira bosimi (hamma kutdi)",
+         rate_html((health.get("psi") or {}).get("user_memory_full_rate")),
+         "user memory.full"),
+        ("Xotira qo'riqchisi dasturlarni o'chira oladimi",
+         value_html(oom.get("kill_authority")), "oomd kill_authority"),
+        ("Qo'riqchi rejimi", text_html(oom.get("mode")), "oomd mode"),
+        ("Qo'riqchi bosim chegarasi, %", value_html(oom.get("limit_percent")),
+         "oomd limit_percent"),
+        ("Qo'riqchi kutish vaqti", value_html(oom.get("duration_s"), unit="s"),
+         "oomd duration_s"),
+        ("REVIX guard ruxsat etgan eng uzoq bosim",
+         value_html(oom.get("guard_sustain_max_s"), unit="s"), "guard_sustain_max_s"),
+        ("Qo'riqchi xavfi yumshatilganmi", value_html(oom.get("mitigated")),
+         "mitigated"),
+        ("Qoldiq xizmatlar so'rovi muvaffaqiyatli",
+         value_html(left.get("unit_query_ok")), "unit_query_ok"),
+    ]))
+    return panel("Sog'liq tafsiloti (revix health)", src, "".join(body), now_us)
 
 
 def panel_run_meta(run: dict[str, Any] | None, src: Source, now_us: int) -> str:
@@ -1178,14 +1509,14 @@ def panel_run_meta(run: dict[str, Any] | None, src: Source, now_us: int) -> str:
     HECH QACHON `0` emas (`PREREGISTRATION.md` §15.4).
     """
     if run is None:
-        return panel("RUN META", src, empty_notice(
+        return panel("Run metadata'si (run_meta.json)", src, empty_notice(
             "Run metadata'si",
             "`revix.driver` yozadigan `run_meta.json` (shartnoma §1.1)",
             "`python3 -m revix.cli run --run-dir datasets/<nom> --seed <N>`",
         ), now_us)
     meta = run.get("run_meta")
     if not isinstance(meta, dict):
-        return panel("RUN META", src, notice(
+        return panel("Run metadata'si (run_meta.json)", src, notice(
             "critical", "`run_meta.json` o'qilmadi",
             esc(run.get("run_meta_error") or TEXT_NOT_MEASURED)), now_us)
     gen = meta.get("guest_generation")
@@ -1224,20 +1555,20 @@ def panel_run_meta(run: dict[str, Any] | None, src: Source, now_us: int) -> str:
             "`None` -- ma'nosi \"o'lchanmadi\". `0` bo'lsa u \"o'lchandi va "
             "nolga teng\" degan ma'noni berardi, bu esa yolg'on bo'lardi. "
             "DVFS mavjud bo'lishi MUMKIN va butunlay o'lchanmaydi."))]
-    return panel("RUN META", src, "".join(body), now_us)
+    return panel("Run metadata'si (run_meta.json)", src, "".join(body), now_us)
 
 
 def panel_events(run: dict[str, Any] | None, src: Source, now_us: int) -> str:
     """`events.jsonl` -- `cli.read_events()` orqali (qismli oxirgi qator tolerant)."""
     if run is None:
-        return panel("RECOVERY HODISALARI", src, empty_notice(
+        return panel("Recovery hodisalari (events.jsonl)", src, empty_notice(
             "Recovery hodisalari oqimi",
             "`revix.driver` yozadigan `events.jsonl` (shartnoma §1.2)",
             "`python3 -m revix.cli run --run-dir datasets/<nom> --seed <N>`",
         ), now_us)
     events = run.get("events")
     if not isinstance(events, dict):
-        return panel("RECOVERY HODISALARI", src, empty_notice(
+        return panel("Recovery hodisalari (events.jsonl)", src, empty_notice(
             "Recovery hodisalari oqimi",
             "run katalogining `events.jsonl` fayli (shartnoma §1.2)",
             "driver'ni shu run katalogi uchun ishga tushirish",
@@ -1265,7 +1596,7 @@ def panel_events(run: dict[str, Any] | None, src: Source, now_us: int) -> str:
                 "qator -- boshqa gap va u \"buzuq qatorlar\" hisobiga "
                 "tushadi.")))
     types = events.get("types") or {}
-    body.append("<h3>RECORD TURLARI</h3>")
+    body.append("<h3>Record turlari</h3>")
     body.append(table(["record_type", "soni"],
                       [[text_html(k), value_html(v)]
                        for k, v in sorted(types.items(), key=lambda kv_: str(kv_[0]))],
@@ -1282,10 +1613,10 @@ def panel_events(run: dict[str, Any] | None, src: Source, now_us: int) -> str:
             # Payload -- FAYLDAN kelgan ishonchsiz matn (qoida 5).
             f'<pre class="raw">{esc(json.dumps(rec, ensure_ascii=False, sort_keys=True))}</pre>',
         ])
-    body.append("<h3>RECORD'LAR</h3>")
+    body.append("<h3>Record'lar</h3>")
     body.append(table(["seq", "mono_us", "record_type", "trial_id", "xom record"],
                       rows, "record yo'q"))
-    return panel("RECOVERY HODISALARI", src, "".join(body), now_us)
+    return panel("Recovery hodisalari (events.jsonl)", src, "".join(body), now_us)
 
 
 def exclusion_rate_html(exclusions: Any) -> str:
@@ -1349,7 +1680,7 @@ def exclusion_rate_html(exclusions: Any) -> str:
             ("n_primary", value_html(exclusions.get("n_primary"))),
         ]))
     by_reason = exclusions.get("by_reason")
-    out.append("<h3>SABAB BO'YICHA</h3>")
+    out.append("<h3>Sabab bo'yicha</h3>")
     if not isinstance(by_reason, dict):
         out.append(f"<p>{missing_html()}</p>")
     else:
@@ -1370,7 +1701,7 @@ def exclusion_rate_html(exclusions: Any) -> str:
 def panel_primary(analysis: Any, src: Source, now_us: int) -> str:
     """`analysis.json` ning `primary` bloki (§2.2) -- O'QILADI, hisoblanMAYDI."""
     if not isinstance(analysis, dict):
-        return panel("BIRLAMCHI ENDPOINT", src, empty_notice(
+        return panel("Birlamchi endpoint", src, empty_notice(
             "Birlamchi endpoint natijasi",
             "`revix.analyze` yozadigan `analysis.json` (shartnoma §2.2)",
             "`python3 -m revix.cli analyze --trials <...> --run-meta <...> "
@@ -1378,7 +1709,7 @@ def panel_primary(analysis: Any, src: Source, now_us: int) -> str:
         ), now_us)
     pri = analysis.get("primary")
     if not isinstance(pri, dict):
-        return panel("BIRLAMCHI ENDPOINT", src, notice(
+        return panel("Birlamchi endpoint", src, notice(
             "critical", "`primary` bloki yo'q",
             esc_paragraph(
                 "`analysis.json` o'qildi, lekin §2.2 ning `primary` kaliti "
@@ -1412,7 +1743,7 @@ def panel_primary(analysis: Any, src: Source, now_us: int) -> str:
                 "`primary.ci_level` yo'q, shuning uchun bu yerda \"95%\" "
                 "YOZILMAYDI (shartnoma §3.1, §2.8). CI chegaralari o'z "
                 "qiymati bilan beriladi, darajasi esa o'lchanmadi.")))
-    body.append("<h3>YACHEYKALAR (pressure darajasi bo'yicha)</h3>")
+    body.append("<h3>Yacheykalar (pressure darajasi bo'yicha)</h3>")
     if not isinstance(cells, list):
         body.append(f"<p>{missing_html()}</p>")
     else:
@@ -1424,14 +1755,14 @@ def panel_primary(analysis: Any, src: Source, now_us: int) -> str:
               value_html(c.get("ci_upper")), text_html(c.get("ci_method"))]
              for c in cells if isinstance(c, dict)],
             "yacheyka yo'q"))
-    return panel("BIRLAMCHI ENDPOINT", src, "".join(body), now_us)
+    return panel("Birlamchi endpoint", src, "".join(body), now_us)
 
 
 def panel_figures(derived: dict[str, Any] | None, src: Source,
                   now_us: int) -> str:
     """Figura + uning O'Z sidecar raqamlari (§3). SVG QAYTA CHIZILMAYDI (qoida 10)."""
     if derived is None or not derived.get("analysis_path"):
-        return panel("FIGURALAR", src, empty_notice(
+        return panel("Figuralar", src, empty_notice(
             "Figuralar va ularning raqam sidecar'lari",
             "`revix.figures` yozadigan `figures/<nom>.svg` + `figures/<nom>.json` "
             "(shartnoma §3)",
@@ -1468,13 +1799,13 @@ def panel_figures(derived: dict[str, Any] | None, src: Source,
             "figurani hosil qilgan AYNAN raqamlar, shunda figura ko'z bilan "
             "emas, raqam bilan tekshiriladi. GUI SVG ni qayta chizmaydi va "
             "sidecar'da bo'lmagan hech narsani ko'rsatmaydi.")))
-    return panel("FIGURALAR", src, "".join(body), now_us)
+    return panel("Figuralar", src, "".join(body), now_us)
 
 
 def panel_logs(run: dict[str, Any] | None, src: Source, now_us: int) -> str:
     """`guard.jsonl` xom satrlari -- ISHONCHSIZ MATN, escape qilinadi (qoida 5)."""
     if run is None:
-        return panel("GUARD OQIMI", src, empty_notice(
+        return panel("Guard oqimi (guard.jsonl)", src, empty_notice(
             "Guard log oqimi",
             "`revix.guard` yozadigan `guard.jsonl` (mustaqil jarayon)",
             "driver run'i (guard birinchi ishga tushadi, oxirida to'xtadi)",
@@ -1498,7 +1829,7 @@ def panel_logs(run: dict[str, Any] | None, src: Source, now_us: int) -> str:
     else:
         body.append('<pre class="raw">'
                     + "\n".join(esc(ln) for ln in lines) + "</pre>")
-    return panel("GUARD OQIMI", src, "".join(body), now_us)
+    return panel("Guard oqimi (guard.jsonl)", src, "".join(body), now_us)
 
 
 # ===========================================================================
@@ -1515,9 +1846,282 @@ class Context:
     now_real_us: int
 
 
+# ===========================================================================
+# BOSH SAHIFA -- oddiy til (jurnal 19 §1)
+# ===========================================================================
+#
+# Bosh sahifa 10 soniyada uchta savolga javob beradi: tizim yaxshimi? REVIX
+# nima? nima qilsam bo'ladi? QOIDALAR o'zgarmaydi: har son manbadan
+# (`cli.health_report()` / `cli.status_report()`), o'lchanmagan -> "—",
+# talqin -- har doim "taxminiy talqin" deb belgilangan.
+
+# Umumiy holat -> (klass, belgi, sarlavha shabloni). `{n}` = soni.
+HERO_TEXT: dict[str, tuple[str, str, str]] = {
+    "ok": ("ok", "✓", "Tizim yaxshi holatda"),
+    "warn": ("warn", "!", "Diqqat: {n} ta ogohlik bor"),
+    "fail": ("fail", "✗", "Muammo bor: {n} ta muammo topildi"),
+    "unknown": ("neutral", "?", "Tizim holatini o'qib bo'lmadi"),
+}
+
+HERO_OK_SUB = ("Bo'sh xotira, tajriba qoldiqlari, xotira qo'riqchisi va xotira "
+               "bosimi tekshirildi -- muammo yo'q.")
+HERO_LIST_MAX = 3
+
+REVIX_WHAT = (
+    "REVIX -- tadqiqot stendi: Linux'da ishdan chiqqan xizmat (dastur) xotira "
+    "yoki protsessor tanqisligi paytida qanchalik tez va to'g'ri qayta "
+    "tiklanishini o'lchaydi.",
+    "Bu ekran faqat O'QIYDI: hech narsani o'zgartirmaydi, tajriba boshlamaydi.",
+)
+
+
+def freshness_html(src: Source, now_real_us: int) -> str:
+    """Ixcham "qachon o'qildi" satri. `app.js` yoshini yangilaydi, eskirsa
+    `stale` qo'yadi; server ham `stale` ni o'zi qo'yadi (JS siz ham)."""
+    if src.read_real_us is None:
+        err = f" -- {esc(src.error)}" if src.error else ""
+        return (f'<span class="fresh" title="{esc(src.name)}">'
+                f"Ma'lumot o'qilmadi{err}</span>")
+    cls = "fresh stale" if src.is_stale(now_real_us) else "fresh"
+    return (f'<span class="{cls}" data-read-real-us="{int(src.read_real_us)}"'
+            f' data-stale-after-s="{STALE_AFTER_S:g}" title="manba: {esc(src.name)}">'
+            f"Ma'lumot o'qildi: <span class=\"read-at\">"
+            f"{esc(_iso(src.read_real_us)[-8:])}</span> "
+            f'<span class="age"></span></span>')
+
+
+def home_hero(live: dict[str, Any], src: Source, now_us: int,
+              more_link: bool = True, show_items: bool = True) -> str:
+    """Bitta katta holat jumlasi -- FAQAT `health_report()` dan.
+
+    Holat so'zi `health.status` dan (ok / warn / fail), son -- muammo yoki
+    ogohliklar ro'yxati uzunligidan. Boshqa hech narsa (masalan, stall
+    talqini) bu jumlaga TA'SIR QILMAYDI.
+    """
+    health = live.get("health") or {}
+    status = health.get("status")
+    problems = health.get("problems") if isinstance(health.get("problems"), list) else None
+    warnings = health.get("warnings") if isinstance(health.get("warnings"), list) else None
+    key = status if status in ("ok", "warn", "fail") else "unknown"
+    cls, icon, title = HERO_TEXT[key]
+    items: list[Any] = []
+    extra_warn = 0
+    if key == "fail":
+        # Sarlavha "N ta muammo" deydi -- ro'yxatda ham FAQAT muammolar;
+        # ogohliklar soni alohida qatorda (aralashtirilsa son mos kelmasdi).
+        items = list(problems or [])
+        extra_warn = len(warnings or [])
+        title = title.format(n=len(problems or []))
+    elif key == "warn":
+        items = list(warnings or [])
+        title = title.format(n=len(warnings or []))
+    sub: list[str] = []
+    if key == "ok":
+        sub.append(f'<p class="hero-sub">{esc(HERO_OK_SUB)}</p>')
+    elif key == "unknown":
+        why = src.error or "health hisoboti holat bermadi"
+        sub.append(f'<p class="hero-sub">Sabab: {esc(why)}</p>')
+    if items and show_items:
+        lis = "".join(f"<li>{health_item_html(x)}</li>"
+                      for x in items[:HERO_LIST_MAX])
+        more = ""
+        if len(items) > HERO_LIST_MAX:
+            more = (f'<li class="more">yana {len(items) - HERO_LIST_MAX} ta '
+                    f"-- Tizim holati sahifasida</li>")
+        if extra_warn:
+            more += (f'<li class="more">va {extra_warn} ta ogohlik -- Tizim '
+                     f"holati sahifasida</li>")
+        sub.append(f'<ul class="hero-items">{lis}{more}</ul>')
+    elif items:
+        sub.append('<p class="hero-sub">Tafsilot pastda.</p>')
+    return (
+        f'<section class="hero {cls}" data-status="{esc(key)}">'
+        f'<div class="hero-icon" aria-hidden="true">{icon}</div>'
+        f'<div class="hero-text"><p class="hero-title">{esc(title)}</p>'
+        f'{"".join(sub)}'
+        f'<p class="hero-meta">{freshness_html(src, now_us)} '
+        f'<span class="basis">manba: revix health</span></p></div>'
+        + ('<a class="hero-more" href="/system-health">Batafsil &rarr;</a>'
+           if more_link else "")
+        + "</section>")
+
+
+def _card(title: str, field_name: str, big: str, lines: list[str],
+          extra: str = "", foot: str = "") -> str:
+    """Bosh sahifa resurs kartasi. `big` va `lines` ALLAQACHON HTML."""
+    ls = "".join(f'<p class="line">{x}</p>' for x in lines)
+    f = f'<p class="foot">{foot}</p>' if foot else ""
+    return (f'<section class="rcard" data-card="{esc(field_name)}">'
+            f'<h2>{esc(title)}</h2>'
+            f'<div class="big" data-field="{esc(field_name)}">{big}</div>'
+            f"{extra}{ls}{f}</section>")
+
+
+def _stall_line(rate: Any, resource_word: str) -> str:
+    """Kutish darajasi jumlasi (taxminiy talqin) yoki "—" + sabab."""
+    lvl = stall_level(rate)
+    if lvl is None:
+        return (f"Kutish darajasi: {missing_html(REASON_SCOPE_NO_DATA)}")
+    word, meaning = STALL_WORDS[lvl]
+    return (f'Kutish: <strong class="interp" data-level="{lvl}">{esc(word)}</strong> '
+            f'<small>({esc(STALL_INTERP_LABEL)})</small><br>'
+            f'<span class="muted">{esc(meaning.format(r=resource_word))}</span>')
+
+
+def home_cpu(live: dict[str, Any]) -> str:
+    host = (live.get("status") or {}).get("host") or {}
+    rate = _host_psi(live, "cpu").get("some_rate")
+    count = host.get("cpu_count")
+    big = (value_html(count, unit="yadro") if count is not None
+           else missing_html(REASON_NOT_REPORTED))
+    foot = (f'PSI cpu some = {rate_html(rate)} &middot; band foizi (CPU %) '
+            f"o'lchanmaydi" if rate is not None else
+            "band foizi (CPU %) o'lchanmaydi")
+    return _card("Protsessor (CPU)", "cpu_count", big,
+                 [_stall_line(rate, "protsessor")], foot=foot)
+
+
+def home_memory(live: dict[str, Any]) -> str:
+    """RAM: band / jami + chiziq. Band = MemTotal - MemAvailable.
+
+    Bu GUI dagi YAGONA arifmetika (ayirish) va u ekranda asosi bilan
+    yoziladi (`band = jami − bo'sh`). NEGA ruxsat: bu analiz emas, bir
+    manbaning (`/proc/meminfo`) ikki maydoni orasidagi ko'rsatish farqi;
+    ikkala maydon ham yonida o'z qiymati bilan turadi (jurnal 19 §4).
+    """
+    health = live.get("health") or {}
+    mem = health.get("memory") or {}
+    total = mem.get("mem_total_kb")
+    avail = mem.get("mem_available_kb")
+    need = mem.get("required_kb")
+    ok_ints = all(isinstance(v, int) and not isinstance(v, bool)
+                  for v in (total, avail))
+    if ok_ints and total > 0 and 0 <= avail <= total:
+        used = total - avail
+        big = (f'<span class="val v-num">{esc(cli.human_kb(used))}</span>'
+               f' <span class="of">/ {esc(cli.human_kb(total))}</span>')
+        bar = (f'<progress class="bar" max="{int(total)}" value="{int(used)}"'
+               f' aria-label="band xotira">{esc(cli.human_kb(used))}</progress>')
+    else:
+        big = missing_html(REASON_NOT_REPORTED if total is None or avail is None
+                           else REASON_SOURCE_ERROR)
+        bar = ""
+    lines = [f"Bo'sh: {kb_html(avail)}"]
+    verdict = memory_verdict(health)
+    if need is not None:
+        v = f" &rarr; {verdict}" if verdict else ""
+        lines.append(f"Tajriba uchun kerak: {kb_html(need)}{v}")
+    return _card("Xotira (RAM)", "mem", big, lines, extra=bar,
+                 foot="band = jami &minus; bo'sh (MemTotal &minus; MemAvailable)")
+
+
+def memory_verdict(health: dict[str, Any]) -> str:
+    """"Yetadimi?" -- FAQAT `cli.health_report()` hukmidan (o'zimiz solishtirmaymiz)."""
+    problems = health.get("problems")
+    warnings = health.get("warnings")
+    if not isinstance(problems, list) or not isinstance(warnings, list):
+        return ""
+    if any(str(p).startswith("MemAvailable") for p in problems):
+        return '<span class="verdict fail">✗ yetmaydi</span>'
+    if any(str(w).startswith("xotira zaxirasi yupqa") for w in warnings):
+        return '<span class="verdict warn">! zo\'rg\'a yetadi</span>'
+    return '<span class="verdict ok">✓ yetadi</span>'
+
+
+def home_disk(live: dict[str, Any]) -> str:
+    rate = _host_psi(live, "io").get("some_rate")
+    return _card("Disk", "disk", nosource_html(),
+                 ["REVIX disk hajmini o'lchamaydi.",
+                  _stall_line(rate, "disk")],
+                 foot=(f"PSI io some = {rate_html(rate)}" if rate is not None
+                       else ""))
+
+
+def home_network(_live: dict[str, Any]) -> str:
+    return _card("Tarmoq", "network", nosource_html(),
+                 ["REVIX tarmoqni o'lchamaydi.",
+                  '<span class="muted">Bu tajriba tarmoqdan foydalanmaydi, '
+                  "shuning uchun tarmoq ko'rsatkichi yo'q -- bu xato emas.</span>"])
+
+
+def home_services(live: dict[str, Any]) -> str:
+    """Xizmatlar mini-ro'yxati: nuqta + nom + oddiy so'z."""
+    units = (live.get("status") or {}).get("units") or {}
+    rows = [u for u in (units.get("units") or []) if isinstance(u, dict)]
+    body: list[str] = []
+    if not units:
+        body.append(f'<p class="line">Xizmatlar ro\'yxati: {missing_html()}</p>')
+    elif not units.get("ok", False):
+        body.append('<p class="line"><span class="svc-state fail"><span class="dot"'
+                    ' aria-hidden="true">✗</span>ro\'yxatni o\'qib bo\'lmadi'
+                    f'</span> <span class="muted">{esc(units.get("error"))}</span></p>')
+    elif not rows:
+        body.append('<p class="line"><span class="svc-state neutral"><span class="dot"'
+                    ' aria-hidden="true">○</span>Hozir hech qanday REVIX '
+                    "xizmati ishlamayapti.</span></p>"
+                    '<p class="line muted">Tajriba o\'tkazilmayotganda bu NORMAL '
+                    "holat: xizmatlar faqat tajriba paytida paydo bo'ladi.</p>")
+    else:
+        lis = []
+        for u in rows[:6]:
+            cls, icon, word = unit_plain(u)
+            lis.append(f'<li><span class="svc-state {cls}"><span class="dot" '
+                       f'aria-hidden="true">{icon}</span>{esc(word)}</span>'
+                       f'<code class="svc-name">{esc(u.get("name"))}</code></li>')
+        if len(rows) > 6:
+            lis.append(f'<li class="more">yana {len(rows) - 6} ta</li>')
+        body.append(f'<ul class="svc-list">{"".join(lis)}</ul>')
+    body.append('<p class="line"><a href="/services">Barcha xizmatlar &rarr;</a></p>')
+    return (f'<section class="rcard wide" data-card="services"><h2>Xizmatlar</h2>'
+            f'{"".join(body)}</section>')
+
+
+def home_about() -> str:
+    ps = "".join(f"<p>{esc(p)}</p>" for p in REVIX_WHAT)
+    return f'<section class="about" data-card="about"><h2>REVIX nima?</h2>{ps}</section>'
+
+
+def home_todo() -> str:
+    n_checks = len(getattr(cli, "CHECKS", ()) or ())
+    checks = f"{n_checks} ta tekshiruv" if n_checks else "tekshiruvlar"
+    links = [
+        ("/services", "Xizmatlar ishlayaptimi?", "Xizmatlar"),
+        ("/system-health", f"Tizim tajribaga tayyormi? ({checks})", "Tizim holati"),
+        ("/help", "Atama tushunarsizmi?", "Yordam va lug'at"),
+    ]
+    lis = "".join(f'<li><span>{esc(q)}</span> <a href="{esc(h)}">{esc(t)} &rarr;</a></li>'
+                  for h, q, t in links)
+    return (f'<section class="todo" data-card="todo"><h2>Nima qilsam '
+            f'bo\'ladi?</h2><ul class="todo-list">{lis}</ul></section>')
+
+
+def home_side() -> str:
+    """"REVIX nima?" + "Nima qilsam bo'ladi?" -- bitta keng kartada.
+
+    NEGA birga: 1280x800 da birinchi ekran (holat + 4 karta + xizmatlar)
+    aylantirmasdan ko'rinishi SHART; ikki tor karta matnni 8+ qatorga
+    sindirib, pastki qatorni ekrandan chiqarib yuborardi (skrinshotda
+    ko'rildi, jurnal 19 §6).
+    """
+    return f'<div class="rcard wide duo">{home_about()}{home_todo()}</div>'
+
+
+def page_home(ctx: Context) -> str:
+    """Bosh sahifa -- oddiy foydalanuvchi uchun birinchi ekran."""
+    live, lsrc = ctx.gw.live()
+    now = ctx.now_real_us
+    return (
+        '<div class="home">'
+        + home_hero(live, lsrc, now)
+        + home_cpu(live) + home_memory(live) + home_disk(live) + home_network(live)
+        + home_services(live) + home_side()
+        + "</div>"
+    )
+
+
 def page_dashboard(ctx: Context) -> str:
     """Spetsifikatsiyaning yuqori darajadagi shakli: SYSTEM HEALTH / SERVICES /
-    RECOVERY ENGINE."""
+    RECOVERY ENGINE. Endi "Tadqiqotchi uchun" guruhida (`/overview`)."""
     live, lsrc = ctx.gw.live()
     run, rsrc = ctx.gw.run()
     now = ctx.now_real_us
@@ -1551,6 +2155,7 @@ def page_system_health(ctx: Context) -> str:
     doctor, dsrc = ctx.gw.doctor()
     now = ctx.now_real_us
     return ('<div class="grid grid-wide">'
+            + home_hero(live, lsrc, now, more_link=False, show_items=False)
             + panel_health_detail(live, lsrc, now)
             + panel_doctor(doctor, dsrc, now) + "</div>")
 
@@ -1570,7 +2175,7 @@ def page_failure_analysis(ctx: Context) -> str:
     now = ctx.now_real_us
     body = ['<div class="grid grid-wide">']
     if not isinstance(analysis, dict):
-        body.append(panel("FAILURE TAHLILI", dsrc, empty_notice(
+        body.append(panel("Failure tahlili", dsrc, empty_notice(
             "Failure tahlili",
             "`revix.analyze` ning `analysis.json` fayli (§2.2) va "
             "`revix.figures` ning sidecar'lari (§3)",
@@ -1578,7 +2183,7 @@ def page_failure_analysis(ctx: Context) -> str:
         ), now))
     else:
         dispositions = (analysis.get("n_trials") or {}).get("by_disposition")
-        body.append(panel("DISPOSITION TAQSIMOTI", dsrc, "".join([
+        body.append(panel("Disposition taqsimoti", dsrc, "".join([
             kv([("umumiy trial", value_html(
                 (analysis.get("n_trials") or {}).get("total")))]),
             table(["disposition", "soni"],
@@ -1593,7 +2198,7 @@ def page_failure_analysis(ctx: Context) -> str:
                        "`washout_timeout`, `harness_error`. Bu jimgina "
                        "eksklyuziyaning oldini oladi.")),
         ]), now))
-        body.append(panel("EKSKLYUZIYA", dsrc,
+        body.append(panel("Eksklyuziya", dsrc,
                           exclusion_rate_html(analysis.get("exclusions")), now))
     body.append(panel_figures(derived, dsrc, now))
     body.append("</div>")
@@ -1621,7 +2226,7 @@ def page_policies(ctx: Context) -> str:
                    "qabul qiladigan komponentni emas.")),
     ]
     return ('<div class="grid grid-wide">'
-            + panel("RECOVERY SIYOSATLARI (ARM KONFIGURATSIYALARI)", src,
+            + panel("Recovery siyosatlari (arm konfiguratsiyalari)", src,
                     "".join(body), ctx.now_real_us) + "</div>")
 
 
@@ -1661,7 +2266,7 @@ def page_security(ctx: Context) -> str:
                    "editorni yoki butun desktop sessiyani o'ldirishi mumkin. "
                    "Guard sinamasdan hech qanday pressure eksperimenti ishga "
                    "tushirilmaydi.")),
-        panel("GUARD CHEGARALARI", guard_src, kv([
+        panel("Guard chegaralari", guard_src, kv([
             ("host MemAvailable minimumi", kb_html(cli.GUARD_MEM_FLOOR_KB)),
             ("guard sustain max", value_html(cli.GUARD_SUSTAIN_MAX_S, unit="s")),
             ("guard sustain tezlik chegarasi", value_html(cli.GUARD_SUSTAIN_RATE)),
@@ -1670,8 +2275,8 @@ def page_security(ctx: Context) -> str:
         ]), now),
         panel_health_detail(live, lsrc, now),
         panel_doctor(doctor, dsrc, now, only_keys=SECURITY_CHECK_KEYS,
-                     title="XAVFSIZLIKKA TEGISHLI DOCTOR TEKSHIRUVLARI"),
-        panel("BU SAHIFA NIMA EMAS", Source(
+                     title="Xavfsizlikka tegishli tekshiruvlar (revix doctor)"),
+        panel("Bu sahifa nima emas", Source(
             kind="document", name="README.md \"Loyiha nima EMAS\""), notice(
             "honesty", "Bu cybersecurity vositasi emas",
             esc_paragraph(
@@ -1690,7 +2295,7 @@ def page_research_metrics(ctx: Context) -> str:
     now = ctx.now_real_us
     body = ['<div class="grid grid-wide">', panel_primary(analysis, dsrc, now)]
     if not isinstance(analysis, dict):
-        body.append(panel("FR-A / DOWNTIME / SURVIVAL", dsrc, empty_notice(
+        body.append(panel("FR-A / downtime / survival", dsrc, empty_notice(
             "FR-A, downtime kvantillari va survival natijalari",
             "`revix.analyze` ning `analysis.json` fayli (§2.2)",
             "`python3 -m revix.cli analyze --trials <...> --run-meta <...> "
@@ -1718,7 +2323,7 @@ def page_research_metrics(ctx: Context) -> str:
                 "raqami ko'rsatilMAYDI -- asossiz nisbat talqin qilinmaydi "
                 "(§2.9a). Qaysi denominator ishlatilgani ma'lum bo'lmaganda "
                 "son o'zi hech narsa aytmaydi.")))
-    body.append(panel("FALSE RECOVERY", dsrc, "".join(fr_body), now))
+    body.append(panel("False recovery (FR-A, FR-B)", dsrc, "".join(fr_body), now))
 
     dt = analysis.get("downtime")
     dt_rows: list[list[str]] = []
@@ -1756,12 +2361,12 @@ def page_research_metrics(ctx: Context) -> str:
                 "`time_unit` yo'q. Shartnoma §3.1: birlik TAXMIN "
                 "QILINMAYDI, shuning uchun bu raqamlar birliksiz "
                 "ko'rsatiladi va sekundga aylantirilMAYDI.")))
-    body.append(panel("DOWNTIME (§6.1 uchala o'lchov)", dsrc, "".join(dt_body), now))
-    body.append(panel("EKSKLYUZIYA", dsrc,
+    body.append(panel("Downtime (§6.1 uchala o'lchov)", dsrc, "".join(dt_body), now))
+    body.append(panel("Eksklyuziya", dsrc,
                       exclusion_rate_html(analysis.get("exclusions")), now))
 
     warnings = analysis.get("warnings")
-    w_body = ["<h3>ANALIZ OGOHLIKLARI</h3>"]
+    w_body = ["<h3>Analiz ogohliklari</h3>"]
     if not isinstance(warnings, list):
         w_body.append(f"<p>{missing_html()}</p>")
     elif not warnings:
@@ -1776,7 +2381,7 @@ def page_research_metrics(ctx: Context) -> str:
             "`figures.py` qoida 6 va shartnoma §2.3: hisoblab bo'lmagan "
             "narsa `warnings` ga yoziladi va jim tushirib qoldirilmaydi. "
             "GUI ularni xom holda ko'rsatadi.")))
-    body.append(panel("OGOHLIKLAR VA PROVENANS", dsrc, "".join(w_body) + kv([
+    body.append(panel("Ogohliklar va provenans", dsrc, "".join(w_body) + kv([
         ("schema_version", value_html(analysis.get("schema_version"))),
         ("analysis_version", text_html(analysis.get("analysis_version"))),
         ("preregistration_sha256", text_html(analysis.get("preregistration_sha256"))),
@@ -1839,7 +2444,7 @@ def page_settings(ctx: Context) -> str:
                    "server ishga tushmaydi.")),
     ]
     return ('<div class="grid grid-wide">'
-            + panel("SOZLAMALAR (FAQAT KO'RISH)", src, "".join(body),
+            + panel("Sozlamalar (faqat ko'rish)", src, "".join(body),
                     ctx.now_real_us) + "</div>")
 
 
@@ -1848,7 +2453,7 @@ def page_about(ctx: Context) -> str:
     now = ctx.now_real_us
     v = version or {}
     body = [
-        panel("VERSIYA VA PROVENANS", vsrc, kv([
+        panel("Versiya va provenans", vsrc, kv([
             ("REVIX versiyasi", text_html(v.get("version"))),
             ("record schema", value_html(v.get("record_schema_version"))),
             ("report schema", value_html(v.get("report_schema_version"))),
@@ -1859,7 +2464,7 @@ def page_about(ctx: Context) -> str:
             ("python", text_html(v.get("python"))),
             ("repo ildizi", text_html(v.get("repo_root"))),
         ]), now),
-        panel("REVIX NIMA", Source("document", "README.md \"Loyiha nima\""),
+        panel("REVIX nima", Source("document", "README.md \"Loyiha nima\""),
               notice("honesty", "O'lchov artifact'i",
                      esc_paragraph(
                          "REVIX -- Linux'da xizmat recovery'ining tizim "
@@ -1868,7 +2473,7 @@ def page_about(ctx: Context) -> str:
                          "oracle-free false-recovery metrikasi, reproducible "
                          "recovery benchmark va falsifikatsiya qilinadigan "
                          "gipoteza.")), now),
-        panel("REVIX NIMA EMAS", Source("document", "README.md \"Loyiha nima EMAS\""),
+        panel("REVIX nima emas", Source("document", "README.md \"Loyiha nima EMAS\""),
               "".join([
                   notice("honesty", "Adaptiv recovery IXTIRO QILINMAYDI",
                          esc_paragraph(
@@ -1884,7 +2489,7 @@ def page_about(ctx: Context) -> str:
                              "cybersecurity toolkit EMAS va Kali Linux "
                              "moslashtirmasi EMAS.")),
               ]), now),
-        panel("HOZIRGI HOLAT", Source("document", "README.md \"Holat\" + CONTRIBUTING.md"),
+        panel("Hozirgi holat", Source("document", "README.md \"Holat\" + CONTRIBUTING.md"),
               notice("critical", "Hech qanday natija hali yo'q",
                      esc_paragraph(
                          "Hech qanday eksperiment hali ishga tushirilmadi va "
@@ -1892,7 +2497,7 @@ def page_about(ctx: Context) -> str:
                          "dashboard'ning natija sahifalari bo'sh -- bu "
                          "nuqson emas, joriy holat, va u natija paydo "
                          "bo'lmaguncha shunday qoladi.")), now),
-        panel("BU DASHBOARD QANDAY ISHLAYDI", Source("document", "revix/gui.py docstring"),
+        panel("Bu dashboard qanday ishlaydi", Source("document", "revix/gui.py docstring"),
               "".join([
                   notice("honesty", "Ekranda manbadan o'qilmagan son bo'lmaydi",
                          esc_paragraph(
@@ -1913,6 +2518,167 @@ def page_about(ctx: Context) -> str:
     return '<div class="grid grid-wide">' + "".join(body) + "</div>"
 
 
+# Lug'at: atama -> bir jumlali oddiy ta'rif (Yordam sahifasi). Ta'riflar
+# loyiha hujjatlaridagi ma'noga mos (PREREGISTRATION.md, README.md).
+GLOSSARY: tuple[tuple[str, str], ...] = (
+    ("Xizmat (service, unit)",
+     "Fonda ishlaydigan dastur; uni systemd ishga tushiradi, kuzatadi va "
+     "kerak bo'lsa qayta ishga tushiradi."),
+    ("systemd",
+     "Linux'da xizmatlarni boshqaradigan tizim dasturi; REVIX uning qayta "
+     "tiklash xatti-harakatini o'lchaydi."),
+    ("Recovery (tiklanish)",
+     "Ishdan chiqqan xizmatning qayta ishga tushib, yana to'g'ri javob "
+     "bera boshlashi."),
+    ("Failure (nosozlik)",
+     "Xizmatning ishdan chiqishi; tajribada u ataylab, nazorat ostida "
+     "qo'zg'atiladi."),
+    ("Pressure (bosim)",
+     "Resurs (xotira, protsessor, disk) tanqisligi: dasturlar uni kutib "
+     "qolishga majbur bo'ladi."),
+    ("PSI / stall (kutish)",
+     "Linux'ning bosim o'lchagichi: dasturlar resursni kutib to'xtab turgan "
+     "vaqt ulushi (0 = hech kim kutmadi, 1 = butun vaqt)."),
+    ("some / full",
+     "PSI ning ikki turi: \"some\" -- kamida bitta dastur kutdi, \"full\" -- "
+     "hamma dasturlar bir vaqtda kutdi."),
+    ("cgroup",
+     "Jarayonlar guruhi; Linux unga xotira yoki protsessor chegarasi qo'yadi "
+     "va uning sarfini alohida hisoblaydi."),
+    ("Slice",
+     "systemd'dagi cgroup turi; REVIX tajriba dasturlarini alohida slice "
+     "ichida ishlatadi (revixlab.slice, revixmon.slice)."),
+    ("SUT",
+     "System Under Test -- tajribada ataylab ishdan chiqariladigan va "
+     "tiklanishi o'lchanadigan sinov xizmati."),
+    ("Guard (qo'riqchi)",
+     "REVIX ning alohida xavfsizlik jarayoni: bosim haddan oshsa tajribani "
+     "to'xtatadi, kompyuterni qotib qolishdan saqlaydi."),
+    ("systemd-oomd",
+     "Tizimning xotira qo'riqchisi: xotira bosimi uzoq davom etsa dasturlarni "
+     "o'zi o'chirib yuborishi mumkin."),
+    ("Disposition",
+     "Har bir sinov (trial) qanday tugaganining yagona yorlig'i, masalan "
+     "complete, censored, contaminated."),
+    ("Censored (kesilgan)",
+     "Kuzatuv muddati tugaguncha xizmat tiklanmagan sinov; tiklanish vaqti "
+     "noma'lum, faqat \"muddatdan uzun\" ekani ma'lum."),
+    ("Horizon (kuzatuv muddati)",
+     "Bir sinovda tiklanish kutiladigan eng uzoq vaqt."),
+    ("Median, p90, p99",
+     "Taqsimot nuqtalari: p99 -- sinovlarning 99 foizi shu qiymatdan tez "
+     "bo'lgan vaqt (eng yomon holatlarga yaqin)."),
+    ("CI (ishonch oralig'i)",
+     "Haqiqiy qiymat qaysi oraliqda bo'lishi ehtimoli yuqori ekanini "
+     "ko'rsatadigan diapazon."),
+    ("Arm (A, B, no_action, C)",
+     "Taqqoslanadigan tiklash sozlamalari; A va B -- oddiy systemd "
+     "sozlamalari, C esa hali muzlatilmagan va mavjud emas."),
+    ("FR-A (false recovery)",
+     "\"Soxta tiklanish\": xizmat qayta ishga tushgan ko'rinadi, lekin "
+     "aslida to'g'ri ishlamaydi -- shuning ulushi."),
+    ("MemAvailable / MemTotal",
+     "Linux /proc/meminfo maydonlari: dasturlar ishlata oladigan bo'sh xotira "
+     "/ jami xotira."),
+    ("Swap",
+     "Diskdagi zaxira xotira; RAM to'lganda ishlatiladi, lekin juda sekin."),
+    ("GiB / MiB",
+     "Xotira birligi: 1 GiB = 1024 MiB, taxminan 1.07 GB."),
+    ("Synthetic (sintetik)",
+     "Qo'lda yasalgan namunaviy ma'lumot; haqiqiy o'lchov EMAS va natija "
+     "sifatida ishlatilmaydi."),
+)
+
+
+def page_help(ctx: Context) -> str:
+    """Yordam / Qo'llanma: ekranni o'qish, lug'at, live image eslatmalari."""
+    src = Source(kind="document", name="revix/gui.py (Yordam matni)",
+                 note="hujjat; o'lchov emas")
+    now = ctx.now_real_us
+    legend = table(["ko'rinish", "ma'nosi"], [
+        [status_badge("ok") + " " + status_badge("pass"),
+         esc("Yaxshi: tekshiruv o'tdi yoki xizmat ishlayapti.")],
+        [status_badge("warn"),
+         esc("Diqqat: ishlayapti, lekin e'tibor bering (sabab yonida yozilgan).")],
+        [status_badge("fail"),
+         esc("Xato: muammo bor, tajriba o'tkazib bo'lmaydi yoki xizmat to'xtagan.")],
+        [missing_html(REASON_NOT_REPORTED),
+         esc("O'lchanmadi: qiymat yo'q. Sichqonchani ustiga olib boring -- "
+             "sabab bir jumlada chiqadi. Bu HECH QACHON nol degani emas.")],
+        [nosource_html(),
+         esc("REVIX bu narsani umuman o'lchamaydi (masalan, disk hajmi, tarmoq).")],
+        [value_html(0),
+         esc("Haqiqiy nol: o'lchandi va natija aynan 0.")],
+        [norun_html(),
+         esc("Hali ishga tushirilmadi: bu ma'lumot tajriba o'tkazilgandan "
+             "keyin paydo bo'ladi.")],
+        ['<span class="interp" data-level="mid">o\'rta <small>(taxminiy talqin)'
+         "</small></span>",
+         esc("Ekran sonni so'z bilan izohlagan. Bu O'LCHOV emas, faqat yo'l-yo'riq; "
+             "chegaralar pastda.")],
+    ])
+    how = "".join(f"<li>{esc_paragraph(x)}</li>" for x in (
+        "Avval Bosh sahifadagi katta jumlaga qarang: u butun tizim holatini "
+        "bir so'z bilan aytadi (belgi + rang + so'z).",
+        "Har kartada katta son -- asosiy javob, pastdagi kichik matn -- "
+        "uning ma'nosi va manbasi.",
+        "Ma'lumot avtomatik YANGILANMAYDI: yangilash uchun yuqoridagi "
+        "\"Yangilash\" tugmasini yoki F5 ni bosing. Har panelda o'qilgan vaqt "
+        f"turadi; {STALE_AFTER_S:g} soniyadan eski bo'lsa u qizil va tagiga "
+        "chizilgan bo'ladi.",
+        "Yorliq yonidagi kichik kulrang matn (masalan `MemTotal`) -- manbadagi "
+        "aniq maydon nomi, mutaxassislar uchun.",
+        "\"Tadqiqotchi uchun\" menyusidagi sahifalar -- tajriba natijalari va "
+        "texnik tafsilotlar. Tajriba o'tkazilmagan bo'lsa ular bo'sh -- bu "
+        "nuqson emas.",
+    ))
+    interp = table(["kutish ulushi (PSI some)", "ekrandagi so'z"], [
+        [esc(f"< {STALL_LEVEL_MID:g}"), esc(STALL_WORDS["low"][0])],
+        [esc(f"{STALL_LEVEL_MID:g} ... < {STALL_LEVEL_HIGH:g}"), esc(STALL_WORDS["mid"][0])],
+        [esc(f">= {STALL_LEVEL_HIGH:g}"), esc(STALL_WORDS["high"][0])],
+    ])
+    gl = "".join(f"<dt>{esc(t)}</dt><dd>{esc(d)}</dd>" for t, d in GLOSSARY)
+    reasons = table(["sabab kodi", "oddiy tilda"],
+                    [[f"<code>{esc(k)}</code>", esc(REASON_PLAIN[k])]
+                     for k in sorted(MISSING_REASONS)])
+    live_notes = "".join(f"<li>{esc_paragraph(x)}</li>" for x in (
+        "Foydalanuvchi: `revix`. Parol YO'Q -- tizim avtomatik kiradi.",
+        "`sudo` parol so'ramaydi (NOPASSWD). Shuning uchun bu image ishonchsiz "
+        "tarmoqqa ulanmasligi kerak.",
+        "Matnli konsol: Ctrl+Alt+F2 (login: `revix`, parolsiz). Ekranga qaytish: "
+        "Ctrl+Alt+F1.",
+        "Bu grafik ekran FAQAT KO'RISH uchun: u hech narsani o'zgartirmaydi va "
+        "tajriba boshlamaydi. Buyruqlar terminalda beriladi "
+        "(`python3 -m revix.cli doctor`).",
+        "Virtual mashina (VirtualBox) ichidagi vaqt o'lchovlari tadqiqot "
+        "natijasi sifatida YAROQSIZ: virtualizatsiya qo'shimcha kechikish "
+        "beradi. VM -- faqat tekshirish va tanishish uchun.",
+        "Grafik rejim ~0.4 GiB xotira oladi; 4 GiB li VM da \"Bo'sh xotira "
+        "yetmaydi\" xatosi kutilgan holat. Grafik rejim uchun 6 GiB tavsiya "
+        "etiladi.",
+    ))
+    body = [
+        panel("Bu ekranni qanday o'qish kerak", src,
+              f'<ol class="steps">{how}</ol>' + legend, now),
+        panel("Atamalar lug'ati", src, f'<dl class="glossary">{gl}</dl>', now),
+        panel("Live image va virtual mashina", src,
+              f'<ul class="steps">{live_notes}</ul>', now),
+        panel("Taxminiy talqin chegaralari", src, "".join([
+            f'<p class="lead">{esc_paragraph(PSI_PLAIN)}</p>',
+            interp,
+            notice("honesty", "Bu chegaralar o'lchov emas",
+                   esc_paragraph(
+                       "Chegaralar faqat ekrandagi so'z uchun tanlangan "
+                       "(jurnal `docs/architecture/19-gui-soddalashtirish.md`). "
+                       "Ular `PREREGISTRATION.md` da yo'q va hech qaysi qaror, "
+                       "guard yoki analiz ularni ishlatmaydi. Shubhali holatda "
+                       "so'z yuqoriroq darajani beradi."), collapsed=False),
+        ]), now),
+        panel("\"O'lchanmadi\" sabablari (mutaxassislar uchun)", src, reasons, now),
+    ]
+    return '<div class="grid grid-wide">' + "".join(body) + "</div>"
+
+
 @dataclass
 class PageDef:
     """Bitta sahifa: slug, sarlavha, renderer va KERAKLI manbalar.
@@ -1928,43 +2694,101 @@ class PageDef:
     render: Callable[[Context], str]
     needs: tuple[str, ...]
     intro: str
+    # "main" -- oddiy foydalanuvchi menyusi; "research" -- "Tadqiqotchi
+    # uchun" guruhi (jurnal 19 §2). Guruh faqat MENYU joyini va o'lchanmagan
+    # qiymat tafsilotining ko'rinishini belgilaydi; ma'lumotga ta'sir yo'q.
+    group: str = "main"
+    audience: str = ""
+    tech: str = ""
 
+
+GROUP_MAIN = "main"
+GROUP_RESEARCH = "research"
+RESEARCH_GROUP_TITLE = "Tadqiqotchi uchun"
 
 PAGES: tuple[PageDef, ...] = (
-    PageDef("", "Boshqaruv paneli", page_dashboard, ("live",),
-            "Tizim sog'lig'i, `revix*` xizmatlari va systemd'ning recovery "
-            "harakati -- hammasi tirik manbadan."),
+    # --- oddiy foydalanuvchi uchun --------------------------------------
+    PageDef("", "Bosh sahifa", page_home, ("live",),
+            "Tizim holati bir qarashda: umumiy xulosa, protsessor, xotira, "
+            "disk, tarmoq va REVIX xizmatlari.",
+            audience="Hamma uchun.",
+            tech="`cli.health_report()` + `cli.status_report()` -- tirik manba."),
     PageDef("services", "Xizmatlar", page_services, ("live",),
-            "`systemctl --user list-units revix*` va lab/mon slice'larining "
-            "cgroup holati."),
+            "REVIX xizmatlari ishlayaptimi yoki to'xtaganmi, va tajriba "
+            "uchun ajratilgan xotira guruhlari (slice) holati.",
+            audience="Hamma uchun.",
+            tech="`systemctl --user list-units revix*` va lab/mon "
+                 "slice'larining cgroup holati."),
+    PageDef("system-health", "Tizim holati", page_system_health, ("live",),
+            "Kompyuter tajriba o'tkazishga tayyormi? Yuqorida muammo va "
+            "ogohliklar oddiy tilda, pastda har bir avtomatik tekshiruv: "
+            "hozirgi qiymat, talab va buzilsa nima bo'lishi.",
+            audience="Hamma uchun; jadval tafsilotlari -- mutaxassis uchun.",
+            tech="`revix health` tafsiloti va 18 `revix doctor` tekshiruvi. "
+                 "Doctor bitta vaqtinchalik cgroup yaratib o'chiradi "
+                 "(`cli.py` qoida 4)."),
+    PageDef("resources", "Resurslar", page_resources, ("live",),
+            "Protsessor, xotira va disk qanchalik band, dasturlar ularni "
+            "qancha kutib qolyapti (bosim, PSI).",
+            audience="Hamma uchun; PSI jadvali -- mutaxassis uchun.",
+            tech="PSI stall tezliklari (`total=` delta'sidan, §7), xotira "
+                 "zaxirasi va slice snapshot'lari."),
+    PageDef("help", "Yordam", page_help, ("document",),
+            "Bu ekranni qanday o'qish, belgilar ma'nosi, atamalar lug'ati va "
+            "live image (virtual mashina) bo'yicha eslatmalar.",
+            audience="Hamma uchun, ayniqsa birinchi marta ko'rayotganlar."),
+    # --- tadqiqotchi uchun ----------------------------------------------
+    PageDef("overview", "Texnik umumiy ko'rinish", page_dashboard, ("live",),
+            "Eski \"Boshqaruv paneli\": tizim holati, xizmatlar va systemd "
+            "recovery harakati bitta zich sahifada.",
+            group=GROUP_RESEARCH, audience="Tadqiqotchi uchun.",
+            tech="Tizim sog'lig'i, `revix*` xizmatlari va systemd'ning recovery "
+                 "harakati -- hammasi tirik manbadan."),
     PageDef("recovery-events", "Recovery hodisalari", page_recovery_events,
             ("run",),
-            "Run katalogining `events.jsonl` oqimi (shartnoma §1.2)."),
-    PageDef("system-health", "Tizim sog'lig'i", page_system_health, ("live",),
-            "`revix health` tafsiloti va 18 `revix doctor` tekshiruvi -- "
-            "har biri kuzatilgan, kerakli va buzilsa nima bo'lishi bilan."),
-    PageDef("resources", "Resurs monitori", page_resources, ("live",),
-            "PSI stall tezliklari (`total=` delta'sidan, §7), xotira zaxirasi "
-            "va slice snapshot'lari."),
+            "Tajriba paytida yozilgan hodisalar ketma-ketligi: xizmat qachon "
+            "ishdan chiqdi, systemd nima qildi, sinov qanday tugadi.",
+            group=GROUP_RESEARCH, audience="Tadqiqotchi uchun.",
+            tech="Run katalogining `events.jsonl` oqimi (shartnoma §1.2)."),
     PageDef("failure-analysis", "Failure tahlili", page_failure_analysis,
             ("derived",),
-            "Disposition taqsimoti, eksklyuziya darajalari va figuralar -- "
-            "`analysis.json` va sidecar'lardan."),
+            "Sinovlar qanday tugagani (disposition), qaysilari tahlildan "
+            "chiqarilgani va natija grafiklari.",
+            group=GROUP_RESEARCH, audience="Tadqiqotchi uchun.",
+            tech="Disposition taqsimoti, eksklyuziya darajalari va figuralar -- "
+                 "`analysis.json` va sidecar'lardan."),
     PageDef("policies", "Recovery siyosatlari", page_policies, ("document",),
-            "Mavjud arm konfiguratsiyalari. Policy engine YO'Q."),
+            "Taqqoslanadigan tiklash sozlamalari (arm'lar). Bu oddiy systemd "
+            "sozlamalari; REVIX o'zi qaror qabul qilmaydi.",
+            group=GROUP_RESEARCH, audience="Tadqiqotchi uchun.",
+            tech="Mavjud arm konfiguratsiyalari. Policy engine YO'Q."),
     PageDef("security", "Xavfsizlik", page_security, ("live",),
-            "Pressure eksperimentining haqiqiy xavfi va guard chegaralari. "
-            "Bu cybersecurity vositasi emas."),
+            "Bosim tajribasi kompyuterni qotirib qo'yishi mumkinmi va REVIX "
+            "guard qanday chegaralar bilan himoya qiladi.",
+            group=GROUP_RESEARCH, audience="Tajriba o'tkazuvchi uchun.",
+            tech="Pressure eksperimentining haqiqiy xavfi va guard chegaralari. "
+                 "Bu cybersecurity vositasi emas."),
     PageDef("research-metrics", "Tadqiqot metrikalari", page_research_metrics,
             ("derived",),
-            "Birlamchi endpoint, FR-A, downtime va eksklyuziya -- "
-            "`analysis.json` dan o'qib, hisoblamasdan."),
+            "Tajribaning asosiy natijalari: tiklanish ehtimoli, tiklanish "
+            "vaqti (median, p90, p99) va soxta tiklanish ulushi.",
+            group=GROUP_RESEARCH, audience="Tadqiqotchi uchun.",
+            tech="Birlamchi endpoint, FR-A, downtime va eksklyuziya -- "
+                 "`analysis.json` dan o'qib, hisoblamasdan."),
     PageDef("logs", "Log'lar", page_logs, ("run",),
-            "Guard oqimining xom satrlari va run metadata'si."),
+            "Guard jarayonining xom yozuvlari va tajriba metadata'si "
+            "(qaysi kod, qaysi kompyuterda).",
+            group=GROUP_RESEARCH, audience="Tadqiqotchi uchun.",
+            tech="Guard oqimining xom satrlari va run metadata'si."),
     PageDef("settings", "Sozlamalar", page_settings, ("config",),
-            "Joriy konfiguratsiyaning ko'rinishi. Faqat o'qish."),
+            "Bu ekran qanday sozlama bilan ishlayapti. Faqat ko'rish -- bu "
+            "yerda hech narsa o'zgartirilmaydi.",
+            group=GROUP_RESEARCH, audience="Administrator uchun.",
+            tech="Joriy konfiguratsiyaning ko'rinishi. Faqat o'qish."),
     PageDef("about", "Loyiha haqida", page_about, ("document",),
-            "Versiya, provenans va REVIX nima EMAS."),
+            "REVIX versiyasi, u nima va nima EMAS.",
+            group=GROUP_RESEARCH, audience="Hamma uchun.",
+            tech="Versiya, provenans va REVIX nima EMAS."),
 )
 
 PAGE_BY_SLUG: dict[str, PageDef] = {p.slug: p for p in PAGES}
@@ -1993,29 +2817,78 @@ def available_needs(gw: Gateway) -> set[str]:
 # ===========================================================================
 
 
+def _nav_link(p: PageDef, current: str, have: set[str]) -> str:
+    href = "/" if p.slug == "" else f"/{p.slug}"
+    available = bool(set(p.needs) & have)
+    # `class="empty-page"` AYNAN shu shaklda (test va CSS unga tayanadi).
+    cls = "" if available else ' class="empty-page"'
+    cur = ' aria-current="page"' if p.slug == current else ""
+    title = "" if available else f' title="{esc(TEXT_NOT_YET_RUN)}"'
+    note = ("" if available else
+            '<span class="nav-note">hali bo\'sh: tajriba natijasi yo\'q</span>')
+    return f'<a href="{esc(href)}"{cls}{cur}{title}>{esc(p.title)}{note}</a>'
+
+
 def nav_html(current: str, have: set[str]) -> str:
-    links: list[str] = []
-    for p in PAGES:
-        href = "/" if p.slug == "" else f"/{p.slug}"
-        cls = "" if set(p.needs) & have else ' class="empty-page"'
-        cur = ' aria-current="page"' if p.slug == current else ""
-        title = ("" if set(p.needs) & have
-                 else f' title="{esc(TEXT_NOT_YET_RUN)}"')
-        links.append(f'<a href="{esc(href)}"{cls}{cur}{title}>{esc(p.title)}</a>')
-    return f'<nav class="nav">{"".join(links)}</nav>'
+    """Guruhlangan menyu: oddiy sahifalar + yig'iladigan "Tadqiqotchi uchun".
+
+    Tadqiqotchi guruhi default YOPIQ; joriy sahifa shu guruhda bo'lsa --
+    ochiq. Holat `app.js` da eslab qolinadi (`data-key`). Hech bir sahifa
+    o'chirilmagan -- hammasi menyuda (jurnal 19 §2).
+    """
+    main = [_nav_link(p, current, have) for p in PAGES if p.group == GROUP_MAIN]
+    research = [_nav_link(p, current, have) for p in PAGES
+                if p.group == GROUP_RESEARCH]
+    in_research = any(p.slug == current for p in PAGES if p.group == GROUP_RESEARCH)
+    opened = " open" if in_research else ""
+    forced = ' data-force-open="1"' if in_research else ""
+    return (f'<nav class="nav" aria-label="Menyu">'
+            f'<div class="nav-main">{"".join(main)}</div>'
+            f'<details class="nav-group" data-key="nav-research" data-scope="global"'
+            f"{forced}{opened}>"
+            f"<summary>{esc(RESEARCH_GROUP_TITLE)}</summary>"
+            f'<div class="nav-sub">{"".join(research)}</div></details></nav>')
+
+
+def intro_html(page: PageDef) -> str:
+    """"Bu sahifa nima ko'rsatadi" / "Kim uchun" -- har sahifa boshida."""
+    if page.slug == "":
+        return ""          # bosh sahifa o'zini o'zi tushuntiradi (hero)
+    parts = [f"<p><strong>Bu sahifa nima ko'rsatadi:</strong> "
+             f"{esc_paragraph(page.intro)}</p>"]
+    if page.audience:
+        parts.append(f"<p><strong>Kim uchun:</strong> {esc(page.audience)}</p>")
+    if page.tech:
+        parts.append(f'<details class="tech" data-key="tech-intro"><summary>'
+                     f"Texnik tafsilot</summary><p>{esc_paragraph(page.tech)}</p>"
+                     f"</details>")
+    return f'<div class="page-intro">{"".join(parts)}</div>\n'
 
 
 def layout(page: PageDef, body: str, ctx: Context, have: set[str],
            synthetic: bool) -> str:
-    """To'liq HTML sahifa. CSP `self` -- CDN mumkin EMAS, offline ishlaydi."""
+    """To'liq HTML sahifa. CSP `self` -- CDN mumkin EMAS, offline ishlaydi.
+
+    TUZILISH (jurnal 19 §5): chapda menyu (tor ekranda -- tepada), o'ngda
+    sarlavha qatori (sahifa nomi, "Yangilash", soat) va sahifa tanasi.
+    `body` klassi sahifa guruhini beradi (`grp-main` / `grp-research`):
+    tadqiqotchi sahifalarida o'lchanmagan qiymat tafsiloti
+    (`o'lchanmadi n/m reason=...`) matn bo'lib ko'rinadi.
+    """
     banner = ""
     if synthetic:
         banner = (f'<div class="synthetic-banner"><strong>'
                   f'{esc(SYNTHETIC_INLINE_TEXT)}</strong> &mdash; '
                   f'{esc(SYNTHETIC_BANNER_TEXT)}</div>')
+    grp = "grp-research" if page.group == GROUP_RESEARCH else "grp-main"
+    # Server "hozir"i -- sahifa CHIQARILGAN payt, so'rov boshlangan payt
+    # emas. NEGA: tirik o'qish (PSI) so'rov ichida >= 2 s uxlaydi, demak
+    # o'qish vaqti so'rov boshidan KEYIN; eski qiymat bilan yosh manfiy
+    # chiqib, `app.js` uni "?" deb ko'rsatardi (skrinshotda ko'rildi).
+    emitted_us = max(int(ctx.now_real_us), int(cli.real_us()))
     return (
         "<!doctype html>\n"
-        f'<html lang="uz" data-server-now-real-us="{int(ctx.now_real_us)}">\n'
+        f'<html lang="uz" data-server-now-real-us="{emitted_us}">\n'
         "<head>\n"
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
@@ -2024,26 +2897,35 @@ def layout(page: PageDef, body: str, ctx: Context, have: set[str],
         "style-src 'self'; script-src 'self'\">\n"
         f"<title>REVIX &mdash; {esc(page.title)}</title>\n"
         '<link rel="stylesheet" href="/assets/style.css">\n'
-        "</head>\n<body>\n"
+        f'</head>\n<body class="{grp}">\n'
+        '<div class="shell">\n'
+        '<aside class="side">'
+        '<a class="brand" href="/">REVIX</a>'
+        '<span class="brand-sub">xizmatlar tiklanishini o\'lchash stendi</span>'
+        + nav_html(page.slug, have)
+        + '<p class="side-foot">Faqat ko\'rish rejimi: bu ekran tizimda hech '
+        "narsani o'zgartirmaydi.</p>"
+        "</aside>\n"
+        '<div class="content">\n'
         '<header class="topbar">'
-        '<span class="brand">REVIX</span>'
-        '<span class="brand-sub">recovery o\'lchov harness\'i &mdash; '
-        "faqat o'qish, faqat localhost</span>"
+        f"<h1>{esc(page.title)}</h1>"
         '<span class="spacer"></span>'
+        '<a class="refresh" href="" title="Sahifani qayta o\'qish (F5)">'
+        "&#x21bb; Yangilash</a>"
         '<span class="clock" id="local-clock"></span>'
         "</header>\n"
-        + nav_html(page.slug, have)
-        + "\n<main>\n"
-        + f"<h1>{esc(page.title)}</h1>\n"
-        + f'<p class="page-intro">{esc_paragraph(page.intro)}</p>\n'
+        "<main>\n"
         + banner
+        + intro_html(page)
         + body
         + "\n</main>\n"
         '<footer class="foot">'
-        "Hech qanday eksperiment hali ishga tushirilmadi va hech qanday "
-        "natija hali yo'q. Ekrandagi har bir son manbadan o'qilgan; "
-        "o'qilmagan qiymat so'z bilan aytiladi."
+        "Ekrandagi har bir son manbadan o'qilgan. O'lchanmagan qiymat "
+        f"“{DASH}” bilan ko'rsatiladi va hech qachon 0 deb "
+        "yozilmaydi; sababini ko'rish uchun sichqonchani ustiga olib boring. "
+        "Atamalar: Yordam sahifasi."
         "</footer>\n"
+        "</div>\n</div>\n"
         '<script src="/assets/app.js"></script>\n'
         "</body>\n</html>\n"
     )
@@ -2064,15 +2946,15 @@ def render_page(slug: str, ctx: Context) -> str:
 
 def render_not_found(path: str, ctx: Context) -> str:
     """404 -- bu ham halol sahifa: nima yo'qligini va nima borligini aytadi."""
-    page = PageDef("", "Sahifa topilmadi", lambda _c: "", ("config",),
+    page = PageDef("404", "Sahifa topilmadi", lambda _c: "", ("config",),
                    "So'ralgan yo'l bu serverda yo'q.")
-    body = panel("TOPILMADI", Source("config", "revix.gui router"), "".join([
+    body = panel("Topilmadi", Source("config", "revix.gui router"), "".join([
         kv([("so'ralgan yo'l", text_html(path))]),
         notice("empty", "Bu yo'l mavjud emas",
                esc_paragraph(
-                   "Bu REVIX dashboard'i o'n ikki sahifa beradi. Ro'yxat "
-                   "yuqoridagi navigatsiyada; punktir belgili sahifalarning "
-                   "ma'lumot manbasi bugun yo'q.")),
+                   f"Bu REVIX dashboard'i {len(PAGES)} ta sahifa beradi. "
+                   "Ro'yxat chapdagi menyuda; \"hali bo'sh\" belgili "
+                   "sahifalarning ma'lumot manbasi bugun yo'q.")),
     ]), ctx.now_real_us)
     return layout(page, body, ctx, available_needs(ctx.gw), ctx.opts.mark_synthetic)
 
@@ -2180,9 +3062,9 @@ class GuiHandler(http.server.BaseHTTPRequestHandler):
 
     def _error_page(self, slug: str, exc: BaseException, ctx: Context) -> str:
         """Render xatosi JIM QOLMAYDI -- sahifada aytiladi (fail-closed)."""
-        page = PageDef("", "Render xatosi", lambda _c: "", ("config",),
+        page = PageDef("500", "Render xatosi", lambda _c: "", ("config",),
                        "Sahifa renderlanmadi.")
-        body = panel("RENDER XATOSI", Source("config", "revix.gui"), "".join([
+        body = panel("Render xatosi", Source("config", "revix.gui"), "".join([
             kv([("sahifa", text_html(slug)), ("istisno", text_html(repr(exc)))]),
             notice("critical", "Bu sahifa renderlanmadi",
                    esc_paragraph(

@@ -22,10 +22,49 @@
  *   4. JavaScript O'CHIRILGAN BO'LSA ham sahifa to'liq o'qiladi: server
  *      o'qish vaqtini matn sifatida ham bosadi va `stale` klassini o'zi
  *      ham qo'yadi. Bu skript faqat vaqt o'tishini KUZATADI.
+ *
+ *   5. YIG'ILADIGAN BLOKLAR (`<details data-key>`) ochiq/yopiq holatini
+ *      brauzer xotirasida (localStorage) ESLAB QOLADI, shunda F5 /
+ *      "Yangilash" dan keyin foydalanuvchi ochgan izoh yopilib qolmaydi.
+ *      Bu faqat KO'RINISH holati -- o'lchov qiymatiga tegmaydi, serverga
+ *      hech narsa yubormaydi. localStorage ishlamasa (taqiq, private rejim)
+ *      sahifa server bergan default holatda qoladi. `data-force-open`
+ *      bo'lsa (masalan, joriy sahifa "Tadqiqotchi uchun" guruhida) server
+ *      holati USTUN.
  */
 
 (function () {
   "use strict";
+
+  // --- yig'iladigan bloklar holati (qoida 5) -----------------------------
+  // Bu blok soat mantiqidan OLDIN va undan MUSTAQIL: `data-server-now-real-us`
+  // bo'lmasa ham ishlaydi.
+  var store = null;
+  try { store = window.localStorage; } catch (e) { store = null; }
+
+  function detailsKey(el) {
+    var key = el.getAttribute("data-key");
+    if (!key) { return null; }
+    var scope = el.getAttribute("data-scope") === "global" ? "*" : window.location.pathname;
+    return "revix-details:" + scope + ":" + key;
+  }
+
+  var blocks = document.querySelectorAll("details[data-key]");
+  for (var b = 0; b < blocks.length; b++) {
+    (function (el) {
+      var k = detailsKey(el);
+      if (!k || !store) { return; }
+      if (el.getAttribute("data-force-open") !== "1") {
+        var saved = null;
+        try { saved = store.getItem(k); } catch (e) { saved = null; }
+        if (saved === "1") { el.open = true; }
+        if (saved === "0") { el.open = false; }
+      }
+      el.addEventListener("toggle", function () {
+        try { store.setItem(k, el.open ? "1" : "0"); } catch (e) { /* jim: faqat ko'rinish */ }
+      });
+    })(blocks[b]);
+  }
 
   // Serverning "hozir" i va brauzerning soati farq qiladi (soat siljishi,
   // turli zona). Yoshni brauzer soatidan hisoblash xato bo'lardi, shuning

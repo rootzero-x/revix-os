@@ -40,12 +40,19 @@ from revix import gui
 
 
 def visible_text(markup: str) -> str:
-    """Foydalanuvchi EKRANDA ko'radigan matn: teglar olinadi, entity ochiladi.
+    """Render qilingan MATN (DOM matni): teglar olinadi, entity ochiladi.
 
     Tartib muhim: avval tegni olib tashlash, keyin `unescape`. Teskarisida
     `&lt;b&gt;` ochilib `<b>` bo'lardi va keyin teg deb o'chirilardi -- ya'ni
     escape qilingan matn ko'rinmay qolardi va test aynan escape'ni
     tekshirayotganda yolg'on "o'tdi" berardi.
+
+    DIQQAT (jurnal 19 §3): oddiy sahifalarda o'lchanmagan qiymatning matnli
+    tafsiloti (`o'lchanmadi n/m reason=...`) CSS bilan VIZUAL yashiriladi,
+    lekin DOM da qoladi -- bu funksiya uni hali ham qaytaradi. Ya'ni bu
+    "DOM matni", piksel emas. Pikseldagi ko'rinish (faqat "—") alohida
+    `test_olchanmagan_qiymat_ODDIY_sahifada_tire_va_sabab_title_da` da
+    qulflangan; "raqam yo'q" qoidasi ikkala qatlamda ham bajariladi.
     """
     no_tags = re.sub(r"<[^>]*>", " ", markup)
     return html_mod.unescape(no_tags)
@@ -252,15 +259,70 @@ def test_kb_html_nolni_olchangan_nol_deb_beradi():
     assert gui.TEXT_MEASURED_ZERO in visible_text(out)
 
 
+def test_olchanmagan_qiymat_ODDIY_sahifada_tire_va_sabab_title_da():
+    """Yangi ko'rinish (jurnal 19 §3): "—" + "i" + oddiy tildagi sabab.
+
+    Semantika o'zgarmagan: klass, `data-state`, `aria-label`, matnli
+    tafsilot -- hammasi joyida. O'zgargani: ekranda katta plita o'rniga
+    tire, sabab esa `title` da bir jumla bilan.
+    """
+    out = gui.missing_html(gui.REASON_SYSFS_ABSENT)
+    assert f'<span class="dash" aria-hidden="true">{gui.DASH}</span>' in out
+    assert 'data-reason="sysfs_absent"' in out
+    m = re.search(r'title="([^"]*)"', out)
+    assert m is not None, "sabab title'i yo'q"
+    tip = html_mod.unescape(m.group(1))
+    assert gui.REASON_PLAIN[gui.REASON_SYSFS_ABSENT] in tip
+    assert "reason=sysfs_absent" in tip
+    # Tire RAQAM emas va `0` emas.
+    assert not has_digit(gui.DASH)
+    # Tafsilot DOM da -- tadqiqotchi sahifasi uni matn bo'lib ko'rsatadi.
+    assert 'class="detail"' in out
+
+
+def test_har_sabab_kodining_ODDIY_TILDAGI_izohi_bor():
+    """Yopiq lug'atdagi HAR kod uchun oddiy jumla -- bo'sh tooltip yo'q."""
+    assert set(gui.REASON_PLAIN) == set(gui.MISSING_REASONS)
+    for k, v in gui.REASON_PLAIN.items():
+        assert v.strip() and not has_digit(v), k
+
+
+def test_olchangan_nol_ODDIY_son_kabi_va_belgi_DOM_da():
+    """`0` oddiy "0" bo'lib ko'rinadi; "o'lchangan nol" -- DOM + title da."""
+    out = gui.value_html(0)
+    assert out.startswith('<span class="val v-zero"')
+    assert 'class="zmark"' in out
+    assert "O'lchangan qiymat" in html_mod.unescape(out)
+    # `None` bilan HECH QACHON bir xil emas (eski qulf saqlanadi).
+    assert "v-missing" not in out and gui.DASH not in out
+
+
+def test_manba_yoq_ham_tire_lekin_BOSHQA_holat():
+    """"Manba yo'q" ham "—", lekin klass, data-state va sabab boshqa."""
+    ns = gui.nosource_html()
+    nm = gui.missing_html()
+    assert gui.DASH in ns and gui.DASH in nm
+    assert 'data-state="no_source"' in ns
+    assert "o'lchamaydi" in html_mod.unescape(ns)
+    assert ns != nm
+
+
 # ===========================================================================
 # 2. Manbada yo'q kalit uchun panel SON O'YLAB CHIQARMAYDI
 # ===========================================================================
 
 
 def _cell_for(markup: str, label: str) -> str:
-    """`dl.kv` dagi `label` ning qiymat yacheykasi (`<dd>`) ni qaytaradi."""
+    """`dl.kv` dagi `label` ning qiymat yacheykasi (`<dd>`) ni qaytaradi.
+
+    Yorliq yonida ixtiyoriy `<span class="rawkey">` (manbadagi xom maydon
+    nomi, jurnal 19 §3) bo'lishi mumkin. `label` odam yorlig'i YOKI xom nom
+    bo'lishi mumkin -- ikkalasi ham bitta qatorni topadi.
+    """
+    lab = re.escape(html_mod.escape(label, quote=True))
     pattern = re.compile(
-        r"<dt>" + re.escape(html_mod.escape(label, quote=True)) + r"</dt><dd>(.*?)</dd>",
+        r"<dt>(?:" + lab + r'(?:<span class="rawkey">[^<]*</span>)?'
+        r"|[^<]*<span class=\"rawkey\">" + lab + r"</span>)</dt><dd>(.*?)</dd>",
         re.S)
     m = pattern.search(markup)
     assert m is not None, f"{label!r} yacheykasi topilmadi"
@@ -286,11 +348,19 @@ def test_memory_kartasi_yoq_kalit_uchun_SON_YOZMAYDI():
     assert has_digit(visible_text(avail_cell))
 
 
+def test_kartalarda_ODAM_YORLIGI_va_XOM_NOM_ikkalasi_bor():
+    """`MemTotal` endi asosiy yorliq EMAS -- "Jami xotira", xom nom kichik."""
+    out = gui.card_memory({})
+    assert "<dt>Jami xotira<span class=\"rawkey\">MemTotal</span></dt>" in out
+    # Bir qator ikkala nom bilan ham topiladi (yordamchi o'zini sinaydi).
+    assert _cell_for(out, "Jami xotira") == _cell_for(out, "MemTotal")
+
+
 def test_memory_kartasi_butunlay_bosh_manbada_birorta_son_bermaydi():
     """Manba butunlay bo'sh -> kartada BIRORTA o'lchov soni yo'q."""
     out = gui.card_memory({})
     for label in ("MemTotal", "MemAvailable", "SwapTotal", "SwapFree",
-                  "eksperiment uchun kerak"):
+                  "Tajriba uchun kerak"):
         cell = _cell_for(out, label)
         assert not has_digit(visible_text(cell)), (label, visible_text(cell))
 
@@ -329,9 +399,9 @@ def test_disk_va_tarmoq_MANBA_YOQ_deb_beriladi_son_bilan_emas():
     Bu `None` ham, `0` ham emas: maydonni ishlab chiqaradigan KOD yo'q.
     Uchinchi holat shuning uchun bor.
     """
-    for card, labels in ((gui.card_disk({}), ("sig'im / band",
-                                              "o'qish / yozish tezligi")),
-                         (gui.card_network({}), ("interfeyslar", "bayt / paket"))):
+    for card, labels in ((gui.card_disk({}), ("Sig'im / band joy",
+                                              "O'qish / yozish tezligi")),
+                         (gui.card_network({}), ("Interfeyslar", "Bayt / paket"))):
         for label in labels:
             cell = _cell_for(card, label)
             assert "v-nosource" in cell, (label, cell)
@@ -346,9 +416,26 @@ def test_cpu_kartasi_foydalanish_foizini_IXTIRO_QILMAYDI():
     GUI ichida statistika hisoblash (qoida 4) va ikki boshqa o'lchovni
     bir deb atash bo'lardi.
     """
-    cell = _cell_for(gui.card_cpu({}), "foydalanish %")
+    cell = _cell_for(gui.card_cpu({}), "Band foizi (%)")
     assert "v-nosource" in cell
     assert not has_digit(visible_text(cell))
+
+
+def test_bosh_sahifa_CPU_foizini_IXTIRO_QILMAYDI():
+    """Bosh sahifadagi CPU kartasida "NN %" ko'rinishidagi son YO'Q.
+
+    Faqat yadro soni (manbadan) va PSI kutish ulushining TAXMINIY
+    TALQINI bor; band foizi "o'lchanmaydi" deb aytiladi.
+    """
+    live = {"status": {"host": {"cpu_count": 4}, "psi": {"scopes": {"host": {
+        "resources": {"cpu": {"some_rate": 0.3, "full_rate": 0.0}}}}}}}
+    out = gui.home_cpu(live)
+    text = visible_text(out)
+    assert not re.search(r"\d\s*%", text), text
+    assert "o'lchanmaydi" in text
+    assert gui.STALL_INTERP_LABEL in text
+    assert "4" in visible_text(re.search(
+        r'data-field="cpu_count">(.*?)</div>', out, re.S).group(1))
 
 
 def test_MISSING_SOURCES_har_biri_NIMA_va_NEGA_ni_aytadi():
@@ -716,14 +803,61 @@ def test_arm_konfiguratsiyalari_README_bilan_mos():
     assert by_arm["C"]["config"] is None
 
 
-def test_barcha_on_ikki_sahifa_royxatda_va_slug_lari_yagona():
-    assert len(gui.PAGES) == 12
+def test_barcha_sahifalar_royxatda_va_slug_lari_yagona():
+    """14 sahifa: avvalgi 12 + "Yordam" + eski dashboard (`/overview`).
+
+    O'ZGARGAN (jurnal 19 §2): ildiz (`""`) endi oddiy tildagi "Bosh
+    sahifa"; eski zich "Boshqaruv paneli" O'CHIRILMADI -- `/overview` da,
+    "Tadqiqotchi uchun" guruhida. Avvalgi 11 slug o'zgarmagan.
+    """
+    assert len(gui.PAGES) == 14
     slugs = [p.slug for p in gui.PAGES]
-    assert len(set(slugs)) == 12
-    assert "" in slugs          # dashboard ildizda
+    assert len(set(slugs)) == 14
+    assert "" in slugs          # bosh sahifa ildizda
+    for old in ("services", "recovery-events", "system-health", "resources",
+                "failure-analysis", "policies", "security", "research-metrics",
+                "logs", "settings", "about"):
+        assert old in slugs, old
+    assert "help" in slugs and "overview" in slugs
     for p in gui.PAGES:
         assert p.needs, f"{p.slug}: manba e'lon qilinmagan"
         assert p.intro.strip(), f"{p.slug}: tavsif yo'q"
+        assert p.group in (gui.GROUP_MAIN, gui.GROUP_RESEARCH), p.slug
+        assert p.audience.strip(), f"{p.slug}: 'Kim uchun' yo'q"
+
+
+def test_menyu_GURUHLANGAN_va_HAR_sahifaga_havola_bor():
+    """Oddiy menyu 5 band; qolgani "Tadqiqotchi uchun" ichida; hech biri yo'qolmagan."""
+    main = [p for p in gui.PAGES if p.group == gui.GROUP_MAIN]
+    assert [p.title for p in main] == [
+        "Bosh sahifa", "Xizmatlar", "Tizim holati", "Resurslar", "Yordam"]
+    nav = gui.nav_html("", have={"document", "config", "live"})
+    assert gui.RESEARCH_GROUP_TITLE in nav
+    assert '<details class="nav-group"' in nav
+    for p in gui.PAGES:
+        href = "/" if p.slug == "" else f"/{p.slug}"
+        assert f'href="{href}"' in nav, href
+    # Bosh sahifada tadqiqotchi guruhi YOPIQ, tadqiqotchi sahifasida OCHIQ.
+    assert "data-force-open" not in nav
+    assert "data-force-open" in gui.nav_html("logs", have={"document"})
+
+
+def test_har_sahifa_boshida_NIMA_va_KIM_UCHUN_aytiladi(tmp_path):
+    """Bosh sahifadan boshqa har sahifada oddiy tildagi kirish bloki bor."""
+    opts = make_opts(datasets_dir=str(tmp_path))
+    for page in gui.PAGES:
+        ctx = make_ctx(opts)
+        ctx.gw.live = lambda: ({}, LIVE_SRC)       # type: ignore[method-assign]
+        ctx.gw.doctor = lambda: (None, LIVE_SRC)   # type: ignore[method-assign]
+        out = gui.render_page(page.slug, ctx)
+        if page.slug == "":
+            assert "page-intro" not in out
+            continue
+        text = visible_text(out)
+        assert "Bu sahifa nima ko'rsatadi" in text, page.slug
+        assert "Kim uchun" in text, page.slug
+        grp = "grp-research" if page.group == gui.GROUP_RESEARCH else "grp-main"
+        assert f'<body class="{grp}">' in out, page.slug
 
 
 def test_manbasi_yoq_sahifa_NAVIGATSIYADA_belgilanadi():
@@ -955,15 +1089,181 @@ def test_render_page_barcha_sahifalar_uchun_ishlaydi(tmp_path):
 
 
 def test_bosh_manba_bilan_renderlangan_sahifa_SON_IXTIRO_QILMAYDI(tmp_path):
-    """Manba butunlay bo'sh -> panellarda o'lchov soni YO'Q, so'z bor."""
+    """Manba butunlay bo'sh -> panellarda o'lchov soni YO'Q, so'z bor.
+
+    O'ZGARGAN (jurnal 19): ildiz endi "Bosh sahifa" -- uning kartalari
+    `data-field` bilan tekshiriladi; eski kv yorliqlari esa `/overview`
+    (eski dashboard) da tekshiriladi.
+    """
     opts = make_opts(datasets_dir=str(tmp_path))
     ctx = make_ctx(opts)
     ctx.gw.live = lambda: ({}, LIVE_SRC)           # type: ignore[method-assign]
     out = gui.render_page("", ctx)
-    # MemTotal / MemAvailable yacheykalarida raqam bo'lmaydi.
-    for label in ("MemTotal", "MemAvailable", "CPU soni"):
-        cell = _cell_for(out, label)
+    for field_name in ("cpu_count", "mem", "disk", "network"):
+        m = re.search(r'data-field="' + field_name + r'">(.*?)</div>', out, re.S)
+        assert m is not None, field_name
+        assert not has_digit(visible_text(m.group(1))), (field_name, m.group(1))
+        assert gui.DASH in m.group(1), field_name
+    # "Bo'sh" qatori ham son ixtiro qilmaydi.
+    assert "v-missing" in out
+    # Holat jumlasi: manba holat bermadi -> "o'qib bo'lmadi", "yaxshi" EMAS.
+    assert 'data-status="unknown"' in out
+    assert "Tizim yaxshi holatda" not in visible_text(out)
+
+    ctx2 = make_ctx(opts)
+    ctx2.gw.live = lambda: ({}, LIVE_SRC)          # type: ignore[method-assign]
+    old = gui.render_page("overview", ctx2)
+    for label in ("MemTotal", "MemAvailable", "cpu_count"):
+        cell = _cell_for(old, label)
         assert not has_digit(visible_text(cell)), (label, visible_text(cell))
+
+
+# ===========================================================================
+# 12. Bosh sahifa -- oddiy tildagi holat (jurnal 19)
+# ===========================================================================
+
+
+def _live(status, problems=(), warnings=(), **mem):
+    return {"health": {"status": status, "problems": list(problems),
+                       "warnings": list(warnings), "memory": dict(mem)},
+            "status": {}}
+
+
+def test_holat_jumlasi_FAQAT_health_holatidan():
+    """ok / warn / fail / noma'lum -> to'rt xil jumla, belgi va klass."""
+    cases = {
+        "ok": ("Tizim yaxshi holatda", "✓", 'class="hero ok"'),
+        "warn": ("Diqqat: 1 ta ogohlik bor", "!", 'class="hero warn"'),
+        "fail": ("Muammo bor: 1 ta muammo topildi", "✗", 'class="hero fail"'),
+    }
+    for status, (title, icon, cls) in cases.items():
+        live = _live(status,
+                     problems=["MemAvailable 3.1 GiB < kerak 3.4 GiB"] if status == "fail" else (),
+                     warnings=["xotira zaxirasi yupqa: 3.5 GiB"] if status == "warn" else ())
+        out = gui.home_hero(live, LIVE_SRC, NOW)
+        assert title in visible_text(out), status
+        assert cls in out and f">{icon}</div>" in out, status
+    unknown = gui.home_hero({}, LIVE_SRC, NOW)
+    assert "o'qib bo'lmadi" in visible_text(unknown)
+    assert 'class="hero neutral"' in unknown
+
+
+def test_holat_jumlasiga_STALL_TALQINI_TASIR_QILMAYDI():
+    """Yuqori CPU kutishi bo'lsa ham health `ok` -> jumla "yaxshi" qoladi.
+
+    Busiz nima buzilardi: GUI o'z taxminiy chegarasidan "muammo" ixtiro
+    qilardi -- bu esa `revix health` aytmagan xulosa.
+    """
+    live = _live("ok")
+    live["status"] = {"psi": {"scopes": {"host": {"resources": {
+        "cpu": {"some_rate": 0.9, "full_rate": 0.5}}}}}}
+    assert "Tizim yaxshi holatda" in visible_text(gui.home_hero(live, LIVE_SRC, NOW))
+
+
+def test_muammo_matni_ODDIY_TILDA_va_XOM_holda_ikkalasi():
+    """Health matni oddiy jumlaga o'giriladi, xom matn YO'QOLMAYDI, escape bilan."""
+    out = gui.health_item_html("MemAvailable 3.1 GiB < kerak 3.4 GiB")
+    text = visible_text(out)
+    assert "Bo'sh xotira tajriba uchun yetmaydi." in text
+    assert "MemAvailable 3.1 GiB < kerak 3.4 GiB" in text
+    assert "&lt;" in out
+    # Noma'lum matn -- o'ylab topilgan tarjima YO'Q, xom holda.
+    assert visible_text(gui.health_item_html(INJECT)).strip() == INJECT
+    assert "<script>" not in gui.health_item_html(INJECT)
+
+
+def test_xotira_kartasi_band_jami_va_chiziq_MANBADAN():
+    """Band = MemTotal - MemAvailable; chiziq `<progress>` XOM kB bilan."""
+    live = _live("ok", mem_total_kb=6 * 1024 * 1024, mem_available_kb=5 * 1024 * 1024,
+                 required_kb=3_600_000)
+    out = gui.home_memory(live)
+    assert '<progress class="bar" max="6291456" value="1048576"' in out
+    big = re.search(r'data-field="mem">(.*?)</div>', out, re.S).group(1)
+    assert "1.0 GiB" in visible_text(big) and "6.0 GiB" in visible_text(big)
+    # Asos ekranda yozilgan.
+    assert "MemTotal" in visible_text(out) and "MemAvailable" in visible_text(out)
+    # Hukm `revix health` dan: muammo yo'q -> "yetadi".
+    assert "yetadi" in visible_text(out)
+
+
+def test_xotira_kartasi_hukmni_HEALTH_dan_oladi():
+    live = _live("fail", problems=["MemAvailable 3.1 GiB < kerak 3.4 GiB"],
+                 mem_total_kb=4_000_000, mem_available_kb=3_200_000,
+                 required_kb=3_600_000)
+    assert "yetmaydi" in visible_text(gui.home_memory(live))
+    # Health ro'yxatlari yo'q -> hukm ham YO'Q (o'zimiz solishtirmaymiz).
+    live2 = {"health": {"memory": {"mem_total_kb": 4_000_000,
+                                   "mem_available_kb": 3_200_000,
+                                   "required_kb": 3_600_000}}}
+    text2 = visible_text(gui.home_memory(live2))
+    assert "yetmaydi" not in text2 and "yetadi" not in text2
+
+
+def test_taxminiy_talqin_chegaralari_va_None():
+    """Chegaralar hujjatlangan; `None` HECH QACHON "past" emas."""
+    assert gui.stall_level(None) is None
+    assert gui.stall_level(True) is None
+    assert gui.stall_level(0.0) == "low"
+    assert gui.stall_level(gui.STALL_LEVEL_MID - 1e-9) == "low"
+    assert gui.stall_level(gui.STALL_LEVEL_MID) == "mid"
+    assert gui.stall_level(gui.STALL_LEVEL_HIGH) == "high"
+    assert gui.STALL_LEVEL_MID < gui.STALL_LEVEL_HIGH
+    out = gui.stall_html(0.3)
+    assert gui.STALL_INTERP_LABEL in visible_text(out)
+    assert "0.3000" in visible_text(out)          # xom son ham yonida
+    assert gui.stall_html(None) == gui.rate_html(None)
+
+
+def test_xizmat_holati_ODDIY_SOZ_va_shakl():
+    assert gui.unit_plain({"active": "active", "sub": "running"})[0] == "ok"
+    assert gui.unit_plain({"active": "failed", "sub": "failed"})[0] == "fail"
+    assert gui.unit_plain({"active": "inactive", "sub": "dead"})[2] == "to'xtagan"
+    # Noma'lum holat -- neytral, yashil EMAS.
+    assert gui.unit_plain({"active": "weird", "sub": "zzz"})[0] == "neutral"
+    live = {"status": {"units": {"ok": True, "units": []}}}
+    text = visible_text(gui.home_services(live))
+    assert "NORMAL" in text
+
+
+def test_bosh_sahifa_xizmat_nomini_escape_qiladi():
+    live = {"status": {"units": {"ok": True, "units": [
+        {"name": INJECT, "load": "loaded", "active": "active", "sub": "running"}]}}}
+    out = gui.home_services(live)
+    assert "<script>" not in out and "&lt;script&gt;" in out
+
+
+def test_halollik_izohi_YIGILADI_xato_HECH_QACHON():
+    """`honesty` -> `<details>` (matn DOM da); `critical` -> doim ochiq."""
+    h = gui.notice("honesty", "Sarlavha", "matn")
+    assert h.startswith('<details class="notice honesty"')
+    assert "matn" in visible_text(h)
+    c = gui.notice("critical", "Xato", "matn", collapsed=True)
+    assert c.startswith('<div class="notice critical"')
+
+
+def test_yordam_sahifasi_LUGAT_va_LIVE_IMAGE_eslatmalari():
+    text = visible_text(gui.page_help(make_ctx()))
+    for term in ("PSI", "cgroup", "Slice", "Recovery", "Failure", "Pressure",
+                 "p99", "SUT", "Guard", "Disposition", "Censored"):
+        assert term in text, term
+    for note in ("revix", "sudo", "VirtualBox", "YAROQSIZ"):
+        assert note in text, note
+    # Talqin chegaralari Yordam'da ochiq yozilgan.
+    assert f"{gui.STALL_LEVEL_MID:g}" in text and f"{gui.STALL_LEVEL_HIGH:g}" in text
+
+
+def test_sahifalarda_inline_style_YOQ_CSP_bilan_mos(tmp_path):
+    """CSP `style-src 'self'` -- `style=""` atributi bloklanardi. Shuning
+    uchun chiziqlar `<progress>` bilan, inline style'siz."""
+    opts = make_opts(datasets_dir=str(tmp_path))
+    live = _live("ok", mem_total_kb=4_000_000, mem_available_kb=3_000_000)
+    for page in gui.PAGES:
+        ctx = make_ctx(opts)
+        ctx.gw.live = lambda: (live, LIVE_SRC)     # type: ignore[method-assign]
+        ctx.gw.doctor = lambda: (None, LIVE_SRC)   # type: ignore[method-assign]
+        out = gui.render_page(page.slug, ctx)
+        assert " style=" not in out, page.slug
+        assert "<style" not in out, page.slug
 
 
 def test_404_sahifasi_halol_va_HTML():
