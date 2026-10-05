@@ -1819,3 +1819,87 @@ qilingan chegara (>= 8 GB bo'sh) bajarilmadi, shuning uchun vaqtinchalik
 Faqat §12.1 dagi **statik** dalil bor (image ichidagi `gui.py` klon bilan bayt-bayt
 bir xil va `HEAD` = `2beea11`); u dashboard Firefox'da to'g'ri chizilishini
 **isbotlamaydi**. Eski `gui-entry-*.png` skrinshotlari **eski** dashboard'niki.
+
+## 13. Qayta build — `gui_assets/style.css` tuzatishi bilan (`main` `0ece622`, agent/iso-rebuild-gui3)
+
+§12 dagi image'dan keyin `main` ga `revix/gui_assets/style.css` uchun CSS tuzatishi
+kirdi (katta karta qiymatlari kiosk brauzerida `...` bilan kesilmasin, commit
+`9f7f3d6`). Image shu sababli **qayta qurildi**. Kodga (Python/GUI/iso) tegilmadi;
+§0 va §8 cheklovlari o'zgarmaydi.
+
+### 13.1 Build — FAKT
+
+Toza klon `/var/tmp/revix-src-gui3` (`git clone --no-hardlinks -b main` Windows
+repo'dan, `core.fileMode=false`), `HEAD` =
+`0ece622dca9c82178eae0b5b84b2c77f367e49a0`, `git status --porcelain` bo'sh.
+`OUT_DIR=/var/tmp/revix-iso-gui6`, `REPO_SRC` shu klon, `REVIX_ISO_CONFIRM=yes`,
+`SOURCE_DATE_EPOCH` `config.sh` da `SNAPSHOT_TS` dan hosil qilingan:
+`1790812800` (oldingi build'lar bilan bir xil). Qadamlar `10`..`50` alohida
+`bash iso/<qadam>` bilan, har qadam oldida va keyin generatsiya tekshirildi.
+Ekskluziv lock (`~/.revix-exclusive`, `holder` = `iso-rebuild-gui3 ...`)
+`18:09:26Z` da olindi, `18:20:19Z` da bo'shatildi.
+
+```
+10-build-rootfs.sh    RC=0  237s (3m57s)   wall == /proc/uptime delta (237.3s)
+20-record-manifest.sh RC=0    0s
+30-make-squashfs.sh   RC=0  342s (5m42s)
+40-make-iso.sh        RC=0    4s
+50-fingerprint.sh     RC=0   16s
+JAMI                      613s (10m13s)    18:09:48Z -> 18:20:01Z; uptime delta 612.7s
+generatsiya: boshida == oxirida: boot_id=3af6b6f4-a61a-4f00-a036-1917c1b15f41
+             pid1_ticks=7058
+```
+
+Host soati bu safar sakramadi (wall-clock == `/proc/uptime`). `boot_id` §12 dagidan
+(`4ea15279...`) farq qiladi: WSL qayta ishga tushirilgan edi; baseline shundan
+**keyin** olindi va butun build davomida o'zgarmadi. Keep-alive
+`wsl.exe ... sleep 7000` klienti build boshlanishidan oldin ulangan.
+
+```
+iso        : revix-appliance-trixie-20261001T000000Z.iso
+hajm       : 769 654 784 bayt (734 MiB)   (§12 bilan bir xil bayt soni)
+sha256     : ae7fcb603b92a6b25c6597bb04f1d8d37120115d2365db80e04e1828d24940de
+manifest   : bb337dfa49dd8cd03b2377842e2ac8c874d25f4e18c85a3f5df3f4e5fadaae9b  (470 paket; §11.4 va §12 bilan bir xil)
+fingerprint: b471f6058f4b4301880438fd7cde3d5dd34a216d18048524b13bb9917ff83061  (build-fingerprint.json fayli sha256)
+squashfs   : 1dd23a9eb04a968c52444670b335c4c86ec1775dcb9e76ed6cfbdf345391dbda
+git_commit : 0ece622dca9c82178eae0b5b84b2c77f367e49a0   git_dirty_at_build: false
+```
+
+ISO sha256 o'zgardi: `2a999c81...` (§12) -> `ae7fcb60...`; paket to'plami
+o'zgarmadi, faqat repo mazmuni (CSS).
+
+**FAKT — image ichidagi fayllar** (`unsquashfs -cat filesystem.squashfs ...`):
+`opt/revix/revix/gui_assets/style.css` sha256
+`a8db27e3a02d495151faf06afccda4b71f455b604654947510d160a2da95ad29` — klondagi va
+Windows repo'dagi fayl bilan **bir xil**; `opt/revix/.git/HEAD` =
+`0ece622dca9c82178eae0b5b84b2c77f367e49a0`; `opt/revix/revix/gui.py` klon bilan
+bir xil (`d4a5b68b...`, o'zgarmagan).
+
+### 13.2 Nusxa va tekshiruv
+
+`revix-os` VM'i bu safar `VMState="poweroff"` edi, shuning uchun almashtirish
+mumkin bo'ldi. Fayllar avval `C:\Users\snowden\revix-iso-final\new\` ga
+nusxalandi, Windows `Get-FileHash` (SHA256) `ae7fcb60...40de` berdi va
+`SHA256SUMS` bilan mos; faqat shundan keyin eski to'rt fayl ustiga ko'chirildi
+(`new\` o'chirildi) va qayta tekshirildi (`Length` = 769 654 784, bir xil hash).
+DVD qayta ulandi: `VBoxManage storageattach revix-os --storagectl IDE --port 0
+--device 0 --type dvddrive --medium "...\revix-iso-final\revix-appliance-trixie-20261001T000000Z.iso"`
+(rc=0; `showmediuminfo dvd`: Capacity 734 MBytes, `In use by VMs: revix-os`).
+Eski (§12) ISO `2a999c81...` almashtirildi, nusxasi saqlanmadi.
+Tozalash: `/var/tmp/revix-src-gui2`, `/var/tmp/revix-iso-gui5(-logs)`,
+`/var/tmp/revix-iso-gui4(-logs)` o'chirildi (gui5 rootfs uid-map ostidagi
+fayllar bo'lgani uchun `unshare --user --map-auto` ichida). Yangi build
+`/var/tmp/revix-src-gui3` va `/var/tmp/revix-iso-gui6` da qoldi.
+
+### 13.3 NIMA TEKSHIRILMADI — oshkora
+
+Hech qanday VM **boot qilinmadi** (foydalanuvchi `revix-os` ni o'zi ishga
+tushiradi), skrinshot olinmadi. Shuning uchun **o'lchanmadi**:
+
+1. CSS tuzatishining kiosk Firefox'da haqiqatan ishlashi (katta karta
+   qiymatlari `...` siz ko'rinishi) — faqat **statik** dalil bor: image ichidagi
+   `style.css` repo'dagi bilan bayt-bayt bir xil.
+2. Dashboard'ning 1280x800 dagi ko'rinishi, 5 s avto-yangilanish Firefox'da,
+   `revix doctor`, uchala bandning (BIOS/UEFI) boot qilishi — §12.3 dagi barcha
+   punktlar ochiq qolmoqda.
+3. Bit-identik takrorlanish (da'vo qilinmaydi, §0/§8).
