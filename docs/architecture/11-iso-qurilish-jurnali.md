@@ -1720,3 +1720,102 @@ AUTH]`, `REVIX live - GUI window (inspection only)`.
 8. Image hamon ishonchsiz tarmoq uchun YAROQSIZ (§8.11); GUI bandi tarmoqqa
    hech narsa ochmaydi (dashboard loopback'da).
 9. Yakuniy build'ning 10-qadam vaqti noto'g'ri o'lchangan (host uyqusi, §11.4).
+
+---
+
+## 12. Qayta build — qayta ishlangan dashboard bilan (`main` `2beea11`, agent/iso-rebuild-gui2)
+
+`main` da dashboard qayta ishlandi (`revix/gui.py`, `revix/gui_assets/`; oxirgi
+commit `2beea11`). §11.4 dagi image esa eski dashboard bilan qurilgan edi,
+shuning uchun image **qayta qurildi**. Bu bo'lim faqat yangi build'ni va
+**nima tekshirilmaganini** qayd etadi; §0 va §8 dagi barcha cheklovlar
+o'zgarmaydi. Kodga (Python/GUI/iso) tegilmadi.
+
+### 12.1 Build — FAKT
+
+Toza klon `/var/tmp/revix-src-gui2` (`git clone --no-hardlinks -b main`
+Windows repo'dan, `core.fileMode=false`), `HEAD` =
+`2beea11404ddec77976d96ccb1d44bb4607f31c8`, `git status --porcelain` bo'sh.
+Chiqish `OUT_DIR=/var/tmp/revix-iso-gui5`, `REPO_SRC` shu klon,
+`REVIX_ISO_CONFIRM=yes`; `SOURCE_DATE_EPOCH` `config.sh` da `SNAPSHOT_TS`
+(`20261001T000000Z`) dan hosil qilingan: `1790812800` (oldingi build'lar bilan
+bir xil). Qadamlar `10`..`50` alohida `bash iso/<qadam>` bilan, har qadam
+oldida generatsiya (`boot_id` + `/proc/1/stat` 22-maydon) tekshirildi.
+Ekskluziv lock (`~/.revix-exclusive`, `holder` = `iso-rebuild-gui2 ...`)
+`17:51:03Z` da olindi va `18:03:20Z` da bo'shatildi.
+
+```
+10-build-rootfs.sh    RC=0  241s (4m01s)   wall == /proc/uptime delta
+20-record-manifest.sh RC=0    0s
+30-make-squashfs.sh   RC=0  326s (5m26s)
+40-make-iso.sh        RC=0    2s
+50-fingerprint.sh     RC=0    2s
+JAMI                      572s (9m32s)      uptime delta 571s -> soat sakramadi
+generatsiya: boshida == oxirida: boot_id=4ea15279-acba-44ff-a533-6d7cd11924e5
+             pid1_ticks=4894376
+
+iso        : revix-appliance-trixie-20261001T000000Z.iso
+hajm       : 769 654 784 bayt (734 MiB)
+sha256     : 2a999c8116a65e6a7653fc36d898ddd4ad8774e0185146658cabab9247e579be
+manifest   : bb337dfa49dd8cd03b2377842e2ac8c874d25f4e18c85a3f5df3f4e5fadaae9b
+fingerprint: fd4a2298395c37e520e7630b47ce14eda8f2a579d7dc022028afcc802c6d63e8
+git_commit : 2beea11404ddec77976d96ccb1d44bb4607f31c8   git_dirty_at_build: false
+paket soni : 470
+squashfs   : 1bb133dc68e78709ad031fa8c29ae946d46f2fab3b8c56670e2733dd8da9d08c
+```
+
+`pid1_ticks` bu safar `653523` emas, `4894376`: WSL distro'si men boshlashdan
+bir necha soniya oldin to'xtab qayta ishga tushgan (klient yo'q edi; `boot_id`
+o'zgarmadi, PID 1 `systemd` qayta tug'ildi). Baseline shundan **keyin** olindi
+va butun build davomida o'zgarmadi; keep-alive `wsl.exe ... sleep 7000` klienti
+build davomida ulangan edi.
+
+Manifest sha256 §11.4 dagi bilan **bir xil** (`bb337dfa...`, 470 paket):
+paket to'plami o'zgarmadi, faqat repo mazmuni (dashboard) o'zgardi. ISO
+sha256 o'zgardi: `56f0071c...` -> `2a999c81...`; hajm 764 411 904 -> 769 654 784
+bayt.
+
+**FAKT — image ichidagi dashboard yangi.** Squashfs'dan o'qildi
+(`unsquashfs -cat filesystem.squashfs opt/revix/revix/gui.py`):
+sha256 `d4a5b68bf4ae4d83cce6bafbcaa09d66c6f3b5e18bf2be2f7a264ba2eeba4677`,
+klondagi `revix/gui.py` bilan **bir xil**; `/opt/revix/.git/HEAD` =
+`2beea11404ddec77976d96ccb1d44bb4607f31c8`. Fayl matnida `Tarmoq` va `"Disk"`
+satrlari bor.
+
+### 12.2 Nusxa va tekshiruv
+
+Yangi ISO, `manifest.txt`, `build-fingerprint.json`, `SHA256SUMS`
+`C:\Users\snowden\revix-iso-final\new\` ga nusxalandi. Windows
+`Get-FileHash` (SHA256) `2a999c8116a65e6a7653fc36d898ddd4ad8774e0185146658cabab9247e579be`
+berdi va `SHA256SUMS` bilan mos; `Length` = 769 654 784.
+
+**Eski ISO O'RNIGA QO'YILMADI.** `revix-os` VM'i (foydalanuvchining) ishlab
+turgan edi (`VMState="running"`, DVD =
+`C:\Users\snowden\revix-iso-final\revix-appliance-trixie-20261001T000000Z.iso`,
+eski `56f0071c...`), va fayl ochiq: `[IO.File]::Open(..., 'None')` ->
+"being used by another process". Ishlayotgan live tizim squashfs'ni shu
+faylning o'zidan o'qiydi, shuning uchun uni almashtirish VM'ni buzardi.
+`revix-os` ga tegilmadi, DVD qayta ulanmadi. Almashtirish `revix-os`
+to'xtatilgandan keyin: `new\` dagi to'rt faylni bir qavat yuqoriga ko'chirish
+va `storageattach` bilan DVD'ni qayta ulash.
+
+### 12.3 NIMA TEKSHIRILMADI — oshkora
+
+**VirtualBox'da yangi image BOOT QILINMADI.** Sabab: host RAM. Build tugagach
+Windows'da bo'sh fizik xotira ~1.9 GB (`Win32_OperatingSystem.FreePhysicalMemory`,
+jami 15.4 GB; `revix-os` 6144 MB bilan ishlayapti, `vmmemWSL` ~3.3 GB), talab
+qilingan chegara (>= 8 GB bo'sh) bajarilmadi, shuning uchun vaqtinchalik
+`revix-os-gui2` VM (6144 MB) **yaratilmadi**. Natijada quyidagilar
+**o'lchanmadi**, va hech qanday skrinshot olinmadi:
+
+1. Kiosk Firefox ichida yangi bosh sahifa (katta holat jumlasi, 4 karta —
+   Disk va Tarmoq bilan, avto-yangilanish indikatori) ko'rinishi.
+2. 5 s avto-yangilanish **Firefox'da** (`fetch`/`DOMParser` yo'li `gui_assets/app.js`
+   da; faqat Edge'da tekshirilgan, Firefox'da yo'q).
+3. 1280x800 da holat + 4 karta skroll talab qilmasligi.
+4. Default bandda `revix doctor`, uchala bandning boot qilishi (BIOS ham,
+   UEFI ham).
+
+Faqat §12.1 dagi **statik** dalil bor (image ichidagi `gui.py` klon bilan bayt-bayt
+bir xil va `HEAD` = `2beea11`); u dashboard Firefox'da to'g'ri chizilishini
+**isbotlamaydi**. Eski `gui-entry-*.png` skrinshotlari **eski** dashboard'niki.
