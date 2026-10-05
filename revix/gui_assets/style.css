@@ -394,7 +394,9 @@ details.tech p { color: var(--rx-fg-2); font-size: var(--gui-text-small); margin
   margin-bottom: var(--rx-space-2);
 }
 .rcard .val { font-family: var(--rx-font-sans); }
-.rcard .big { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Katta son va "/ jami" hech qachon "..." bilan kesilmaydi: kerak bo'lsa jami keyingi qatorga tushadi (Firefox kiosk 1280x800 da kuzatilgan nuqson). */
+.rcard .big { white-space: normal; overflow-wrap: anywhere; }
+.rcard .big .of { white-space: nowrap; }
 .rcard[data-card="mem"] .big { font-size: 26px; }
 .rcard .big .unit { font-size: var(--gui-text-h2); }
 .rcard .big .of { font-size: var(--gui-text-body); color: var(--rx-fg-2); }
