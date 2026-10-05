@@ -1543,3 +1543,180 @@ revix-appliance-trixie-20261001T000000Z.iso"`. `snowden` ga tegilmadi
 (yangi qisqa yorliq ham), 6144 MB da bu image, yakuniy image'da `pytest`,
 yuk ostida dashboard. 4096 MB da `memory_headroom` zaxirasi +49 MB bo'lib
 qoldi (yupqa).
+
+---
+
+## 11. Uchinchi boot bandi — VM oynasi ichida GUI (agent/iso-dash)
+
+Foydalanuvchi dashboard'ni host brauzerida emas, **VirtualBox oynasining
+o'zida** ko'rishni so'radi. §10 dagi ikkita band headless; bu bo'lim
+**uchinchi band** (`REVIX live - GUI window (inspection only)`) ni qayd
+etadi. §0 va §8 dagi barcha cheklovlar o'zgarmaydi.
+
+### 11.1 Nima qurildi
+
+| Fayl | Mazmuni |
+|---|---|
+| `iso/config.sh` | `PKGS_GUI = cage firefox-esr seatd fonts-dejavu-core xkb-data libgl1-mesa-dri libegl1` |
+| `packaging/systemd/revix-gui.service` | system unit: `User=revix`, `cage -s -- firefox-esr --kiosk http://127.0.0.1:8787/`, `ConditionKernelCommandLine=revix.gui=1` |
+| `packaging/systemd/seatd.service.d/10-revix-gui.conf` | `seatd` ham faqat `revix.gui=1` da ishlaydi |
+| `packaging/systemd/getty@tty1.service.d/10-revix-gui.conf` | `getty@tty1` faqat `revix.gui=1` **bo'lmaganda** ishlaydi |
+| `iso/hooks/customize-20-systemd.sh` | yuqoridagilarni o'rnatadi, `seatd` ni `disable` qiladi, fail-closed tekshiruvlar |
+| `iso/40-make-iso.sh` | ISOLINUX va GRUB'ga uchinchi band; avvalgi band izohidagi backtick'lar olib tashlandi (heredoc'da `command not found`) |
+
+Band **faqat kernel buyruq satri** bilan yoqiladi (`revix.gui=1`); dashboard
+**loopback**da qoladi, shuning uchun `NO AUTH` kerak emas. GUI **tekshiruv
+uchun, o'lchov uchun emas** (unit izohida va menyu yorlig'ida yozilgan).
+
+### 11.2 Qaysi yondashuv ishladi — dalil bilan
+
+Image'ga qo'shishdan oldin ishlayotgan live VM'da (apt orqali, RAM overlay)
+sinaldi; hammasi o'lchangan:
+
+1. **Grafika qurilmasi.** Kernel'da `vmwgfx` yuklandi va `/dev/dri/card0`,
+   `/dev/fb0` paydo bo'ldi, 1280x800. Dmesg'da
+   `vmwgfx seems to be running on an unsupported hypervisor` **ERROR** bor
+   (NEM), lekin u **ogohlik emas, to'siq emas**: KMS ishladi. `vga=` buyruq
+   parametri **kerak bo'lmadi**.
+2. **Wayland (`cage`) + Firefox + `logind`/PAM** (`PAMName=`, `TTYPath=`):
+   dashboard chizildi, klaviatura ishladi, **lekin** Ctrl+Alt+F2 matn
+   konsoliga o'tmadi:
+   `[libseat] logind.c:199 Could not switch session: Permission denied`
+   (polkit yo'q). Talab qilingan **qochish yo'li buzilgan** — rad etildi.
+3. **Wayland (`cage`) + Firefox + `seatd`** (`LIBSEAT_BACKEND=seatd`,
+   PAM yo'q): dashboard chizildi, **Ctrl+Alt+F2 -> tty2 `login:`**,
+   **Ctrl+Alt+F1 -> GUI qaytdi**. Shu tanlandi.
+4. **Xorg, Chromium, Epiphany, WebKit** — **sinalmadi**, chunki 3-yo'l
+   ishladi. Faqat `apt-get -s install --no-install-recommends` paket sonlari
+   o'lchandi: cage+firefox-esr **115**, cage+chromium 138, cage+webkitgtk 199,
+   cage+epiphany 203, xorg+firefox 107, xorg+chromium 129 (o'lcham o'lchanmadi).
+
+### 11.3 Ikki regressiya — o'lchab topildi va tuzatildi
+
+Ikkita mavjud band "bugungidek aynan" qolishi shart edi. Birinchi GUI
+image'ida default bandni **eski image bilan** `systemctl list-units --all`
+orqali solishtirib ikkita farq topildi:
+
+- **`seatd` default bandda ishga tushdi** (`seatd: active / disabled`).
+  Sabab: `revix-gui.service` `Wants=seatd.service` deydi, systemd `Wants=` ni
+  `Condition...=` dan **oldin** bajaradi. Faqat `disable` yetarli emas edi.
+  Tuzatish: `seatd.service.d/10-revix-gui.conf` (`ConditionKernelCommandLine=revix.gui=1`).
+- **`getty@tty1` default bandda to'xtatildi** (`inactive dead`; tty1'dagi
+  `login:` yo'qoldi). Sabab: `Conflicts=getty@tty1.service` ham Condition'dan
+  oldin tranzaksiyaga kiradi. Tuzatish: `Conflicts=` olib tashlandi,
+  `getty@tty1.service.d/10-revix-gui.conf` (`ConditionKernelCommandLine=!revix.gui=1`).
+
+### 11.4 Yakuniy image
+
+**FAKT — build.** Commit `60476d1389b1364c31cac64e1a27cf66328b4eb0`
+(`main` `902dc9c` ustida), toza klon, `git status --porcelain` bo'sh,
+`build-fingerprint.json`: `git_commit` shu, `git_dirty_at_build: false`.
+Ekskluziv lock build va VM fazasida ushlab turildi va chiqishda bo'shatildi.
+`boot_id=4ea15279-acba-44ff-a533-6d7cd11924e5` va `/proc/1/stat` 22-maydon
+`653523` boshida, har qadam oldida va oxirida bir xil.
+
+```
+iso        : revix-appliance-trixie-20261001T000000Z.iso
+hajm       : 764 411 904 bayt (729 MiB)
+sha256     : 56f0071cf0441d77970878a708597995be64c3fb20b548a2c63a612268ebc420
+manifest   : bb337dfa49dd8cd03b2377842e2ac8c874d25f4e18c85a3f5df3f4e5fadaae9b
+fingerprint: 9752713c3a1fabf52328a0748256d723578944e0c7eb219817eb36b4920531cd
+paket soni : 470   (oldin 354: +116, o'chirilgan 0)
+Installed-Size (dpkg): jami 1 635 484 KiB; yangi 116 paket 568 914 KiB
+   eng kattalari: firefox-esr 266 693, libllvm19 126 696, mesa-libgallium 41 615,
+   libgtk-3-common 30 916, libz3-4 27 142 (KiB)
+```
+
+ISO o'lchami: oldingi `573 571 072` bayt -> bu image `764 411 904` bayt.
+Shundan GUI ulushi **~161 MiB** (bir xil repo mazmunli oraliq build'da
+`742 391 808` bayt = +168 820 736 bayt); qolgani `main` ga keyin qo'shilgan
+pilot ma'lumotlari. Manifest sha256 uchta GUI build'da bir xil.
+Build qadamlari (yakuniy): 10 = `1165m28s` (**NOTO'G'RI**: host uyquga ketib,
+soat ~19 soat sakradi; haqiqiy ~4-5 daqiqa, oraliq build'lar: 3m32s..4m25s),
+20 = 0s, 30 = 5m57s, 40 = 3s, 50 = 2s. Oraliq build'lar jami 9m26s...11m23s.
+Nusxa: `C:\Users\snowden\revix-iso-final\` (Windows `Get-FileHash` shu sha256).
+
+**FAKT — GUI bandi** (VirtualBox, `--vram 16`, 6144 MB, 2 vCPU; skrinshotlar
+`C:\Users\snowden\revix-iso-final\*.png`, **ko'zim bilan o'qildi**):
+
+- `gui-entry-1-dashboard-in-vm-window.png`: 1280x800 to'liq ekranli kiosk
+  Firefox'da dashboard "Boshqaruv paneli" — REVIX sarlavhasi, tab qatori,
+  `SYSTEM HEALTH` paneli (`umumiy holat OK`), `CPU`, `MEMORY: MemTotal 5.8 GiB,
+  MemAvailable 5.0 GiB`; chap-yuqorida o'qiladigan matn, kursor ko'rinadi. Bo'sh
+  ekran yoki xato sahifa EMAS.
+- `gui-entry-2-after-F5-33s-later.png` (birinchisidan 33 s keyin, F5 bilan; boot'dan ~1.5 daqiqa): GUI
+  turibdi, soat 12:57:39 (birinchisida 12:57:05), o'qish yangilangan. Birinchi
+  skrinshotdan keyin ishlab turdi (oraliq build'da, kod bir xil, ikki skrinshot orasi 80 s edi va ham ko'rildi; saqlangan PNG faqat yakuniy image'niki).
+- `gui-entry-3-ctrl-alt-f2-text-console.png`: Ctrl+Alt+F2 -> `Debian GNU/Linux
+  13 revix-appliance tty2 / revix-appliance login:`; Ctrl+Alt+F1 keyin
+  `/sys/class/tty/tty0/active` = `tty1`, `revix-gui` active.
+- Brauzer sahifani **oldi**: `ss -tn` -> `ESTAB 127.0.0.1:8787 <-> 127.0.0.1:39052`
+  va `127.0.0.1:50792 <-> 127.0.0.1:8787` (Firefox ulanishlari).
+- `cage` cgroup: `0::/system.slice/revix-gui.service` — `user@1000.service`
+  **ichida emas**. `systemctl --user list-units "revix*" --all`: bo'sh.
+- `is-system-running`: `running`; `systemctl --failed`: bo'sh;
+  `revix-gui`, `seatd`, `revix-dashboard`: active; listener `127.0.0.1:8787`.
+- Kiritish: klaviatura ishladi (yakuniy image: F5, Ctrl+Alt+F1/F2; oraliq: PageDown) `VBoxManage
+  controlvm keyboardputscancode` orqali Firefox/cage'ga yetdi). Qurilmalar:
+  `AT Translated Set 2 keyboard`, `ImExPS/2 Generic Explorer Mouse`,
+  `VirtualBox mouse integration` (kernel'da ko'rindi). **Sichqoncha harakati
+  sinalmadi** (`VBoxManage` sichqoncha hodisasini yubora olmaydi; oyna ochilmagan).
+
+**FAKT — `revix doctor --json`, uch band:**
+
+| Band | VM | rc | PASS / WARN / FAIL | Izoh |
+|---|---|---|---|---|
+| default | 4096 MB | 0 | 14 / 4 / 0 (yakuniy build: faqat rc=0 ko'rildi; sonlar oraliq build'larda) | `memory_headroom` WARN (+45 MB), qolgan uchta WARN avvalgidek |
+| NO AUTH (`dashboard=remote`) | 4096 MB | 0 | 14 / 4 / 0 | xuddi shunday |
+| GUI | 6144 MB | 0 | 15 / 3 / 0 | `memory_headroom` PASS; WARN: swap, cpu_governor, kvm |
+| GUI (oraliq build, kod bir xil) | 4096 MB | **1** | 14 / 3 / **1** | `memory_headroom` FAIL: MemAvailable 3.1 GiB (< 3.43 GiB) |
+
+**TALQIN.** GUI Firefox+kompozitor `MemAvailable`'dan **~0.4 GiB** oladi
+(4096 MB: 3.64 -> 3.24 GiB; 6144 MB: 5.71 -> 5.27 GiB). 4096 MB da zaxira
+default bandda ham faqat +40...+50 MB, shuning uchun **GUI bandi 4096 MB da
+doctor'da FAIL beradi — bu kutilgan va haqiqiy**; dashboard o'zi buni
+ko'rsatadi (`umumiy holat FAIL`, oraliq build skrinshotida ko'rilgan; PNG saqlanmadi).
+GUI bandi uchun **6144 MB** kerak. Bu o'lchov uchun emas, tekshiruv uchun.
+
+**FAKT — ikkita mavjud band o'zgarmadi** (yakuniy image, 4096 MB):
+default bandda `systemctl list-units --all --plain` (213 qator) eski image
+bilan `diff`: **faqat ikkita qo'shimcha qator** —
+`revix-gui.service inactive dead` va `seatd.service inactive dead`
+(ikkalasi yuklangan, ishlamaydi). `getty@tty1` `active running`, ishlayotgan
+servislar 9 ta (eski bilan bir xil), `cage/firefox-esr/seatd` jarayoni 0.
+NO AUTH bandi default bilan bir xil ikki qo'shimcha qator bilan. NO AUTH
+bandi: `LISTEN 0.0.0.0:8787`, guest ichida `curl` HTTP 200, Windows -> NAT
+forward (127.0.0.1:8789 -> 8787) `HTTP 200, 8529 bayt, <title>REVIX &mdash;
+Boshqaruv paneli</title>`. Default band: `LISTEN 127.0.0.1:8787`, `curl`
+HTTP 200, `is-system-running` `running`, `--failed` bo'sh.
+
+**FAKT — VRAM.** GUI `--vram 16` (hozirgi `revix-os` qiymati) bilan ham
+1280x800 da ishladi (`vmwgfx: VRAM size is 16384 KiB`); 64 MB bilan ham
+ishladi. **Katta VRAM kerak emas** (bu o'lcham uchun). **Xotira** esa
+kerak: GUI bandida 6144 MB.
+
+**FAKT — menyu.** ISOLINUX serial capture va `boot-menu-three-entries.png`
+(oraliq build'dan, bir xil yorliqlar): uchala yorliq to'liq ko'rinadi:
+`REVIX research appliance (live)`, `REVIX live - dashboard on network [NO
+AUTH]`, `REVIX live - GUI window (inspection only)`.
+
+### 11.5 CHEKLOV — sinalmadi va ochiq qoldi
+
+1. **UEFI/GRUB yo'li sinalmadi** (uchinchi band ham): faqat BIOS/ISOLINUX.
+2. **Boshqa ekran o'lchamlari sinalmadi** (faqat vmwgfx'ning 1280x800).
+3. **Sichqoncha** harakati/bosishi sinalmadi (faqat klaviatura); qurilmalar
+   kernel'da ko'rindi va kursor chizildi.
+4. **Firefox sozlamalari** (policies.json: telemetriya, yangilanish, birinchi
+   ishga tushish) yozilmadi — kiosk rejimida birinchi-ishga-tushish sahifasi
+   ko'rinmadi, lekin tarmoqda DNS yo'q (`systemd-resolved` o'rnatilmagan), shuning
+   uchun Firefox'ning tashqi so'rovlari baribir ishlamaydi.
+5. `libgl1-mesa-dri`, `libegl1`, `xkb-data` har biri alohida "kerak/kerak emas"
+   deb o'chirib **sinalmadi** — ular bilan to'plam ishladi.
+6. Sahifa o'z-o'zidan **yangilanmaydi** (dashboard statik HTML): eskirgan
+   o'qish qizil `stale` bilan ko'rinadi, yangilash uchun F5.
+7. GUI bandida Firefox ~0.4 GiB oladi va doimiy PSI bosimi qo'shadi
+   (`host cpu some stall` ~0.3-0.7 vs ~0.0004 bo'sh turganda): **timing o'lchovi
+   o'tkazilmaydi** (§7 + PREREGISTRATION.md §8).
+8. Image hamon ishonchsiz tarmoq uchun YAROQSIZ (§8.11); GUI bandi tarmoqqa
+   hech narsa ochmaydi (dashboard loopback'da).
+9. Yakuniy build'ning 10-qadam vaqti noto'g'ri o'lchangan (host uyqusi, §11.4).
