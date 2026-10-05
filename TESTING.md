@@ -12,7 +12,7 @@
 
 ```
 $ python3 -m pytest tests/ -q
-1062 passed, 1 skipped, 1 warning in 87.95s (0:01:27)
+1156 passed, 1 skipped, 1 warning in 106.81s (0:01:46)
 ```
 
 **1062 test o'tdi, 1 skip, 0 yiqilish.** Bu raqam shu hujjat yozilganda
@@ -50,7 +50,7 @@ har bir fayl alohida):
 | [`tests/integration/test_chain.py`](tests/integration/test_chain.py) | 40 | driver → reduce → validate → analyze → figures zanjiri, fixture ma'lumot bilan |
 | **Jami** | **1063** | |
 
-1063 collected = 1062 passed + 1 skipped. Yig'indi suite natijasiga mos.
+Quyidagi fayl bo'yicha jadval commit `9482a1c` (1063 collected) holati; 2026-10-05 da `main` `7f3354c` ustida to'liq suite qayta ishga tushirildi: **1156 passed, 1 skipped, 0 yiqilish**. Fayl bo'yicha sonlar qayta sanalmagan.
 
 > ⚠️ **Diqqat — test sonini hech qaerdan ko'chirmang.** Bu hujjat uch marta
 > eskirgan: commit `12b478b` (prober) xabarida "full unit suite 85 pass"
