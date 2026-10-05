@@ -393,15 +393,16 @@ def test_psi_jadvali_nol_tezlikni_NOL_deb_beradi():
     assert gui.TEXT_NOT_MEASURED not in visible_text(cpu_row[2])
 
 
-def test_disk_va_tarmoq_MANBA_YOQ_deb_beriladi_son_bilan_emas():
-    """DISK va NETWORK -- birorta modul chiqarmaydi, demak "manba yo'q".
+def test_disk_IO_va_tarmoq_TRAFIGI_MANBA_YOQ_deb_beriladi_son_bilan_emas():
+    """Disk IO tezligi va tarmoq trafigi -- birorta modul chiqarmaydi.
 
     Bu `None` ham, `0` ham emas: maydonni ishlab chiqaradigan KOD yo'q.
-    Uchinchi holat shuning uchun bor.
+    O'ZGARGAN (jurnal 19 §10): disk SIG'IMI va tarmoq INTERFEYSLARI endi
+    o'lchanadi, shuning uchun "manba yo'q" faqat qolgan maydonlar uchun.
     """
-    for card, labels in ((gui.card_disk({}), ("Sig'im / band joy",
-                                              "O'qish / yozish tezligi")),
-                         (gui.card_network({}), ("Interfeyslar", "Bayt / paket"))):
+    for card, labels in ((gui.card_disk({}), ("O'qish / yozish tezligi",)),
+                         (gui.card_network({}), ("Bayt / paket",
+                                                 "Ulanishlar (socket)"))):
         for label in labels:
             cell = _cell_for(card, label)
             assert "v-nosource" in cell, (label, cell)
@@ -857,7 +858,7 @@ def test_har_sahifa_boshida_NIMA_va_KIM_UCHUN_aytiladi(tmp_path):
         assert "Bu sahifa nima ko'rsatadi" in text, page.slug
         assert "Kim uchun" in text, page.slug
         grp = "grp-research" if page.group == gui.GROUP_RESEARCH else "grp-main"
-        assert f'<body class="{grp}">' in out, page.slug
+        assert f'<body class="{grp}" ' in out, page.slug
 
 
 def test_manbasi_yoq_sahifa_NAVIGATSIYADA_belgilanadi():
@@ -1098,6 +1099,8 @@ def test_bosh_manba_bilan_renderlangan_sahifa_SON_IXTIRO_QILMAYDI(tmp_path):
     opts = make_opts(datasets_dir=str(tmp_path))
     ctx = make_ctx(opts)
     ctx.gw.live = lambda: ({}, LIVE_SRC)           # type: ignore[method-assign]
+    # Disk/tarmoq o'qishi ham bo'sh (jurnal 19 §10: endi ular tirik manba).
+    ctx.gw.machine = lambda: ({}, LIVE_SRC)        # type: ignore[method-assign]
     out = gui.render_page("", ctx)
     for field_name in ("cpu_count", "mem", "disk", "network"):
         m = re.search(r'data-field="' + field_name + r'">(.*?)</div>', out, re.S)
@@ -1264,6 +1267,190 @@ def test_sahifalarda_inline_style_YOQ_CSP_bilan_mos(tmp_path):
         out = gui.render_page(page.slug, ctx)
         assert " style=" not in out, page.slug
         assert "<style" not in out, page.slug
+
+
+# ===========================================================================
+# 13. Disk va tarmoq -- GUI ning o'z tirik o'qishi (jurnal 19 §10)
+# ===========================================================================
+
+
+class _FakeStatvfs:
+    def __init__(self, blocks, bfree, bavail, frsize=4096):
+        self.f_blocks, self.f_bfree, self.f_bavail = blocks, bfree, bavail
+        self.f_frsize, self.f_bsize = frsize, frsize
+
+
+def test_statvfs_xatosi_None_beradi_HECH_QACHON_nol(monkeypatch):
+    """`os.statvfs` xato -> qiymatlar `None`, sabab yoziladi, kartada son yo'q."""
+    def boom(_p):
+        raise OSError(5, "I/O xato")
+    monkeypatch.setattr(gui.os, "statvfs", boom, raising=False)
+    d = gui.read_statvfs("/")
+    assert d["total_kb"] is None and d["used_kb"] is None and d["free_kb"] is None
+    assert d["error"] and "I/O" in d["error"]
+    assert d["read_real_us"] is None
+    out = gui.home_disk({}, {"disk": [d]})
+    big = re.search(r'data-field="disk">(.*?)</div>', out, re.S).group(1)
+    assert not has_digit(visible_text(big))
+    assert 'data-reason="source_error"' in big
+    assert "<progress" not in out
+
+
+def test_statvfs_qiymatlari_df_manosida_va_manba_bilan(monkeypatch):
+    monkeypatch.setattr(gui.os, "statvfs",
+                        lambda _p: _FakeStatvfs(blocks=1000, bfree=400, bavail=300),
+                        raising=False)
+    d = gui.read_statvfs("/")
+    assert d["total_kb"] == 1000 * 4
+    assert d["used_kb"] == 600 * 4
+    assert d["free_kb"] == 300 * 4          # f_bavail: root zaxirasi bo'sh EMAS
+    assert d["source"] == "os.statvfs('/')"
+    assert d["read_real_us"] is not None
+    out = gui.home_disk({}, {"disk": [d]})
+    assert '<progress class="bar" max="4000" value="2400"' in out
+    assert "os.statvfs(&#x27;/&#x27;)" in out
+
+
+def test_bosh_joy_NOL_bolsa_OLCHANGAN_nol_korinadi(monkeypatch):
+    """Disk to'la: bo'sh = 0 -- bu O'LCHANGAN nol, "—" EMAS."""
+    monkeypatch.setattr(gui.os, "statvfs",
+                        lambda _p: _FakeStatvfs(blocks=1000, bfree=0, bavail=0),
+                        raising=False)
+    d = gui.read_statvfs("/")
+    assert d["free_kb"] == 0
+    out = gui.home_disk({}, {"disk": [d]})
+    assert "v-zero" in out
+    card = gui.card_disk({}, {"disk": [d]})
+    cell = _cell_for(card, "f_bavail")
+    assert "v-zero" in cell and "v-missing" not in cell
+
+
+def test_bir_fayl_tizimi_IKKI_MARTA_korsatilmaydi(tmp_path, monkeypatch):
+    monkeypatch.setattr(gui.os, "statvfs",
+                        lambda _p: _FakeStatvfs(blocks=10, bfree=5, bavail=5),
+                        raising=False)
+    sub = tmp_path / "a"
+    sub.mkdir()
+    out = gui.read_disks([str(tmp_path), str(sub), "/aniq-yoq-yol"])
+    assert len(out) == 1                    # bir xil `st_dev`, yo'q yo'l tushadi
+
+
+def _fake_sys(tmp_path, spec):
+    for name, (typ, state) in spec.items():
+        d = tmp_path / name
+        d.mkdir()
+        (d / "type").write_text(f"{typ}\n", encoding="utf-8")
+        (d / "operstate").write_text(f"{state}\n", encoding="utf-8")
+    return str(tmp_path)
+
+
+def test_tarmoq_holati_interfeys_va_IPv4(tmp_path):
+    sysdir = _fake_sys(tmp_path, {"lo": (772, "unknown"), "eth0": (1, "up")})
+    addrs = {"lo": "127.0.0.1", "eth0": "10.0.2.15"}
+    net = gui.read_network(sysdir, addr_fn=addrs.get)
+    assert net["connected"] is True
+    by = {i["name"]: i for i in net["interfaces"]}
+    assert by["lo"]["loopback"] is True and by["eth0"]["loopback"] is False
+    out = gui.home_network({}, {"net": net})
+    text = visible_text(out)
+    assert "ulangan" in text and "eth0" in text and "10.0.2.15" in text
+    assert "127.0.0.1" not in text           # loopback bosh sahifada ko'rsatilmaydi
+
+
+def test_faqat_loopback_yoki_down_bolsa_ULANMAGAN(tmp_path):
+    sysdir = _fake_sys(tmp_path, {"lo": (772, "unknown"), "eth0": (1, "down")})
+    net = gui.read_network(sysdir, addr_fn=lambda _n: None)
+    assert net["connected"] is False
+    assert "ulanmagan" in visible_text(gui.home_network({}, {"net": net}))
+
+
+def test_tarmoq_oqilmasa_HOLAT_NOMALUM_ulanmagan_EMAS(tmp_path):
+    net = gui.read_network(str(tmp_path / "yoq"), addr_fn=lambda _n: None)
+    assert net["interfaces"] is None and net["connected"] is None
+    assert net["error"]
+    out = gui.home_network({}, {"net": net})
+    big = re.search(r'data-field="network">(.*?)</div>', out, re.S).group(1)
+    assert "ulanmagan" not in visible_text(big) and gui.DASH in big
+
+
+def test_IPv4_oqish_TARMOQ_TRAFIGI_YUBORMAYDI(monkeypatch):
+    """`ipv4_of` faqat ioctl: connect/send/sendto/bind CHAQIRILMAYDI."""
+    fcntl = pytest.importorskip("fcntl")
+    import socket as socket_mod
+    calls: list[str] = []
+
+    class FakeSock:
+        def __init__(self, *a, **k):
+            calls.append("socket")
+
+        def fileno(self):
+            return 99
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            calls.append("close")
+
+        def __getattr__(self, name):
+            calls.append(name)
+            raise AssertionError(f"kutilmagan socket chaqiruvi: {name}")
+
+    def fake_ioctl(fd, req, arg):
+        calls.append(f"ioctl:{req:#x}")
+        return b"\0" * 20 + bytes([10, 0, 2, 15]) + b"\0" * 232
+
+    monkeypatch.setattr(socket_mod, "socket", FakeSock)
+    monkeypatch.setattr(fcntl, "ioctl", fake_ioctl)
+    assert gui.ipv4_of("eth0") == "10.0.2.15"
+    assert calls == ["socket", f"ioctl:{gui.SIOCGIFADDR:#x}", "close"]
+
+
+def test_disk_va_tarmoq_ALOHIDA_va_keshlangan():
+    """`machine()` `live()` dan alohida manba, o'z kesh TTL'i bilan."""
+    gw = gui.Gateway(make_opts())
+    data, src = gw.machine()
+    assert set(data) == {"disk", "net"}
+    assert src.kind == "live" and "os.statvfs" in src.name
+    assert gw.machine()[0] is data
+
+
+# ===========================================================================
+# 14. Avtomatik yangilanish (jurnal 19 §11)
+# ===========================================================================
+
+
+def test_doctor_sahifalari_AVTOMATIK_YANGILANMAYDI(tmp_path):
+    opts = make_opts(datasets_dir=str(tmp_path))
+    for slug, want in (("", "5"), ("services", "5"), ("resources", "5"),
+                       ("system-health", "0"), ("security", "0"), ("help", "0")):
+        ctx = make_ctx(opts)
+        ctx.gw.live = lambda: ({}, LIVE_SRC)       # type: ignore[method-assign]
+        ctx.gw.doctor = lambda: (None, LIVE_SRC)   # type: ignore[method-assign]
+        ctx.gw.machine = lambda: ({}, LIVE_SRC)    # type: ignore[method-assign]
+        out = gui.render_page(slug, ctx)
+        assert f'data-autorefresh-s="{want}"' in out, slug
+        if want == "0":
+            assert 'data-autorefresh-why=""' not in out, slug
+    assert gui.autorefresh_s("system-health") == 0
+    assert gui.autorefresh_s("security") == 0
+    assert gui.autorefresh_s("") == gui.AUTOREFRESH_S == 5
+
+
+def test_app_js_QISMAN_yangilaydi_toliq_reload_EMAS():
+    """`app.js`: fetch + faqat `<main>` almashtiriladi; ekranda yozuv + Pauza."""
+    js = open(gui._asset_files()["app.js"], encoding="utf-8").read()
+    code = re.sub(r"/\*.*?\*/", " ", js, flags=re.S)
+    assert "window.fetch(" in code
+    assert 'querySelector("main")' in code
+    assert "location.reload" not in code
+    assert "http-equiv" not in code.lower()
+    assert "avtomatik yangilanish" in code and "Pauza" in code
+    assert "data-autorefresh-s" in code
+    # Yosh yangi sahifaning server vaqtidan qayta hisoblanadi.
+    assert "data-server-now-real-us" in code
+    # Statik fayl (file://) da yangilanish yo'q.
+    assert "location.protocol" in code
 
 
 def test_404_sahifasi_halol_va_HTML():

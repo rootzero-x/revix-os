@@ -23,6 +23,10 @@ Amalga oshiradigan bandlar:
     darajasi NATIJA; §16.4 -- eksklyuziya darajasi TO'PLAMINI nomlashi SHART;
     §15.4 -- `governor`/`scaling_driver` bu muhitda `None` = o'lchanmadi,
     HECH QACHON `0`; §13 -- arm C (adaptiv engine) muzlatilmagan, demak YO'Q
+  * GUI ning O'Z tirik o'qishlari (orkestrator qarori, jurnal 19 §10):
+    disk sig'imi -- `os.statvfs`; tarmoq interfeyslari -- `/sys/class/net`
+    va `SIOCGIFADDR` ioctl (hech qanday tarmoq trafigi yuborilmaydi).
+    Har yozuv o'z manbasi va o'qish vaqti bilan; xato -> `None`, 0 EMAS.
 
 DIZAYN QOIDALARI (buzilmaydi):
 
@@ -242,19 +246,21 @@ MISSING_SOURCES: dict[str, tuple[str, str]] = {
         "hisoblash bo'lardi (qoida 4), shuning uchun qilinmaydi.",
     ),
     "disk": (
-        "Disk sig'imi va IO",
-        "revix paketida disk o'lchovi YO'Q: `os.statvfs`, `/proc/diskstats` "
-        "va `io.stat` birorta modulda o'qilmaydi. Bundan tashqari `io` "
-        "controller bu mashinada delegated EMAS "
-        "(`cli.OPTIONAL_CONTROLLERS`, `cli.check_io_delegation`), demak "
-        "cgroup darajasidagi IO hisobi privilegiyasiz olinmaydi.",
+        "Disk IO tezligi",
+        "Disk SIG'IMI endi o'qiladi (`os.statvfs`, GUI ning tirik manbasi, "
+        "jurnal 19 §10). Disk o'qish/yozish TEZLIGI esa o'lchanmaydi: "
+        "`/proc/diskstats` va `io.stat` birorta modulda o'qilmaydi, `io` "
+        "controller bu mashinada delegated EMAS (`cli.OPTIONAL_CONTROLLERS`, "
+        "`cli.check_io_delegation`), demak cgroup darajasidagi IO hisobi "
+        "privilegiyasiz olinmaydi.",
     ),
     "network": (
-        "Tarmoq",
-        "revix paketida tarmoq o'lchovi YO'Q: `/proc/net/dev` va socket "
-        "statistikasi birorta modulda o'qilmaydi. P1 tarmoq fault "
+        "Tarmoq trafigi",
+        "Interfeys nomi, holati (`/sys/class/net/*/operstate`) va IPv4 manzili "
+        "endi o'qiladi (jurnal 19 §10). Trafik (bayt/paket, `/proc/net/dev`) "
+        "va socket statistikasi esa o'lchanmaydi: P1 tarmoq fault "
         "injection'ini ishlatmaydi (`tc netem` root talab qiladi), shuning "
-        "uchun uni chiqaradigan modul ham yozilmagan.",
+        "uchun uni chiqaradigan modul yozilmagan.",
     ),
 }
 
@@ -787,6 +793,131 @@ def is_synthetic_run(run_dir: str, run_meta: Any, forced: bool) -> bool:
     return bool(isinstance(run_meta, dict) and run_meta.get("synthetic"))
 
 
+# --- disk va tarmoq: GUI ning o'z tirik o'qishi (jurnal 19 §10) -------------
+#
+# Bu ikki o'qish `cli` da YO'Q va orkestrator qarori bilan GUI gateway'iga
+# qo'shildi: ular HAQIQIY o'lchov (kernel javobi), har yozuv o'z manbasini
+# (`os.statvfs('/')`) va o'qish vaqtini olib yuradi. O'qib bo'lmasa qiymat
+# `None` va `error` sababni aytadi -- HECH QACHON 0.
+
+DISK_SOURCE_LABEL = "os.statvfs"
+NET_SOURCE_LABEL = "/sys/class/net/*/operstate + SIOCGIFADDR ioctl"
+NET_SYS_DIR = "/sys/class/net"
+# `include/uapi/linux/sockios.h`: interfeysning IPv4 manzilini O'QISH.
+SIOCGIFADDR = 0x8915
+# `include/uapi/linux/if_arp.h`: ARPHRD_LOOPBACK.
+ARPHRD_LOOPBACK = 772
+
+
+def read_statvfs(path: str) -> dict[str, Any]:
+    """Bitta fayl tizimining sig'imi, kB da. Xato -> qiymatlar `None`.
+
+    `df` bilan bir xil ma'no: jami = `f_blocks`, band = `f_blocks -
+    f_bfree`, bo'sh = `f_bavail` (oddiy foydalanuvchiga ochiq qism; root
+    uchun zaxira bloklar bo'sh deb HISOBLANMAYDI). Shu sababli band + bo'sh
+    jamidan kichik bo'lishi mumkin -- bu xato emas. Bloklar `f_frsize`
+    birligida; kB ga o'tkazish -- birlik almashtirish, analiz emas.
+    """
+    out: dict[str, Any] = {
+        "path": path, "source": f"{DISK_SOURCE_LABEL}({path!r})",
+        "total_kb": None, "used_kb": None, "free_kb": None,
+        "error": None, "read_real_us": None,
+    }
+    try:
+        st = os.statvfs(path)
+    except (OSError, AttributeError, ValueError) as exc:
+        # AttributeError: `os.statvfs` POSIX'da bor, Windows'da yo'q.
+        out["error"] = repr(exc)
+        return out
+    frsize = int(st.f_frsize or st.f_bsize)
+    out.update(
+        total_kb=int(st.f_blocks) * frsize // 1024,
+        used_kb=(int(st.f_blocks) - int(st.f_bfree)) * frsize // 1024,
+        free_kb=int(st.f_bavail) * frsize // 1024,
+        read_real_us=cli.real_us(),
+    )
+    return out
+
+
+def read_disks(paths: list[str]) -> list[dict[str, Any]]:
+    """Birinchi yo'l (`/`) DOIM; qolganlari faqat MAVJUD va BOSHQA qurilmada
+    bo'lsa (bir fayl tizimini ikki marta ko'rsatmaslik uchun `st_dev`)."""
+    out: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for i, p in enumerate(paths):
+        try:
+            dev = os.stat(p).st_dev
+        except OSError:
+            if i == 0:
+                out.append(read_statvfs(p))
+            continue
+        if dev in seen:
+            continue
+        seen.add(dev)
+        out.append(read_statvfs(p))
+    return out
+
+
+def ipv4_of(ifname: str) -> str | None:
+    """Interfeysning IPv4 manzili -- `SIOCGIFADDR` ioctl orqali.
+
+    TARMOQ TRAFIGI YO'Q: bog'lanmagan UDP socket ochiladi va kernel'dan
+    interfeys manzili SO'RALADI (`ioctl`); `connect`/`send` chaqirilmaydi,
+    hech qanday paket chiqmaydi. Manzil yo'q yoki xato -> `None`.
+    """
+    try:
+        import fcntl  # noqa: PLC0415 -- faqat Linux; Windows'da import yo'q
+        import struct  # noqa: PLC0415
+    except ImportError:
+        return None
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            req = struct.pack("256s", ifname[:15].encode("utf-8", "replace"))
+            res = fcntl.ioctl(s.fileno(), SIOCGIFADDR, req)
+        return socket.inet_ntoa(res[20:24])
+    except OSError:
+        return None
+
+
+def _read_first_line(path: str) -> str | None:
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            return fh.readline().strip()
+    except OSError:
+        return None
+
+
+def read_network(sys_dir: str = NET_SYS_DIR,
+                 addr_fn: Callable[[str], str | None] | None = None) -> dict[str, Any]:
+    """Interfeyslar: nom, `operstate`, loopback-mi, IPv4. Xato -> `None`.
+
+    `connected`: loopback BO'LMAGAN kamida bitta interfeys `operstate=up`.
+    Interfeys ro'yxati o'qilmasa `connected` ham `None` (noma'lum, "yo'q"
+    EMAS).
+    """
+    out: dict[str, Any] = {"source": NET_SOURCE_LABEL, "interfaces": None,
+                           "connected": None, "error": None, "read_real_us": None}
+    try:
+        names = sorted(os.listdir(sys_dir))
+    except OSError as exc:
+        out["error"] = repr(exc)
+        return out
+    fn = addr_fn or ipv4_of
+    ifs: list[dict[str, Any]] = []
+    for name in names:
+        base = os.path.join(sys_dir, name)
+        typ = _read_first_line(os.path.join(base, "type"))
+        loop = (typ == str(ARPHRD_LOOPBACK)) if typ is not None else name == "lo"
+        ifs.append({"name": name,
+                    "operstate": _read_first_line(os.path.join(base, "operstate")),
+                    "loopback": loop,
+                    "ipv4": fn(name)})
+    out["interfaces"] = ifs
+    out["connected"] = any(not i["loopback"] and i["operstate"] == "up" for i in ifs)
+    out["read_real_us"] = cli.real_us()
+    return out
+
+
 class Gateway:
     """Manbalarni o'qiydi va keshlaydi. HECH NARSA HISOBLAMAYDI (qoida 4).
 
@@ -799,6 +930,7 @@ class Gateway:
         self.opts = opts
         self._live: tuple[float, dict[str, Any], Source] | None = None
         self._doctor: tuple[float, dict[str, Any] | None, Source] | None = None
+        self._machine: tuple[float, dict[str, Any], Source] | None = None
 
     # --- 1-daraja: tirik tizim -------------------------------------------
 
@@ -826,6 +958,26 @@ class Gateway:
             error=error,
         )
         self._live = (now, data, src)
+        return data, src
+
+    def machine(self) -> tuple[dict[str, Any], Source]:
+        """Disk sig'imi (`os.statvfs`) va tarmoq interfeyslari -- tirik o'qish.
+
+        `live()` dan ALOHIDA: uning xatosi bu o'qishni yo'qotmasin va
+        aksincha (har yozuv o'z `error` maydoniga ega). `live()` bilan bir
+        xil kesh TTL. Hech qanday tarmoq trafigi yuborilmaydi (§10).
+        """
+        now = time.monotonic()
+        if self._machine is not None and (now - self._machine[0]) < self.opts.cache_s:
+            return self._machine[1], self._machine[2]
+        paths = ["/"]
+        if self.opts.run_dir:
+            paths.append(self.opts.run_dir)
+        paths.append(self.opts.datasets_dir)
+        data = {"disk": read_disks(paths), "net": read_network()}
+        src = Source(kind="live", name=f"{DISK_SOURCE_LABEL} + {NET_SOURCE_LABEL}",
+                     read_real_us=cli.real_us())
+        self._machine = (now, data, src)
         return data, src
 
     def doctor(self) -> tuple[dict[str, Any] | None, Source]:
@@ -1122,30 +1274,90 @@ def card_memory(live: dict[str, Any]) -> str:
     ])
 
 
-def card_disk(live: dict[str, Any]) -> str:
-    """DISK karta -- O'LCHOV MANBASI YO'Q. Faqat PSI IO stall tezligi bor."""
+def _disk_entries(machine: dict[str, Any] | None) -> list[dict[str, Any]]:
+    disks = (machine or {}).get("disk")
+    return [d for d in disks if isinstance(d, dict)] if isinstance(disks, list) else []
+
+
+def _fs_reason(entry: dict[str, Any] | None) -> str:
+    """O'qilmagan fayl tizimi sababi: xato bo'lsa `source_error`."""
+    return REASON_SOURCE_ERROR if entry and entry.get("error") else REASON_NOT_REPORTED
+
+
+def card_disk(live: dict[str, Any], machine: dict[str, Any] | None = None) -> str:
+    """DISK karta -- sig'im `os.statvfs` dan (tirik), IO tezligi YO'Q, PSI io bor."""
     hostio = _host_psi(live, "io")
-    rows = [
-        ("Sig'im / band joy", nosource_html(), "statvfs"),
+    rows: list[tuple[str, str, str]] = []
+    entries = _disk_entries(machine)
+    if not entries:
+        rows.append(("Jami hajm", missing_html(), DISK_SOURCE_LABEL))
+        rows.append(("Band joy", missing_html(), DISK_SOURCE_LABEL))
+        rows.append(("Bo'sh joy (siz uchun)", missing_html(), DISK_SOURCE_LABEL))
+    for d in entries:
+        r = _fs_reason(d)
+        p = str(d.get("path"))
+        src = str(d.get("source"))
+        rows.append((f"Jami hajm ({p})", kb_html(d.get("total_kb"), reason=r), src))
+        rows.append((f"Band joy ({p})", kb_html(d.get("used_kb"), reason=r), "f_blocks - f_bfree"))
+        rows.append((f"Bo'sh joy, siz uchun ({p})", kb_html(d.get("free_kb"), reason=r),
+                     "f_bavail"))
+    rows += [
         ("O'qish / yozish tezligi", nosource_html(), "diskstats"),
         ("Kutish: kimdir kutdi", stall_html(hostio.get("some_rate") if hostio else None),
          "host io some"),
         ("Kutish: hamma kutdi", rate_html(hostio.get("full_rate") if hostio else None),
          "host io full"),
     ]
-    return kv(rows) + nosource_notice("disk")
+    errs = [d for d in entries if d.get("error")]
+    extra = "".join(notice("critical", f"{d.get('source')} o'qilmadi", esc(d.get("error")))
+                    for d in errs)
+    return kv(rows) + extra + nosource_notice("disk")
 
 
-def card_network(live: dict[str, Any]) -> str:
-    """NETWORK karta -- O'LCHOV MANBASI YO'Q. `live` ataylab ishlatilmaydi."""
-    return kv([
-        ("Interfeyslar", nosource_html(), "/proc/net/dev"),
+def _net(machine: dict[str, Any] | None) -> dict[str, Any]:
+    net = (machine or {}).get("net")
+    return net if isinstance(net, dict) else {}
+
+
+def net_state_html(net: dict[str, Any]) -> str:
+    """"ulangan" / "ulanmagan" -- belgi + so'z. O'qilmagan -> "—"."""
+    c = net.get("connected")
+    if c is None:
+        return missing_html(REASON_SOURCE_ERROR if net.get("error") else REASON_NOT_REPORTED)
+    if c:
+        return ('<span class="svc-state ok"><span class="dot" aria-hidden="true">'
+                "●</span>ulangan</span>")
+    return ('<span class="svc-state neutral"><span class="dot" aria-hidden="true">'
+            "○</span>ulanmagan</span>")
+
+
+def card_network(live: dict[str, Any], machine: dict[str, Any] | None = None) -> str:
+    """NETWORK karta -- interfeys/holat/IPv4 (tirik); trafik YO'Q (manba yo'q)."""
+    net = _net(machine)
+    rows: list[tuple[str, str, str]] = [("Holat", net_state_html(net), "operstate")]
+    ifs = net.get("interfaces")
+    if not isinstance(ifs, list):
+        rows.append(("Interfeyslar", missing_html(
+            REASON_SOURCE_ERROR if net.get("error") else REASON_NOT_REPORTED), NET_SYS_DIR))
+    else:
+        for i in ifs:
+            label = f"{i.get('name')}" + (" (loopback)" if i.get("loopback") else "")
+            state = i.get("operstate")
+            addr = i.get("ipv4")
+            val = (text_html(state) + " &middot; IPv4: "
+                   + (text_html(addr) if addr else missing_html(REASON_NOT_REPORTED)))
+            rows.append((label, val, "operstate + SIOCGIFADDR"))
+    rows += [
         ("Bayt / paket", nosource_html(), "/proc/net/dev"),
         ("Ulanishlar (socket)", nosource_html(), "ss"),
-    ]) + nosource_notice("network")
+    ]
+    extra = (notice("critical", "Tarmoq interfeyslari o'qilmadi", esc(net.get("error")))
+             if net.get("error") else "")
+    return kv(rows) + extra + nosource_notice("network")
 
 
-def panel_system_health(live: dict[str, Any], src: Source, now_us: int) -> str:
+def panel_system_health(live: dict[str, Any], src: Source, now_us: int,
+                        machine: dict[str, Any] | None = None) -> str:
     """Spetsifikatsiyaning SYSTEM HEALTH bloki: CPU / MEMORY / DISK / NETWORK.
 
     To'rtta karta bir panelda, va ikkisida (DISK, NETWORK) manba YO'Q --
@@ -1162,8 +1374,8 @@ def panel_system_health(live: dict[str, Any], src: Source, now_us: int) -> str:
     summary.append('<div class="subgrid">')
     for name, card in (("Protsessor (CPU)", card_cpu(live)),
                        ("Xotira (RAM)", card_memory(live)),
-                       ("Disk", card_disk(live)),
-                       ("Tarmoq", card_network(live))):
+                       ("Disk", card_disk(live, machine)),
+                       ("Tarmoq", card_network(live, machine))):
         summary.append(f'<div class="subcard"><h3>{esc(name)}</h3>{card}</div>')
     summary.append("</div>")
     return panel("Tizim holati va resurslar", src, "".join(summary), now_us)
@@ -2028,20 +2240,85 @@ def memory_verdict(health: dict[str, Any]) -> str:
     return '<span class="verdict ok">✓ yetadi</span>'
 
 
-def home_disk(live: dict[str, Any]) -> str:
+def _usage_big(used: Any, total: Any, label: str) -> tuple[str, str] | None:
+    """Band / jami + `<progress>` (XOM kB). Yaroqsiz bo'lsa `None`."""
+    ok = all(isinstance(v, int) and not isinstance(v, bool) for v in (used, total))
+    if not ok or total <= 0 or not 0 <= used <= total:
+        return None
+    big = (f'<span class="val v-num">{esc(cli.human_kb(used))}</span>'
+           f' <span class="of">/ {esc(cli.human_kb(total))}</span>')
+    bar = (f'<progress class="bar" max="{int(total)}" value="{int(used)}"'
+           f' aria-label="{esc(label)}">{esc(cli.human_kb(used))}</progress>')
+    return big, bar
+
+
+def _short_stall(rate: Any) -> str:
+    """Ixcham kutish qatori (ma'no jumlasisiz) -- disk kartasi uchun."""
+    lvl = stall_level(rate)
+    if lvl is None:
+        return f"Disk kutishi: {missing_html(REASON_SCOPE_NO_DATA)}"
+    return (f'Disk kutishi: <strong class="interp" data-level="{lvl}">'
+            f"{esc(STALL_WORDS[lvl][0])}</strong> "
+            f"<small>({esc(STALL_INTERP_LABEL)})</small>")
+
+
+def home_disk(live: dict[str, Any], machine: dict[str, Any] | None = None) -> str:
+    """Disk: `/` ning band / jami (os.statvfs, tirik) + chiziq + bo'sh joy.
+
+    O'qib bo'lmasa -- "—" va sabab (`None`, HECH QACHON 0). PSI io kutishi
+    ikkilamchi qator bo'lib qoladi.
+    """
     rate = _host_psi(live, "io").get("some_rate")
-    return _card("Disk", "disk", nosource_html(),
-                 ["REVIX disk hajmini o'lchamaydi.",
-                  _stall_line(rate, "disk")],
-                 foot=(f"PSI io some = {rate_html(rate)}" if rate is not None
-                       else ""))
+    entries = _disk_entries(machine)
+    root = entries[0] if entries else None
+    lines: list[str] = []
+    bar = ""
+    shown = _usage_big((root or {}).get("used_kb"), (root or {}).get("total_kb"),
+                       "band disk joyi")
+    if shown is not None:
+        big, bar = shown
+    else:
+        big = missing_html(_fs_reason(root))
+        if root and root.get("error"):
+            lines.append(f'<span class="muted">O\'qib bo\'lmadi: {esc(root.get("error"))}</span>')
+    if root is not None:
+        lines.append(f"Bo'sh: {kb_html(root.get('free_kb'), reason=_fs_reason(root))}")
+    for d in entries[1:]:
+        lines.append(f'<span class="muted">{esc(d.get("path"))}: bo\'sh '
+                     f"</span>{kb_html(d.get('free_kb'), reason=_fs_reason(d))}")
+    lines.append(_short_stall(rate))
+    src = esc((root or {}).get("source") or f"{DISK_SOURCE_LABEL}('/')")
+    return _card("Disk", "disk", big, lines, extra=bar,
+                 foot=f"manba: {src} &middot; band = f_blocks &minus; f_bfree")
 
 
-def home_network(_live: dict[str, Any]) -> str:
-    return _card("Tarmoq", "network", nosource_html(),
-                 ["REVIX tarmoqni o'lchamaydi.",
-                  '<span class="muted">Bu tajriba tarmoqdan foydalanmaydi, '
-                  "shuning uchun tarmoq ko'rsatkichi yo'q -- bu xato emas.</span>"])
+NET_HOME_MAX = 3
+
+
+def home_network(_live: dict[str, Any], machine: dict[str, Any] | None = None) -> str:
+    """Tarmoq: ulangan/ulanmagan + interfeys nomlari va IPv4 (trafik YO'Q)."""
+    net = _net(machine)
+    big = net_state_html(net)
+    lines: list[str] = []
+    ifs = net.get("interfaces")
+    if isinstance(ifs, list):
+        real = [i for i in ifs if not i.get("loopback")]
+        for i in real[:NET_HOME_MAX]:
+            addr = i.get("ipv4")
+            a = (f'<code class="addr">{esc(addr)}</code>' if addr
+                 else '<span class="muted">IPv4 yo\'q</span>')
+            lines.append(f'<code>{esc(i.get("name"))}</code> '
+                         f'<span class="muted">{esc(i.get("operstate"))}</span> {a}')
+        if len(real) > NET_HOME_MAX:
+            lines.append(f'<span class="muted">yana {len(real) - NET_HOME_MAX} ta '
+                         "-- Resurslar sahifasida</span>")
+        if not real:
+            lines.append('<span class="muted">Loopback\'dan boshqa interfeys yo\'q.</span>')
+    elif net.get("error"):
+        lines.append(f'<span class="muted">O\'qib bo\'lmadi: {esc(net.get("error"))}</span>')
+    return _card("Tarmoq", "network", big, lines,
+                 foot=("manba: /sys/class/net + ioctl (trafik yuborilmaydi) "
+                       "&middot; bayt/paket o'lchanmaydi"))
 
 
 def home_services(live: dict[str, Any]) -> str:
@@ -2109,11 +2386,13 @@ def home_side() -> str:
 def page_home(ctx: Context) -> str:
     """Bosh sahifa -- oddiy foydalanuvchi uchun birinchi ekran."""
     live, lsrc = ctx.gw.live()
+    machine, _msrc = ctx.gw.machine()
     now = ctx.now_real_us
     return (
         '<div class="home">'
         + home_hero(live, lsrc, now)
-        + home_cpu(live) + home_memory(live) + home_disk(live) + home_network(live)
+        + home_cpu(live) + home_memory(live)
+        + home_disk(live, machine) + home_network(live, machine)
         + home_services(live) + home_side()
         + "</div>"
     )
@@ -2123,11 +2402,12 @@ def page_dashboard(ctx: Context) -> str:
     """Spetsifikatsiyaning yuqori darajadagi shakli: SYSTEM HEALTH / SERVICES /
     RECOVERY ENGINE. Endi "Tadqiqotchi uchun" guruhida (`/overview`)."""
     live, lsrc = ctx.gw.live()
+    machine, _msrc = ctx.gw.machine()
     run, rsrc = ctx.gw.run()
     now = ctx.now_real_us
     return (
         '<div class="grid grid-wide">'
-        + panel_system_health(live, lsrc, now)
+        + panel_system_health(live, lsrc, now, machine)
         + panel_services(live, lsrc, now)
         + panel_recovery_engine(run, rsrc, now)
         + "</div>"
@@ -2162,9 +2442,10 @@ def page_system_health(ctx: Context) -> str:
 
 def page_resources(ctx: Context) -> str:
     live, lsrc = ctx.gw.live()
+    machine, _msrc = ctx.gw.machine()
     now = ctx.now_real_us
     return ('<div class="grid grid-wide">'
-            + panel_system_health(live, lsrc, now)
+            + panel_system_health(live, lsrc, now, machine)
             + panel_psi(live, lsrc, now)
             + panel_slices(live, lsrc, now) + "</div>")
 
@@ -2606,7 +2887,8 @@ def page_help(ctx: Context) -> str:
          esc("O'lchanmadi: qiymat yo'q. Sichqonchani ustiga olib boring -- "
              "sabab bir jumlada chiqadi. Bu HECH QACHON nol degani emas.")],
         [nosource_html(),
-         esc("REVIX bu narsani umuman o'lchamaydi (masalan, disk hajmi, tarmoq).")],
+         esc("REVIX bu narsani umuman o'lchamaydi (masalan, CPU band foizi, "
+             "disk o'qish/yozish tezligi, tarmoq trafigi).")],
         [value_html(0),
          esc("Haqiqiy nol: o'lchandi va natija aynan 0.")],
         [norun_html(),
@@ -2622,10 +2904,18 @@ def page_help(ctx: Context) -> str:
         "bir so'z bilan aytadi (belgi + rang + so'z).",
         "Har kartada katta son -- asosiy javob, pastdagi kichik matn -- "
         "uning ma'nosi va manbasi.",
-        "Ma'lumot avtomatik YANGILANMAYDI: yangilash uchun yuqoridagi "
-        "\"Yangilash\" tugmasini yoki F5 ni bosing. Har panelda o'qilgan vaqt "
-        f"turadi; {STALE_AFTER_S:g} soniyadan eski bo'lsa u qizil va tagiga "
-        "chizilgan bo'ladi.",
+        f"Tirik sahifalar har {AUTOREFRESH_S} soniyada O'ZI yangilanadi "
+        "(yuqorida \"avtomatik yangilanish\" yozuvi; \"Pauza\" tugmasi uni "
+        "to'xtatadi). Tizim holati va Xavfsizlik sahifalari faqat qo'lda "
+        "(\"Yangilash\" yoki F5) yangilanadi, chunki ular doctor tekshiruvini "
+        "ishga tushiradi. Server ma'lumotni qisqa vaqt keshlaydi, shuning uchun "
+        "har panelda haqiqiy o'qilgan vaqt turadi; "
+        f"{STALE_AFTER_S:g} soniyadan eski bo'lsa u qizil va tagiga chizilgan "
+        "bo'ladi.",
+        "Tarmoq kartasidagi IPv4 manzil -- shu kompyuter (yoki virtual "
+        "mashina) ichidagi manzil. VirtualBox NAT rejimida u Windows'dan "
+        "to'g'ridan-to'g'ri ochilmaydi: VM sozlamasida port forward yoki "
+        "host-only tarmoq kerak.",
         "Yorliq yonidagi kichik kulrang matn (masalan `MemTotal`) -- manbadagi "
         "aniq maydon nomi, mutaxassislar uchun.",
         "\"Tadqiqotchi uchun\" menyusidagi sahifalar -- tajriba natijalari va "
@@ -2700,6 +2990,37 @@ class PageDef:
     group: str = "main"
     audience: str = ""
     tech: str = ""
+
+
+# --- avtomatik yangilanish (jurnal 19 §11) -----------------------------------
+#
+# Tirik sahifalar `app.js` tomonidan har AUTOREFRESH_S soniyada qisman
+# yangilanadi (faqat `<main>` almashadi). Server tirik kesh TTL'i
+# (`DEFAULT_CACHE_S`) o'zgarmaydi: 5 s da so'ralgan sahifa ko'pincha keshdan
+# keladi va o'qish yoshi HALOL o'sib boradi (kesh yashirilmaydi).
+AUTOREFRESH_S = 5
+
+# Avtomatik yangilanMAYDIGAN sahifalar -> sabab (ekranda ko'rinadi).
+# NEGA doctor sahifalari: doctor har chaqiruvda vaqtinchalik cgroup yaratadi
+# va subprocess'lar ishlatadi (`cli.py` qoida 4) -- uni 5 s da takrorlash
+# o'lchanayotgan mashinaga keraksiz yuk. Hujjat sahifalari esa o'zgarmaydi.
+NO_AUTOREFRESH: dict[str, str] = {
+    "system-health": "bu sahifa doctor tekshiruvini ishga tushiradi (vaqtinchalik "
+                     "cgroup yaratadi) -- faqat qo'lda yangilanadi",
+    "security": "bu sahifa doctor tekshiruvini ishga tushiradi (vaqtinchalik "
+                "cgroup yaratadi) -- faqat qo'lda yangilanadi",
+    "help": "hujjat sahifasi -- o'zgarmaydi",
+    "policies": "hujjat sahifasi -- o'zgarmaydi",
+    "about": "hujjat sahifasi -- o'zgarmaydi",
+    "settings": "konfiguratsiya sahifasi -- server ishlayotganda o'zgarmaydi",
+}
+
+
+def autorefresh_s(slug: str) -> int:
+    """Sahifaning avtomatik yangilanish davri (0 = o'chiq)."""
+    if slug in NO_AUTOREFRESH or slug not in PAGE_BY_SLUG:
+        return 0
+    return AUTOREFRESH_S
 
 
 GROUP_MAIN = "main"
@@ -2897,7 +3218,8 @@ def layout(page: PageDef, body: str, ctx: Context, have: set[str],
         "style-src 'self'; script-src 'self'\">\n"
         f"<title>REVIX &mdash; {esc(page.title)}</title>\n"
         '<link rel="stylesheet" href="/assets/style.css">\n'
-        f'</head>\n<body class="{grp}">\n'
+        f'</head>\n<body class="{grp}" data-autorefresh-s="{autorefresh_s(page.slug)}"'
+        f' data-autorefresh-why="{esc(NO_AUTOREFRESH.get(page.slug, ""))}">\n'
         '<div class="shell">\n'
         '<aside class="side">'
         '<a class="brand" href="/">REVIX</a>'
@@ -2910,6 +3232,7 @@ def layout(page: PageDef, body: str, ctx: Context, have: set[str],
         '<header class="topbar">'
         f"<h1>{esc(page.title)}</h1>"
         '<span class="spacer"></span>'
+        '<span class="autoref" id="autoref" role="status" aria-live="off"></span>'
         '<a class="refresh" href="" title="Sahifani qayta o\'qish (F5)">'
         "&#x21bb; Yangilash</a>"
         '<span class="clock" id="local-clock"></span>'

@@ -160,6 +160,10 @@ qilish mumkin (pastda, zaifliklar).
 
 ## §6. Avto-yangilanish va yig'ilgan holat
 
+> **YANGILANDI (§11):** birinchi commit'da avto-yangilanish yo'q edi;
+> keyingi orkestrator qarori bilan 5 s lik qisman yangilanish qo'shildi.
+> Quyidagi matn birinchi commit holatini tasvirlaydi.
+
 Avvalgi holat: `app.js` da avto-yangilanish **YO'Q** edi (qoida 2: sahifa
 o'zini jimgina yangilamaydi) — bu SAQLANDI. Yangilash — F5 yoki yangi
 "↻ Yangilash" tugmasi (to'liq qayta yuklash). Shuning uchun miltillash
@@ -232,7 +236,8 @@ Yakuniy skrinshotlar (`docs/architecture/img/`, har biri < 100 KB):
 `19-gui-4-warn-home-SYNTHETIC-1280x800.png`,
 `19-gui-5-fail-services-SYNTHETIC-800x900.png`,
 `19-gui-6-services-1280x800.png`, `19-gui-7-help-1280x800.png`,
-`19-gui-8-resources-1280x800.png`,
+`19-gui-8-resources-1280x1300.png` (2-commit'da yangilangan; 1, 2, 3, 4, 7
+ham 2-commit'da qayta olingan — §12),
 `19-gui-9-research-recovery-events-1280x800.png`,
 `19-gui-10-fail-system-health-SYNTHETIC-1280x800.png`.
 
@@ -248,10 +253,8 @@ bo'ladi" havolasi. Aylantirish shart emas. FAIL holatida qizil ✗ "Muammo
 bor: 2 ta muammo topildi" va oddiy tildagi sabablar (xom matn kichik).
 
 **(b) Qolgan zaifliklar (halol):**
-- Disk va Tarmoq kartalari asosan bo'sh ("—"). Bu halol, lekin oddiy
-  foydalanuvchi "nega disk ko'rsatilmaydi?" deb so'rashi mumkin. Disk
-  sig'imini `os.statvfs` bilan o'qish — alohida qaror (gateway semantikasi
-  va `MISSING_SOURCES` matni o'zgaradi), bu ishda qilinmadi.
+- ~~Disk va Tarmoq kartalari asosan bo'sh~~ — §10 da hal qilindi (disk
+  sig'imi va tarmoq interfeyslari endi o'qiladi).
 - "Tizim yaxshi holatda" — bu `revix health` ning TAJRIBAGA tayyorlik
   hukmi (xotira zaxirasi, qoldiq, oomd, bosim), umumiy kompyuter sog'lig'i
   emas. Jumla ostida nima tekshirilgani yozilgan, lekin noto'g'ri
@@ -266,8 +269,7 @@ bor: 2 ta muammo topildi" va oddiy tildagi sabablar (xom matn kichik).
   so'zi; "taxminiy talqin" yorlig'i bilan.
 - Ba'zi texnik so'zlar (PSI, slice, systemd) oddiy sahifalarda qoldi —
   lug'atga havola bilan; to'liq yo'qotib bo'lmaydi.
-- Avto-yangilanish yo'q (ataylab, qoida 2): ochiq qoldirilgan sahifa 30 s
-  dan keyin qizil "eskirgan" bo'ladi, lekin o'zi yangilanmaydi.
+- ~~Avto-yangilanish yo'q~~ — §11 da qo'shildi (5 s, qisman).
 
 **Tekshirilmagan:** VM ichidagi kiosk Firefox'da yangi dizayn ko'rilmadi
 (VM ishga tushirish va ISO qurish bu vazifada taqiqlangan) — skrinshotlar
@@ -275,3 +277,138 @@ Windows headless Edge'dan. Firefox ESR'da `<progress>` va `details`
 uslublari kutilganidek ishlashi taxmin qilinadi (`::-moz-progress-bar`
 yozilgan), lekin ko'z bilan tekshirilmagan. Tirik `/system-health` va
 `/security` sahifalari (doctor) faqat sintetik fixture bilan ko'rildi.
+
+---
+
+# 2-qism: orkestrator qarorlari (disk, tarmoq, avtomatik yangilanish)
+
+Orkestrator (foydalanuvchi vakolati bilan) ikki qaror berdi: (1) disk
+kartasi haqiqiy disk bandligini ko'rsatsin, tarmoq — agar stdlib bilan
+halol va trafiksiz mumkin bo'lsa — holat, interfeys nomlari va IPv4
+(foydalanuvchiga VM manzili kerak); (2) sahifa jonli monitor — o'zi har
+~5 s da miltillamasdan yangilansin, doctor sahifalaridan tashqari.
+
+## §10. Disk va tarmoq — GUI ning o'z tirik o'qishi
+
+`cli` da bu o'qishlar yo'q, shuning uchun ular `gui.py` gateway'iga
+qo'shildi — yangi metod `Gateway.machine()` (`live()` dan ALOHIDA: biri
+yiqilsa ikkinchisi yo'qolmaydi; `live()` bilan bir xil kesh TTL, 10 s).
+
+**Disk** — `read_statvfs(path)` (`os.statvfs`), `df` ma'nosida:
+jami = `f_blocks`, band = `f_blocks − f_bfree`, bo'sh = `f_bavail`
+(oddiy foydalanuvchiga ochiq qism; root zaxirasi bo'sh deb hisoblanmaydi,
+shuning uchun band + bo'sh < jami bo'lishi mumkin). Bloklar `f_frsize` da,
+kB ga o'tkazish — birlik almashtirish. Yo'llar: `/` DOIM; `--run-dir` va
+`datasets/` faqat mavjud va BOSHQA qurilmada (`st_dev`) bo'lsa. Har yozuv
+o'z manbasini (`os.statvfs('/')`) va o'qish vaqtini olib yuradi. Xato
+(`OSError`, Windows'da `AttributeError`) -> uchala qiymat `None`, `error`
+matni, kartada "—" + `reason=source_error` — HECH QACHON 0. `f_bavail = 0`
+esa O'LCHANGAN nol (`v-zero`) bo'lib ko'rinadi.
+
+Bosh sahifa disk kartasi: band / jami GiB + `<progress>` (XOM kB), "Bo'sh",
+qo'shimcha fayl tizimi bo'lsa uning bo'sh joyi, ikkilamchi qator — PSI io
+"Disk kutishi" talqini, pastda `manba: os.statvfs('/') · band = f_blocks −
+f_bfree`. Resurslar sahifasida har maydon xom nomi bilan (`f_bavail` …).
+Disk IO TEZLIGI hali ham "manba yo'q" (`MISSING_SOURCES["disk"]` matni
+yangilandi).
+
+**Tarmoq** — `read_network()`:
+- interfeyslar: `os.listdir('/sys/class/net')`;
+- holat: `/sys/class/net/<if>/operstate` (`up`/`down`/`unknown`);
+- loopback: `/sys/class/net/<if>/type == 772` (ARPHRD_LOOPBACK);
+- IPv4: `ipv4_of()` — bog'lanmagan UDP socket + `ioctl(SIOCGIFADDR)`.
+  **Trafik yo'q:** `connect`/`send`/`bind` chaqirilmaydi, paket chiqmaydi
+  (test `test_IPv4_oqish_TARMOQ_TRAFIGI_YUBORMAYDI` soxta socket bilan
+  chaqiruvlar ketma-ketligi AYNAN `socket, ioctl(0x8915), close` ekanini
+  qulflaydi). `fcntl`/`struct` funksiya ichida import qilinadi (Windows'da
+  `fcntl` yo'q -> `None`). Faqat birlamchi IPv4; IPv6 ko'rsatilmaydi.
+- "ulangan" = loopback bo'lmagan kamida bitta interfeys `operstate=up`;
+  ro'yxat o'qilmasa — "—" (noma'lum), "ulanmagan" EMAS.
+
+Bosh sahifa: "● ulangan" / "○ ulanmagan", loopback'siz interfeyslar (3 tagacha)
+nomi, holati va IPv4. Bayt/paket va socket statistikasi — "manba yo'q".
+Yordam sahifasiga eslatma: VirtualBox NAT da guest IPv4 (10.0.2.15)
+Windows'dan to'g'ridan-to'g'ri ochilmaydi — port forward yoki host-only kerak.
+
+## §11. Avtomatik yangilanish (qisman, 5 s)
+
+- Server har sahifaga `body[data-autorefresh-s]` beradi: 5 yoki 0.
+  0 (yangilanmaydi): **Tizim holati, Xavfsizlik** (doctor har chaqiruvda
+  vaqtinchalik cgroup yaratadi va subprocess'lar ishlatadi — 5 s da takror
+  keraksiz yuk), shuningdek hujjat sahifalari (Yordam, Recovery
+  siyosatlari, Loyiha haqida, Sozlamalar). Sabab `data-autorefresh-why` da
+  va ekrandagi "avtomatik yangilanish o'chiq" yozuvining `title`ida.
+- `app.js`: `fetch(o'sha URL, no-store)` -> `DOMParser` -> FAQAT `<main>`
+  almashtiriladi (`adoptNode` + `replaceChild`). Saqlanadi: `<details>`
+  holati (kalit+tartib bo'yicha oldingi DOM dan), aylantirish joyi, fokus
+  (tartib raqami bo'yicha, `preventScroll`), menyu va sarlavha (umuman
+  almashmaydi). Yosh yangi sahifaning `data-server-now-real-us` dan qayta
+  hisoblanadi.
+- Keyingi so'rov faqat oldingisi tugagach (`setTimeout` zanjiri, ustma-ust
+  so'rov yo'q). Yangilanish o'tkazib yuboriladi: pauza, sahifa yashirin
+  (`document.hidden`), foydalanuvchi matn belgilagan yoki `title`li
+  element ustida (tooltip o'qilmoqda).
+- Ekranda: "avtomatik yangilanish: 5 s · oxirgi HH:MM:SS" + "Pauza" /
+  "Davom ettirish" tugmasi (holat `localStorage` da). Xato: "yangilanmadi
+  (server javob bermadi HH:MM:SS)" qizil; eski tarkib qoladi, yosh o'sib
+  boradi va 30 s dan keyin `stale` bo'ladi.
+- JS yo'q yoki `file://` (statik render) -> yozuv yo'q / "o'chiq" — yolg'on
+  "yangilanadi" yozuvi chiqmaydi. CSP o'zgarmagan (`default-src 'self'` —
+  `fetch` bir xil origin'ga); inline skript yo'q.
+- Server kesh TTL (10 s) o'zgarmadi: 5 s da so'ralgan sahifa ko'pincha
+  keshdan keladi va o'qish yoshi halol o'sadi (kesh yashirilmaydi).
+
+**Brauzerda tekshirildi** (Claude desktop browser pane, JS orqali):
+`<main>` almashdi (eski elementga qo'yilgan belgi yo'qoldi), ochilgan
+`<details>` ochiq qoldi, `scrollY` 700 -> 700 (scroll hodisasi 0 ta), fokus
+o'sha havolada qoldi, yosh "0 s oldin" ga qaytdi; Pauza bosilganda 8 s
+davomida almashmadi va yosh 15 s gacha o'sdi; server to'xtatilganda yozuv
+"yangilanmadi (server javob bermadi …)" bo'ldi. DIQQAT: pane yashirin
+bo'lgani uchun `document.hidden = true` edi va skript (to'g'ri) yangilamadi —
+sinov uchun `document.hidden` JS bilan `false` qilib qo'yildi. Birinchi
+sinovda fokus tiklangandan keyin sahifa sakradi (0 balandlikli yashirin
+viewport'da) — tartib o'zgartirildi: avval fokus, keyin `scrollTo`.
+
+## §12. Testlar, skrinshotlar, qolgan zaifliklar (2-qism)
+
+Testlar: `test_gui.py` 93 -> **104** (11 yangi): statvfs xatosi -> `None`
+(0 emas, `<progress>` yo'q, `reason=source_error`); `df` ma'nosi va manba
+yorlig'i; bo'sh = 0 -> o'lchangan nol; bir fayl tizimi ikki marta
+ko'rsatilmaydi; tarmoq ulangan / ulanmagan / o'qilmadi (noma'lum);
+IPv4 o'qish trafik yubormaydi; `machine()` alohida va keshlangan; doctor
+sahifalari `data-autorefresh-s="0"`; `app.js` `fetch` + `<main>`,
+`location.reload` yo'q. O'zgartirilgan (qaror o'zgargani uchun):
+`test_disk_va_tarmoq_MANBA_YOQ…` -> `test_disk_IO_va_tarmoq_TRAFIGI_MANBA_YOQ…`
+(sig'im va interfeyslar endi o'lchanadi); bo'sh manba testi `machine()`
+ni ham bo'sh qiladi; body tegi tekshiruvi yangi atributlarga moslandi.
+
+**To'liq to'plam (ext4 `~/gui-clarity-work`):** `1186 passed, 1 skipped`.
+
+Skrinshotlar (qayta olindi, ko'z bilan o'qildi): `19-gui-1-home-1280x800.png`
+(disk 9.5 / 1006.9 GiB, tarmoq "ulangan eth0 172.24.85.43", "avtomatik
+yangilanish: 5 s [Pauza]"), `19-gui-2-home-800x900.png`,
+`19-gui-3-fail-home-SYNTHETIC-1280x800.png` (sintetik disk 17.5 / 20 GiB,
+tarmoq "ulanmagan, enp0s3 down, IPv4 yo'q"), `19-gui-4-warn-…`,
+`19-gui-7-help-1280x800.png`, `19-gui-8-resources-1280x1300.png`.
+Sintetik sahifalar `file://` dan ochilgani uchun ularda "avtomatik
+yangilanish o'chiq" turadi — bu to'g'ri.
+
+**Qolgan zaifliklar:**
+- Server bilan aloqa uzilganda bosh sahifadagi katta jumla (masalan,
+  "Tizim yaxshi holatda") ekranda qoladi; faqat yozuv qizil bo'ladi va
+  yosh 30 s dan keyin `stale` ga o'tadi. Katta jumlaning o'zi xiralashmaydi.
+- `allow_reuse_address = False` (mavjud qaror): avtomatik yangilanish
+  doimiy ulanishlar ochgani uchun serverni qayta ishga tushirishda port
+  ~60 s TIME-WAIT da band bo'lishi mumkin (sinovda ko'rildi). Server kodi
+  o'zgartirilmadi.
+- Har yangilanishda tirik kesh tugagan bo'lsa server PSI uchun 2 s uxlaydi
+  (har 10 s da bir marta). Bu fon yuki juda kichik, lekin o'lchov paytida
+  GUI ochiq bo'lmasligi kerak (`PREREGISTRATION.md` §8.2, jurnal 09).
+- `<main>` almashganda ochiq turgan tooltip yo'qoladi (tooltip ustida
+  sichqoncha turgan bo'lsa almashtirish o'tkazib yuboriladi, lekin
+  klaviatura fokusidagi `title` holatini aniqlab bo'lmaydi).
+- Tarmoq: faqat birlamchi IPv4, IPv6 yo'q; `operstate=unknown` (ba'zi
+  virtual interfeyslar) "ulangan" deb hisoblanmaydi — konservativ.
+- Disk: faqat `/` va datasets fayl tizimi; boshqa mount'lar ko'rsatilmaydi.
+- Firefox ESR (kiosk) da `fetch`/`DOMParser`/`adoptNode` bor deb
+  hisoblanadi, lekin VM ichida ko'z bilan tekshirilmadi.

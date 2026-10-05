@@ -264,6 +264,31 @@ small { font-size: var(--gui-text-small); color: var(--rx-fg-2); font-weight: va
   font-size: 15px;
 }
 .topbar .refresh:hover { background: var(--rx-bg-2); }
+/* Avtomatik yangilanish yozuvi + Pauza tugmasi (JS yaratadi). */
+.autoref {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rx-space-2);
+  font-size: 13px;
+  color: var(--rx-fg-2);
+}
+.autoref:empty { display: none; }
+.autoref.paused .autoref-text { color: var(--rx-fg-0); text-decoration: underline dashed; }
+.autoref.err .autoref-text { color: var(--rx-fail); }
+.autoref.off { font-style: italic; cursor: help; }
+.autoref-toggle {
+  font: inherit;
+  font-size: 13px;
+  color: var(--rx-fg-1);
+  background: var(--rx-bg-0);
+  border: var(--rx-border-strong);
+  border-radius: var(--rx-radius);
+  padding: 2px var(--rx-space-2);
+  cursor: pointer;
+}
+.autoref-toggle:hover { color: var(--rx-fg-0); background: var(--rx-bg-2); }
+.autoref-toggle:focus-visible { outline: var(--rx-focus); outline-offset: 2px; }
+.rcard .addr { color: var(--rx-fg-0); }
 .topbar .clock {
   font-family: var(--rx-font-mono);
   font-size: 13px;
